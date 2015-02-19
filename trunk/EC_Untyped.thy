@@ -1,11 +1,9 @@
 theory EC_Untyped
-imports Main
+imports Main Setsum_Infinite Real_Vector_Spaces
 begin
 
-(*
-definition SetSum :: "('a \<Rightarrow> 'b::{t2_space}) \<Rightarrow> ('a set) \<Rightarrow> 'b" where
-  "SetSum f A = Lim () (setsum f)
-*)
+
+
 
 typedecl val;
 (*coinductive closed_val_set :: "val set \<Rightarrow> bool" where
@@ -62,7 +60,11 @@ fun well_typed :: "program \<Rightarrow> bool" where
   "well_typed (Seq p1 p2) = (well_typed p1 \<and> well_typed p2)"
 | "well_typed (Assign v e) = (e_type e = v_type v)";
 
-typedecl 'a distr;
+typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. \<mu> x \<ge> 0) \<and> (\<exists>b. b\<le>1 \<and> SetSums_to \<mu> UNIV b)}"
+  apply (rule exI[of _ "\<lambda>x. 0"], auto)
+  apply (rule exI[of _ "0"], auto)
+  by (rule setsum_0)
+  
 consts point_distr :: "'a \<Rightarrow> 'a distr";
 consts compose_distr :: "('a \<Rightarrow> 'b distr) \<Rightarrow> 'a distr \<Rightarrow> 'b distr";
 consts in_supp :: "'a \<Rightarrow> 'a distr \<Rightarrow> bool";
