@@ -26,15 +26,29 @@ definition t_domain :: "type \<Rightarrow> val set" where
 definition t_default :: "type \<Rightarrow> val" where
   "t_default t = tr_default (Rep_type t)";
 (* TODO: These should be compatible with "Type TYPE(bool)" ! *)
-axiomatization
+(*axiomatization
    bool_true :: val and bool_false :: val
 where
    bool_true_false: "bool_true \<noteq> bool_false";
 
-definition "bool_type = Abs_type \<lparr> tr_domain={bool_true,bool_false}, tr_default=bool_false \<rparr>"
+definition "bool_type = Abs_type \<lparr> tr_domain={bool_true,bool_false}, tr_default=bool_false \<rparr>"*)
 record variable = 
   v_name::string
   v_type::type;
+
+class prog_type =
+  default +
+  fixes embedding :: "'a \<Rightarrow> val"
+  fixes embedding_inv :: "val \<Rightarrow> 'a"
+  assumes inj_embedding: "embedding_inv (embedding x) = y"
+  assumes val_closed : "closed_val_set (range embedding)";
+
+instantiation "bool" :: prog_type begin
+instance sorry
+end
+definition "Type (_::('a::prog_type) itself) 
+    = Abs_type \<lparr> tr_domain=range (embedding::'a\<Rightarrow>val),
+                 tr_default=embedding (default::'a) \<rparr>";
 
 
 typedef memory = "{(m::variable\<Rightarrow>val). (\<forall>v. m v \<in> t_domain (v_type v))}"
@@ -59,18 +73,20 @@ definition "e_type e == er_type (Rep_expression e)"
 definition "e_vars e == er_vars (Rep_expression e)"
 
 datatype program =
-  Assign "variable" expression
+  Assign variable expression
+| Sample variable expression
 | Seq program program
 | Skip
 | IfTE expression program program
 | While expression program
 
+
 fun well_typed :: "program \<Rightarrow> bool" where
   "well_typed (Seq p1 p2) = (well_typed p1 \<and> well_typed p2)"
 | "well_typed (Assign v e) = (e_type e = v_type v)"
 | "well_typed Skip = True"
-| "well_typed (While e p) = ((e_type e = bool_type) \<and> well_typed p)"
-| "well_typed (IfTE e thn els) = ((e_type e = bool_type) \<and> well_typed thn \<and> well_typed els)";
+| "well_typed (While e p) = ((e_type e = Type TYPE(bool)) \<and> well_typed p)"
+| "well_typed (IfTE e thn els) = ((e_type e = Type TYPE(bool)) \<and> well_typed thn \<and> well_typed els)";
 
 typedef 'a ell1 = "{\<mu>::'a\<Rightarrow>real. SetSums (\<lambda>x. abs(\<mu> x)) UNIV}"
   apply (rule exI[of _ "\<lambda>x. 0"], auto) unfolding SetSums_def
@@ -120,15 +136,15 @@ type_synonym denotation = "memory \<Rightarrow> memory ell1"
 
 fun while_iter :: "nat \<Rightarrow> expression \<Rightarrow> denotation \<Rightarrow> memory \<Rightarrow> memory ell1" where
   "while_iter 0 e p m = point_ell1 m"
-| "while_iter (Suc n) e p m = compose_ell1 (\<lambda>m. if e_fun e m = bool_true then p m else 0)
+| "while_iter (Suc n) e p m = compose_ell1 (\<lambda>m. if e_fun e m = embedding True then p m else 0)
                                             (while_iter n e p m)"
 
 fun denotation :: "program \<Rightarrow> denotation" where
   "denotation (Seq p1 p2) m = compose_ell1 (denotation p2) (denotation p1 m)"
 | "denotation (Assign v e) m = point_ell1 (memory_update m v (e_fun e m))"
 | "denotation (Skip) m = point_ell1 m"
-| "denotation (IfTE e thn els) m = (if (e_fun e m = bool_true) then denotation thn m else denotation els m)"
-| "denotation (While e p) m = (\<Sum>n. compose_ell1 (\<lambda>m. if e_fun e m = bool_true then 0 else point_ell1 m)
+| "denotation (IfTE e thn els) m = (if (e_fun e m = embedding True) then denotation thn m else denotation els m)"
+| "denotation (While e p) m = (\<Sum>n. compose_ell1 (\<lambda>m. if e_fun e m = embedding True then 0 else point_ell1 m)
                                                   (while_iter n e (denotation p) m))"
 
 
