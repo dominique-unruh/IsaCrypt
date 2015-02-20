@@ -1,13 +1,7 @@
 theory EasyCrypt
 imports EC_Untyped
 begin
-  
-class prog_type =
-  default +
-  fixes embedding :: "'a \<Rightarrow> val"
-  fixes embedding_inv :: "val \<Rightarrow> 'a"
-  assumes inj_embedding: "embedding_inv (embedding x) = y"
-  assumes val_closed : "closed_val_set (range embedding)";
+
 
 instantiation unit :: prog_type begin;
 instance sorry
@@ -21,16 +15,6 @@ instantiation "fun" :: (prog_type,prog_type)prog_type begin;
 instance sorry
 end;
 
-instantiation "bool" :: prog_type begin
-definition "default_bool = bool_false"
-definition "embedding_bool b = (if b then bool_true else bool_false)"
-definition "embedding_inv_bool v = (if v=bool_true then True else False)"
-instance sorry
-end
-
-definition "Type (_::('a::prog_type) itself) 
-    = Abs_type \<lparr> tr_domain=range (embedding::'a\<Rightarrow>val),
-                 tr_default=embedding (default::'a) \<rparr>";
 
 typedef ('a::prog_type) Variable = "{(v::variable). v_type v=Type (TYPE('a))}";
   by (rule exI[of _ "\<lparr>v_name=[],v_type=Type (TYPE('a))\<rparr>"], simp);
@@ -75,19 +59,10 @@ lemma well_typed_if [simp]: "well_typed thn \<Longrightarrow> well_typed els \<L
 proof -
   fix thn els assume "well_typed thn" and "well_typed els"
   have "e_type (Rep_Expression e) = Type TYPE(bool)" using Rep_Expression ..
-  have "Type TYPE(bool) = bool_type"
-    unfolding Type_def bool_type_def 
-    unfolding default_bool_def embedding_bool_def[THEN ext]
-    apply auto
-    using default_bool_def
-
+  with `well_typed thn` and `well_typed els`
   show "well_typed (mk_if e thn els)"
-    unfolding mk_if_def apply simp
-    
-  unfolding mk_if_def
-using Rep_Expression
-  apply (auto simp: Rep_Expression)
-
+    unfolding mk_if_def by simp
+qed
   
 
 definition "(x::int Variable) = mk_variable ''x''"
