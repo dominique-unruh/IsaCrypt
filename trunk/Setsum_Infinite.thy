@@ -67,6 +67,9 @@ definition SetSums_to :: "('a \<Rightarrow> 'b::{t2_space,comm_monoid_add}) \<Ri
 definition SetSums :: "('a \<Rightarrow> 'b::{t2_space,comm_monoid_add}) \<Rightarrow> ('a set) \<Rightarrow> bool" where
   "SetSums f A = (\<exists>b. SetSums_to f A b)";
 
+definition SetSum :: "('a \<Rightarrow> 'b::{t2_space,comm_monoid_add}) \<Rightarrow> ('a set) \<Rightarrow> 'b" where
+  "SetSum f A = (THE b. SetSums_to f A b)";
+
 lemma at_top_neq_bot_finite_set: "(at_top::'a finite_set filter) \<noteq> bot"
 unfolding at_top_def
 unfolding filter_eq_iff
