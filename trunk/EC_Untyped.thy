@@ -36,18 +36,17 @@ record variable =
   v_name::string
   v_type::type;
 
-datatype typeID = TConstrID string "typeID list"
+(*datatype typeID = TConstrID string "typeID list"*)
 
 class prog_type =
   default +
   fixes embedding :: "'a \<Rightarrow> val"
   fixes embedding_inv :: "val \<Rightarrow> 'a"
-  fixes type_id :: "'a itself \<Rightarrow> typeID"
+(*  fixes type_id :: "'a itself \<Rightarrow> typeID"*)
   assumes inj_embedding [simp]: "embedding_inv (embedding x) = x"
   assumes val_closed [simp]: "closed_val_set (range embedding)";
 
 instantiation "bool" :: prog_type begin
-definition [simp]: "type_id (_::bool itself) = TConstrID "bool" []"
 instance sorry
 end
 definition "Type (_::('a::prog_type) itself) 
