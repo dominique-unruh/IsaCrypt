@@ -36,14 +36,18 @@ record variable =
   v_name::string
   v_type::type;
 
+datatype typeID = TConstrID string "typeID list"
+
 class prog_type =
   default +
   fixes embedding :: "'a \<Rightarrow> val"
   fixes embedding_inv :: "val \<Rightarrow> 'a"
-  assumes inj_embedding: "embedding_inv (embedding x) = y"
-  assumes val_closed : "closed_val_set (range embedding)";
+  fixes type_id :: "'a itself \<Rightarrow> typeID"
+  assumes inj_embedding [simp]: "embedding_inv (embedding x) = x"
+  assumes val_closed [simp]: "closed_val_set (range embedding)";
 
 instantiation "bool" :: prog_type begin
+definition [simp]: "type_id (_::bool itself) = TConstrID "bool" []"
 instance sorry
 end
 definition "Type (_::('a::prog_type) itself) 
@@ -72,9 +76,44 @@ definition "e_fun e == er_fun (Rep_expression e)"
 definition "e_type e == er_type (Rep_expression e)"
 definition "e_vars e == er_vars (Rep_expression e)"
 
+
+typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. \<mu> x\<ge>0) \<and> (\<exists>b\<le>1. SetSums_to \<mu> UNIV b)}"
+  apply (rule exI[where x="\<lambda>x. 0"], auto) unfolding SetSums_def
+  apply (rule exI[where x=0])
+  using setsum_0 by auto
+definition support :: "'a distr \<Rightarrow> 'a set" where
+  "support \<mu> = {x. Rep_distr \<mu> x > 0}"
+instantiation distr :: (type) zero begin
+definition zero_distr :: "'a distr" where "zero_distr = Abs_distr (\<lambda>x. 0)";
+instance ..
+end
+definition point_distr :: "'a \<Rightarrow> 'a distr" where "point_distr a = Abs_distr (\<lambda>x. if x=a then 1 else 0)";
+consts compose_distr :: "('a \<Rightarrow> 'b distr) \<Rightarrow> 'a distr \<Rightarrow> 'b distr";
+definition apply_to_distr :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
+  "apply_to_distr f = compose_distr (\<lambda>x. point_distr (f x))"
+
+record expressiond_rep =
+  edr_fun :: "memory \<Rightarrow> val distr"
+  edr_type :: type
+  edr_vars :: "variable list"
+typedef expressiond = "{(e::expressiond_rep).
+  (\<forall>m. support (edr_fun e m) \<subseteq> t_domain (edr_type e)) \<and>
+  (\<forall>m1 m2. (\<forall>v\<in>set (edr_vars e). Rep_memory m1 v = Rep_memory m2 v) \<longrightarrow> edr_fun e m1 = edr_fun e m2)}";
+  apply (rule exI[of _ "\<lparr> edr_fun=\<lambda>m. 0,
+                          edr_type=undefined,
+                          edr_vars=[] \<rparr>"], simp);
+  unfolding support_def zero_distr_def
+  apply (subst Abs_distr_inverse, auto)
+  apply (rule exI[where x=0], auto)
+  by (rule setsum_0)
+definition "ed_fun e == edr_fun (Rep_expressiond e)"
+definition "ed_type e == edr_type (Rep_expressiond e)"
+definition "ed_vars e == edr_vars (Rep_expressiond e)"
+
+
 datatype program =
   Assign variable expression
-| Sample variable expression
+| Sample variable expressiond
 | Seq program program
 | Skip
 | IfTE expression program program
@@ -84,6 +123,7 @@ datatype program =
 fun well_typed :: "program \<Rightarrow> bool" where
   "well_typed (Seq p1 p2) = (well_typed p1 \<and> well_typed p2)"
 | "well_typed (Assign v e) = (e_type e = v_type v)"
+| "well_typed (Sample v e) = (ed_type e = v_type v)"
 | "well_typed Skip = True"
 | "well_typed (While e p) = ((e_type e = Type TYPE(bool)) \<and> well_typed p)"
 | "well_typed (IfTE e thn els) = ((e_type e = Type TYPE(bool)) \<and> well_typed thn \<and> well_typed els)";
@@ -130,7 +170,10 @@ end
 
 definition point_ell1 :: "'a \<Rightarrow> 'a ell1" where "point_ell1 a = Abs_ell1 (\<lambda>x. if x=a then 1 else 0)";
 consts compose_ell1 :: "('a \<Rightarrow> 'b ell1) \<Rightarrow> 'a ell1 \<Rightarrow> 'b ell1";
-consts in_supp :: "'a \<Rightarrow> 'a ell1 \<Rightarrow> bool";
+definition apply_to_ell1 :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a ell1 \<Rightarrow> 'b ell1" where
+  "apply_to_ell1 f = compose_ell1 (\<lambda>x. point_ell1 (f x))"
+definition "distr_to_ell1 \<mu> = Abs_ell1 (Rep_distr \<mu>)"
+definition "support_ell1 \<mu> = {x. Rep_ell1 \<mu> x \<noteq> 0}"
 
 type_synonym denotation = "memory \<Rightarrow> memory ell1"
 
@@ -142,20 +185,21 @@ fun while_iter :: "nat \<Rightarrow> expression \<Rightarrow> denotation \<Right
 fun denotation :: "program \<Rightarrow> denotation" where
   "denotation (Seq p1 p2) m = compose_ell1 (denotation p2) (denotation p1 m)"
 | "denotation (Assign v e) m = point_ell1 (memory_update m v (e_fun e m))"
+| "denotation (Sample v e) m = apply_to_ell1 (memory_update m v) (distr_to_ell1 (ed_fun e m))"
 | "denotation (Skip) m = point_ell1 m"
 | "denotation (IfTE e thn els) m = (if (e_fun e m = embedding True) then denotation thn m else denotation els m)"
 | "denotation (While e p) m = (\<Sum>n. compose_ell1 (\<lambda>m. if e_fun e m = embedding True then 0 else point_ell1 m)
                                                   (while_iter n e (denotation p) m))"
 
-
 fun vars :: "program \<Rightarrow> variable list" where
   "vars Skip = []"
 | "vars (Seq p1 p2) = (vars p1) @ (vars p2)"
 | "vars (Assign v e) = v # e_vars e"
+| "vars (Sample v e) = v # ed_vars e"
 | "vars (IfTE e p1 p2) = e_vars e @ vars p1 @ vars p2"
 | "vars (While e p) = e_vars e @ vars p"
 
-definition "hoare pre prog post =
-  (\<forall>m. pre m \<longrightarrow> (\<forall>m'. in_supp m' (denotation prog m) \<longrightarrow> post m))";
+definition uniform :: "'a set \<Rightarrow> 'a distr" where
+  "uniform S = Abs_distr (\<lambda>x. if x \<in> S then 1/(card S) else 0)"
 
 end;
