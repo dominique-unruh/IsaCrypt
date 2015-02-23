@@ -28,7 +28,7 @@ definition "example2 =
   ]"
 
 lemma test2: "hoare (\<lambda>m. True) example2 (\<lambda>m. memory_lookup m x = 15)"
-  unfolding example2_def
+  unfolding example2_def program_def
   unfolding seq.simps
   apply (rule seq_rule[where Q="\<lambda>m. memory_lookup m x = 0"])
   apply (rule assign_rule, simp)

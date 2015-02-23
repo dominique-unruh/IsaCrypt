@@ -157,47 +157,47 @@ section {* Concrete syntax for programs *}
 
 nonterminal program_syntax
 
+syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ]")
+syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ; ]")
 syntax "_seq" :: "program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" (infixr ";" 10)
 syntax "_skip" :: "program_syntax" ("skip")
+syntax "_quote" :: "program \<Rightarrow> program_syntax" ("\<guillemotleft> _ \<guillemotright>" [31] 30)
 syntax "_assign" :: "'a variable \<Rightarrow> 'a \<Rightarrow> program_syntax" (infix ":=" 30)
 syntax "_sample" :: "'a variable \<Rightarrow> 'a \<Rightarrow> program_syntax" (infix "<-" 30)
-syntax "_while" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("while ( _ ) _" [0,20] 20)
 syntax "_ifte" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if ( _ ) _ else _" [0,20] 20)
 syntax "_ifthen" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if ( _ ) _" [0,20] 20)
+syntax "_while" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("while ( _ ) _" [0,20] 20)
+syntax "_assign_quote" :: "'a variable \<Rightarrow> 'a expression \<Rightarrow> program_syntax" ("_ := \<guillemotleft> _ \<guillemotright>" [31,31] 30)
+syntax "_sample_quote" :: "'a variable \<Rightarrow> 'a expression \<Rightarrow> program_syntax" ("_ <- \<guillemotleft> _ \<guillemotright>" [31,31] 30)
+syntax "_while_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("while \<guillemotleft> _ \<guillemotright> _" [0,20] 20)
+syntax "_ifte_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if \<guillemotleft> _ \<guillemotright> _ else _" [0,20] 20)
+syntax "_ifthen_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if \<guillemotleft> _ \<guillemotright> _" [0,20] 20)
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ }")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ ; }")
 consts VAR :: "'a variable \<Rightarrow> 'a" ("$ _" [1000] 999)
-syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ]")
-syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ; ]")
+definition program :: "program \<Rightarrow> program" where "program p = p"
 
-(*
-(* This constant should not occur in final terms, it is used in the parsing process *)
-consts (*"MARK_variable" :: "'a variable \<Rightarrow> 'a"*)
-       "MARK_expression" :: "'a \<Rightarrow> 'a expression"
-*)
-
-ML Const
-parse_translation {*
-  let
+ML {*
+  local
   fun is_variable ctx (v:string list) (c:string) = 
         if member (op=) v c then true
         else
           (case Proof_Context.read_const {proper = true, strict = false} ctx c of
-             Const(vn,Type(@{type_name variable},_)) => true
+             Const(_,Type(@{type_name variable},_)) => true
            | _ => false)
           handle ERROR _ => false
 
   (* known = known variables names *)
-  fun get_variable_names' ctx known l (Const(@{const_syntax VAR},_)$v) = 
+  fun get_variable_names' _ _ l (Const(@{const_syntax VAR},_)$v) = 
         (case v of (Const("_constrain",_) $ (v' as Free(vn,_)) $ _) => (vn,v')::l
                  | (Const("_constrain",_) $ v' $ _) => ("var",v')::l
                  | v' => ("var",v')::l)
     | get_variable_names' ctx known l (v as Free(vn,_)) = if is_variable ctx (!known) vn then (vn,v)::l else l
-    | get_variable_names' ctx known l (Const("_constrain",_)$p$q) = get_variable_names' ctx known l p
+    | get_variable_names' ctx known l (Const("_constrain",_)$p$_) = get_variable_names' ctx known l p
     | get_variable_names' ctx known l (p$q) = let val l'=get_variable_names' ctx known l p in get_variable_names' ctx known l' q end
     | get_variable_names' ctx known l (Abs(_,_,t)) = get_variable_names' ctx known l t
-    | get_variable_names' ctx known l _ = l
-  fun get_variable_names ctx known e = get_variable_names' ctx known [] e (* TODO: remove duplicates *)
+    | get_variable_names' _ _ l _ = l
+  fun get_variable_names ctx known e = distinct (op=) (get_variable_names' ctx known [] e)
 
   fun replace_variable i v e =
     if e=v then Bound i else case e of
@@ -220,116 +220,53 @@ parse_translation {*
   fun add_var known (Free(v,_)) = (if not (member (op=) (!known) v) then known := v :: !known else ())
     | add_var known (Const("_constrain",_)$p$_) = add_var known p
     | add_var _ _ = ()
+
+  in
+
   fun translate_program (ctx:Proof.context) (p:term) =
     let val known = Unsynchronized.ref []
         fun trans (Const("_assign",_) $ x $ e) =
                 (add_var known x;
                  Const(@{const_syntax assign},dummyT) $ x $ translate_expression ctx known e)
+          | trans (Const("_assign_quote",_) $ x $ e) =
+                (add_var known x;
+                 Const(@{const_syntax assign},dummyT) $ x $ e)
           | trans (Const("_sample",_) $ x $ e) =
                 (add_var known x;
                  Const(@{const_syntax sample},dummyT) $ x $ translate_expression ctx known e)
+          | trans (Const("_sample_quote",_) $ x $ e) =
+                (add_var known x;
+                 Const(@{const_syntax sample},dummyT) $ x $ e)
+          | trans (Const("_quote",_) $ p) = p
           | trans (Const("_while",_) $ e $ p) =
                  Const(@{const_syntax while},dummyT) $ (translate_expression ctx known e) $ trans p
+          | trans (Const("_while_quote",_) $ e $ p) =
+                 Const(@{const_syntax while},dummyT) $ e $ trans p
           | trans (Const("_ifthen",_) $ e $ p) =
                  Const(@{const_syntax ifte},dummyT) $ (translate_expression ctx known e) $ trans p $ Const(@{const_syntax Skip},dummyT) 
           | trans (Const("_ifte",_) $ e $ p $ q) =
                  Const(@{const_syntax ifte},dummyT) $ (translate_expression ctx known e) $ trans p $ trans q
+          | trans (Const("_ifthen_quote",_) $ e $ p) =
+                 Const(@{const_syntax ifte},dummyT) $ e $ trans p $ Const(@{const_syntax Skip},dummyT) 
+          | trans (Const("_ifte_quote",_) $ e $ p $ q) =
+                 Const(@{const_syntax ifte},dummyT) $ e $ trans p $ trans q
           | trans (Const("_seq",_) $ p1 $ p2) =
                 Const(@{const_syntax Seq},dummyT) $ trans p1 $ trans p2
           | trans (Const("_skip",_)) = Const(@{const_syntax Skip},dummyT)
           | trans p = raise ERROR ("Invalid program fragment "^(@{make_string} p))
-        val p = trans p
-    in @{print} p; p end
+    in trans p end
+  end *}
 
-  in
-    [("_program", fn ctx => fn p => translate_program ctx (hd p))]
-  end
-*};
+parse_translation {* [("_program", fn ctx => fn p => 
+    Const(@{const_syntax program},dummyT) $ translate_program ctx (hd p))] *};
 
 term " 
   PROGRAM[
-    x := 0;
-    b := True;
-    skip;
+    x := \<guillemotleft>e\<guillemotright>;
     while (b) {
-      b <- uniform UNIV;
-      x := x+1
+      \<guillemotleft>Q\<guillemotright>
     };
-    if (\<not>b) x := 15
+    if \<guillemotleft>(const_expression True)\<guillemotright> x := 15
   ]"
-
-
-(*
-
-(*translations "_assign v e" => "CONST assign v (CONST const_expression e)" *)
-translations "_assign v e" => "CONST assign v (CONST MARK_expression e)"
-translations "_sample v e" => "CONST sample v (CONST MARK_expression e)"
-translations "_while e p" => "CONST Lang_Typed.while (CONST MARK_expression e) p"
-translations "_ifte e p1 p2" => "CONST Lang_Typed.ifte (CONST MARK_expression e) p1 p2"
-translations "_ifthen e p" => "CONST Lang_Typed.ifte (CONST MARK_expression e) p (CONST Skip)"
-translations "_seq p1 p2" => "CONST Seq p1 p2"
-(*translations "_access v" => "CONST MARK_variable v"*)
-
-ML {*
-  fun augment_program (ctx:Proof.context) (p:term) =
-    let fun is_variable c = 
-          (case Proof_Context.read_const {proper = true, strict = false} ctx c of
-             Const(_,Type(@{type_name variable},_)) => true
-           | _ => false)
-          handle ERROR _ => false
-        fun aug _ (*(Const("_constrain",_) $ Free(vn,_) $ Free(_,_))*) (p as Free(vn,_)) = 
-            if is_variable vn then Const(@{const_syntax MARK_variable},dummyT)$p else p
-          | aug _ (p as (Const("_access",_) $ _)) = p (* TODO remove *)
-          | aug _ (p as (Const(@{const_syntax MARK_variable},_) $ _)) = p
-          | aug v ((con as Const("_constrain",_))$p$q) = con$(aug v p)$q
-          | aug v (p$q) = aug v p $ aug v q
-          | aug v (Abs(n,T,t)) = Abs(n,T,aug v t)
-          | aug _ (a as Var _) = a
-          | aug _ (p as Const _) = p
-          | aug _ (p as Bound _) = p
-    in aug [] p end
-*}
-parse_translation {* [("_program", fn ctx => fn p => augment_program ctx (hd p))] *}
-term "PROGRAM[ x := y ]"
-
-
-(* translate_expression e" takes finds each occurrence of "MARK_variable x"
-    and replaces it by a bound variable. Then it applies "const_expression"
-    to the result and applies the resulting expression with "apply_expression" to 
-    all variables that have been replaced.
-
-    Example: MARK_expression x + MARK_expression y
-        \<leadsto> apply_expression (apply_expression (const_expression (\<lambda>x y. x+y)) x) y
-*)
-ML {*
-  fun get_variable_names' l (Const(@{const_syntax MARK_variable},_)$v) = 
-        (case v of (Const("_constrain",_) $ Free(vn,_) $ Free(_,_)) => (vn,v)::l
-                 | _ => (@{print} v; ("x",v)::l))
-    | get_variable_names' l (p$q) = let val l'=get_variable_names' l p in get_variable_names' l' q end
-    | get_variable_names' l (Abs(_,_,t)) = get_variable_names' l t
-    | get_variable_names' l _ = l
-  fun get_variable_names e = rev (get_variable_names' [] e) (* TODO: remove duplicates *)
-
-  fun replace_variable i v (e as Const(@{const_syntax MARK_variable},_)$v') = 
-              if v=v' then Bound i else e
-    | replace_variable i v (e$f) = replace_variable i v e $ replace_variable i v f
-    | replace_variable i v (Abs(n,T,t)) = Abs(n,T,replace_variable (i+1) v t)
-    | replace_variable _ _ e = e
-  fun abstract_variable (vn,v) e = Abs(vn,dummyT,replace_variable 0 v e)
-  fun apply_expression (_,v) e = Const(@{const_name apply_expression},dummyT) $ e $ v
-  fun translate_expression (e:term) = 
-    let val vars = get_variable_names e
-        val rev_vars = rev vars
-        val e = fold abstract_variable rev_vars e
-        val e = Const(@{const_name const_expression},dummyT) $ e
-        val e = fold apply_expression vars e
-    in
-      e
-    end
-*}
-(* PROBLEM: the MARK_expression rewrite is done before _program rewrite *)
-parse_translation {* [(@{const_syntax MARK_expression}, fn ctx => fn p => translate_expression (hd p))] *}
-declare [[syntax_ast_trace = true]] term "\<lambda>z. PROGRAM[ x := (z+y) ]"
-*)
 
 end
