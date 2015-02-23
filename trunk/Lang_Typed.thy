@@ -123,13 +123,6 @@ definition "sample (v::('a::prog_type) variable) (e::'a distr expression) =
 lemma well_typed_mk_sample [simp]: "well_typed (sample v e)";
   unfolding sample_def by simp
 
-(* deprecated \<rightarrow> use parser instead *)  
-fun seq :: "program list \<Rightarrow> program" where
-  "seq [] = Skip"
-| "seq [p] = p"
-| "seq (p#pp) = Seq p (seq pp)";
-
-
 definition ifte :: "bool expression \<Rightarrow> program \<Rightarrow> program \<Rightarrow> program" where
   "ifte e thn els = IfTE (mk_expression_untyped e) thn els"
 
@@ -155,27 +148,33 @@ lemma "denotation (while e p) m = (\<Sum>n. compose_ell1 (\<lambda>m. if e_fun e
 
 section {* Concrete syntax for programs *}
 
+subsection {* Grammar *}
+
 nonterminal program_syntax
 
-syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ; ]")
+syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _; ]")
 syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ]")
-syntax "_seq" :: "program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" (infixl ";" 10)
+syntax "_seq" :: "program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("_;/ _" [10,11] 10)
 syntax "_skip" :: "program_syntax" ("skip")
 syntax "_quote" :: "program \<Rightarrow> program_syntax" ("\<guillemotleft>_\<guillemotright>" [31] 30)
 syntax "_assign" :: "'a variable \<Rightarrow> 'a \<Rightarrow> program_syntax" (infix ":=" 30)
 syntax "_sample" :: "'a variable \<Rightarrow> 'a \<Rightarrow> program_syntax" (infix "<-" 30)
-syntax "_ifte" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if (_) _ else _" [0,20] 20)
-syntax "_ifthen" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if (_) _" [0,20] 20)
-syntax "_while" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("while (_) _" [0,20] 20)
+syntax "_ifte" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(_') (2_) else (2_)" [0,20] 20)
+syntax "_ifthen" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(_') (2_)" [0,20] 20)
+syntax "_while" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("while '(_') (2_)" [0,20] 20)
 syntax "_assign_quote" :: "'a variable \<Rightarrow> 'a expression \<Rightarrow> program_syntax" ("_ := \<guillemotleft>_\<guillemotright>" [31,31] 30)
 syntax "_sample_quote" :: "'a variable \<Rightarrow> 'a expression \<Rightarrow> program_syntax" ("_ <- \<guillemotleft>_\<guillemotright>" [31,31] 30)
-syntax "_while_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("while \<guillemotleft>_\<guillemotright> _" [0,20] 20)
-syntax "_ifte_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if \<guillemotleft>_\<guillemotright> _ else _" [0,20] 20)
-syntax "_ifthen_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if \<guillemotleft>_\<guillemotright> _" [0,20] 20)
+syntax "_while_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("while '(\<guillemotleft>_\<guillemotright>') (2_)" [0,20] 20)
+syntax "_ifte_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_) else _" [0,20] 20)
+syntax "_ifthen_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_)" [0,20] 20)
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ }")
-syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ ; }")
-consts VAR :: "'a variable \<Rightarrow> 'a" ("$ _" [1000] 999)
+syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_')")
+syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_;')")
+syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _; }")
+consts VAR :: "'a variable \<Rightarrow> 'a" ("$_" [1000] 999)
 definition program :: "program \<Rightarrow> program" where "program p = p"
+
+subsection {* Translation functions *}
 
 ML {*
   local
@@ -262,17 +261,28 @@ parse_translation {* [("_program", fn ctx => fn p =>
 
 ML {*
   local
+    fun translate_expression_back (Const(@{const_syntax const_expression},_) $ e) = e
+      | translate_expression_back (Const(@{const_syntax apply_expression},_) $ e $ x) =
+            Term.betapply (translate_expression_back e, Const(@{const_syntax VAR},dummyT) $ x)
+      | translate_expression_back _ = (raise (ERROR ("translate_expression_back: error")))
   in
   fun translate_program_back _ p = 
     let fun trans (Const(@{const_syntax Skip},_)) = Const("_skip",dummyT)
           | trans (Const(@{const_syntax assign},_)$x$e) =
-               Const("_assign_quote",dummyT) $ x $ e
+               (Const("_assign",dummyT) $ x $ translate_expression_back e
+                handle ERROR _ => Const("_assign_quote",dummyT) $ x $ e)
           | trans (Const(@{const_syntax sample},_)$x$e) =
-               Const("_sample_quote",dummyT) $ x $ e
+               (Const("_sample",dummyT) $ x $ translate_expression_back e
+                handle ERROR _ => Const("_sample_quote",dummyT) $ x $ e)
           | trans (Const(@{const_syntax while},_)$e$p) =
-               Const("_while_quote",dummyT) $ e $ trans p
+               (Const("_while",dummyT) $ translate_expression_back e $ trans p
+                handle ERROR _ => Const("_while_quote",dummyT) $ e $ trans p)
+          | trans (Const(@{const_syntax ifte},_)$e$p$Const(@{const_syntax Skip},_)) =
+               (Const("_ifthen",dummyT) $ translate_expression_back e $ trans p
+                handle ERROR _ => Const("_ifthen_quote",dummyT) $ e $ trans p)
           | trans (Const(@{const_syntax ifte},_)$e$p$q) =
-               Const("_ifte_quote",dummyT) $ e $ trans p $ trans q
+               (Const("_ifte",dummyT) $ translate_expression_back e $ trans p $ trans q
+                handle ERROR _ => Const("_ifte_quote",dummyT) $ e $ trans p $ trans q)
           | trans (Const(@{const_syntax Seq},_)$p$q) =
                Const("_seq",dummyT) $ trans p $ trans q
           | trans p = Const("_quote",dummyT) $ p
@@ -280,22 +290,7 @@ ML {*
   end
 *}
 
-print_translation {*
-  [(@{const_syntax program}, fn ctx => fn p => 
-    Const("_program",dummyT) $ translate_program_back ctx (hd p))] *};
+print_translation {* [(@{const_syntax program}, fn ctx => fn p => Const("_program",dummyT) $ translate_program_back ctx (hd p))] *};
 
-term "program Skip"
-term "program (assign x (const_expression 1))"
-
-term "program (Seq (Seq Skip Skip) Skip)"
-
-term " 
-  PROGRAM[
-    x := \<guillemotleft>e\<guillemotright>;
-    while (b) {
-      \<guillemotleft>Q\<guillemotright>
-    };
-    if \<guillemotleft>(const_expression True)\<guillemotright> x := 15
-  ]"
 
 end
