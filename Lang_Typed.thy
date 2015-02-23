@@ -165,13 +165,13 @@ syntax "_ifte" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_synta
 syntax "_ifthen" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if ( _ ) _" [0,20] 20)
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ }")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ ; }")
-syntax "" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ]")
-syntax "" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ; ]")
+consts MARK_variable :: "'a variable \<Rightarrow> 'a" ("$ _" [1000] 999)
+syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ]")
+syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ; ]")
 
 (* This constant should not occur in final terms, it is used in the parsing process *)
-consts "MARK_variable" :: "'a variable \<Rightarrow> 'a"
+consts (*"MARK_variable" :: "'a variable \<Rightarrow> 'a"*)
        "MARK_expression" :: "'a \<Rightarrow> 'a expression"
-syntax "_access" :: "'a variable \<Rightarrow> 'a" ("$ _" [1000] 999)
 
 (*translations "_assign v e" => "CONST assign v (CONST const_expression e)" *)
 translations "_assign v e" => "CONST assign v (CONST MARK_expression e)"
@@ -180,7 +180,31 @@ translations "_while e p" => "CONST Lang_Typed.while (CONST MARK_expression e) p
 translations "_ifte e p1 p2" => "CONST Lang_Typed.ifte (CONST MARK_expression e) p1 p2"
 translations "_ifthen e p" => "CONST Lang_Typed.ifte (CONST MARK_expression e) p (CONST Skip)"
 translations "_seq p1 p2" => "CONST Seq p1 p2"
-translations "_access v" => "CONST MARK_variable v"
+(*translations "_access v" => "CONST MARK_variable v"*)
+
+ML {*
+  fun augment_program (ctx:Proof.context) (p:term) =
+    let fun is_variable c = 
+          (case Proof_Context.read_const {proper = true, strict = false} ctx c of
+             Const(_,Type(@{type_name variable},_)) => true
+           | _ => false)
+          handle ERROR _ => false
+        fun aug _ (*(Const("_constrain",_) $ Free(vn,_) $ Free(_,_))*) (p as Free(vn,_)) = 
+            if is_variable vn then Const(@{const_syntax MARK_variable},dummyT)$p else p
+          | aug _ (p as (Const("_access",_) $ _)) = p (* TODO remove *)
+          | aug _ (p as (Const(@{const_syntax MARK_variable},_) $ _)) = p
+          | aug v ((con as Const("_constrain",_))$p$q) = con$(aug v p)$q
+          | aug v (p$q) = aug v p $ aug v q
+          | aug v (Abs(n,T,t)) = Abs(n,T,aug v t)
+          | aug _ (a as Var _) = a
+          | aug _ (p as Const _) = p
+          | aug _ (p as Bound _) = p
+    in aug [] p end
+*}
+consts y :: "int variable"
+parse_translation {* [("_program", fn ctx => fn p => augment_program ctx (hd p))] *}
+term "PROGRAM[ x := y ]"
+
 
 (* translate_expression e" takes finds each occurrence of "MARK_variable x"
     and replaces it by a bound variable. Then it applies "const_expression"
@@ -216,9 +240,9 @@ ML {*
       e
     end
 *}
+(* PROBLEM: the MARK_expression rewrite is done before _program rewrite *)
 parse_translation {* [(@{const_syntax MARK_expression}, fn ctx => fn p => translate_expression (hd p))] *}
-consts y :: "int variable"
-declare [[syntax_ast_trace = false]] term "\<lambda>z. PROGRAM[ x := ($z+$y) ]"
+declare [[syntax_ast_trace = true]] term "\<lambda>z. PROGRAM[ x := (z+y) ]"
 
 
 end
