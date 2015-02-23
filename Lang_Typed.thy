@@ -171,7 +171,7 @@ syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ }")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_')")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_;')")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _; }")
-consts VAR :: "'a variable \<Rightarrow> 'a" ("$_" [1000] 999)
+syntax "_var_access" :: "'a variable \<Rightarrow> 'a" ("$_" [1000] 999)
 definition program :: "program \<Rightarrow> program" where "program p = p"
 
 subsection {* Translation functions *}
@@ -187,7 +187,7 @@ ML {*
           handle ERROR _ => false
 
   (* known = known variables names *)
-  fun get_variable_names' _ _ l (Const(@{const_syntax VAR},_)$v) = 
+  fun get_variable_names' _ _ l (Const("_var_access",_)$v) = 
         (case v of (Const("_constrain",_) $ (v' as Free(vn,_)) $ _) => (vn,v')::l
                  | (Const("_constrain",_) $ v' $ _) => ("var",v')::l
                  | v' => ("var",v')::l)
@@ -200,7 +200,7 @@ ML {*
 
   fun replace_variable i v e =
     if e=v then Bound i else case e of
-      (Const(@{const_syntax VAR},_) $ e) => replace_variable i v e
+      (Const("_var_access",_) $ e) => replace_variable i v e
     | e$f => replace_variable i v e $ replace_variable i v f
     | Abs(n,T,t) => Abs(n,T,replace_variable (i+1) v t)
     | e => e
@@ -263,7 +263,7 @@ ML {*
   local
     fun translate_expression_back (Const(@{const_syntax const_expression},_) $ e) = e
       | translate_expression_back (Const(@{const_syntax apply_expression},_) $ e $ x) =
-            Term.betapply (translate_expression_back e, Const(@{const_syntax VAR},dummyT) $ x)
+            Term.betapply (translate_expression_back e, Const("_var_access",dummyT) $ x)
       | translate_expression_back _ = (raise (ERROR ("translate_expression_back: error")))
   in
   fun translate_program_back _ p = 
