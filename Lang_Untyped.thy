@@ -1,14 +1,7 @@
 theory Lang_Untyped
-imports Main Setsum_Infinite Orderings Series Ell1
+imports Main Setsum_Infinite Orderings Series Ell1 Universe
 begin
 
-typedecl val;
-(*coinductive closed_val_set :: "val set \<Rightarrow> bool" where
-  "closed_val_set x \<Longrightarrow> y \<subseteq> x \<Longrightarrow> closed_val_set y"
-| "closed_val_set x \<Longrightarrow> closed_val_set y \<Longrightarrow>
-   (\<exists>z f. closed_val_set z \<and> *)
-axiomatization closed_val_set :: "val set \<Rightarrow> bool" where
-  closed_val_set_undefined: "closed_val_set {undefined}";
 
 record type_rep = 
   tr_domain :: "val set"
@@ -24,23 +17,10 @@ record variable_untyped =
   vu_name::variable_name
   vu_type::type;
 
-class prog_type =
-  default +
-  fixes embedding :: "'a \<Rightarrow> val"
-  fixes embedding_inv :: "val \<Rightarrow> 'a"
-(*  fixes type_id :: "'a itself \<Rightarrow> typeID"*)
-  assumes embedding_inv_embedding [simp]: "embedding_inv (embedding x) = x"
-  assumes val_closed [simp]: "closed_val_set (range embedding)";
+definition "bool_type =
+      Abs_type \<lparr> tr_domain=range (embedding::bool\<Rightarrow>val),
+                 tr_default=embedding (default::bool) \<rparr>"
 
-lemma embedding_inv [simp]: "(embedding x = embedding y) = (x = y)"
-  by (metis embedding_inv_embedding)
-
-instantiation "bool" :: prog_type begin
-instance sorry
-end
-definition "Type (_::('a::prog_type) itself) 
-    = Abs_type \<lparr> tr_domain=range (embedding::'a\<Rightarrow>val),
-                 tr_default=embedding (default::'a) \<rparr>";
 
 
 typedef memory = "{(m::variable_untyped\<Rightarrow>val). (\<forall>v. m v \<in> t_domain (vu_type v))}"
@@ -106,8 +86,8 @@ fun well_typed :: "program \<Rightarrow> bool" where
 | "well_typed (Assign v e) = (eu_type e = vu_type v)"
 | "well_typed (Sample v e) = (ed_type e = vu_type v)"
 | "well_typed Skip = True"
-| "well_typed (While e p) = ((eu_type e = Type TYPE(bool)) \<and> well_typed p)"
-| "well_typed (IfTE e thn els) = ((eu_type e = Type TYPE(bool)) \<and> well_typed thn \<and> well_typed els)";
+| "well_typed (While e p) = ((eu_type e = bool_type) \<and> well_typed p)"
+| "well_typed (IfTE e thn els) = ((eu_type e = bool_type) \<and> well_typed thn \<and> well_typed els)";
 
 type_synonym denotation = "memory \<Rightarrow> memory ell1"
 

@@ -73,5 +73,7 @@ lemma distr_to_ell1_apply_comm [simp]: "distr_to_ell1 (apply_to_distr f \<mu>) =
   sorry
 lemma apply_to_ell1_twice [simp]: "apply_to_ell1 f (apply_to_ell1 g \<mu>) = apply_to_ell1 (\<lambda>x. f (g x)) \<mu>"
   sorry
+lemma support_distr_apply [simp]: "support_distr (apply_distr f \<mu>) = f ` (support_distr \<mu>)"
+  sorry
 
 end
