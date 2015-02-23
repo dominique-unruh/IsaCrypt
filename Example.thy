@@ -20,9 +20,9 @@ definition "example2 =
   PROGRAM[
     x := 0;
     b := True;
-    while ($b) {
+    while (b) {
       b <- uniform UNIV;
-      x := $x+1
+      x := x+1
     };
     if (\<not>$b) x := 15
   ]"
