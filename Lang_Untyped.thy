@@ -114,4 +114,6 @@ fun vars :: "program \<Rightarrow> variable_untyped list" where
 | "vars (IfTE e p1 p2) = eu_vars e @ vars p1 @ vars p2"
 | "vars (While e p) = eu_vars e @ vars p"
 
+definition "lossless p = (\<forall>m. weight_ell1 (denotation p m) = 1)"
+
 end;

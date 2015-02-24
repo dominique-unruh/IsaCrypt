@@ -7,18 +7,17 @@ definition hoare :: "(memory \<Rightarrow> bool) \<Rightarrow> program \<Rightar
   (\<forall>m. pre m \<longrightarrow> (\<forall>m'. m' \<in> support_ell1 (denotation prog m) 
                   \<longrightarrow> post m'))";
 
-
 lemma seq_rule:
   fixes P Q R c d
   assumes "hoare P c Q" and "hoare Q d R"
   shows "hoare P (Seq c d) R"
-  sorry
+  using assms unfolding hoare_def by auto
 
 lemma assign_rule:
   fixes P Q c x
   assumes "\<forall>m. P m \<longrightarrow> Q (memory_update_untyped m x (eu_fun e m))"
   shows "hoare P (Assign x e) Q"
-  sorry
+  using assms unfolding hoare_def by simp
 
 lemma while_rule:
   fixes P Q I c p
@@ -33,22 +32,22 @@ lemma iftrue_rule:
   assumes "hoare P p1 Q"
           "\<forall>m. P m \<longrightarrow> eu_fun e m = embedding True"
   shows "hoare P (IfTE e p1 p2) Q"
-  sorry
+  using assms unfolding hoare_def by auto
 
 lemma iffalse_rule:
   fixes P Q I c p1 p2
   assumes "hoare P p2 Q"
           "\<forall>m. P m \<longrightarrow> eu_fun e m \<noteq> embedding True"
   shows "hoare P (IfTE e p1 p2) Q"
-  sorry
+  using assms unfolding hoare_def by simp
 
 lemma true_rule: "(\<forall>m. Q m) \<Longrightarrow> hoare P c Q"
-  unfolding hoare_def by auto
+  unfolding hoare_def by simp
 
 lemma skip_rule:
   assumes "\<forall>m. P m \<longrightarrow> Q m"
   shows "hoare P Skip Q"
-  sorry
+  unfolding hoare_def using assms by simp
 
 lemma conseq_rule:
   assumes "\<forall>m. P m \<longrightarrow> P' m"

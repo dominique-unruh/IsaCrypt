@@ -1,5 +1,5 @@
 theory Ell1
-imports Main Setsum_Infinite Real_Vector_Spaces
+imports Main Setsum_Infinite Real_Vector_Spaces Complete_Lattices
 begin
 
 section {* ell1 (absolutely convergent real series) *}
@@ -42,14 +42,34 @@ instantiation ell1 :: (type) ordered_real_vector begin
 instance apply intro_classes sorry
 end
 
+definition "weight_ell1 \<mu> = SetSum (\<lambda>x. Rep_ell1 \<mu> x) UNIV"
 
 definition point_ell1 :: "'a \<Rightarrow> 'a ell1" where "point_ell1 a = Abs_ell1 (\<lambda>x. if x=a then 1 else 0)";
+lemma weight_point_ell1 [simp]: "weight_ell1 (point_ell1 x) = 1"
+  sorry
+
 consts compose_ell1 :: "('a \<Rightarrow> 'b ell1) \<Rightarrow> 'a ell1 \<Rightarrow> 'b ell1";
 definition apply_to_ell1 :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a ell1 \<Rightarrow> 'b ell1" where
   "apply_to_ell1 f = compose_ell1 (\<lambda>x. point_ell1 (f x))"
 definition "support_ell1 \<mu> = {x. Rep_ell1 \<mu> x \<noteq> 0}"
 
 lemma apply_to_ell1_twice [simp]: "apply_to_ell1 f (apply_to_ell1 g \<mu>) = apply_to_ell1 (\<lambda>x. f (g x)) \<mu>"
+  sorry
+
+lemma support_compose_ell1 [simp]: "support_ell1 (compose_ell1 f g) = (\<Union>x\<in>support_ell1 g. support_ell1 (f x))"
+  sorry
+
+lemma support_point_ell1 [simp]: "support_ell1 (point_ell1 x) = {x}"
+  sorry
+
+definition "product_ell1 \<mu> \<nu> = Abs_ell1 (\<lambda>(x,y). Rep_ell1 \<mu> x * Rep_ell1 \<nu> y)"
+lemma fst_product_ell1 [simp]: "apply_to_ell1 fst (product_ell1 \<mu> \<nu>) = weight_ell1 \<nu> *\<^sub>R \<mu>"
+  sorry
+lemma snd_product_ell1 [simp]: "apply_to_ell1 snd (product_ell1 \<mu> \<nu>) = weight_ell1 \<mu> *\<^sub>R \<nu>"
+  sorry
+lemma support_product_ell1 [simp]: "support_ell1 (product_ell1 \<mu> \<nu>) = support_ell1 \<mu> \<times> support_ell1 \<nu>"
+  sorry
+lemma product_ell1_sym: "apply_to_ell1 (\<lambda>(x,y). (y,x)) (product_ell1 \<mu> \<nu>) = product_ell1 \<nu> \<mu>"
   sorry
 
 section {* Distributions (with weight \<le> 1) *}
