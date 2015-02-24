@@ -78,6 +78,11 @@ lemma support_product_ell1 [simp]: "support_ell1 (product_ell1 \<mu> \<nu>) = su
 lemma product_ell1_sym: "apply_to_ell1 (\<lambda>(x,y). (y,x)) (product_ell1 \<mu> \<nu>) = product_ell1 \<nu> \<mu>"
   sorry
 
+lemma apply_to_point_ell1 [simp]: "apply_to_ell1 f (point_ell1 x) = point_ell1 (f x)"
+  sorry
+lemma point_ell1_inj: "point_ell1 x = point_ell1 y \<Longrightarrow> x = y"
+  sorry
+
 section {* Distributions (with weight \<le> 1) *}
 
 typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. \<mu> x\<ge>0) \<and> (\<exists>b\<le>1. SetSums_to \<mu> UNIV b)}"
@@ -106,7 +111,10 @@ definition "distr_to_ell1 \<mu> = Abs_ell1 (Rep_distr \<mu>)"
 
 lemma distr_to_ell1_apply_comm [simp]: "distr_to_ell1 (apply_to_distr f \<mu>) = apply_to_ell1 f (distr_to_ell1 \<mu>)"
   sorry
-lemma support_distr_apply [simp]: "support_distr (apply_distr f \<mu>) = f ` (support_distr \<mu>)"
+lemma support_distr_apply [simp]: "support_distr (apply_to_distr f \<mu>) = f ` (support_distr \<mu>)"
   sorry
+lemma support_distr_to_ell1 [simp]: "support_ell1 (distr_to_ell1 \<mu>) = support_distr \<mu>"
+  sorry
+
 
 end
