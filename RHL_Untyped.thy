@@ -22,7 +22,7 @@ lemma rconseq_rule:
   using assms unfolding rhoare_def by metis
 
 (*
-TODO:
+TODO: (https://www.easycrypt.info/trac/raw-attachment/wiki/BibTex/Barthe.2009.POPL.pdf)
 - ass
 - rand (+ hoare)
 - cond
@@ -30,6 +30,9 @@ TODO:
 - sym
 - trans
 - case (+ hoare)
+
+Is there a rule like:
+ \<forall>m2. {Q &m m2} c {P &m m2} \<Longrightarrow> {Q} c ~ skip {P} ?
 *)
 
 end
