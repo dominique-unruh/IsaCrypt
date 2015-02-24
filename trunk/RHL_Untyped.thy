@@ -12,7 +12,9 @@ definition rhoare :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightar
 lemma rskip_rule:
   assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q m1 m2"
   shows "rhoare P Skip Skip Q"
-  sorry
+  unfolding rhoare_def apply (rule, rule, rule)
+  apply (rule_tac x="point_ell1 (m1,m2)" in exI)
+  using assms by simp
 
 lemma rconseq_rule:
   assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> P' m1 m2"
@@ -79,15 +81,52 @@ apply (rule rassign_rule1)
 using assms by simp
 
 (*
+lemma rnd_rule:
+  assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow> \<forall>y\<in>support_distr (ed_fun e m2). y = f (f' y)"
+      and "\<And>m1 m2. P m1 m2 \<Longrightarrow> \<forall>x\<in>support_distr (ed_fun d m1). x = f' (f x)"
+      and "\<And>m1 m2. P m1 m2 \<Longrightarrow> \<forall>y\<in>support_distr (ed_fun e m2). prob (ed_fun e m2) y = prob (ed_fun d m1) (f' y)"
+      and "\<And>m1 m2. P m1 m2 \<Longrightarrow> \<forall>x\<in>support_distr (ed_fun d m1). f x \<in> support_distr (ed_fun e m2)"
+      and "\<And>m1 m2. P m1 m2 \<Longrightarrow> \<forall>x\<in>support_distr (ed_fun d m1). Q (memory_update_untyped m1 x) (memory_update_untyped m2 (f x))"
+  shows "rhoare P (Sample x d) (Sample y e) Q"
+*)
+
+lemma rnd_rule:
+  assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow> apply_to_distr fst (\<mu> m1 m2) = ed_fun d m1"
+      and "\<And>m1 m2. P m1 m2 \<Longrightarrow> apply_to_distr snd (\<mu> m1 m2) = ed_fun e m2"
+      and "\<And>m1 m2. P m1 m2 \<Longrightarrow> \<forall>(xval,yval)\<in>support_distr (\<mu> m1 m2). Q (memory_update_untyped m1 x xval) (memory_update_untyped m2 y yval)"
+  shows "rhoare P (Sample x d) (Sample y e) Q"
+  unfolding rhoare_def apply rule+ defer apply rule
+proof -
+  fix m1 m2 assume "P m1 m2"
+  def map == "\<lambda>(xval,yval). (memory_update_untyped m1 x xval, memory_update_untyped m2 y yval)"
+  def \<mu>' == "apply_to_ell1 map (distr_to_ell1 (\<mu> m1 m2))"
+  have mu1: "apply_to_distr fst (\<mu> m1 m2) = ed_fun d m1" using assms `P m1 m2` by simp
+  have mu2: "apply_to_distr snd (\<mu> m1 m2) = ed_fun e m2" using assms `P m1 m2` by simp
+  have post: "\<forall>(xval,yval)\<in>support_distr (\<mu> m1 m2). Q (memory_update_untyped m1 x xval) (memory_update_untyped m2 y yval)"
+    using assms `P m1 m2` by simp
+  show "apply_to_ell1 fst \<mu>' = denotation (Sample x d) m1"
+    unfolding \<mu>'_def apply simp
+    unfolding mu1[symmetric] apply simp
+    apply (rule cong[where x="distr_to_ell1 (\<mu> m1 m2)"])
+    apply (rule cong[where f="apply_to_ell1"], simp)
+    unfolding map_def by auto
+  show "apply_to_ell1 snd \<mu>' = denotation (Sample y e) m2" 
+    unfolding \<mu>'_def apply simp
+    unfolding mu2[symmetric] apply simp
+    apply (rule cong[where x="distr_to_ell1 (\<mu> m1 m2)"])
+    apply (rule cong[where f="apply_to_ell1"], simp)
+    unfolding map_def by auto
+  show "\<forall>m1' m2'. (m1', m2') \<in> support_ell1 \<mu>' \<longrightarrow> Q m1' m2'" 
+    unfolding \<mu>'_def map_def using post by auto
+qed
+
+(*
 TODO: (https://www.easycrypt.info/trac/raw-attachment/wiki/BibTex/Barthe.2009.POPL.pdf)
-- rand (+ hoare)
+- rand (one sided)
 - cond
 - while
 - trans
 - case (+ hoare)
-
-Is there a rule like:
- \<forall>m2. {Q &m m2} c {P &m m2} \<Longrightarrow> {Q} c ~ skip {P} ?
 *)
 
 end
