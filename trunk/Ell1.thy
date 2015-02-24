@@ -56,7 +56,13 @@ definition "support_ell1 \<mu> = {x. Rep_ell1 \<mu> x \<noteq> 0}"
 lemma apply_to_ell1_twice [simp]: "apply_to_ell1 f (apply_to_ell1 g \<mu>) = apply_to_ell1 (\<lambda>x. f (g x)) \<mu>"
   sorry
 
+lemma apply_to_ell1_id [simp]: "apply_to_ell1 (\<lambda>x. x) \<mu> = \<mu>"
+  sorry
+
 lemma support_compose_ell1 [simp]: "support_ell1 (compose_ell1 f g) = (\<Union>x\<in>support_ell1 g. support_ell1 (f x))"
+  sorry
+
+lemma support_apply_to_ell1 [simp]: "support_ell1 (apply_to_ell1 f \<mu>) = f ` support_ell1 \<mu>"
   sorry
 
 lemma support_point_ell1 [simp]: "support_ell1 (point_ell1 x) = {x}"
