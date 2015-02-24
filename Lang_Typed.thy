@@ -177,8 +177,7 @@ definition program :: "program \<Rightarrow> program" where "program p = p"
 subsection {* Translation functions *}
 
 ML {*
-  local
-  fun is_variable ctx (v:string list) (c:string) = 
+  fun is_program_variable ctx (v:string list) (c:string) = 
         if member (op=) v c then true
         else
           (case Proof_Context.read_const {proper = true, strict = false} ctx c of
@@ -186,12 +185,13 @@ ML {*
            | _ => false)
           handle ERROR _ => false
 
+  local
   (* known = known variables names *)
   fun get_variable_names' _ _ l (Const("_var_access",_)$v) = 
         (case v of (Const("_constrain",_) $ (v' as Free(vn,_)) $ _) => (vn,v')::l
                  | (Const("_constrain",_) $ v' $ _) => ("var",v')::l
                  | v' => ("var",v')::l)
-    | get_variable_names' ctx known l (v as Free(vn,_)) = if is_variable ctx (!known) vn then (vn,v)::l else l
+    | get_variable_names' ctx known l (v as Free(vn,_)) = if is_program_variable ctx (!known) vn then (vn,v)::l else l
     | get_variable_names' ctx known l (Const("_constrain",_)$p$_) = get_variable_names' ctx known l p
     | get_variable_names' ctx known l (p$q) = let val l'=get_variable_names' ctx known l p in get_variable_names' ctx known l' q end
     | get_variable_names' ctx known l (Abs(_,_,t)) = get_variable_names' ctx known l t
@@ -222,9 +222,8 @@ ML {*
 
   in
 
-  fun translate_program (ctx:Proof.context) (p:term) =
-    let val known = Unsynchronized.ref []
-        fun trans (Const("_assign",_) $ x $ e) =
+  fun translate_program (ctx:Proof.context) known (p:term) =
+    let fun trans (Const("_assign",_) $ x $ e) =
                 (add_var known x;
                  Const(@{const_syntax assign},dummyT) $ x $ translate_expression ctx known e)
           | trans (Const("_assign_quote",_) $ x $ e) =
@@ -257,7 +256,8 @@ ML {*
   end *}
 
 parse_translation {* [("_program", fn ctx => fn p => 
-    Const(@{const_syntax program},dummyT) $ translate_program ctx (hd p))] *};
+    Const(@{const_syntax program},dummyT) $ 
+      translate_program ctx (Unsynchronized.ref[]) (hd p))] *};
 
 ML {*
   local
@@ -291,6 +291,5 @@ ML {*
 *}
 
 print_translation {* [(@{const_syntax program}, fn ctx => fn p => Const("_program",dummyT) $ translate_program_back ctx (hd p))] *};
-
 
 end
