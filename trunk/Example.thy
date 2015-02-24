@@ -20,7 +20,7 @@ definition "example =
 lemma well_typed_example: "well_typed example"
   unfolding example_def program_def by simp
 
-lemma hoare_example: "hoare {\<lambda>m. True} \<guillemotleft>example\<guillemotright> {\<lambda>m. memory_lookup m x = 15}"
+lemma hoare_example: "hoare {True} \<guillemotleft>example\<guillemotright> {x = 15}"
   unfolding example_def program_def
   apply (rule seq_rule[where Q="\<lambda>m. \<not> memory_lookup m b"])
   apply (rule seq_rule[where Q="\<lambda>m. memory_lookup m b = True"])
