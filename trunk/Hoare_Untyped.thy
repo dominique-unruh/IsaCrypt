@@ -45,4 +45,16 @@ lemma iffalse_rule:
 lemma true_rule: "(\<forall>m. Q m) \<Longrightarrow> hoare P c Q"
   unfolding hoare_def by auto
 
+lemma skip_rule:
+  assumes "\<forall>m. P m \<longrightarrow> Q m"
+  shows "hoare P Skip Q"
+  sorry
+
+lemma conseq_rule:
+  assumes "\<forall>m. P m \<longrightarrow> P' m"
+      and "\<forall>m. Q' m \<longrightarrow> Q m"
+      and "hoare P' c Q'"
+  shows "hoare P c Q"
+  using assms unfolding hoare_def by auto
+
 end
