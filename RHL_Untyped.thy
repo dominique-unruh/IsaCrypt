@@ -37,6 +37,32 @@ proof (unfold rhoare_def, rule, rule, rule)
     by (metis Pm1m2 h hoare_def)
 qed
   
+lemma rsymmetric_rule:
+  assumes "rhoare (\<lambda>m1 m2. P m2 m1) c2 c1 (\<lambda>m1 m2. Q m2 m1)"
+  shows "rhoare P c1 c2 Q"
+proof (unfold rhoare_def, rule, rule, rule)
+  fix m1 m2 assume P: "P m1 m2"
+  obtain witness where wit2: "apply_to_ell1 fst witness = denotation c2 m2"
+                   and wit1: "apply_to_ell1 snd witness = denotation c1 m1"
+                   and correct: "\<forall>m1' m2'. (m1', m2') \<in> support_ell1 witness \<longrightarrow> Q m2' m1'"
+       by (metis (mono_tags) P assms rhoare_def)
+  def witness' == "apply_to_ell1 (\<lambda>(x,y). (y,x)) witness"
+  have wit'1: "apply_to_ell1 fst witness' = denotation c1 m1"
+    unfolding witness'_def wit1[symmetric] apply auto
+    apply (rule cong[where x=witness], rule cong[where f=apply_to_ell1])
+    by auto
+  have wit'2: "apply_to_ell1 snd witness' = denotation c2 m2"
+    unfolding witness'_def wit2[symmetric] apply auto
+    apply (rule cong[where x=witness], rule cong[where f=apply_to_ell1])
+    by auto
+  also have correct': "\<forall>m1 m2. (m1, m2) \<in> support_ell1 witness' \<longrightarrow> Q m1 m2"
+    unfolding witness'_def using correct by auto
+
+  show "\<exists>\<mu>. apply_to_ell1 fst \<mu> = denotation c1 m1 \<and>
+                  apply_to_ell1 snd \<mu> = denotation c2 m2 \<and> (\<forall>m1' m2'. (m1', m2') \<in> support_ell1 \<mu> \<longrightarrow> Q m1' m2')"
+    using wit'1 wit'2 correct' by auto            
+qed
+
 lemma rassign_rule1:
   assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q (memory_update_untyped m1 x (eu_fun e m1)) m2"
   shows "rhoare P (Assign x e) Skip Q"
@@ -45,31 +71,18 @@ lemma rassign_rule1:
   apply (rule allI, rule assign_rule)
   using assms by simp
 
-lemma rsymmetric_rule:
-  assumes "rhoare (\<lambda>m1 m2. P m2 m1) c2 c1 (\<lambda>m1 m2. Q m2 m1)"
-  shows "rhoare P c1 c2 Q"
-proof (unfold rhoare_def, rule, rule, rule)
-  fix m1 m2 assume P: "P m1 m2"
-  obtain witness where "apply_to_ell1 fst witness = denotation c2 m2"
-                   and "apply_to_ell1 snd witness = denotation c1 m1"
-                   and "\<forall>m1' m2'. (m1', m2') \<in> support_ell1 witness \<longrightarrow> Q m2' m1'"
-       by (metis (mono_tags) P assms rhoare_def)
-  def witness' == "apply_to_ell1 (\<lambda>(x,y). (y,x)) witness"
-  have "witness = apply_to_ell1 (\<lambda>(x,y). (y,x)) witness'"
-    unfolding witness'_def 
-  show "\<exists>\<mu>. apply_to_ell1 fst \<mu> = denotation c1 m1 \<and>
-                  apply_to_ell1 snd \<mu> = denotation c2 m2 \<and> (\<forall>m1' m2'. (m1', m2') \<in> support_ell1 \<mu> \<longrightarrow> Q m1' m2')"
-    apply (rule exI[where x=witness'])
-    unfolding witness'_def product_ell1_sym
-qed
+lemma rassign_rule2:
+  assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q m1 (memory_update_untyped m2 x (eu_fun e m2))"
+  shows "rhoare P Skip (Assign x e) Q"
+apply (rule rsymmetric_rule)
+apply (rule rassign_rule1)
+using assms by simp
 
 (*
 TODO: (https://www.easycrypt.info/trac/raw-attachment/wiki/BibTex/Barthe.2009.POPL.pdf)
-- ass
 - rand (+ hoare)
 - cond
 - while
-- sym
 - trans
 - case (+ hoare)
 
