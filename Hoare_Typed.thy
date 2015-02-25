@@ -31,7 +31,7 @@ parse_translation {*
   fun trans_hoare ctx P c Q =
     let val known = Unsynchronized.ref []
         val c = translate_program ctx known c
-        val P = (@{print} P; trans_assert' ctx known P)
+        val P = (trans_assert' ctx known P)
         val Q = trans_assert' ctx known Q
     in Const(@{const_syntax Hoare_Untyped.hoare},dummyT) $ P $ c $ Q end
   in
@@ -85,5 +85,14 @@ lemma iffalse_rule:
   unfolding ifte_def 
   apply (rule iffalse_rule)
   using assms by auto
+
+text {* The following rules from Hoare_Untyped also directly apply to typed Hoare triples\<in>
+
+- seq_rule
+- true_rule
+- skip_rule
+- conseq_rule
+- case_rule
+*}
 
 end
