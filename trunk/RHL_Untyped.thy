@@ -120,6 +120,31 @@ proof -
     unfolding \<mu>'_def map_def using post by auto
 qed
 
+lemma rtrans_rule:
+  assumes p:"\<And>m1 m2. P m1 m2 \<Longrightarrow> \<exists>m. P1 m1 m \<and> P2 m m2"
+      and q:"\<And>m1 m2 m. Q1 m1 m \<Longrightarrow> Q2 m m2 \<Longrightarrow> Q m1 m2"
+      and rhl1: "rhoare P1 c1 c Q1"
+      and rhl2: "rhoare P2 c c2 Q2"
+  shows "rhoare P c1 c2 Q"
+proof (unfold rhoare_def, auto, rule exI, auto)
+  fix m1 m2 assume "P m1 m2"
+  then obtain m where "P1 m1 m" and "P2 m m2" using p by metis
+  obtain \<mu>1 where "apply_to_ell1 fst \<mu>1 = denotation c1 m1"
+              and "apply_to_ell1 snd \<mu>1 = denotation c m"
+              and "\<And>m1' m'. (m1',m') \<in> support_ell1 \<mu>1 \<longrightarrow> Q1 m1' m'";
+    using `P1 m1 m` rhl1 unfolding rhoare_def by metis
+  obtain \<mu>2 where "apply_to_ell1 fst \<mu>2 = denotation c m"
+              and "apply_to_ell1 snd \<mu>2 = denotation c2 m2"
+              and "\<And>m' m2'. (m',m2') \<in> support_ell1 \<mu>2 \<longrightarrow> Q2 m' m2'";
+    using `P2 m m2` rhl2 unfolding rhoare_def by metis
+
+  def \<mu> == "undefined::(memory*memory) ell1" (* TODO *)
+  show "apply_to_ell1 fst \<mu> = denotation c1 m1" sorry
+  show "apply_to_ell1 snd \<mu> = denotation c2 m2" sorry
+  fix m1' m2' assume "(m1', m2') \<in> support_ell1 \<mu>"
+  show "Q m1' m2'" sorry
+qed
+
 (*
 TODO: (https://www.easycrypt.info/trac/raw-attachment/wiki/BibTex/Barthe.2009.POPL.pdf)
 - rand (one sided)

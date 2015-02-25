@@ -1,5 +1,5 @@
 theory Example
-imports Hoare_Typed
+imports Hoare_Typed RHL_Untyped
 begin
 
 abbreviation "(x::int variable) == Variable ''x''"
