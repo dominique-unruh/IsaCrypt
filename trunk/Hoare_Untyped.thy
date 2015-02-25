@@ -4,7 +4,7 @@ begin
 
 definition hoare :: "(memory \<Rightarrow> bool) \<Rightarrow> program \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> bool" where
   "hoare pre prog post =
-  (\<forall>m. pre m \<longrightarrow> (\<forall>m'. m' \<in> support_ell1 (denotation prog m) 
+  (\<forall>m. pre m \<longrightarrow> (\<forall>m'. m' \<in> support_distr (denotation prog m) 
                   \<longrightarrow> post m'))";
 
 lemma seq_rule:
@@ -55,5 +55,11 @@ lemma conseq_rule:
       and "hoare P' c Q'"
   shows "hoare P c Q"
   using assms unfolding hoare_def by auto
+
+lemma case_rule:
+  assumes "\<And>x. hoare (\<lambda>m. P m \<and> f m = x) c Q"
+  shows "hoare P c Q"
+using assms unfolding hoare_def by metis
+
 
 end

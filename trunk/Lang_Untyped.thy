@@ -89,22 +89,23 @@ fun well_typed :: "program \<Rightarrow> bool" where
 | "well_typed (While e p) = ((eu_type e = bool_type) \<and> well_typed p)"
 | "well_typed (IfTE e thn els) = ((eu_type e = bool_type) \<and> well_typed thn \<and> well_typed els)";
 
-type_synonym denotation = "memory \<Rightarrow> memory ell1"
+type_synonym denotation = "memory \<Rightarrow> memory distr"
 
-fun while_iter :: "nat \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> denotation \<Rightarrow> memory \<Rightarrow> memory ell1" where
-  "while_iter 0 e p m = point_ell1 m"
+fun while_iter :: "nat \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> denotation \<Rightarrow> memory \<Rightarrow> memory distr" where
+  "while_iter 0 e p m = point_distr m"
 | "while_iter (Suc n) e p m = 
-      compose_ell1 (\<lambda>m. if e m then p m else 0)
+      compose_distr (\<lambda>m. if e m then p m else 0)
                     (while_iter n e p m)"
 
 fun denotation :: "program \<Rightarrow> denotation" where
-  "denotation (Seq p1 p2) m = compose_ell1 (denotation p2) (denotation p1 m)"
-| "denotation (Assign v e) m = point_ell1 (memory_update_untyped m v (eu_fun e m))"
-| "denotation (Sample v e) m = apply_to_ell1 (memory_update_untyped m v) (distr_to_ell1 (ed_fun e m))"
-| "denotation (Skip) m = point_ell1 m"
+  "denotation (Seq p1 p2) m = compose_distr (denotation p2) (denotation p1 m)"
+| "denotation (Assign v e) m = point_distr (memory_update_untyped m v (eu_fun e m))"
+| "denotation (Sample v e) m = apply_to_distr (memory_update_untyped m v) (ed_fun e m)"
+| "denotation (Skip) m = point_distr m"
 | "denotation (IfTE e thn els) m = (if (eu_fun e m = embedding True) then denotation thn m else denotation els m)"
-| "denotation (While e p) m = (\<Sum>n. compose_ell1 (\<lambda>m. if eu_fun e m = embedding True then 0 else point_ell1 m)
-                                                  (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation p) m))"
+| "denotation (While e p) m = 
+      ell1_to_distr (\<Sum>n. distr_to_ell1 (compose_distr (\<lambda>m. if eu_fun e m = embedding True then 0 else point_distr m)
+                                            (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation p) m)))"
 
 fun vars :: "program \<Rightarrow> variable_untyped list" where
   "vars Skip = []"
@@ -114,6 +115,6 @@ fun vars :: "program \<Rightarrow> variable_untyped list" where
 | "vars (IfTE e p1 p2) = eu_vars e @ vars p1 @ vars p2"
 | "vars (While e p) = eu_vars e @ vars p"
 
-definition "lossless p = (\<forall>m. weight_ell1 (denotation p m) = 1)"
+definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"
 
 end;

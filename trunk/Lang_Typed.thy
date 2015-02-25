@@ -135,15 +135,15 @@ definition while :: "bool expression \<Rightarrow> program \<Rightarrow> program
 lemma well_typed_while [simp]: "well_typed p \<Longrightarrow> well_typed (while e p)"
   unfolding while_def using bool_type by auto
 
-lemma denotation_assign: "denotation (assign v e) m = point_ell1 (memory_update m v (e_fun e m))"
+lemma denotation_assign: "denotation (assign v e) m = point_distr (memory_update m v (e_fun e m))"
   unfolding assign_def memory_update_def by simp
-lemma denotation_sample: "denotation (sample v e) m = apply_to_ell1 (memory_update m v) (distr_to_ell1 (e_fun e m))"
+lemma denotation_sample: "denotation (sample v e) m = apply_to_distr (memory_update m v) (e_fun e m)"
   unfolding sample_def memory_update_def[THEN ext] by auto
 
 lemma denotation_ifte: "denotation (ifte e thn els) m = (if e_fun e m then denotation thn m else denotation els m)"
   by (metis ifte_def denotation.simps(5) e_fun_bool_untyped) 
-lemma "denotation (while e p) m = (\<Sum>n. compose_ell1 (\<lambda>m. if e_fun e m then 0 else point_ell1 m)
-                                                  (while_iter n (e_fun e) (denotation p) m))"
+lemma "denotation (while e p) m = ell1_to_distr (\<Sum>n. distr_to_ell1 (compose_distr (\<lambda>m. if e_fun e m then 0 else point_distr m)
+                                                  (while_iter n (e_fun e) (denotation p) m)))"
   unfolding while_def by simp 
 
 section {* Concrete syntax for programs *}
