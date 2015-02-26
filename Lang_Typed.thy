@@ -153,7 +153,7 @@ record ('a::procargs,'b) procedure =
   p_args :: "'a procargvars"
   p_return :: "'b expression"
 definition "mk_procedure_untyped proc = 
-  Proc (p_body proc) (Rep_procargvars (p_args proc)) (mk_expression_untyped (p_return proc))"
+  Proc (mk_program_untyped (p_body proc)) (Rep_procargvars (p_args proc)) (mk_expression_untyped (p_return proc))"
 
 definition procargs_empty :: "unit procargs" where
   "procargs_empty = Abs_procargs []"
@@ -164,36 +164,37 @@ definition procargvars_empty :: "unit procargvars" where
 definition procargvars_add :: "('a::prog_type) variable \<Rightarrow> ('b::procargs) procargvars \<Rightarrow> ('a*'b) procargvars" where
   "procargvars_add v vs = Abs_procargvars (mk_variable_untyped v#Rep_procargvars vs)"
 
-definition proccall :: "'a::prog_type variable \<Rightarrow> ('b::procargs,'a) procedure \<Rightarrow> 'b procargs \<Rightarrow> program" where
-  "proccall v proc args = CallProc (mk_variable_untyped v) (mk_procedure_untyped proc) (mk_procargs_untyped args)"
-
 section {* Typed programs *}
 
 (* TODO: callproc *)
 
 definition "assign (v::('a::prog_type) variable) (e::'a expression) =
-  Assign (mk_variable_untyped v) (mk_expression_untyped e)"
+  Abs_program (Assign (mk_variable_untyped v) (mk_expression_untyped e))"
 
-lemma well_typed_mk_assign [simp]: "well_typed (assign v e)";
-  unfolding assign_def by auto  
+(*lemma well_typed_mk_assign [simp]: "well_typed (assign v e)";
+  unfolding assign_def by auto *) 
   
 definition "sample (v::('a::prog_type) variable) (e::'a distr expression) =
-  Sample (mk_variable_untyped v) (mk_expression_distr e)"
+  Abs_program (Sample (mk_variable_untyped v) (mk_expression_distr e))"
 
-lemma well_typed_mk_sample [simp]: "well_typed (sample v e)";
-  unfolding sample_def by simp
+(*lemma well_typed_mk_sample [simp]: "well_typed (sample v e)";
+  unfolding sample_def by simp*)
 
 definition ifte :: "bool expression \<Rightarrow> program \<Rightarrow> program \<Rightarrow> program" where
-  "ifte e thn els = IfTE (mk_expression_untyped e) thn els"
+  "ifte e thn els = Abs_program (IfTE (mk_expression_untyped e) (mk_program_untyped thn) (mk_program_untyped els))"
 
-lemma well_typed_if [simp]: "well_typed thn \<Longrightarrow> well_typed els \<Longrightarrow> well_typed (ifte e thn els)"
-  unfolding ifte_def using bool_type by auto 
+(*lemma well_typed_if [simp]: "well_typed thn \<Longrightarrow> well_typed els \<Longrightarrow> well_typed (ifte e thn els)"
+  unfolding ifte_def using bool_type by auto *)
 
 definition while :: "bool expression \<Rightarrow> program \<Rightarrow> program" where
-  "while e p = While (mk_expression_untyped e) p"
+  "while e p = Abs_program (While (mk_expression_untyped e) (mk_program_untyped p))"
 
-lemma well_typed_while [simp]: "well_typed p \<Longrightarrow> well_typed (while e p)"
-  unfolding while_def using bool_type by auto
+(*lemma well_typed_while [simp]: "well_typed p \<Longrightarrow> well_typed (while e p)"
+  unfolding while_def using bool_type by auto*)
+
+
+definition callproc :: "'a::prog_type variable \<Rightarrow> ('b::procargs,'a) procedure \<Rightarrow> 'b procargs \<Rightarrow> program" where
+  "callproc v proc args = Abs_program (CallProc (mk_variable_untyped v) (mk_procedure_untyped proc) (mk_procargs_untyped args))"
 
 lemma denotation_assign: "denotation (assign v e) m = point_distr (memory_update m v (e_fun e m))"
   unfolding assign_def memory_update_def by simp
@@ -205,6 +206,7 @@ lemma denotation_ifte: "denotation (ifte e thn els) m = (if e_fun e m then denot
 lemma "denotation (while e p) m = ell1_to_distr (\<Sum>n. distr_to_ell1 (compose_distr (\<lambda>m. if e_fun e m then 0 else point_distr m)
                                                   (while_iter n (e_fun e) (denotation p) m)))"
   unfolding while_def by simp 
+
 
 (* TODO: denotation callproc *)
 
