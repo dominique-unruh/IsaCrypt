@@ -2,6 +2,18 @@ theory RHL_Typed
 imports RHL_Untyped Lang_Typed
 begin
 
+section {* Definition *}
+
+definition rhoare :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> program \<Rightarrow> program \<Rightarrow> (memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> bool" where
+  "rhoare pre c1 c2 post =
+  (\<forall>m1 m2. pre m1 m2 \<longrightarrow> 
+     (\<exists>\<mu>. apply_to_distr fst \<mu> = denotation c1 m1
+        \<and> apply_to_distr snd \<mu> = denotation c2 m2
+        \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> post m1' m2')))";
+
+lemma rhoare_untyped: "rhoare P c1 c2 Q = rhoare_untyped P (mk_program_untyped c1) (mk_program_untyped c2) Q"
+  unfolding rhoare_def rhoare_untyped_def denotation_def ..
+
 section {* Concrete syntax *}
 
 syntax "_rhoare" :: "(memory \<Rightarrow> bool) \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> term"

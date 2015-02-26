@@ -125,8 +125,12 @@ class procargs =
   fixes procargvars :: "'a itself \<Rightarrow> variable_untyped list set"
   assumes procargs_not_empty: "procargs (TYPE('a)) \<noteq> {}"
   assumes procargvars_not_empty: "procargvars (TYPE('a)) \<noteq> {}"
+  assumes procargvars_local: "\<forall>l\<in>procargvars (TYPE('a)). \<forall>v\<in>set l. \<not> vu_global v"
   assumes procargs_len: "\<forall>x\<in>procargs TYPE('a). length x = procargs_len TYPE('a)"
   assumes procargvars_len: "\<forall>x\<in>procargvars TYPE('a). length x = procargs_len TYPE('a)"
+  assumes procargs_typematch: "\<forall>es\<in>procargs TYPE('a). \<forall>vs\<in>procargvars TYPE('a). 
+     list_all2 (\<lambda>v e. vu_type v = eu_type e) vs es"
+  assumes procargvars_distinct: "\<forall>vs\<in>procargvars TYPE('a). distinct vs"
 
 instantiation unit :: procargs begin
 definition "procargs (_::unit itself) = {[]::expression_untyped list}"
@@ -135,18 +139,28 @@ definition "procargs_len (_::unit itself) = 0"
 instance apply intro_classes unfolding procargs_unit_def procargvars_unit_def procargs_len_unit_def by auto
 end
 
+definition "freshvar vs = (SOME vn. \<forall>v\<in>set vs. vn \<noteq> vu_name v)"
+lemma freshvar_global: "mk_variable_untyped (Variable (freshvar vs)) \<notin> set vs"
+  sorry
+lemma freshvar_local: "mk_variable_untyped (LVariable (freshvar vs)) \<notin> set vs"
+  sorry
+
 instantiation prod :: (prog_type,procargs) procargs begin
 definition "procargs_len (_::('a::prog_type*'b) itself) = Suc (procargs_len TYPE('b))"
 definition "procargs (_::('a::prog_type*'b) itself) = {mk_expression_untyped e#es|(e::'a expression) es. es\<in>procargs TYPE('b)}"
-definition "procargvars (_::('a::prog_type*'b) itself)= {mk_variable_untyped v#vs|(v::'a variable) vs. vs\<in>procargvars TYPE('b)}"
-instance apply intro_classes unfolding procargs_prod_def procargvars_prod_def procargs_len_prod_def
-         using procargs_not_empty procargvars_not_empty procargs_len procargvars_len by auto
+definition "procargvars (_::('a::prog_type*'b) itself)= {mk_variable_untyped (LVariable v::'a variable)#vs|v vs. vs\<in>procargvars TYPE('b) \<and> mk_variable_untyped (LVariable v::'a variable)\<notin>set vs}"
+instance apply intro_classes unfolding procargs_prod_def procargvars_prod_def procargs_len_prod_def mk_variable_untyped_def
+         apply (auto simp: procargs_not_empty procargvars_not_empty procargs_len procargvars_len procargs_typematch)
+         apply (metis ex_in_conv freshvar_local mk_variable_untyped_def procargvars_not_empty variable.simps(6))
+         apply (metis procargvars_local)
+         by (metis procargvars_distinct)
 end
 
 typedef ('a::procargs) procargs = "procargs TYPE('a)" using procargs_not_empty by auto
 abbreviation "mk_procargs_untyped == Rep_procargs"
 typedef ('a::procargs) procargvars = "procargvars TYPE('a)" using procargvars_not_empty by auto
 abbreviation "mk_procargvars_untyped == Rep_procargvars"
+(* TODO: procargvars should be all disjoint *)
 
 record ('a::procargs,'b) procedure = 
   p_body :: program
@@ -166,49 +180,78 @@ definition procargvars_add :: "('a::prog_type) variable \<Rightarrow> ('b::proca
 
 section {* Typed programs *}
 
-(* TODO: callproc *)
+definition "seq p q = Abs_program (Seq (mk_program_untyped p) (mk_program_untyped q))"
+
+lemma mk_untyped_seq: "mk_program_untyped (seq p q) = Seq (mk_program_untyped p) (mk_program_untyped q)"
+  unfolding seq_def denotation_def apply (subst Abs_program_inverse) by auto
+
+definition "skip = Abs_program Skip"
+
+lemma mk_untyped_skip: "mk_program_untyped skip = Skip"
+  unfolding skip_def denotation_def apply (subst Abs_program_inverse) by auto
 
 definition "assign (v::('a::prog_type) variable) (e::'a expression) =
   Abs_program (Assign (mk_variable_untyped v) (mk_expression_untyped e))"
 
-(*lemma well_typed_mk_assign [simp]: "well_typed (assign v e)";
-  unfolding assign_def by auto *) 
+lemma mk_untyped_assign: "mk_program_untyped (assign v e) = Assign (mk_variable_untyped v) (mk_expression_untyped e)"
+  unfolding assign_def denotation_def apply (subst Abs_program_inverse) by auto
   
 definition "sample (v::('a::prog_type) variable) (e::'a distr expression) =
   Abs_program (Sample (mk_variable_untyped v) (mk_expression_distr e))"
 
-(*lemma well_typed_mk_sample [simp]: "well_typed (sample v e)";
-  unfolding sample_def by simp*)
+lemma mk_untyped_sample: "mk_program_untyped (sample v e) = Sample (mk_variable_untyped v) (mk_expression_distr e)"
+  unfolding sample_def denotation_def apply (subst Abs_program_inverse) by auto
 
 definition ifte :: "bool expression \<Rightarrow> program \<Rightarrow> program \<Rightarrow> program" where
   "ifte e thn els = Abs_program (IfTE (mk_expression_untyped e) (mk_program_untyped thn) (mk_program_untyped els))"
 
-(*lemma well_typed_if [simp]: "well_typed thn \<Longrightarrow> well_typed els \<Longrightarrow> well_typed (ifte e thn els)"
-  unfolding ifte_def using bool_type by auto *)
+lemma mk_untyped_ifte: "mk_program_untyped (ifte e thn els) =
+  IfTE (mk_expression_untyped e) (mk_program_untyped thn) (mk_program_untyped els)"
+  unfolding ifte_def denotation_def apply (subst Abs_program_inverse) using bool_type by auto
 
 definition while :: "bool expression \<Rightarrow> program \<Rightarrow> program" where
   "while e p = Abs_program (While (mk_expression_untyped e) (mk_program_untyped p))"
 
-(*lemma well_typed_while [simp]: "well_typed p \<Longrightarrow> well_typed (while e p)"
-  unfolding while_def using bool_type by auto*)
-
+lemma mk_untyped_while: "mk_program_untyped (while e p) =
+  While (mk_expression_untyped e) (mk_program_untyped p)"
+  unfolding while_def denotation_def apply (subst Abs_program_inverse) using bool_type by auto
 
 definition callproc :: "'a::prog_type variable \<Rightarrow> ('b::procargs,'a) procedure \<Rightarrow> 'b procargs \<Rightarrow> program" where
   "callproc v proc args = Abs_program (CallProc (mk_variable_untyped v) (mk_procedure_untyped proc) (mk_procargs_untyped args))"
 
+lemma mk_untyped_callproc: "mk_program_untyped (callproc v proc args) =
+  CallProc (mk_variable_untyped v) (mk_procedure_untyped proc) (mk_procargs_untyped args)"
+  unfolding callproc_def denotation_def mk_procedure_untyped_def 
+  apply (subst Abs_program_inverse, auto)
+  apply (metis Rep_procargs Rep_procargvars procargs_typematch)
+  apply (metis Rep_procargvars list_all_iff procargvars_local)
+  by (metis Rep_procargvars procargvars_distinct)
+
+lemma denotation_seq: "denotation (seq p q) m = 
+  compose_distr (denotation_untyped (mk_program_untyped q)) (denotation_untyped (mk_program_untyped p) m)"
+unfolding denotation_def memory_update_def mk_untyped_seq by simp
+
+lemma denotation_skip: "denotation skip m = point_distr m"
+unfolding denotation_def memory_update_def mk_untyped_skip by simp
+
 lemma denotation_assign: "denotation (assign v e) m = point_distr (memory_update m v (e_fun e m))"
-  unfolding assign_def memory_update_def by simp
+  unfolding denotation_def memory_update_def mk_untyped_assign by simp
 lemma denotation_sample: "denotation (sample v e) m = apply_to_distr (memory_update m v) (e_fun e m)"
-  unfolding sample_def memory_update_def[THEN ext] by auto
+  unfolding denotation_def memory_update_def[THEN ext] mk_untyped_sample by auto
 
 lemma denotation_ifte: "denotation (ifte e thn els) m = (if e_fun e m then denotation thn m else denotation els m)"
-  by (metis ifte_def denotation.simps(5) e_fun_bool_untyped) 
-lemma "denotation (while e p) m = ell1_to_distr (\<Sum>n. distr_to_ell1 (compose_distr (\<lambda>m. if e_fun e m then 0 else point_distr m)
+  unfolding denotation_def mk_untyped_ifte by simp
+lemma denotation_while: "denotation (while e p) m = ell1_to_distr (\<Sum>n. distr_to_ell1 (compose_distr (\<lambda>m. if e_fun e m then 0 else point_distr m)
                                                   (while_iter n (e_fun e) (denotation p) m)))"
-  unfolding while_def by simp 
+  unfolding denotation_def mk_untyped_while by simp 
 
+lemma denotation_callproc: "denotation (callproc v proc args) m =
+  apply_to_distr (restore_locals m)
+     (denotation_untyped (mk_program_untyped (p_body proc))
+       (init_locals (mk_procargvars_untyped (p_args proc)) (mk_procargs_untyped args) m))"
+  unfolding denotation_def mk_untyped_callproc mk_procedure_untyped_def by simp
 
-(* TODO: denotation callproc *)
+lemmas denotation_simp = denotation_seq denotation_skip denotation_assign denotation_sample denotation_ifte denotation_while denotation_callproc
 
 section {* Concrete syntax for programs *}
 
@@ -307,16 +350,16 @@ ML {*
           | trans (Const("_while_quote",_) $ e $ p) =
                  Const(@{const_syntax while},dummyT) $ e $ trans p
           | trans (Const("_ifthen",_) $ e $ p) =
-                 Const(@{const_syntax ifte},dummyT) $ (translate_expression ctx known e) $ trans p $ Const(@{const_syntax Skip},dummyT) 
+                 Const(@{const_syntax ifte},dummyT) $ (translate_expression ctx known e) $ trans p $ Const(@{const_syntax skip},dummyT) 
           | trans (Const("_ifte",_) $ e $ p $ q) =
                  Const(@{const_syntax ifte},dummyT) $ (translate_expression ctx known e) $ trans p $ trans q
           | trans (Const("_ifthen_quote",_) $ e $ p) =
-                 Const(@{const_syntax ifte},dummyT) $ e $ trans p $ Const(@{const_syntax Skip},dummyT) 
+                 Const(@{const_syntax ifte},dummyT) $ e $ trans p $ Const(@{const_syntax skip},dummyT) 
           | trans (Const("_ifte_quote",_) $ e $ p $ q) =
                  Const(@{const_syntax ifte},dummyT) $ e $ trans p $ trans q
           | trans (Const("_seq",_) $ p1 $ p2) =
-                Const(@{const_syntax Seq},dummyT) $ trans p1 $ trans p2
-          | trans (Const("_skip",_)) = Const(@{const_syntax Skip},dummyT)
+                Const(@{const_syntax seq},dummyT) $ trans p1 $ trans p2
+          | trans (Const("_skip",_)) = Const(@{const_syntax skip},dummyT)
           | trans p = raise ERROR ("Invalid program fragment "^(@{make_string} p))
     in trans p end
   end *}
@@ -333,7 +376,7 @@ ML {*
       | translate_expression_back _ = (raise (ERROR ("translate_expression_back: error")))
   in
   fun translate_program_back _ p = 
-    let fun trans (Const(@{const_syntax Skip},_)) = Const("_skip",dummyT)
+    let fun trans (Const(@{const_syntax skip},_)) = Const("_skip",dummyT)
           | trans (Const(@{const_syntax assign},_)$x$e) =
                (Const("_assign",dummyT) $ x $ translate_expression_back e
                 handle ERROR _ => Const("_assign_quote",dummyT) $ x $ e)
@@ -343,13 +386,13 @@ ML {*
           | trans (Const(@{const_syntax while},_)$e$p) =
                (Const("_while",dummyT) $ translate_expression_back e $ trans p
                 handle ERROR _ => Const("_while_quote",dummyT) $ e $ trans p)
-          | trans (Const(@{const_syntax ifte},_)$e$p$Const(@{const_syntax Skip},_)) =
+          | trans (Const(@{const_syntax ifte},_)$e$p$Const(@{const_syntax skip},_)) =
                (Const("_ifthen",dummyT) $ translate_expression_back e $ trans p
                 handle ERROR _ => Const("_ifthen_quote",dummyT) $ e $ trans p)
           | trans (Const(@{const_syntax ifte},_)$e$p$q) =
                (Const("_ifte",dummyT) $ translate_expression_back e $ trans p $ trans q
                 handle ERROR _ => Const("_ifte_quote",dummyT) $ e $ trans p $ trans q)
-          | trans (Const(@{const_syntax Seq},_)$p$q) =
+          | trans (Const(@{const_syntax seq},_)$p$q) =
                Const("_seq",dummyT) $ trans p $ trans q
           | trans p = Const("_quote",dummyT) $ p
     in trans p end
