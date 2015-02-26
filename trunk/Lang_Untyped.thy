@@ -121,6 +121,9 @@ typedef program = "{prog. well_typed prog}"
   apply (rule exI[where x=Skip]) by simp
 abbreviation "mk_program_untyped == Rep_program"
 
+lemma well_typed_mk_program_untyped [simp]: "well_typed (mk_program_untyped x)" 
+  using Rep_program by simp
+
 type_synonym denotation = "memory \<Rightarrow> memory distr"
 
 fun while_iter :: "nat \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> denotation \<Rightarrow> memory \<Rightarrow> memory distr" where
@@ -164,6 +167,7 @@ fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" where
       @ [v. v\<leftarrow>eu_vars return, vu_global v]"
 definition "vars prog = vars_untyped (mk_program_untyped prog)"
 
+definition "lossless_untyped p = (\<forall>m. weight_distr (denotation_untyped p m) = 1)"
 definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"
 
 end;
