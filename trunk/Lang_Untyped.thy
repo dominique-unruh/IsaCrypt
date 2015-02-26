@@ -94,18 +94,18 @@ definition "ed_type e == edr_type (Rep_expression_distr e)"
 definition "ed_vars e == edr_vars (Rep_expression_distr e)"
 
 
-datatype program =
+datatype program_rep =
   Assign variable_untyped expression_untyped
 | Sample variable_untyped expression_distr
-| Seq program program
+| Seq program_rep program_rep
 | Skip
-| IfTE expression_untyped program program
-| While expression_untyped program
+| IfTE expression_untyped program_rep program_rep
+| While expression_untyped program_rep
 | CallProc variable_untyped procedure "expression_untyped list"
 and procedure =
-  Proc program "variable_untyped list" expression_untyped
+  Proc program_rep "variable_untyped list" expression_untyped
 
-fun well_typed :: "program \<Rightarrow> bool" where
+fun well_typed :: "program_rep \<Rightarrow> bool" where
   "well_typed (Seq p1 p2) = (well_typed p1 \<and> well_typed p2)"
 | "well_typed (Assign v e) = (eu_type e = vu_type v)"
 | "well_typed (Sample v e) = (ed_type e = vu_type v)"
@@ -116,6 +116,10 @@ fun well_typed :: "program \<Rightarrow> bool" where
     (eu_type return = vu_type v \<and> well_typed body 
      \<and> list_all2 (\<lambda>v e. vu_type v = eu_type e) pargs args
      \<and> list_all (\<lambda>v. \<not> vu_global v) pargs \<and> distinct pargs)";
+
+typedef program = "{prog. well_typed prog}"
+  apply (rule exI[where x=Skip]) by simp
+abbreviation "mk_program_untyped == Rep_program"
 
 type_synonym denotation = "memory \<Rightarrow> memory distr"
 
@@ -133,30 +137,32 @@ definition "init_locals pargs args m =
 definition "restore_locals oldmem newmem =
   Abs_memory (Rep_memory newmem \<lparr> mem_locals := mem_locals (Rep_memory oldmem) \<rparr>)"
 
-fun denotation :: "program \<Rightarrow> denotation" where
-  "denotation (Seq p1 p2) m = compose_distr (denotation p2) (denotation p1 m)"
-| "denotation (Assign v e) m = point_distr (memory_update_untyped m v (eu_fun e m))"
-| "denotation (Sample v e) m = apply_to_distr (memory_update_untyped m v) (ed_fun e m)"
-| "denotation (Skip) m = point_distr m"
-| "denotation (IfTE e thn els) m = (if (eu_fun e m = embedding True) then denotation thn m else denotation els m)"
-| "denotation (While e p) m = 
+fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
+  "denotation_untyped (Seq p1 p2) m = compose_distr (denotation_untyped p2) (denotation_untyped p1 m)"
+| "denotation_untyped (Assign v e) m = point_distr (memory_update_untyped m v (eu_fun e m))"
+| "denotation_untyped (Sample v e) m = apply_to_distr (memory_update_untyped m v) (ed_fun e m)"
+| "denotation_untyped (Skip) m = point_distr m"
+| "denotation_untyped (IfTE e thn els) m = (if (eu_fun e m = embedding True) then denotation_untyped thn m else denotation_untyped els m)"
+| "denotation_untyped (While e p) m = 
       ell1_to_distr (\<Sum>n. distr_to_ell1 (compose_distr (\<lambda>m. if eu_fun e m = embedding True then 0 else point_distr m)
-                                            (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation p) m)))"
-| "denotation (CallProc v (Proc body pargs return) args) m = 
-  apply_to_distr (restore_locals m) (denotation body (init_locals pargs args m))"
+                                            (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)))"
+| "denotation_untyped (CallProc v (Proc body pargs return) args) m = 
+  apply_to_distr (restore_locals m) (denotation_untyped body (init_locals pargs args m))"
+definition "denotation prog = denotation_untyped (mk_program_untyped prog)"
 
-fun vars :: "program \<Rightarrow> variable_untyped list" where
-  "vars Skip = []"
-| "vars (Seq p1 p2) = (vars p1) @ (vars p2)"
-| "vars (Assign v e) = v # eu_vars e"
-| "vars (Sample v e) = v # ed_vars e"
-| "vars (IfTE e p1 p2) = eu_vars e @ vars p1 @ vars p2"
-| "vars (While e p) = eu_vars e @ vars p"
-| "vars (CallProc v (Proc body pargs return) args) = 
+fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" where
+  "vars_untyped Skip = []"
+| "vars_untyped (Seq p1 p2) = (vars_untyped p1) @ (vars_untyped p2)"
+| "vars_untyped (Assign v e) = v # eu_vars e"
+| "vars_untyped (Sample v e) = v # ed_vars e"
+| "vars_untyped (IfTE e p1 p2) = eu_vars e @ vars_untyped p1 @ vars_untyped p2"
+| "vars_untyped (While e p) = eu_vars e @ vars_untyped p"
+| "vars_untyped (CallProc v (Proc body pargs return) args) = 
       v # [v. a\<leftarrow>args, v\<leftarrow>eu_vars a]
       @ [v. v\<leftarrow>pargs, vu_global v] (* Empty for well-typed progs *)
-      @ [v. v\<leftarrow>vars body, vu_global v]
+      @ [v. v\<leftarrow>vars_untyped body, vu_global v]
       @ [v. v\<leftarrow>eu_vars return, vu_global v]"
+definition "vars prog = vars_untyped (mk_program_untyped prog)"
 
 definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"
 
