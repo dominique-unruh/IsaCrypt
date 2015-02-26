@@ -18,16 +18,24 @@ lemma embedding_Type: "embedding (x::'a::prog_type) \<in> t_domain (Type TYPE('a
 
 section {* Variables *}
 
-datatype ('a::prog_type) variable = Variable variable_name
+datatype ('a::prog_type) variable = Variable variable_name | LVariable variable_name
 definition mk_variable_untyped :: "('a::prog_type) variable \<Rightarrow> variable_untyped" where
-  "mk_variable_untyped (v::('a::prog_type)variable) = \<lparr> vu_name=(case v of Variable n \<Rightarrow> n), vu_type=Type TYPE('a) \<rparr>"
+  "mk_variable_untyped (v::('a::prog_type)variable) = 
+    (case v of Variable n \<Rightarrow> \<lparr> vu_name=n, vu_type=Type TYPE('a), vu_global=True \<rparr>
+            | LVariable n \<Rightarrow> \<lparr> vu_name=n, vu_type=Type TYPE('a), vu_global=False \<rparr>)"
 lemma mk_variable_untyped_type [simp]: "vu_type (mk_variable_untyped (v::'a variable)) = Type TYPE('a::prog_type)"
-  unfolding mk_variable_untyped_def by auto
+  unfolding mk_variable_untyped_def apply (cases v) by auto
 definition var_eq :: "'a::prog_type variable \<Rightarrow> 'b::prog_type variable \<Rightarrow> bool" where
   "var_eq v1 v2 = (mk_variable_untyped v1 = mk_variable_untyped v2)" 
 lemma var_eq_same [simp]: "var_eq v v"
   unfolding var_eq_def by simp
-lemma var_eq_notsame [simp]: "v\<noteq>w \<Longrightarrow> \<not> var_eq (Variable v) (Variable w)"
+lemma var_eq_notsame_gg [simp]: "v\<noteq>w \<Longrightarrow> \<not> var_eq (Variable v) (Variable w)"
+  unfolding var_eq_def mk_variable_untyped_def by simp
+lemma var_eq_notsame_ll [simp]: "v\<noteq>w \<Longrightarrow> \<not> var_eq (LVariable v) (LVariable w)"
+  unfolding var_eq_def mk_variable_untyped_def by simp
+lemma var_eq_notsame_gl [simp]: "\<not> var_eq (Variable v) (LVariable w)"
+  unfolding var_eq_def mk_variable_untyped_def by simp
+lemma var_eq_notsame_lg [simp]: "\<not> var_eq (LVariable v) (Variable w)"
   unfolding var_eq_def mk_variable_untyped_def by simp
 
 section {* Memories *}
@@ -49,7 +57,7 @@ record 'a expression_rep =
   er_fun :: "memory \<Rightarrow> 'a"
   er_vars :: "variable_untyped list"
 typedef 'a expression = "{(e::'a expression_rep).
-  (\<forall>m1 m2. (\<forall>v\<in>set (er_vars e). Rep_memory m1 v = Rep_memory m2 v) \<longrightarrow> er_fun e m1 = er_fun e m2)}";
+  (\<forall>m1 m2. (\<forall>v\<in>set (er_vars e). memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<longrightarrow> er_fun e m1 = er_fun e m2)}";
   by (rule exI[of _ "\<lparr> er_fun=(\<lambda>m. undefined),
                        er_vars=[] \<rparr>"], simp);
 definition "e_fun e == er_fun (Rep_expression e)"
@@ -109,7 +117,59 @@ lemma e_fun_var_expression [simp]: "e_fun (var_expression v) = (\<lambda>m. memo
   unfolding e_fun_def var_expression_def memory_lookup_def
   by (subst Abs_expression_inverse, auto)
 
+section {* Procedures *}
+
+class procargs =
+  fixes procargs_len :: "'a itself \<Rightarrow> nat"
+  fixes procargs :: "'a itself \<Rightarrow> expression_untyped list set"
+  fixes procargvars :: "'a itself \<Rightarrow> variable_untyped list set"
+  assumes procargs_not_empty: "procargs (TYPE('a)) \<noteq> {}"
+  assumes procargvars_not_empty: "procargvars (TYPE('a)) \<noteq> {}"
+  assumes procargs_len: "\<forall>x\<in>procargs TYPE('a). length x = procargs_len TYPE('a)"
+  assumes procargvars_len: "\<forall>x\<in>procargvars TYPE('a). length x = procargs_len TYPE('a)"
+
+instantiation unit :: procargs begin
+definition "procargs (_::unit itself) = {[]::expression_untyped list}"
+definition "procargvars (_::unit itself) = {[]::variable_untyped list}"
+definition "procargs_len (_::unit itself) = 0"
+instance apply intro_classes unfolding procargs_unit_def procargvars_unit_def procargs_len_unit_def by auto
+end
+
+instantiation prod :: (prog_type,procargs) procargs begin
+definition "procargs_len (_::('a::prog_type*'b) itself) = Suc (procargs_len TYPE('b))"
+definition "procargs (_::('a::prog_type*'b) itself) = {mk_expression_untyped e#es|(e::'a expression) es. es\<in>procargs TYPE('b)}"
+definition "procargvars (_::('a::prog_type*'b) itself)= {mk_variable_untyped v#vs|(v::'a variable) vs. vs\<in>procargvars TYPE('b)}"
+instance apply intro_classes unfolding procargs_prod_def procargvars_prod_def procargs_len_prod_def
+         using procargs_not_empty procargvars_not_empty procargs_len procargvars_len by auto
+end
+
+typedef ('a::procargs) procargs = "procargs TYPE('a)" using procargs_not_empty by auto
+abbreviation "mk_procargs_untyped == Rep_procargs"
+typedef ('a::procargs) procargvars = "procargvars TYPE('a)" using procargvars_not_empty by auto
+abbreviation "mk_procargvars_untyped == Rep_procargvars"
+
+record ('a::procargs,'b) procedure = 
+  p_body :: program
+  p_args :: "'a procargvars"
+  p_return :: "'b expression"
+definition "mk_procedure_untyped proc = 
+  Proc (p_body proc) (Rep_procargvars (p_args proc)) (mk_expression_untyped (p_return proc))"
+
+definition procargs_empty :: "unit procargs" where
+  "procargs_empty = Abs_procargs []"
+definition procargs_add :: "('a::prog_type) expression \<Rightarrow> ('b::procargs) procargs \<Rightarrow> ('a*'b) procargs" where
+  "procargs_add e es = Abs_procargs (mk_expression_untyped e#Rep_procargs es)"
+definition procargvars_empty :: "unit procargvars" where
+  "procargvars_empty = Abs_procargvars []"
+definition procargvars_add :: "('a::prog_type) variable \<Rightarrow> ('b::procargs) procargvars \<Rightarrow> ('a*'b) procargvars" where
+  "procargvars_add v vs = Abs_procargvars (mk_variable_untyped v#Rep_procargvars vs)"
+
+definition proccall :: "'a::prog_type variable \<Rightarrow> ('b::procargs,'a) procedure \<Rightarrow> 'b procargs \<Rightarrow> program" where
+  "proccall v proc args = CallProc (mk_variable_untyped v) (mk_procedure_untyped proc) (mk_procargs_untyped args)"
+
 section {* Typed programs *}
+
+(* TODO: callproc *)
 
 definition "assign (v::('a::prog_type) variable) (e::'a expression) =
   Assign (mk_variable_untyped v) (mk_expression_untyped e)"
@@ -146,11 +206,15 @@ lemma "denotation (while e p) m = ell1_to_distr (\<Sum>n. distr_to_ell1 (compose
                                                   (while_iter n (e_fun e) (denotation p) m)))"
   unfolding while_def by simp 
 
+(* TODO: denotation callproc *)
+
 section {* Concrete syntax for programs *}
 
 subsection {* Grammar *}
 
 nonterminal program_syntax
+
+(* TODO: grammar callproc *)
 
 syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _; ]")
 syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ]")
