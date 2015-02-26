@@ -31,5 +31,5 @@ lemma hoare_example: "hoare {True} \<guillemotleft>example\<guillemotright> {x =
   apply (rule true_rule, simp)
   apply (rule iftrue_rule, auto)
   apply (rule assign_rule, auto)
-done  
+done
 
