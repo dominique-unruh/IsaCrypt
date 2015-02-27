@@ -3,8 +3,10 @@ imports Main Ell1
 begin
 
 typedecl val;
+
 axiomatization closed_val_set :: "val set \<Rightarrow> bool" where
-  closed_val_set_undefined: "closed_val_set {undefined}";
+    closed_val_set_infinite: "\<exists>f::nat\<Rightarrow>val. inj f \<and> closed_val_set (range f)"
+and closed_val_set_power: "closed_val_set s \<Longrightarrow> \<exists>f. inj_on f (Pow s) \<and> closed_val_set(f ` (Pow s))"
 
 instantiation val :: equal begin
 definition "equal_val (v::val) w = (v=w)"
