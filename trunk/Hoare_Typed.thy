@@ -117,4 +117,23 @@ lemma addskip_rule:
   shows "hoare {P &m} \<guillemotleft>c\<guillemotright> {Q &m}"
   using assms unfolding hoare_def denotation_seq_skip by simp
 
+section {* Rules for ML tactics *}
+
+(* Ordering of subgoals for certain tactics *)
+lemma seq_rule_lastfirst:
+  fixes P Q R c d
+  assumes "hoare {Q &m} \<guillemotleft>d\<guillemotright> {R &m}" and "hoare {P &m} \<guillemotleft>c\<guillemotright> {Q &m}"
+  shows "hoare {P &m} \<guillemotleft>c\<guillemotright>;\<guillemotleft>d\<guillemotright> {R &m}"
+  using assms seq_rule unfolding hoare_untyped mk_untyped_seq by auto
+
+lemma assign_rule_strict:
+  fixes P Q x e
+  defines "Q' == \<lambda>m. Q (memory_update m x (e_fun e m))"
+  shows "hoare {Q' &m} x := \<guillemotleft>e\<guillemotright> {Q &m}"
+  apply (rule assign_rule)
+  unfolding Q'_def by simp
+
+lemma skip_rule_strict: "hoare {P &m} skip {P &m}"
+  by (rule skip_rule, simp)
+
 end
