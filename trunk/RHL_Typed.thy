@@ -2,7 +2,7 @@ theory RHL_Typed
 imports RHL_Untyped Lang_Typed
 begin
 
-section {* Definition *}
+subsection {* Definition *}
 
 definition rhoare :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> program \<Rightarrow> program \<Rightarrow> (memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> bool" where
   "rhoare pre c1 c2 post =
@@ -14,7 +14,7 @@ definition rhoare :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightar
 lemma rhoare_untyped: "rhoare P c1 c2 Q = rhoare_untyped P (mk_program_untyped c1) (mk_program_untyped c2) Q"
   unfolding rhoare_def rhoare_untyped_def denotation_def ..
 
-section {* Concrete syntax *}
+subsection {* Concrete syntax *}
 
 syntax "_rhoare" :: "(memory \<Rightarrow> bool) \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> term"
           ("hoare {(_)}/ (2_) ~ (2_)/ {(_)}")
@@ -42,7 +42,7 @@ consts f::"memory\<Rightarrow>memory"
 term "hoare {(x)\<^sub>1 = undefined} skip ~ skip {undefined}"
 *)
 
-section {* Rules *}
+subsection {* Rules *}
 
 (* TODO *)
 

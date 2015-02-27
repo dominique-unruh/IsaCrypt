@@ -2,7 +2,7 @@ theory Hoare_Typed
 imports Lang_Typed Hoare_Untyped
 begin
 
-section {* Definition of Hoare triples *}
+subsection {* Definition of Hoare triples *}
 
 definition hoare :: "(memory \<Rightarrow> bool) \<Rightarrow> program \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> bool" where
   "hoare pre prog post =
@@ -12,7 +12,7 @@ lemma hoare_untyped: "hoare P c Q = hoare_untyped P (mk_program_untyped c) Q"
   unfolding denotation_def hoare_def hoare_untyped_def by simp
 
 
-section {* Concrete syntax *}
+subsection {* Concrete syntax *}
 
 syntax "_hoare" :: "(memory \<Rightarrow> bool) \<Rightarrow> program_syntax \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> term"
           ("hoare {(_)}/ (2_)/ {(_)}")
@@ -28,7 +28,7 @@ print_translation {*
   [(@{const_syntax hoare}, fn ctx => fn [P,c,Q] => Hoare_Syntax.trans_hoare_back ctx P c Q)]
 *}
 
-section {* Rules *}
+subsection {* Rules *}
 
 lemma seq_rule:
   fixes P Q R c d
@@ -111,5 +111,10 @@ lemma case_rule:
   assumes "\<And>x. hoare {P &m \<and> f &m = x} \<guillemotleft>c\<guillemotright> {Q &m}"
   shows "hoare {P &m} \<guillemotleft>c\<guillemotright> {Q &m}"
 using assms unfolding hoare_def by metis
+
+lemma addskip_rule:
+  assumes "hoare {P &m} skip; \<guillemotleft>c\<guillemotright> {Q &m}"
+  shows "hoare {P &m} \<guillemotleft>c\<guillemotright> {Q &m}"
+  using assms unfolding hoare_def denotation_seq_skip by simp
 
 end

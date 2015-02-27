@@ -14,7 +14,7 @@ definition "example =
       b <- uniform UNIV;
       x := x+1
     };
-    if (\<not>b) x := 15
+    if (\<not>b) x := 15;
   ]"
 
 lemma hoare_example: "hoare {True} \<guillemotleft>example\<guillemotright> {x = 15}"
@@ -24,4 +24,6 @@ lemma hoare_example: "hoare {True} \<guillemotleft>example\<guillemotright> {x =
   apply (rule iftrue_rule, auto)
   apply (rule assign_rule, auto)
 done
+
+end
 
