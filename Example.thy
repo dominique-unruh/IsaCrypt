@@ -20,12 +20,7 @@ definition "example =
 lemma hoare_example: "hoare {True} \<guillemotleft>example\<guillemotright> {x = 15}"
   unfolding example_def program_def
   apply (rule seq_rule[where Q="\<lambda>m. \<not> memory_lookup m b"])
-  apply (rule seq_rule[where Q="\<lambda>m. memory_lookup m b = True"])
-  apply (rule seq_rule[where Q="\<lambda>m. True"])
-  apply (rule true_rule, simp)
-  apply (rule assign_rule, simp)
-  apply (rule while_rule[where I="\<lambda>m. True"], auto)
-  apply (rule true_rule, simp)
+  apply (rule while_rule'[where I="\<lambda>m. True"], auto)
   apply (rule iftrue_rule, auto)
   apply (rule assign_rule, auto)
 done

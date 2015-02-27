@@ -180,6 +180,8 @@ definition procargvars_add :: "('a::prog_type) variable \<Rightarrow> ('b::proca
 
 section {* Typed programs *}
 
+definition "label (l::string) (p::program) = p"
+
 definition "seq p q = Abs_program (Seq (mk_program_untyped p) (mk_program_untyped q))"
 
 lemma mk_untyped_seq: "mk_program_untyped (seq p q) = Seq (mk_program_untyped p) (mk_program_untyped q)"
@@ -263,11 +265,12 @@ nonterminal program_syntax
 
 syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _; ]")
 syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ]")
+syntax "_label" :: "idt \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("_: _" [10,11] 10)
 syntax "_seq" :: "program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("_;/ _" [10,11] 10)
 syntax "_skip" :: "program_syntax" ("skip")
 syntax "_quote" :: "program \<Rightarrow> program_syntax" ("\<guillemotleft>_\<guillemotright>" [31] 30)
-syntax "_assign" :: "'a variable \<Rightarrow> 'a \<Rightarrow> program_syntax" (infix ":=" 30)
-syntax "_sample" :: "'a variable \<Rightarrow> 'a \<Rightarrow> program_syntax" (infix "<-" 30)
+syntax "_assign" :: "idt \<Rightarrow> 'a \<Rightarrow> program_syntax" (infix ":=" 30)
+syntax "_sample" :: "idt \<Rightarrow> 'a \<Rightarrow> program_syntax" (infix "<-" 30)
 syntax "_ifte" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(_') (2_) else (2_)" [0,20] 20)
 syntax "_ifthen" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(_') (2_)" [0,20] 20)
 syntax "_while" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("while '(_') (2_)" [0,20] 20)
@@ -344,6 +347,11 @@ ML {*
           | trans (Const("_sample_quote",_) $ x $ e) =
                 (add_var known x;
                  Const(@{const_syntax sample},dummyT) $ x $ e)
+          | trans (Const("_label",_) $ Free(l,_) $ p) = 
+                Const(@{const_syntax label},dummyT) $ HOLogic.mk_string l $ trans p
+          | trans (Const("_label",_) $ (Const("_constrain",_)$Free(l,_)$_) $ p) = 
+                Const(@{const_syntax label},dummyT) $ HOLogic.mk_string l $ trans p
+          | trans (Const("_label",_) $ l $ _) = raise (ERROR ("Label must be just an identifier, not "^(@{make_string} l)))
           | trans (Const("_quote",_) $ p) = p
           | trans (Const("_while",_) $ e $ p) =
                  Const(@{const_syntax while},dummyT) $ (translate_expression ctx known e) $ trans p
@@ -369,7 +377,29 @@ parse_translation {* [("_program", fn ctx => fn p =>
       translate_program ctx (Unsynchronized.ref[]) (hd p))] *};
 
 ML {*
-  local
+local
+fun dest_nibble t =
+  let fun err () = raise TERM ("dest_nibble", [t]) in
+    (case try (unprefix "\<^const>String.nibble.Nibble" o fst o Term.dest_Const) t of
+      NONE => err ()
+    | SOME c =>
+        if size c <> 1 then err ()
+        else if "0" <= c andalso c <= "9" then ord c - ord "0"
+        else if "A" <= c andalso c <= "F" then ord c - ord "A" + 10
+        else err ())
+  end;
+
+fun dest_char (Const (@{const_syntax String.char.Char}, _) $ t $ u) =
+       dest_nibble t * 16 + dest_nibble u
+     | dest_char t = raise TERM ("dest_char", [t]);
+
+fun dest_list (Const(@{const_syntax List.list.Nil}, _)) = []
+  | dest_list (Const(@{const_syntax List.list.Cons}, _) $ t $ u) = t :: dest_list u
+  | dest_list t = raise TERM ("dest_list", [t]);
+
+val dest_string = implode o map (chr o dest_char) o dest_list;
+
+
     fun translate_expression_back (Const(@{const_syntax const_expression},_) $ e) = e
       | translate_expression_back (Const(@{const_syntax apply_expression},_) $ e $ x) =
             Term.betapply (translate_expression_back e, Const("_var_access",dummyT) $ x)
@@ -383,6 +413,8 @@ ML {*
           | trans (Const(@{const_syntax sample},_)$x$e) =
                (Const("_sample",dummyT) $ x $ translate_expression_back e
                 handle ERROR _ => Const("_sample_quote",dummyT) $ x $ e)
+          | trans (Const(@{const_syntax label},_)$l$p) =
+               Const("_label",dummyT) $ Free(dest_string l,dummyT) $ trans p
           | trans (Const(@{const_syntax while},_)$e$p) =
                (Const("_while",dummyT) $ translate_expression_back e $ trans p
                 handle ERROR _ => Const("_while_quote",dummyT) $ e $ trans p)
