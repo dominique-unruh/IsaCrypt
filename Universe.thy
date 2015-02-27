@@ -6,6 +6,12 @@ typedecl val;
 axiomatization closed_val_set :: "val set \<Rightarrow> bool" where
   closed_val_set_undefined: "closed_val_set {undefined}";
 
+instantiation val :: equal begin
+definition "equal_val (v::val) w = (v=w)"
+instance apply intro_classes by (simp add: equal_val_def)
+end
+
+
 class prog_type =
   default +
   fixes embedding :: "'a \<Rightarrow> val"

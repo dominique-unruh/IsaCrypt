@@ -2,7 +2,7 @@ theory Ell1
 imports Main Setsum_Infinite Real_Vector_Spaces Complete_Lattices
 begin
 
-section {* ell1 (absolutely convergent real series) *}
+subsection {* ell1 (absolutely convergent real series) *}
 typedef 'a ell1 = "{\<mu>::'a\<Rightarrow>real. SetSums (\<lambda>x. abs(\<mu> x)) UNIV}"
   apply (rule exI[of _ "\<lambda>x. 0"], auto) unfolding SetSums_def
   using setsum_0 by auto
@@ -81,7 +81,8 @@ lemma apply_to_point_ell1 [simp]: "apply_to_ell1 f (point_ell1 x) = point_ell1 (
 lemma point_ell1_inj: "point_ell1 x = point_ell1 y \<Longrightarrow> x = y"
   sorry
 
-section {* Distributions (with weight \<le> 1) *}
+
+subsection {* Distributions (with weight <= 1) *}
 
 typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. \<mu> x\<ge>0) \<and> (\<exists>b\<le>1. SetSums_to \<mu> UNIV b)}"
   apply (rule exI[where x="\<lambda>x. 0"], auto) unfolding SetSums_def
@@ -161,7 +162,12 @@ proof
   show "apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu> = \<mu>2" sorry
 qed
 
-section {* Combining ell1 and distr *}
+lemma compose_point_distr_r [simp]: "compose_distr f (point_distr x) = f x"
+  sorry
+lemma compose_point_distr_l [simp]: "compose_distr (\<lambda>x. point_distr (f x)) \<mu> = apply_to_distr f \<mu>"
+  unfolding apply_to_distr_def ..
+
+subsection {* Combining ell1 and distr *}
 
 definition "distr_to_ell1 \<mu> = Abs_ell1 (Rep_distr \<mu>)"
 definition "ell1_to_distr \<mu> = Abs_distr (Rep_ell1 \<mu>)"
