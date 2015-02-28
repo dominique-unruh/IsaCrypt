@@ -20,18 +20,21 @@ definition "example =
 
 ML_file "hoare_tactics.ML"
 
-method_setup wp = {* Scan.succeed (K (SIMPLE_METHOD' Hoare_Tactics.wp_tac)) *} "weakest precondition (incomplete)"
-method_setup skip = {* Scan.succeed (K (SIMPLE_METHOD' (Tactic.rtac @{thm skip_rule}))) *} "weakest precondition (incomplete)"
-method_setup test = {* Scan.succeed (fn ctx => SIMPLE_METHOD' (Hoare_Tactics.test_tac ctx)) *} "test"
+method_setup wp = {* Scan.succeed (K (SIMPLE_METHOD' Hoare_Tactics.wp_tac)) *} "weakest precondition (tail of program: if + assign + skip)"
+method_setup wp1 = {* Scan.succeed (K (SIMPLE_METHOD' Hoare_Tactics.wp1_tac)) *} "weakest precondition (last statement only)"
+method_setup skip = {* Scan.succeed (K (SIMPLE_METHOD' Hoare_Tactics.skip_tac)) *} "skip"
+
+
+lemma test: "hoare {Q &m} x := x+1; x := x+1; if (True) x:=4 {x = 15}"
+  apply wp
+  apply skip
+  apply auto
+  sorry  
 
 lemma hoare_example: "hoare {True} \<guillemotleft>example\<guillemotright> {x = 15}"
   unfolding example_def program_def
-  apply (rule seq_rule, wp)
+  apply wp apply simp
   apply (rule while_rule'[where I="\<lambda>m. True"], auto)
-  apply (rule iftrue_rule, auto)
-  apply wp
-  apply skip
-  apply simp
 done
 
 end
