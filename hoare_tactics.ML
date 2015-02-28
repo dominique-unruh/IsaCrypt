@@ -19,16 +19,27 @@ val last_step_tac : int -> tactic =
     | _ => last_step_tac_lax i
     end)
 
-fun wp1_tac i : tactic =
-  last_step_tac i
+fun wp_if_strict i : tactic =
+  rtac @{thm if_case_rule} i
+  THEN wp_total_strict_tac i
+  THEN wp_total_strict_tac i
+
+(* Removes a hoare-triple goal. If the precondition is ?Q, ?Q will be instantiated with the wp *)
+and wp_total_strict_tac i : tactic = (REPEAT_DETERM (wp1_tac i)) THEN (rtac @{thm skip_rule_strict} i)
+
+and wp1_tac i st =
+  (last_step_tac i
   THEN (rtac @{thm assign_rule_strict} i
-        ORELSE rtac @{thm skip_rule_strict} i)
+        ORELSE rtac @{thm skip_rule_strict} i
+        ORELSE wp_if_strict i))
+  st
+
+fun skip_tac i : tactic = Tactic.rtac @{thm skip_rule} i
 
 fun wp_tac i : tactic = REPEAT_DETERM1 (wp1_tac i)
 
-fun test_tac ctx =
-  SUBGOAL (fn (goal,_) => fn st =>
-    (@{print} goal; writeln ("test_tac "^(Syntax.string_of_term ctx goal)); Seq.single st))
+fun wp_total_tac i : tactic = (REPEAT_DETERM (wp1_tac i)) THEN (skip_tac i)
+
 
 end
 

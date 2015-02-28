@@ -136,4 +136,17 @@ lemma assign_rule_strict:
 lemma skip_rule_strict: "hoare {P &m} skip {P &m}"
   by (rule skip_rule, simp)
 
+lemma if_case_rule:
+  assumes "hoare {P1 &m} \<guillemotleft>c1\<guillemotright> {Q &m}"
+  assumes "hoare {P2 &m} \<guillemotleft>c2\<guillemotright> {Q &m}"
+  shows "hoare {(e_fun e &m \<longrightarrow> P1 &m) \<and> (\<not> e_fun e &m \<longrightarrow> P2 &m)} 
+                 if (\<guillemotleft>e\<guillemotright>) \<guillemotleft>c1\<guillemotright> else \<guillemotleft>c2\<guillemotright> 
+               {Q &m}"
+  apply (rule case_rule[where f="\<lambda>m. e_fun e m"])
+  apply (case_tac x, auto)
+  apply (rule iftrue_rule)
+  apply (rule conseq_rule[where P'=P1 and Q'=Q], auto simp: assms)
+  apply (rule iffalse_rule)
+  by (rule conseq_rule[where P'=P2 and Q'=Q], auto simp: assms)
+
 end
