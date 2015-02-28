@@ -6,8 +6,8 @@ begin
 record type_rep = 
   tr_domain :: "val set"
   tr_default :: "val"
-typedef type = "{(t::type_rep). tr_default t \<in> tr_domain t \<and> closed_val_set (tr_domain t)}";
-  by (metis (no_types, lifting) closed_val_set_undefined mem_Collect_eq select_convs(1) select_convs(2) singletonI)
+typedef type = "{(t::type_rep). tr_default t \<in> tr_domain t}";
+  by (metis CollectI UNIV_I select_convs(1))
 definition t_domain :: "type \<Rightarrow> val set" where
   "t_domain t = tr_domain (Rep_type t)";
 definition t_default :: "type \<Rightarrow> val" where

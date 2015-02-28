@@ -40,12 +40,12 @@ lemma var_eq_notsame_lg [simp]: "\<not> var_eq (LVariable v) (Variable w)"
 
 subsection {* Memories *}
 
-definition "memory_lookup m (v::'a variable) :: ('a::prog_type) == embedding_inv (memory_lookup_untyped m (mk_variable_untyped v))"
+definition "memory_lookup m (v::'a variable) :: ('a::prog_type) == inv embedding (memory_lookup_untyped m (mk_variable_untyped v))"
 definition "memory_update m (v::'a variable) (a::'a::prog_type) =
   memory_update_untyped m (mk_variable_untyped v) (embedding a)"
 lemma memory_lookup_update_same [simp]: "memory_lookup (memory_update m v a) v = a"
   unfolding memory_lookup_def memory_update_def
-  by (simp add: memory_lookup_update_same_untyped)
+  by (metis embedding_inv f_inv_into_f memory_lookup_update_same_untyped rangeI)
 lemma memory_lookup_update_notsame [simp]: 
   "\<not>var_eq v w \<Longrightarrow> memory_lookup (memory_update m v a) w = memory_lookup m w"
   unfolding var_eq_def memory_lookup_def memory_update_def
@@ -75,7 +75,7 @@ lemma mk_expression_untyped_type [simp]: "eu_type (mk_expression_untyped (e::'a:
   apply (subst Abs_expression_untyped_inverse, auto simp: embedding_Type)
   by (smt2 Rep_expression e_fun_def e_vars_def mem_Collect_eq)  
 lemma e_fun_bool_untyped: "e_fun (e::bool expression) m = (eu_fun (mk_expression_untyped e) m = embedding True)"
-  by (metis (poly_guards_query) embedding_inv_embedding mk_expression_untyped_fun)
+  by (metis (poly_guards_query) embedding_inv mk_expression_untyped_fun)
 
 definition "mk_expression_distr (e::('a::prog_type)distr expression) =
   Abs_expression_distr \<lparr> edr_fun=\<lambda>m. apply_to_distr embedding (e_fun e m),
@@ -113,7 +113,8 @@ lemma e_fun_apply_expression [simp]: "e_fun (apply_expression e v) = (\<lambda>m
     assume "memory_lookup_untyped m1 (mk_variable_untyped v) = memory_lookup_untyped m2 (mk_variable_untyped v)"
     assume a1: "\<forall>v\<in>set (er_vars (Rep_expression e)). memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
     have "\<And>b_x. \<forall>R Ra. (\<forall>Rb. Rb \<in> set (er_vars (Rep_expression b_x)) \<longrightarrow> memory_lookup_untyped R Rb = memory_lookup_untyped Ra Rb) \<longrightarrow> (er_fun (Rep_expression b_x) R\<Colon>'b \<Rightarrow> 'a) = er_fun (Rep_expression b_x) Ra" using Rep_expression by auto
-    thus "er_fun (Rep_expression e) m1 (embedding_inv (memory_lookup_untyped m2 (mk_variable_untyped v))) = er_fun (Rep_expression e) m2 (embedding_inv (memory_lookup_untyped m2 (mk_variable_untyped v)))" using a1 by metis
+    thus "er_fun (Rep_expression e) m1 (inv embedding (memory_lookup_untyped m2 (mk_variable_untyped v))) 
+        = er_fun (Rep_expression e) m2 (inv embedding (memory_lookup_untyped m2 (mk_variable_untyped v)))" using a1 by metis
   qed
 definition var_expression :: "('a::prog_type) variable \<Rightarrow> 'a expression" where
 "var_expression v = Abs_expression
