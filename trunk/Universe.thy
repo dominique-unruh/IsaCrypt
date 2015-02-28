@@ -198,6 +198,22 @@ instance apply (rule prog_type_classI, rule exI[where x="Rep_ell1"])
   by (metis Rep_ell1_inverse injI)
 end
 
+instantiation option :: (prog_type)prog_type begin
+instance apply (rule prog_type_classI, rule exI[where x="\<lambda>x. case x of Some x \<Rightarrow> Inl x | None \<Rightarrow> Inr ()"])
+    apply (rule injI)
+    by (smt2 option.sel_split rel_sum_simps(3) sum.rel_eq sum.sel(1))
+end
+
+instantiation Datatype.node :: (prog_type,prog_type) prog_type begin
+instance apply (rule prog_type_classI, rule exI[where x=Rep_Node])
+  by (metis injI Rep_Node_inverse)
+end
+
+instantiation list :: (prog_type) prog_type begin
+instance apply (rule prog_type_classI, rule exI[where x="\<lambda>l. (length l, nth l)"])
+  by (rule injI, metis nth_equalityI old.prod.inject)
+end
+
 
 end
 
