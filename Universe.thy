@@ -1,5 +1,5 @@
 theory Universe
-imports Main Ell1
+imports Main Ell1 BNF_Cardinal_Order_Relation
 begin
                                        
 definition "powertower t == \<forall>n. \<exists>i. inj_on i (Pow (t n)) \<and> i ` (Pow (t n)) \<subseteq> t (Suc n)"
@@ -93,7 +93,38 @@ instance apply (rule prog_type_classI, rule exI[where x="\<lambda>b. if b then 0
 end
 
 lemma ordered_cardinals: "(\<exists>i::'a\<Rightarrow>'b. inj i) \<or> (\<exists>j::'b\<Rightarrow>'a. inj j)"
-  sorry (* card_of_ordLeq BNF_Cardinal_Order_Relation *)
+proof -
+  have leq: "ordLeq2 (card_of (Inl ` UNIV :: ('a+'b)set)) (card_of (Inr ` UNIV :: ('a+'b)set)) \<or>
+        ordLeq2 (card_of (Inr ` UNIV :: ('a+'b)set)) (card_of (Inl ` UNIV :: ('a+'b)set))"
+        by (rule ordLeq_total, rule card_of_Well_order, rule card_of_Well_order)
+  show ?thesis proof (rule leq[THEN disjE], fold card_of_ordLeq)
+    assume "\<exists>f::'a+'b \<Rightarrow> 'a+'b. inj_on f (range Inl) \<and> f ` range Inl \<subseteq> range Inr"
+    then obtain f::"'a+'b \<Rightarrow> 'a+'b" where finj: "inj_on f (range Inl)" and frng: "f ` range Inl \<subseteq> range Inr" by auto
+    def i == "\<lambda>x. case f (Inl x) of Inr y \<Rightarrow> y"
+    have "inj i" proof (rule injI, unfold i_def) 
+      fix x y assume eq:"(case f (Inl x) of Inr y \<Rightarrow> y) = (case f (Inl y) of Inr y \<Rightarrow> y)"
+      from frng obtain x' where x': "f (Inl x) = Inr x'" by blast
+      from frng obtain y' where y': "f (Inl y) = Inr y'" by blast
+      from eq have "f (Inl x) = f (Inl y)" unfolding x' y' by simp
+      with finj have "Inl x = Inl y" unfolding inj_on_def by simp
+      thus "x = y" by auto
+    qed
+    thus ?thesis by auto
+  next
+    assume "\<exists>f::'a+'b \<Rightarrow> 'a+'b. inj_on f (range Inr) \<and> f ` range Inr \<subseteq> range Inl"
+    then obtain f::"'a+'b \<Rightarrow> 'a+'b" where finj: "inj_on f (range Inr)" and frng: "f ` range Inr \<subseteq> range Inl" by auto
+    def j == "\<lambda>x. case f (Inr x) of Inl y \<Rightarrow> y"
+    have "inj j" proof (rule injI, unfold j_def) 
+      fix x y assume eq:"(case f (Inr x) of Inl y \<Rightarrow> y) = (case f (Inr y) of Inl y \<Rightarrow> y)"
+      from frng obtain x' where x': "f (Inr x) = Inl x'" by blast
+      from frng obtain y' where y': "f (Inr y) = Inl y'" by blast
+      from eq have "f (Inr x) = f (Inr y)" unfolding x' y' by simp
+      with finj have "Inr x = Inr y" unfolding inj_on_def by simp
+      thus "x = y" by auto
+    qed
+    thus ?thesis by auto
+  qed
+qed
 
 instantiation sum :: (prog_type,prog_type) prog_type begin
 instance proof (intro_classes, cases "\<exists>i::'a\<Rightarrow>'b. inj i")
@@ -160,6 +191,11 @@ end
 instantiation "distr" :: (prog_type)prog_type begin
 instance apply (rule prog_type_classI, rule exI[where x="Rep_distr"])
   by (metis Rep_distr_inverse injI)
+end
+
+instantiation "ell1" :: (prog_type)prog_type begin
+instance apply (rule prog_type_classI, rule exI[where x="Rep_ell1"])
+  by (metis Rep_ell1_inverse injI)
 end
 
 
