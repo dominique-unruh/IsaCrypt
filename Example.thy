@@ -25,8 +25,6 @@ method_setup wp1 = {* Scan.succeed (fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp1
 method_setup skip = {* Scan.succeed (K (SIMPLE_METHOD' Hoare_Tactics.skip_tac)) *} "skip"
 
 
-declare [[ML_exception_trace = true]]
-
 ML "open Hoare_Tactics"
 
 (* TODO: Variables should contain a typeref *)
@@ -59,7 +57,7 @@ lemma test: assumes "Q == \<lambda>m. memory_lookup m x = 13"
  (* fixes x::"int variable" and y::"int variable"
   assumes "\<not> var_eq x y"
  *) shows "hoare {\<lambda>m. memory_lookup m x = 13} x := x+1; x := x+1; y := 5; if (False) x:=4 {x \<ge> 15}"
-  apply wp 
+  apply wp
   apply skip
   by simp  
 
