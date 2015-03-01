@@ -1,6 +1,12 @@
 structure Hoare_Tactics =
 struct
 
+fun NGOALS n tac i st =
+  tac i st |> Seq.filter (fn st' => nprems_of st' = nprems_of st - 1 + n);
+fun NGOALS_ERROR n tac i st =
+  tac i st |> Seq.map (fn st' => if nprems_of st' = nprems_of st - 1 + n then st
+                                 else raise (ERROR ("NGOALS_ERROR")));
+
 (*
 (* Don't forget: fact must have Trueprop in it *)
 fun prove_by_tactic ctx tac fact =
@@ -50,11 +56,13 @@ fun decide_var_eq ctx v w =
 
 fun simp_memory_updates_tac ctx =
   let val simpset = (Raw_Simplifier.clear_simpset ctx) 
-                    addsimps @{thms e_fun_const_expression e_fun_apply_expression
-                                    memory_lookup_update_notsame memory_lookup_update_same'}
+                    addsimps @{thms e_fun_const_expression
+                                    e_fun_apply_expression
+                                    memory_lookup_update_notsame
+                                    memory_lookup_update_same'}
       val simpset = Simplifier.set_subgoaler (fn _ => asm_simp_tac ctx) simpset
   in
-    simp_tac simpset
+    NGOALS 1 (simp_tac simpset)
   end
 
 fun last_step_tac_lax i : tactic = 
@@ -81,9 +89,11 @@ fun wp_if_strict ctx i : tactic =
   rtac @{thm if_case_rule} i
   THEN wp_total_strict_tac ctx i
   THEN wp_total_strict_tac ctx i
+  THEN simp_memory_updates_tac ctx i
 
 (* Removes a hoare-triple goal. If the precondition is ?Q, ?Q will be instantiated with the wp *)
-and wp_total_strict_tac ctx i : tactic = (REPEAT_DETERM (wp1_tac ctx i)) THEN (rtac @{thm skip_rule_strict} i)
+and wp_total_strict_tac' ctx i : tactic = (REPEAT_DETERM (wp1_tac ctx i)) THEN (rtac @{thm skip_rule_strict} i)
+and wp_total_strict_tac ctx = NGOALS 0 (wp_total_strict_tac' ctx)
 
 and wp1_tac ctx i st =
   (last_step_tac i
