@@ -46,8 +46,11 @@ definition "memory_update m (v::'a variable) (a::'a::prog_type) =
 lemma memory_lookup_update_same [simp]: "memory_lookup (memory_update m v a) v = a"
   unfolding memory_lookup_def memory_update_def
   by (metis embedding_inv f_inv_into_f memory_lookup_update_same_untyped rangeI)
+lemma memory_lookup_update_same': "var_eq v w \<Longrightarrow> (memory_lookup (memory_update m v a) w == a)"
+  unfolding memory_lookup_def memory_update_def
+  by (smt2 memory_lookup_def memory_lookup_update_same memory_update_def var_eq_def)
 lemma memory_lookup_update_notsame [simp]: 
-  "\<not>var_eq v w \<Longrightarrow> memory_lookup (memory_update m v a) w = memory_lookup m w"
+  "\<not>var_eq v w \<Longrightarrow> memory_lookup (memory_update m v a) w == memory_lookup m w"
   unfolding var_eq_def memory_lookup_def memory_update_def
   by (simp add: memory_lookup_update_notsame_untyped)  
   
