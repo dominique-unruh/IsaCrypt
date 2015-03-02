@@ -6,22 +6,32 @@ import glob
 import os
 import re
 
-def run_theory(thy):
+def parse_thy(thy):
     content = open(thy).read()
     expect = []
+    info = {}
 
-    for m in re.finditer(r"^\s*\(\*\s+@([A-Z]+)(?:\s(.*))?\*\)",content):
+    for m in re.finditer(r"^\s*\(\*\s+@([A-Z]+)(?:\s(.*))?\*\)\s*$",content,re.MULTILINE):
         (key,val) = m.groups()
+        print m.groups()
         if val==None: val = ""
         val = val.strip()
 
         if key=="FAIL": expect.append(("FAIL",0))
+        elif key=="SUITE": info['suite'] = val
         else: raise RuntimeError("Unknown key {} in {}".format(key,thy))
 
     if expect==[]: expect.append(("SUCCEED",0))
+    info['expect'] = expect
+
+    return info
+
+def run_theory(thy):
+    info = parse_thy(thy)
+    expect = info['expect']
 
     (thy_noext,ext) = os.path.splitext(thy)
-    ml = '(Thy_Info.use_thy ("{thy}",Position.none); exit 0) handle e => (writeln (exnMessage e); exit 1);;'.format(thy=thy_noext)
+    ml = '(Thy_Info.use_thy ("{thy}",Position.none); exit 0; ()) handle e => (writeln (exnMessage e); exit 1);;'.format(thy=thy_noext)
     cmd = ['/opt/Isabelle/bin/isabelle_process', 'EasyCrypt', '-q']
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     (out, err) = proc.communicate(input=ml)
@@ -38,17 +48,25 @@ def run_theory(thy):
             assert ret!=0
 
 def discover_tests():
-    global testsuite
+    suites = {}
+    for thy in glob.glob("tests/*.thy"):
+        info = parse_thy(thy)
+        suite = info.get('suite','Unsorted')
+        if not suites.has_key(suite): suites[suite] = []
+        suites[suite].append(thy)
+
     with open("testsuite.py","w") as f:
         f.write("""
 import tests
 import unittest
-
-class Test(unittest.TestCase):
 """)
-        for thy in glob.glob("tests/*.thy"):
-            (basename,ext) = os.path.splitext(os.path.basename(thy))
-            f.write("    def test_{basename}(self): tests.run_theory('{thy}')\n".format(thy=thy,basename=basename))
+        for suite in suites:
+            f.write("""
+class {}(unittest.TestCase):
+""".format(suite))
+            for thy in suites[suite]:
+                (basename,ext) = os.path.splitext(os.path.basename(thy))
+                f.write("    def test_{basename}(self): tests.run_theory('{thy}')\n".format(thy=thy,basename=basename))
         f.write("""
 if __name__ == "__main__":
     unittest.main()
