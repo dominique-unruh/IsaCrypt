@@ -1,3 +1,4 @@
 (* @FAIL *)
+(* @SUITE Dummy *)
 
 blabl
