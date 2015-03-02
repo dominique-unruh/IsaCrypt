@@ -13,7 +13,6 @@ def parse_thy(thy):
 
     for m in re.finditer(r"^\s*\(\*\s+@([A-Z]+)(?:\s(.*))?\*\)\s*$",content,re.MULTILINE):
         (key,val) = m.groups()
-        print m.groups()
         if val==None: val = ""
         val = val.strip()
 

@@ -1,3 +1,5 @@
+(* @SUITE wp *)
+
 theory wp_if
 imports "../Hoare_Tactics"
 begin

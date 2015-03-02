@@ -1,3 +1,5 @@
+(* @SUITE wp *)
+
 theory wp_skip
 imports "../Hoare_Tactics"
 begin
