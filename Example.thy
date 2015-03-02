@@ -1,5 +1,5 @@
 theory Example
-imports Hoare_Typed RHL_Typed
+imports Hoare_Typed RHL_Typed Hoare_Tactics
 begin
 
 abbreviation "(x::int variable) == Variable ''x''"
@@ -18,14 +18,7 @@ definition "example =
     if (\<not>b) { skip; x := 15; skip }
   ]"
 
-ML_file "hoare_tactics.ML"
 
-method_setup wp = {* Scan.succeed (fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp_tac ctx))) *} "weakest precondition (tail of program: if + assign + skip)"
-method_setup wp1 = {* Scan.succeed (fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp1_tac ctx))) *} "weakest precondition (last statement only)"
-method_setup skip = {* Scan.succeed (K (SIMPLE_METHOD' Hoare_Tactics.skip_tac)) *} "skip"
-
-
-ML "open Hoare_Tactics"
 
 (* TODO: Variables should contain a typeref *)
 

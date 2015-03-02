@@ -1,5 +1,5 @@
 theory wp_if
-imports "../Example" (* TODO: should refer to wherever the wp-method is *)
+imports "../Hoare_Tactics"
 begin
 
 abbreviation "z == Variable ''z'' :: int variable";
