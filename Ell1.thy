@@ -167,6 +167,9 @@ lemma compose_point_distr_r [simp]: "compose_distr f (point_distr x) = f x"
 lemma compose_point_distr_l [simp]: "compose_distr (\<lambda>x. point_distr (f x)) \<mu> = apply_to_distr f \<mu>"
   unfolding apply_to_distr_def ..
 
+lemma compose_distr_trans: "compose_distr (\<lambda>x. compose_distr g (f x)) \<mu> = compose_distr g (compose_distr f \<mu>)" 
+  sorry  
+
 subsection {* Combining ell1 and distr *}
 
 definition "distr_to_ell1 \<mu> = Abs_ell1 (Rep_distr \<mu>)"

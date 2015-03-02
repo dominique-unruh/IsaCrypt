@@ -141,7 +141,7 @@ definition "restore_locals oldmem newmem =
   Abs_memory (Rep_memory newmem \<lparr> mem_locals := mem_locals (Rep_memory oldmem) \<rparr>)"
 
 fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
-  "denotation_untyped (Seq p1 p2) m = compose_distr (denotation_untyped p2) (denotation_untyped p1 m)"
+  denotation_untyped_Seq: "denotation_untyped (Seq p1 p2) m = compose_distr (denotation_untyped p2) (denotation_untyped p1 m)"
 | "denotation_untyped (Assign v e) m = point_distr (memory_update_untyped m v (eu_fun e m))"
 | "denotation_untyped (Sample v e) m = apply_to_distr (memory_update_untyped m v) (ed_fun e m)"
 | "denotation_untyped (Skip) m = point_distr m"
@@ -169,5 +169,9 @@ definition "vars prog = vars_untyped (mk_program_untyped prog)"
 
 definition "lossless_untyped p = (\<forall>m. weight_distr (denotation_untyped p m) = 1)"
 definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"
+
+lemma denotation_untyped_assoc: "denotation_untyped (Seq (Seq x y) z) = denotation_untyped (Seq x (Seq y z))"
+  unfolding denotation_untyped_Seq[THEN ext] 
+  unfolding compose_distr_trans ..
 
 end;
