@@ -8,5 +8,24 @@ method_setup wp = {* Scan.succeed (fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp_t
 method_setup wp1 = {* Scan.succeed (fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp1_tac ctx))) *} "weakest precondition (last statement only)"
 method_setup skip = {* Scan.succeed (K (SIMPLE_METHOD' Hoare_Tactics.skip_tac)) *} "skip"
 
+(* TODO:
+
+- conseq
+- exfalso
+- elim*
+- seq
+- sp
+- wp n
+- rnd
+- if
+- while
+- call
+- proc
+- proc*
+- swap
+
+
+*)
+
 end
 

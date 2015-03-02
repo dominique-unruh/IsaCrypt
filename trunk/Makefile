@@ -1,6 +1,9 @@
 
 BROWSER_INFO = /home/unruh/.isabelle/Isabelle2014/browser_info/Unsorted/EasyCrypt
 
+def :
+	error
+
 session : ROOT *.thy 
 	/opt/Isabelle/bin/isabelle build -b -d . -v EasyCrypt 
 	ls -lh $(BROWSER_INFO)/document.pdf
@@ -16,3 +19,9 @@ ROOT: *.thy Makefile
 
 graph: session.graph
 	/opt/Isabelle/bin/isabelle browser session.graph 
+
+testsuite.py : tests.py tests/*.thy
+	python tests.py
+
+test: testsuite.py tests.py
+	cricket-unittest &
