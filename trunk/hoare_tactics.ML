@@ -108,6 +108,24 @@ fun wp_tac ctx i : tactic = REPEAT_DETERM1 (wp1_tac ctx i)
 
 (*fun wp_total_tac i : tactic = (REPEAT_DETERM (wp1_tac i)) THEN (skip_tac i)*)
 
+fun mk_suc_nat n = if n<=0 then @{term "0::nat"} else @{const Suc} $ mk_suc_nat (n-1);
+
+(* TODO: n should count from start *)
+(* TODO: I should be allowed to have a more general type (e.g., I=\<lambda>x. True) *)
+fun seq_tac ctx n I i =
+  let val thy = Proof_Context.theory_of ctx
+      val n' = cterm_of thy (mk_suc_nat n)
+      val insert_split_n = Ctr_Sugar_Util.cterm_instantiate_pos [NONE,SOME n'] @{thm insert_split}
+      val seq_rule_Q = (case I of NONE => @{thm seq_rule}
+                        | SOME I => Ctr_Sugar_Util.cterm_instantiate_pos [NONE,NONE,SOME (cterm_of thy I)] 
+                                    @{thm seq_rule})
+  in
+  rtac insert_split_n i  
+  THEN  Raw_Simplifier.rewrite_goal_tac ctx @{thms split_program_simps} i
+  THEN  rtac seq_rule_Q i
+  end
+
+
 
 end
 

@@ -117,6 +117,12 @@ lemma addskip_rule:
   shows "hoare {P &m} \<guillemotleft>c\<guillemotright> {Q &m}"
   using assms unfolding hoare_def denotation_seq_skip by simp
 
+lemma denotation_eq_rule:
+  assumes "denotation d = denotation c"
+  assumes "hoare {P &m} \<guillemotleft>c\<guillemotright> {Q &m}"
+  shows   "hoare {P &m} \<guillemotleft>d\<guillemotright> {Q &m}"
+using assms unfolding hoare_def by auto
+
 section {* Rules for ML tactics *}
 
 (* Ordering of subgoals for certain tactics *)

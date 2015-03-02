@@ -239,8 +239,10 @@ lemma mk_untyped_callproc: "mk_program_untyped (callproc v proc args) =
   apply (metis Rep_procargvars list_all_iff procargvars_local)
   by (metis Rep_procargvars procargvars_distinct)
 
+(*lemma denotation_seq: "denotation (seq p q) m = 
+  compose_distr (denotation_untyped (mk_program_untyped q)) (denotation_untyped (mk_program_untyped p) m)" *)
 lemma denotation_seq: "denotation (seq p q) m = 
-  compose_distr (denotation_untyped (mk_program_untyped q)) (denotation_untyped (mk_program_untyped p) m)"
+  compose_distr (denotation q) (denotation p m)"
 unfolding denotation_def memory_update_def mk_untyped_seq by simp
 
 lemma denotation_skip: "denotation skip m = point_distr m"
@@ -267,6 +269,13 @@ lemma denotation_seq_skip [simp]: "denotation (seq Lang_Typed.skip c) = denotati
   unfolding denotation_seq[THEN ext] mk_untyped_skip denotation_def by simp 
 
 lemmas denotation_simp = denotation_seq denotation_skip denotation_assign denotation_sample denotation_ifte denotation_while denotation_callproc
+
+(* TODO: goes in the wrong direction for nice formatting.
+  We want left parenthized denotations! *)
+lemma denotation_trans: "denotation (seq (seq x y) z) = denotation (seq x (seq y z))"
+  unfolding denotation_seq[THEN ext] 
+  unfolding compose_distr_trans ..
+
 
 subsection {* Concrete syntax for programs *}
 
