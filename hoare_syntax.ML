@@ -17,7 +17,11 @@ fun trans_assert' _ _ (e as Abs _) = e
   | trans_assert' _ _ (e as Const("_constrainAbs",_) $ Abs _ $ _) = e
   | trans_assert' ctx known e =
     let val e = trans_assert ctx known 0 e
-    in Abs("mem",dummyT,e) end
+    in Abs("mem",@{typ memory},e) end
+
+fun trans_assertion ctx P =
+  let val known = Unsynchronized.ref []
+  in trans_assert' ctx known P end
 
 fun trans_hoare ctx P c Q =
     let val known = Unsynchronized.ref []

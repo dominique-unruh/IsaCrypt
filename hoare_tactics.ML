@@ -115,7 +115,7 @@ fun program_length (Const(@{const_name seq},_)$p$_) = program_length p + 1
 fun program_length_hoare (Const(@{const_name hoare},_)$_$p$_) = program_length p
   | program_length_hoare t = raise (TERM ("expreting hoare triple",[t]))
 
-(* TODO: n should count from start *)
+
 (* TODO: I should be allowed to have a more general type (e.g., I=\<lambda>x. True) *)
 (* TODO: should be possible to split before first statement *)
 fun seq_tac ctx n I =

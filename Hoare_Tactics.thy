@@ -75,10 +75,22 @@ method_setup wp = {* Scan.succeed (fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp_t
 method_setup wp1 = {* Scan.succeed (fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp1_tac ctx))) *} "weakest precondition (last statement only)"
 method_setup skip = {* Scan.succeed (K (SIMPLE_METHOD' Hoare_Tactics.skip_tac)) *} "skip"
 (* TODO: make test cases *)
+ML {* Markup.completion *}
+
+ML {*
+val arg_parse_assertion = 
+  Scan.peek (Args.named_term o 
+  (fn ctx => fn str => ((writeln (String.implode ( (map (fn x => if Char.ord x<20 then #"~" else x) (String.explode str))))); 
+Syntax.read_term ctx ("ASSERTION["^str^"]"))) o 
+  Context.proof_of)
+*}
+
 method_setup seq = {*
  (Scan.lift Parse.int -- 
-  Scan.option (Scan.lift (Args.$$$ "invariant" |-- Args.colon) |-- Args.term))
-  >> (fn (n,inv) => fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.seq_tac ctx n inv))) *} "seq n [invariant: term]"
+  Scan.option (Scan.lift (Args.$$$ "invariant" |-- Args.colon) |-- Scan.lift Parse.string))
+  >> (fn (n,inv) => fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.seq_tac ctx n 
+(case inv of NONE => NONE | SOME str => SOME (Syntax.read_term ctx ("ASSERTION["^str^"]::bool")))
+))) *} "seq n [invariant: term]"
 
 (* TODO:
 

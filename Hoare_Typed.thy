@@ -17,11 +17,13 @@ subsection {* Concrete syntax *}
 syntax "_hoare" :: "(memory \<Rightarrow> bool) \<Rightarrow> program_syntax \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> term"
           ("hoare {(_)}/ (2_)/ {(_)}")
 syntax "_memory" :: memory ("&m")
+syntax "_assertion" :: "(memory \<Rightarrow> bool) \<Rightarrow> (memory \<Rightarrow> bool)" ("ASSERTION[_]")
 
 ML_file "hoare_syntax.ML"
 
 parse_translation {*
-    [("_hoare", fn ctx => fn [P,c,Q] => Hoare_Syntax.trans_hoare ctx P c Q)]
+    [("_hoare", fn ctx => fn [P,c,Q] => Hoare_Syntax.trans_hoare ctx P c Q),
+     ("_assertion", fn ctx => fn [P] => Hoare_Syntax.trans_assertion ctx P)]
 *}
 
 print_translation {*
