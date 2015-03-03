@@ -144,7 +144,7 @@ fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
   denotation_untyped_Seq: "denotation_untyped (Seq p1 p2) m = compose_distr (denotation_untyped p2) (denotation_untyped p1 m)"
 | "denotation_untyped (Assign v e) m = point_distr (memory_update_untyped m v (eu_fun e m))"
 | "denotation_untyped (Sample v e) m = apply_to_distr (memory_update_untyped m v) (ed_fun e m)"
-| "denotation_untyped (Skip) m = point_distr m"
+| denotation_untyped_Skip: "denotation_untyped (Skip) m = point_distr m"
 | "denotation_untyped (IfTE e thn els) m = (if (eu_fun e m = embedding True) then denotation_untyped thn m else denotation_untyped els m)"
 | "denotation_untyped (While e p) m = 
       ell1_to_distr (\<Sum>n. distr_to_ell1 (compose_distr (\<lambda>m. if eu_fun e m = embedding True then 0 else point_distr m)
