@@ -13,9 +13,11 @@ definition "test = PROGRAM[ \<guillemotleft>p1\<guillemotright>; \<guillemotleft
 ML {* Scan.lift; Parse.int *}
 
 
-lemma "hoare {P &m} x:=1; x:=2; x:=3; x:=4; x:=5; x:=6 {Q &m}"
-  apply (seq 5 invariant: "\<lambda>m::memory. True")
-  oops
+lemma "hoare {P &m} x:=1; x:=2; x:=3; x:=4; x:=5; x:=6 {x<10}"
+  apply (seq 3 invariant: "\<lambda>m::memory. memory_lookup m x = 3")
+  apply (wp, skip, simp)
+  apply (wp, skip, simp)
+done
 (*  apply (rule insert_split[where n="(Suc (Suc (Suc (Suc (Suc (Suc 0))))))"])
   apply (simp only: split_program_simps)
   apply (tactic {* Hoare_Tactics.seq_tac @{context} 4 (SOME @{term "\<lambda>m::memory. True"}) 1 *})*)
