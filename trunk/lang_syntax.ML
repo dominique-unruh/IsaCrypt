@@ -3,6 +3,10 @@ struct
 
 (* Parser for programs *)
 
+  fun add_var known (Free(v,_)) = (if not (member (op=) (!known) v) then known := v :: !known else ())
+    | add_var known (Const("_constrain",_)$p$_) = add_var known p
+    | add_var _ _ = ()
+
   fun is_program_variable ctx (v:string list) (c:string) = 
         if member (op=) v c then true
         else
@@ -34,6 +38,9 @@ struct
   fun abstract_variable (vn,v) e = Abs(vn,dummyT,replace_variable 0 v e)
   fun apply_expression (_,v) e = Const(@{const_name apply_expression},dummyT) $ e $ v
 
+
+  in
+
   fun translate_expression ctx known (e:term) = 
     let val vars = get_variable_names ctx known e
         val rev_vars = rev vars
@@ -42,14 +49,15 @@ struct
         val e = fold apply_expression vars e
     in e end
 
-  fun add_var known (Free(v,_)) = (if not (member (op=) (!known) v) then known := v :: !known else ())
-    | add_var known (Const("_constrain",_)$p$_) = add_var known p
-    | add_var _ _ = ()
-
-  in
 
   fun translate_program (ctx:Proof.context) known (p:term) =
-    let fun trans (Const("_assign",_) $ x $ e) =
+    let fun trargs (Const("_procedure_call_args_none",_)) = Const(@{const_name procargs_empty},dummyT)
+          | trargs (Const("_procedure_call_args_single",_)$x) = 
+              (Const(@{const_name procargs_add},dummyT) $ translate_expression ctx known x $ Const(@{const_name procargs_empty},dummyT))
+          | trargs (Const("_procedure_call_args_cons",_)$x$xs) = 
+              (Const(@{const_name procargs_add},dummyT) $ translate_expression ctx known x $ trargs xs)
+          | trargs t = raise (TERM ("trargs",[t]))
+        fun trans (Const("_assign",_) $ x $ e) =
                 (add_var known x;
                  Const(@{const_syntax assign},dummyT) $ x $ translate_expression ctx known e)
           | trans (Const("_assign_quote",_) $ x $ e) =
@@ -82,6 +90,8 @@ struct
           | trans (Const("_seq",_) $ p1 $ p2) =
                 Const(@{const_syntax seq},dummyT) $ trans p1 $ trans p2
           | trans (Const("_skip",_)) = Const(@{const_syntax skip},dummyT)
+          | trans (Const("_callproc",_) $ x $ f $ args) = (add_var known x;
+                Const(@{const_syntax callproc},dummyT) $ x $ f $ trargs args)
           | trans p = raise ERROR ("Invalid program fragment "^(@{make_string} p))
     in trans p end
   end

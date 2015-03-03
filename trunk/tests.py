@@ -25,6 +25,14 @@ def parse_thy(thy):
 
     return info
 
+ignored_output = """> val commit = fn: unit -> unit
+val it = (): unit
+ML> Warning-Handler catches all exceptions.
+Found near
+  (Thy_Info.use_thy ("{thy}", Position.none); exit 0; ())
+  handle e => (writeln (exnMessage e); exit 1)
+"""
+
 def run_theory(thy):
     info = parse_thy(thy)
     expect = info['expect']
@@ -37,8 +45,10 @@ def run_theory(thy):
     ret = proc.returncode
 
     print "Return value: {}".format(ret)
-    if out != "": print "Output:\n"+out
-    if err != "": print "Stderr:\n"+err
+    ignored_output2 = ignored_output.format(thy=thy_noext,thy_basename=os.path.basename(thy_noext))
+    if out.startswith(ignored_output2): out = out[len(ignored_output2):]
+    if out != "": print "\nOutput:\n"+out
+    if err != "": print "\nStderr:\n"+err
 
     for (k,v) in expect:
         if k=="SUCCEED":

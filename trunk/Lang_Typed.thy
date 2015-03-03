@@ -281,9 +281,15 @@ subsection {* Concrete syntax for programs *}
 
 subsubsection {* Grammar *}
 
+nonterminal procedure_call_args_syntax
+nonterminal procedure_call_args_syntax'
+syntax "_procedure_call_args_none" :: procedure_call_args_syntax ("'(')")
+syntax "_procedure_call_args_single" :: "'a \<Rightarrow> procedure_call_args_syntax'" ("_")
+syntax "_procedure_call_args_cons" :: "'a \<Rightarrow> procedure_call_args_syntax' \<Rightarrow> procedure_call_args_syntax'" ("_,_")
+syntax "" :: "procedure_call_args_syntax' \<Rightarrow> procedure_call_args_syntax" ("'(_')")
+
 nonterminal program_syntax
 
-(* TODO: grammar callproc *)
 
 syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _; ]")
 syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ]")
@@ -301,6 +307,7 @@ syntax "_sample_quote" :: "'a variable \<Rightarrow> 'a expression \<Rightarrow>
 syntax "_while_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("while '(\<guillemotleft>_\<guillemotright>') (2_)" [0,20] 20)
 syntax "_ifte_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_) else _" [0,20] 20)
 syntax "_ifthen_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_)" [0,20] 20)
+syntax "_callproc" :: "idt \<Rightarrow> ('a,'b) procedure \<Rightarrow> procedure_call_args_syntax \<Rightarrow> program_syntax" ("_ := call _ _" 30)
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ }")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_')")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_;')")
@@ -317,5 +324,36 @@ parse_translation {* [("_program", fn ctx => fn p =>
       Lang_Syntax.translate_program ctx (Unsynchronized.ref[]) (hd p))] *};
 
 print_translation {* [(@{const_syntax program}, fn ctx => fn p => Const("_program",dummyT) $ Lang_Syntax.translate_program_back ctx (hd p))] *};
+
+term "PROGRAM[ x:=call f(x+(12::nat)) ]"
+
+subsection {* Concrete grammar for procedures *}
+
+nonterminal procedure_decl_args_syntax
+nonterminal procedure_decl_args_syntax'
+syntax "_procedure_decl_args_none" :: procedure_decl_args_syntax ("'(')")
+syntax "_procedure_decl_args_single" :: "idt \<Rightarrow> procedure_decl_args_syntax'" ("_")
+syntax "_procedure_decl_args_cons" :: "idt \<Rightarrow> procedure_decl_args_syntax' \<Rightarrow> procedure_decl_args_syntax'" ("_,_")
+syntax "" :: "procedure_decl_args_syntax' \<Rightarrow> procedure_decl_args_syntax" ("'(_')")
+syntax "_procedure_decl" :: "procedure_decl_args_syntax \<Rightarrow> program_syntax \<Rightarrow> 'b \<Rightarrow> ('a,'b) procedure" ("proc _ {_; return _}")
+syntax "_procedure_decl" :: "procedure_decl_args_syntax \<Rightarrow> program_syntax \<Rightarrow> 'b \<Rightarrow> ('a,'b) procedure" ("proc _ {_; return _;}")
+
+parse_translation {* [("_procedure_decl", fn ctx => fn [args,body,return] => 
+let val known = Unsynchronized.ref[] (* TODO: add local vars *)
+    fun trargs (Const("_procedure_decl_args_none",_)) = Const(@{const_name procargvars_empty},dummyT)
+      | trargs (Const("_procedure_decl_args_single",_)$x) = 
+          (Lang_Syntax.add_var known x; Const(@{const_name procargvars_add},dummyT) $ x $ Const(@{const_name procargvars_empty},dummyT))
+      | trargs (Const("_procedure_decl_args_cons",_)$x$xs) = 
+          (Lang_Syntax.add_var known x; Const(@{const_name procargvars_add},dummyT) $ x $ trargs xs)
+      | trargs t = raise (TERM ("trargs",[t]))
+    val args = trargs args
+in
+Const(@{const_name Lang_Typed.procedure.procedure_ext},dummyT) $ 
+   Lang_Syntax.translate_program ctx known body $ (* p_body *)
+   args $ (* p_args *)
+   Lang_Syntax.translate_expression ctx known return $ (* p_return *)
+   Const(@{const_name Product_Type.Unity},dummyT)
+end)] *}
+
 
 end
