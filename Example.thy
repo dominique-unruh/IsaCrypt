@@ -14,7 +14,7 @@ ML {* Scan.lift; Parse.int *}
 
 (* TODO: parse invariant as assertion (with &m, variables, etc) *)
 lemma "hoare {P &m} x:=1; x:=2; x:=3; x:=4; x:=5; x:=6 {x<10}"
-  apply (seq 3 invariant: "3 4 5")
+  apply (seq 3 invariant: "x=3")
   apply (wp, skip, simp)
   apply (wp, skip, simp)
 done

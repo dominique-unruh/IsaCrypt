@@ -1,10 +1,11 @@
 
 BROWSER_INFO = /home/unruh/.isabelle/Isabelle2014/browser_info/Unsorted/EasyCrypt
+HEAP = /home/unruh/.isabelle/Isabelle2014/heaps/polyml-5.5.2_x86-linux/EasyCrypt
 
 def :
 	error
 
-session : ROOT *.thy 
+$(HEAP) : ROOT *.thy 
 	/opt/Isabelle/bin/isabelle build -b -d . -v EasyCrypt 
 	ls -lh $(BROWSER_INFO)/document.pdf
 
@@ -23,5 +24,5 @@ graph: session.graph
 testsuite.py : tests.py tests/*.thy
 	python tests.py
 
-test: testsuite.py tests.py
+test: testsuite.py tests.py $(HEAP)
 	cricket-unittest &

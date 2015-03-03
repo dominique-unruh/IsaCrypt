@@ -2,7 +2,7 @@ theory Hoare_Tactics
 imports Hoare_Typed
 begin
 
-section {* Support lemmas for seq_tac *}
+subsection {* Support lemmas for seq-tac *}
 
 fun rev_program_untyped :: "program_rep \<Rightarrow> program_rep \<Rightarrow> program_rep" where
   "rev_program_untyped p (Seq q r) = rev_program_untyped (Seq p q) r"
@@ -67,7 +67,7 @@ apply (rule denotation_eq_rule)
 apply (fact denotation_split_program_start[symmetric])
 by (fact assms)
 
-section {* Tactic/method declarations *}
+subsection {* Tactic/method declarations *}
 
 ML_file "hoare_tactics.ML"
 
@@ -89,7 +89,7 @@ method_setup seq = {*
  (Scan.lift Parse.int -- 
   Scan.option (Scan.lift (Args.$$$ "invariant" |-- Args.colon) |-- Scan.lift Parse.string))
   >> (fn (n,inv) => fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.seq_tac ctx n 
-(case inv of NONE => NONE | SOME str => SOME (Syntax.read_term ctx ("ASSERTION["^str^"]::bool")))
+(case inv of NONE => NONE | SOME str => SOME (Syntax.read_term ctx ("ASSERTION["^str^"]::memory\<Rightarrow>bool")))
 ))) *} "seq n [invariant: term]"
 
 (* TODO:
