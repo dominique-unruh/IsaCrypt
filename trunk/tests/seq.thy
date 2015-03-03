@@ -1,3 +1,5 @@
+(* @SUITE seq *)
+
 theory seq
 imports "../Hoare_Tactics"
 begin
@@ -35,3 +37,6 @@ lemma
   apply (fact assms(1))
   by (fact assms(2))
 *)
+
+end
+
