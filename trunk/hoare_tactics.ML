@@ -112,6 +112,7 @@ fun mk_suc_nat n = if n<=0 then @{term "0::nat"} else @{const Suc} $ mk_suc_nat 
 
 (* TODO: n should count from start *)
 (* TODO: I should be allowed to have a more general type (e.g., I=\<lambda>x. True) *)
+(* TODO: should be possible to split before first statement *)
 fun seq_tac ctx n I i =
   let val thy = Proof_Context.theory_of ctx
       val n' = cterm_of thy (mk_suc_nat n)

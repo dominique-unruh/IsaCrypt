@@ -10,11 +10,15 @@ abbreviation "(b::bool variable) == Variable ''b''"
 consts p1::program p2::program p3::program p4::program p5::program p6::program p7::program
 definition "test = PROGRAM[ \<guillemotleft>p1\<guillemotright>; \<guillemotleft>p2\<guillemotright>; \<guillemotleft>p3\<guillemotright>; \<guillemotleft>p4\<guillemotright>; \<guillemotleft>p5\<guillemotright>; \<guillemotleft>p6\<guillemotright>; \<guillemotleft>p7\<guillemotright>; ]"
 
-(*method_setup seq = {* Scan.succeed (K (SIMPLE_METHOD' Hoare_Tactics.skip_tac)) *} "skip"*)
+ML {* Scan.lift; Parse.int *}
 
 
 lemma "hoare {P &m} x:=1; x:=2; x:=3; x:=4; x:=5; x:=6 {Q &m}"
-  apply (tactic {* Hoare_Tactics.seq_tac @{context} 4 (SOME @{term "\<lambda>m::memory. True"}) 1 *})
+  apply (seq 5 invariant: "\<lambda>m::memory. True")
+  oops
+(*  apply (rule insert_split[where n="(Suc (Suc (Suc (Suc (Suc (Suc 0))))))"])
+  apply (simp only: split_program_simps)
+  apply (tactic {* Hoare_Tactics.seq_tac @{context} 4 (SOME @{term "\<lambda>m::memory. True"}) 1 *})*)
 
   
 definition "example = 
