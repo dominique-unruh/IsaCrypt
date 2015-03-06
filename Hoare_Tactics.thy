@@ -60,12 +60,21 @@ lemma denotation_split_program_start: "denotation (split_program_start n p) = de
 lemmas split_program_simps = split_program_start_def split_program_0_seq split_program_0_skip split_program_suc rev_program_seq rev_program_skip
 
 lemma insert_split: 
+  assumes "denotation (split_program_start n c) = denotation d"
+  shows   "denotation c = denotation d"
+unfolding assms[symmetric]
+using denotation_split_program_start[symmetric] .
+
+(*
+lemma insert_split: 
   fixes n
   assumes "hoare {P &m} \<guillemotleft>split_program_start n c\<guillemotright> {Q &m}"
   shows   "hoare {P &m} \<guillemotleft>c\<guillemotright> {Q &m}"
 apply (rule denotation_eq_rule)
 apply (fact denotation_split_program_start[symmetric])
 by (fact assms)
+*)
+
 
 subsection {* Tactic/method declarations *}
 
@@ -74,30 +83,19 @@ ML_file "hoare_tactics.ML"
 method_setup wp = {* Scan.succeed (fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp_tac ctx))) *} "weakest precondition (tail of program: if + assign + skip)"
 method_setup wp1 = {* Scan.succeed (fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp1_tac ctx))) *} "weakest precondition (last statement only)"
 method_setup skip = {* Scan.succeed (K (SIMPLE_METHOD' Hoare_Tactics.skip_tac)) *} "skip"
-(* TODO: make test cases *)
-ML {* Markup.completion *}
-
-ML {*
-val arg_parse_assertion = 
-  Scan.peek (Args.named_term o 
-  (fn ctx => fn str => ((writeln (String.implode ( (map (fn x => if Char.ord x<20 then #"~" else x) (String.explode str))))); 
-Syntax.read_term ctx ("ASSERTION["^str^"]"))) o 
-  Context.proof_of)
-*}
-
 method_setup seq = {*
  (Scan.lift Parse.int -- 
-  Scan.option (Scan.lift (Args.$$$ "invariant" |-- Args.colon) |-- Scan.lift Parse.string))
-  >> (fn (n,inv) => fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.seq_tac ctx n 
-(case inv of NONE => NONE | SOME str => SOME (Syntax.read_term ctx ("ASSERTION["^str^"]::memory\<Rightarrow>bool")))
-))) *} "seq n [invariant: term]"
+  Scan.option (Scan.lift (Args.$$$ "invariant" |-- Args.colon) 
+               |-- Hoare_Syntax.arg_parse_assertion))
+  >> (fn (n,inv) => fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.seq_tac ctx n inv))) *}
+  "seq n [invariant: term]"
+
 
 (* TODO:
 
 - conseq
 - exfalso
 - elim*
-- seq
 - sp
 - wp n
 - rnd
@@ -107,7 +105,6 @@ method_setup seq = {*
 - proc
 - proc*
 - swap
-
 
 *)
 

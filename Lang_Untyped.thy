@@ -101,8 +101,8 @@ datatype program_rep =
 | Skip
 | IfTE expression_untyped program_rep program_rep
 | While expression_untyped program_rep
-| CallProc variable_untyped procedure "expression_untyped list"
-and procedure =
+| CallProc variable_untyped procedure_rep "expression_untyped list"
+and procedure_rep =
   Proc program_rep "variable_untyped list" expression_untyped
 
 fun well_typed :: "program_rep \<Rightarrow> bool" where

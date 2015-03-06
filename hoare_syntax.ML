@@ -33,5 +33,8 @@ fun trans_hoare ctx P c Q =
 fun trans_hoare_back ctx P c Q =
     Const("_hoare",dummyT) $ P $ Lang_Syntax.translate_program_back ctx c $ Q
 
+(* Parser similar to Args.term, but parses term as an assertion *)
+val arg_parse_assertion = (fn (str,(ctx:Context.generic,toks)) => 
+   ((Syntax.read_term (Context.proof_of ctx) ("ASSERTION["^str^"]::memory\<Rightarrow>bool")),(ctx,toks))) o Scan.lift Parse.string
 
 end

@@ -308,6 +308,7 @@ syntax "_while_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightar
 syntax "_ifte_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_) else _" [0,20] 20)
 syntax "_ifthen_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_)" [0,20] 20)
 syntax "_callproc" :: "idt \<Rightarrow> ('a,'b) procedure \<Rightarrow> procedure_call_args_syntax \<Rightarrow> program_syntax" ("_ := call _ _" 30)
+(*syntax "_local_var" :: "idt \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("local _;/ _" [10,11] 10)*)
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ }")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_')")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_;')")
@@ -324,8 +325,6 @@ parse_translation {* [("_program", fn ctx => fn p =>
       Lang_Syntax.translate_program ctx (Unsynchronized.ref[]) (hd p))] *};
 
 print_translation {* [(@{const_syntax program}, fn ctx => fn p => Const("_program",dummyT) $ Lang_Syntax.translate_program_back ctx (hd p))] *};
-
-term "PROGRAM[ x:=call f(x+(12::nat)) ]"
 
 subsection {* Concrete grammar for procedures *}
 

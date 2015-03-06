@@ -28,7 +28,6 @@ lemma
   apply (fact assms(1))
   by (fact assms(2))
 
-(* TODO
 lemma 
   assumes "hoare {P &m} skip {True}"
   assumes "hoare {True} x:=1; x:=2; x:=3; x:=4; x:=5; x:=6 {$x<10}"
@@ -36,7 +35,7 @@ lemma
   apply (seq 0)
   apply (fact assms(1))
   by (fact assms(2))
-*)
+
 
 end
 

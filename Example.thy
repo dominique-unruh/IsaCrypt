@@ -1,6 +1,30 @@
 theory Example
 imports Hoare_Typed RHL_Typed Hoare_Tactics
-begin
+begin 
+
+typedef ('a,'b) finite_map = "{m::'a\<rightharpoonup>'b. finite(dom m)}"
+  by (metis (poly_guards_query) finite_dom_map_of mem_Collect_eq) 
+
+datatype procedure_type = Null
+and closed_module = ClosedModule
+and  module_type = ModuleType
+  (* argument types *) "module_type list"
+  (* procedures *) "string \<rightharpoonup> procedure_type"
+
+datatype module = Module
+  (* argument types *) "module_type list"
+  (* submodules *) "string \<rightharpoonup> module \<rightharpoonup> module"
+  (* procedures *) "string \<rightharpoonup> procedure_rep"
+  (* variables *) "string \<rightharpoonup> variable_untyped"
+
+
+locale M begin
+  abbreviation "(x::int variable) == Variable ''x''"
+  definition "invoke == proc (x) { x:=1; return () }"
+end
+
+
+term M.invoke
 
 abbreviation "(x::int variable) == Variable ''x''"
 abbreviation "(y::int variable) == Variable ''y''"
@@ -18,9 +42,6 @@ lemma "hoare {P &m} x:=1; x:=2; x:=3; x:=4; x:=5; x:=6 {x<10}"
   apply (wp, skip, simp)
   apply (wp, skip, simp)
 done
-(*  apply (rule insert_split[where n="(Suc (Suc (Suc (Suc (Suc (Suc 0))))))"])
-  apply (simp only: split_program_simps)
-  apply (tactic {* Hoare_Tactics.seq_tac @{context} 4 (SOME @{term "\<lambda>m::memory. True"}) 1 *})*)
 
   
 definition "example = 

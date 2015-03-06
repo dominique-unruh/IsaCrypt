@@ -3,6 +3,10 @@ struct
 
 (* Parser for programs *)
 
+  fun get_var_name (Free(v,_)) = v
+    | get_var_name (Const("_constrain",_)$p$_) = get_var_name p
+    | get_var_name v = raise (TERM ("not a variable",[v]))
+
   fun add_var known (Free(v,_)) = (if not (member (op=) (!known) v) then known := v :: !known else ())
     | add_var known (Const("_constrain",_)$p$_) = add_var known p
     | add_var _ _ = ()
@@ -92,6 +96,10 @@ struct
           | trans (Const("_skip",_)) = Const(@{const_syntax skip},dummyT)
           | trans (Const("_callproc",_) $ x $ f $ args) = (add_var known x;
                 Const(@{const_syntax callproc},dummyT) $ x $ f $ trargs args)
+(*          | trans (Const("_local_var",_) $ v $ body) = (add_var v;
+                Const(@{const_name HOL.Let},dummyT) $
+                (Const(@{const_name LVariable},dummyT) $ get_var_name v)
+                --- Abs(abstract body over v) --- *)
           | trans p = raise ERROR ("Invalid program fragment "^(@{make_string} p))
     in trans p end
   end
