@@ -112,28 +112,45 @@ fun mk_suc_nat n = if n<=0 then @{term "0::nat"} else @{const Suc} $ mk_suc_nat 
 
 fun program_length (Const(@{const_name seq},_)$p$_) = program_length p + 1
   | program_length _ = 1
-fun program_length_hoare (Const(@{const_name hoare},_)$_$p$_) = program_length p
-  | program_length_hoare t = raise (TERM ("expreting hoare triple",[t]))
+(*fun program_length_hoare (Const(@{const_name hoare},_)$_$p$_) = program_length p
+  | program_length_hoare t = raise (TERM ("expecting hoare triple",[t]))*)
+
+fun dest_denotation (Const (@{const_name denotation}, _) $ p) = p
+  | dest_denotation t = raise TERM ("dest_denotation", [t])
 
 
-(* TODO: I should be allowed to have a more general type (e.g., I=\<lambda>x. True) *)
-(* TODO: should be possible to split before first statement *)
-fun seq_tac ctx n I =
+(*
+  Proves the goal "denotation c = denotation ?d" by
+  instantiating ?d with (seq c1 c2) where c1 are the first n statements of c
+*)
+fun seq_deno_tac ctx n =
+  if n=0 then rtac @{thm denotation_seq_skip[symmetric]} 
+  else
   SUBGOAL (fn (goal,i) => 
-  let val concl = Logic.strip_assums_concl goal
-      val proglen = program_length_hoare (HOLogic.dest_Trueprop concl)
+  let
       val thy = Proof_Context.theory_of ctx
+      val concl = Logic.strip_assums_concl goal
+      val lhsprog = dest_denotation (fst (HOLogic.dest_eq (HOLogic.dest_Trueprop concl)))
+      val proglen = program_length lhsprog
       val n' = cterm_of thy (mk_suc_nat (proglen - n))
-      val insert_split_n = Ctr_Sugar_Util.cterm_instantiate_pos [NONE,SOME n'] @{thm insert_split}
+      val insert_split_n = Ctr_Sugar_Util.cterm_instantiate_pos [SOME n'] @{thm insert_split}
+  in
+    rtac insert_split_n i  
+    THEN Raw_Simplifier.rewrite_goal_tac ctx @{thms split_program_simps} i
+    THEN rtac @{thm HOL.refl} i
+  end)
+
+fun seq_tac ctx n I i =
+  let
+      val thy = Proof_Context.theory_of ctx
       val seq_rule_Q = (case I of NONE => @{thm seq_rule}
                         | SOME I => Ctr_Sugar_Util.cterm_instantiate_pos [NONE,NONE,SOME (cterm_of thy I)] 
                                     @{thm seq_rule})
   in
-  rtac insert_split_n i  
-  THEN  Raw_Simplifier.rewrite_goal_tac ctx @{thms split_program_simps} i
+  rtac @{thm denotation_eq_rule} i  
+  THEN  seq_deno_tac ctx n i
   THEN  rtac seq_rule_Q i
-  end)
-
+  end
 
 
 end
