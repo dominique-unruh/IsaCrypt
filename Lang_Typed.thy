@@ -14,7 +14,9 @@ lemma bool_type: "bool_type = Type TYPE(bool)"
 lemma embedding_Type: "embedding (x::'a::prog_type) \<in> t_domain (Type TYPE('a))"
   unfolding Type_def t_domain_def
   by (subst Abs_type_inverse, auto)
-
+lemma embedding_Type_range: "range (embedding::'a\<Rightarrow>val) = t_domain (Type TYPE('a::prog_type))"
+  unfolding Type_def t_domain_def
+  by (subst Abs_type_inverse, auto)
 
 subsection {* Variables *}
 
@@ -69,6 +71,47 @@ definition "mk_expression_untyped (e::('a::prog_type)expression) =
   Abs_expression_untyped \<lparr> eur_fun=\<lambda>m. embedding (e_fun e m),
                            eur_type=Type TYPE('a),
                            eur_vars=e_vars e \<rparr>"
+definition "mk_expression_typed (e::expression_untyped) = 
+  Abs_expression \<lparr> er_fun=\<lambda>m. inv embedding (eu_fun e m),
+                   er_vars=eu_vars e \<rparr>"
+lemma mk_expression_typed_inverse:
+  assumes "eu_type e=Type TYPE('a)"
+  shows "mk_expression_untyped (mk_expression_typed e :: 'a::prog_type expression) = e"
+proof (rule trans[OF _ Rep_expression_untyped_inverse], cases "Rep_expression_untyped e")
+  fix f t v assume e_parts: "Rep_expression_untyped e = \<lparr>eur_fun=f, eur_type=t, eur_vars=v\<rparr>"
+  have f_t: "\<And>m. f m \<in> t_domain t"
+    by (metis (erased, lifting) Rep_expression_untyped e_parts expression_untyped_rep.select_convs(1) expression_untyped_rep.select_convs(2) mem_Collect_eq)
+  have t: "t=Type TYPE('a)"
+    by (metis assms e_parts eu_type_def expression_untyped_rep.select_convs(2)) 
+  have f_touches: "\<And>m1 m2. (\<forall>v\<in>set v. 
+    memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<longrightarrow> f m1 = f m2"
+    using Rep_expression_untyped[of e] unfolding e_parts by auto
+  have rep_abs: "Rep_expression (Abs_expression \<lparr>er_fun = \<lambda>m. inv embedding (f m), er_vars = v\<rparr>)
+              = \<lparr>er_fun = \<lambda>m. inv embedding (f m), er_vars = v\<rparr>"
+    by (subst Abs_expression_inverse, auto, metis f_touches)
+  have inv: "\<And>m. embedding (inv embedding (f m)::'a) = f m"
+    apply (subst f_inv_into_f[where f=embedding], auto)
+    using f_t unfolding t embedding_Type_range .
+  have h1: "mk_expression_untyped (Abs_expression \<lparr>er_fun = \<lambda>m. inv embedding (f m), er_vars = v\<rparr> :: 'a expression) =
+    Abs_expression_untyped \<lparr>eur_fun = f, eur_type = t, eur_vars = v\<rparr>"
+    unfolding mk_expression_untyped_def 
+    apply (subst Abs_expression_untyped_inject)
+    unfolding e_fun_def e_vars_def
+    apply (auto simp: embedding_Type)
+    apply (smt2 Rep_expression mem_Collect_eq)
+    apply (fact f_t)
+    apply (metis f_touches)
+    unfolding rep_abs apply (auto simp: t)
+    by (simp add: inv)
+
+  show "mk_expression_untyped (mk_expression_typed e::'a expression) =
+       Abs_expression_untyped (Rep_expression_untyped e)"
+       unfolding e_parts
+       apply (subst mk_expression_typed_def)
+       unfolding eu_fun_def eu_vars_def e_parts apply simp
+       using h1 .
+qed
+
 lemma mk_expression_untyped_fun [simp]: "eu_fun (mk_expression_untyped (e::'a::prog_type expression)) m = embedding (e_fun e m)"
   unfolding mk_expression_untyped_def eu_fun_def
   apply (subst Abs_expression_untyped_inverse, auto simp: embedding_Type)
@@ -131,22 +174,40 @@ subsection {* Procedures *}
 
 class procargs =
   fixes procargs_len :: "'a itself \<Rightarrow> nat"
-  fixes procargs :: "'a itself \<Rightarrow> expression_untyped list set"
-  fixes procargvars :: "'a itself \<Rightarrow> variable_untyped list set"
+  fixes procargs :: "'a itself \<Rightarrow> expression_untyped list set" (* TODO: define outside typeclass *)
+(*  fixes procargvars :: "'a itself \<Rightarrow> variable_untyped list set" (* TODO: define outside typeclass *) *)
+  fixes procargtypes :: "'a itself \<Rightarrow> type list"
   assumes procargs_not_empty: "procargs (TYPE('a)) \<noteq> {}"
-  assumes procargvars_not_empty: "procargvars (TYPE('a)) \<noteq> {}"
-  assumes procargvars_local: "\<forall>l\<in>procargvars (TYPE('a)). \<forall>v\<in>set l. \<not> vu_global v"
+(*  assumes procargvars_not_empty: "procargvars (TYPE('a)) \<noteq> {}" *)
+(*  assumes procargvars_local: "\<forall>l\<in>procargvars (TYPE('a)). \<forall>v\<in>set l. \<not> vu_global v" *)
   assumes procargs_len: "\<forall>x\<in>procargs TYPE('a). length x = procargs_len TYPE('a)"
-  assumes procargvars_len: "\<forall>x\<in>procargvars TYPE('a). length x = procargs_len TYPE('a)"
-  assumes procargs_typematch: "\<forall>es\<in>procargs TYPE('a). \<forall>vs\<in>procargvars TYPE('a). 
+(*  assumes procargvars_len: "\<forall>x\<in>procargvars TYPE('a). length x = procargs_len TYPE('a)" *)
+  assumes procargtypes_len: "length (procargtypes TYPE('a)) = procargs_len TYPE('a)"
+(*  assumes procargs_typematch: "\<forall>es\<in>procargs TYPE('a). \<forall>vs\<in>procargvars TYPE('a). 
      list_all2 (\<lambda>v e. vu_type v = eu_type e) vs es"
-  assumes procargvars_distinct: "\<forall>vs\<in>procargvars TYPE('a). distinct vs"
+  assumes procargs_typematch': "\<forall>vs\<in>procargvars TYPE('a). 
+     list_all2 (\<lambda>v t. vu_type v = t) vs (procargtypes TYPE('a))" *)
+  assumes procargs_typematch'': "\<forall>vs\<in>procargs TYPE('a). 
+     list_all2 (\<lambda>v t. eu_type v = t) vs (procargtypes TYPE('a))"
+(*  assumes procargvars_distinct: "\<forall>vs\<in>procargvars TYPE('a). distinct vs" *)
+
+definition procargvars :: "'a::procargs itself \<Rightarrow> variable_untyped list set" where
+  "procargvars _ = {vs. distinct vs \<and> list_all2 (\<lambda>v t. vu_type v = t) vs (procargtypes TYPE('a)) \<and> 
+                    (\<forall>v\<in>set vs. \<not> vu_global v)}"
+lemma procargvars_not_empty: "procargvars (TYPE('a::procargs)) \<noteq> {}" 
+  sorry
+lemma procargs_typematch: "\<forall>es\<in>procargs TYPE('a::procargs). \<forall>vs\<in>procargvars TYPE('a). 
+     list_all2 (\<lambda>v e. vu_type v = eu_type e) vs es"
+  sorry
 
 instantiation unit :: procargs begin
 definition "procargs (_::unit itself) = {[]::expression_untyped list}"
-definition "procargvars (_::unit itself) = {[]::variable_untyped list}"
+(*definition "procargvars (_::unit itself) = {[]::variable_untyped list}"*)
+definition "procargtypes (_::unit itself) = []"
 definition "procargs_len (_::unit itself) = 0"
-instance apply intro_classes unfolding procargs_unit_def procargvars_unit_def procargs_len_unit_def by auto
+instance apply intro_classes 
+  unfolding procargs_unit_def procargs_len_unit_def 
+            procargtypes_unit_def by auto
 end
 
 definition "freshvar vs = (SOME vn. \<forall>v\<in>set vs. vn \<noteq> vu_name v)"
@@ -158,12 +219,15 @@ lemma freshvar_local: "mk_variable_untyped (LVariable (freshvar vs)) \<notin> se
 instantiation prod :: (prog_type,procargs) procargs begin
 definition "procargs_len (_::('a::prog_type*'b) itself) = Suc (procargs_len TYPE('b))"
 definition "procargs (_::('a::prog_type*'b) itself) = {mk_expression_untyped e#es|(e::'a expression) es. es\<in>procargs TYPE('b)}"
-definition "procargvars (_::('a::prog_type*'b) itself)= {mk_variable_untyped (LVariable v::'a variable)#vs|v vs. vs\<in>procargvars TYPE('b) \<and> mk_variable_untyped (LVariable v::'a variable)\<notin>set vs}"
-instance apply intro_classes unfolding procargs_prod_def procargvars_prod_def procargs_len_prod_def mk_variable_untyped_def
-         apply (auto simp: procargs_not_empty procargvars_not_empty procargs_len procargvars_len procargs_typematch)
-         apply (metis ex_in_conv freshvar_local mk_variable_untyped_def procargvars_not_empty variable.simps(6))
-         apply (metis procargvars_local)
-         by (metis procargvars_distinct)
+(*definition "procargvars (_::('a::prog_type*'b) itself) = {mk_variable_untyped (LVariable v::'a variable)#vs|v vs. vs\<in>procargvars TYPE('b) \<and> mk_variable_untyped (LVariable v::'a variable)\<notin>set vs}"*)
+definition "procargtypes (_::('a::prog_type*'b) itself) = Type TYPE('a) # procargtypes TYPE('b)"
+instance apply intro_classes 
+  unfolding procargs_prod_def procargs_len_prod_def 
+            mk_variable_untyped_def procargtypes_prod_def
+  apply (auto simp: procargs_not_empty procargs_len)
+  apply (metis procargtypes_len)
+  apply (metis procargs_typematch'')
+  done
 end
 
 typedef ('a::procargs) procargs = "procargs TYPE('a)" using procargs_not_empty by auto
@@ -178,6 +242,26 @@ record ('a::procargs,'b) procedure =
   p_return :: "'b expression"
 definition "mk_procedure_untyped proc = 
   Proc (mk_program_untyped (p_body proc)) (Rep_procargvars (p_args proc)) (mk_expression_untyped (p_return proc))"
+
+fun mk_procedure_typed where
+ "mk_procedure_typed (Proc body args return) = 
+    \<lparr> p_body=Abs_program body, p_args=Abs_procargvars args, p_return=mk_expression_typed return \<rparr>"
+| "mk_procedure_typed _ = undefined"
+lemma mk_procedure_typed_inverse:
+  fixes body args return
+  assumes "well_typed body"
+  assumes "args \<in> procargvars TYPE('a)"
+  assumes "eu_type return = Type TYPE('b)"
+  defines "p == Proc body args return"
+  shows "mk_procedure_untyped (mk_procedure_typed p :: ('a::procargs,'b::prog_type)procedure) = p"
+  unfolding mk_procedure_untyped_def p_def apply auto
+  apply (subst Abs_program_inverse, auto simp: assms)
+  apply (subst Abs_procargvars_inverse, auto simp: assms)
+  apply (subst mk_expression_typed_inverse, auto simp: assms)
+done
+
+definition "procedure_type (_::('a::procargs,'b::prog_type) procedure itself) = 
+  \<lparr> pt_argtypes=procargtypes TYPE('a), pt_returntype=Type TYPE('b) \<rparr>"
 
 definition procargs_empty :: "unit procargs" where
   "procargs_empty = Abs_procargs []"
@@ -231,13 +315,21 @@ lemma mk_untyped_while: "mk_program_untyped (while e p) =
 definition callproc :: "'a::prog_type variable \<Rightarrow> ('b::procargs,'a) procedure \<Rightarrow> 'b procargs \<Rightarrow> program" where
   "callproc v proc args = Abs_program (CallProc (mk_variable_untyped v) (mk_procedure_untyped proc) (mk_procargs_untyped args))"
 
+lemma list_all2_swap: "list_all2 P x y = list_all2 (\<lambda>x y. P y x) y x"
+  by (metis list_all2_conv_all_nth)
+
 lemma mk_untyped_callproc: "mk_program_untyped (callproc v proc args) =
   CallProc (mk_variable_untyped v) (mk_procedure_untyped proc) (mk_procargs_untyped args)"
+proof -
+  have swap: "\<And>x y. list_all2 (\<lambda>(x::variable_untyped) y. vu_type x = eu_type y) x y = list_all2 (\<lambda>y x. eu_type y = vu_type x) y x"
+   unfolding list_all2_conv_all_nth by auto
+  show ?thesis
   unfolding callproc_def denotation_def mk_procedure_untyped_def 
   apply (subst Abs_program_inverse, auto)
-  apply (metis Rep_procargs Rep_procargvars procargs_typematch)
-  apply (metis Rep_procargvars list_all_iff procargvars_local)
-  by (metis Rep_procargvars procargvars_distinct)
+  apply (subst list_all2_map2)
+  apply (subst swap[THEN sym])
+  by (metis Rep_procargs Rep_procargvars procargs_typematch)
+qed
 
 (*lemma denotation_seq: "denotation (seq p q) m = 
   compose_distr (denotation_untyped (mk_program_untyped q)) (denotation_untyped (mk_program_untyped p) m)" *)

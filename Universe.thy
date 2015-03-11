@@ -200,8 +200,12 @@ end
 
 instantiation option :: (prog_type)prog_type begin
 instance apply (rule prog_type_classI, rule exI[where x="\<lambda>x. case x of Some x \<Rightarrow> Inl x | None \<Rightarrow> Inr ()"])
-    apply (rule injI)
-    by (smt2 option.sel_split rel_sum_simps(3) sum.rel_eq sum.sel(1))
+proof (rule injI) (* Sledgehammer proof *)
+  fix x :: "'a option" and y :: "'a option"
+  assume a1: "(case x of None \<Rightarrow> Inr () | Some f \<Rightarrow> Inl f) = (case y of None \<Rightarrow> Inr () | Some f \<Rightarrow> Inl f)"
+  then obtain esk3\<^sub>1 :: "'a option \<Rightarrow> 'a" where "y = x \<or> None = x \<or> y = None" by (metis option.case(2) option.exhaust sum.sel(1))
+  thus "x = y" using a1 by (metis (no_types) Inr_not_Inl option.case_eq_if)
+qed
 end
 
 instantiation Datatype.node :: (prog_type,prog_type) prog_type begin

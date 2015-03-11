@@ -1,5 +1,5 @@
 theory Example
-imports Hoare_Typed RHL_Typed Hoare_Tactics
+imports Hoare_Typed RHL_Typed Hoare_Tactics Modules
 begin 
 
 typedef ('a,'b) finite_map = "{m::'a\<rightharpoonup>'b. finite(dom m)}"
