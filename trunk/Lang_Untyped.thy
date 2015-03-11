@@ -93,6 +93,8 @@ definition "ed_fun e == edr_fun (Rep_expression_distr e)"
 definition "ed_type e == edr_type (Rep_expression_distr e)"
 definition "ed_vars e == edr_vars (Rep_expression_distr e)"
 
+type_synonym id0 = string
+type_synonym id = "id0 list"
 
 datatype program_rep =
   Assign variable_untyped expression_untyped
@@ -104,18 +106,48 @@ datatype program_rep =
 | CallProc variable_untyped procedure_rep "expression_untyped list"
 and procedure_rep =
   Proc program_rep "variable_untyped list" expression_untyped
+| ProcRef id "type list" type
 
-fun well_typed :: "program_rep \<Rightarrow> bool" where
-  "well_typed (Seq p1 p2) = (well_typed p1 \<and> well_typed p2)"
-| "well_typed (Assign v e) = (eu_type e = vu_type v)"
-| "well_typed (Sample v e) = (ed_type e = vu_type v)"
-| "well_typed Skip = True"
-| "well_typed (While e p) = ((eu_type e = bool_type) \<and> well_typed p)"
-| "well_typed (IfTE e thn els) = ((eu_type e = bool_type) \<and> well_typed thn \<and> well_typed els)"
-| "well_typed (CallProc v (Proc body pargs return) args) = 
-    (eu_type return = vu_type v \<and> well_typed body 
+fun is_concrete_proc where 
+  "is_concrete_proc (Proc x y z) = True"
+| "is_concrete_proc (ProcRef x y z) = False"
+
+record procedure_type =
+  pt_argtypes :: "type list"
+  pt_returntype :: "type"
+
+fun proctype_of :: "procedure_rep \<Rightarrow> procedure_type" where
+  "proctype_of (Proc body args return) = \<lparr> pt_argtypes=map vu_type args, pt_returntype=eu_type return \<rparr>"
+| "proctype_of (ProcRef name args return) = \<lparr> pt_argtypes=args, pt_returntype=return \<rparr>"
+
+fun well_typed' :: "(id,procedure_type)map \<Rightarrow> program_rep \<Rightarrow> bool" 
+and well_typed_proc' :: "(id,procedure_type)map \<Rightarrow> procedure_rep \<Rightarrow> bool" where
+  "well_typed' E (Seq p1 p2) = (well_typed' E p1 \<and> well_typed' E p2)"
+| "well_typed' E (Assign v e) = (eu_type e = vu_type v)"
+| "well_typed' E (Sample v e) = (ed_type e = vu_type v)"
+| "well_typed' E Skip = True"
+| "well_typed' E (While e p) = ((eu_type e = bool_type) \<and> well_typed' E p)"
+| "well_typed' E (IfTE e thn els) = ((eu_type e = bool_type) \<and> well_typed' E thn \<and> well_typed' E els)"
+| "well_typed' E (CallProc v proc args) =
+    (let procT = proctype_of proc in
+    vu_type v = pt_returntype procT \<and> 
+    list_all2 (\<lambda>e T. eu_type e = T) args (pt_argtypes procT))"
+(*| "well_typed' E (CallProc v (Proc body pargs return) args) = 
+    (eu_type return = vu_type v
      \<and> list_all2 (\<lambda>v e. vu_type v = eu_type e) pargs args
-     \<and> list_all (\<lambda>v. \<not> vu_global v) pargs \<and> distinct pargs)";
+     )"
+| "well_typed' E (CallProc v (ProcRef name x y) args) = 
+    (case E name of
+       None \<Rightarrow> False
+     | Some progtype \<Rightarrow>
+        pt_returntype progtype = vu_type v
+        \<and> list_all2 (\<lambda>t e. t = eu_type e) (pt_argtypes progtype) args)"*)
+| "well_typed_proc' E (ProcRef name argtypes returntype) = 
+    (E name = Some \<lparr> pt_argtypes=argtypes, pt_returntype=returntype \<rparr>)"
+| "well_typed_proc' E (Proc body pargs return) = 
+    (well_typed' E body \<and> list_all (\<lambda>v. \<not> vu_global v) pargs \<and> distinct pargs)"
+
+abbreviation "well_typed == well_typed' empty"
 
 typedef program = "{prog. well_typed prog}"
   apply (rule exI[where x=Skip]) by simp
@@ -151,20 +183,25 @@ fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
                                             (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)))"
 | "denotation_untyped (CallProc v (Proc body pargs return) args) m = 
   apply_to_distr (restore_locals m) (denotation_untyped body (init_locals pargs args m))"
+| "denotation_untyped (CallProc v (ProcRef x y z) args) m = 0" (* Cannot happen for well-typed programs *)
 definition "denotation prog = denotation_untyped (mk_program_untyped prog)"
 
-fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" where
+fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
+and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" where
   "vars_untyped Skip = []"
 | "vars_untyped (Seq p1 p2) = (vars_untyped p1) @ (vars_untyped p2)"
 | "vars_untyped (Assign v e) = v # eu_vars e"
 | "vars_untyped (Sample v e) = v # ed_vars e"
 | "vars_untyped (IfTE e p1 p2) = eu_vars e @ vars_untyped p1 @ vars_untyped p2"
 | "vars_untyped (While e p) = eu_vars e @ vars_untyped p"
-| "vars_untyped (CallProc v (Proc body pargs return) args) = 
-      v # [v. a\<leftarrow>args, v\<leftarrow>eu_vars a]
-      @ [v. v\<leftarrow>pargs, vu_global v] (* Empty for well-typed progs *)
+| "vars_untyped (CallProc v proc args) = 
+      v # [v. a\<leftarrow>args, v\<leftarrow>eu_vars a] @ vars_proc_untyped proc"
+| "vars_proc_untyped (Proc body pargs return) =
+      [v. v\<leftarrow>pargs, vu_global v] (* Empty for well-typed progs *)
       @ [v. v\<leftarrow>vars_untyped body, vu_global v]
       @ [v. v\<leftarrow>eu_vars return, vu_global v]"
+| "vars_proc_untyped (ProcRef name argT retT) = []"
+
 definition "vars prog = vars_untyped (mk_program_untyped prog)"
 
 definition "lossless_untyped p = (\<forall>m. weight_distr (denotation_untyped p m) = 1)"
