@@ -288,6 +288,37 @@ proof -
     by (rule list_all2_refl, simp)
 qed
 
+fun fresh_variables_local :: "variable_untyped list \<Rightarrow> type list \<Rightarrow> variable_untyped list" where
+  "fresh_variables_local used [] = []"
+| "fresh_variables_local used (t#ts) =
+    (let vn=freshvar used in 
+     let v=\<lparr> vu_name=vn, vu_type=t, vu_global=False \<rparr> in
+     v#fresh_variables_local (v#used) ts)"
+lemma fresh_variables_local_distinct: "distinct (fresh_variables_local used ts)"
+  sorry
+lemma fresh_variables_local_local: "\<forall>v\<in>set (fresh_variables_local used ts). \<not> vu_global v"
+  apply (induction ts arbitrary: used, auto)
+  by (metis (poly_guards_query) set_ConsD variable_untyped.select_convs(3)) 
+lemma fresh_variables_local_type: "map vu_type (fresh_variables_local used ts) = ts"
+  apply (induction ts arbitrary: used, auto)
+  by (metis list.simps(9) variable_untyped.select_convs(2))
+  
+
+lemma proctype_nonempty: "\<exists>p. well_typed_proc' E p \<and> proctype_of p = pT"
+proof (rule,rule)
+  def args == "fresh_variables_local [] (pt_argtypes pT) :: variable_untyped list"
+  def ret == "Abs_expression_untyped \<lparr> eur_fun=(\<lambda>m. t_default (pt_returntype pT)), eur_type=pt_returntype pT, eur_vars=[] \<rparr> :: expression_untyped"
+  def p == "(Proc Skip args ret)"
+  show "well_typed_proc' E p" 
+    unfolding p_def apply simp
+    unfolding args_def using fresh_variables_local_distinct fresh_variables_local_local
+    by (metis pred_list_def)
+  show "proctype_of p = pT" 
+    unfolding p_def args_def apply (simp add: fresh_variables_local_type)
+    unfolding ret_def eu_type_def
+    by (subst Abs_expression_untyped_inverse, auto)
+qed
+
 
 
 subsection {* Typed programs *}
