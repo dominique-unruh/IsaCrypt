@@ -272,6 +272,24 @@ definition procargvars_empty :: "unit procargvars" where
 definition procargvars_add :: "('a::prog_type) variable \<Rightarrow> ('b::procargs) procargvars \<Rightarrow> ('a*'b) procargvars" where
   "procargvars_add v vs = Abs_procargvars (mk_variable_untyped v#Rep_procargvars vs)"
 
+
+lemma procedure_type_procargvars:
+  assumes procT: "proctype_of (Proc body args ret) = procedure_type TYPE(('a::procargs,'b::prog_type)procedure)"
+  and wt: "well_typed_proc' E (Proc body args ret)"
+  shows "args \<in> procargvars TYPE('a)"
+proof -
+  from procT have t: "procargtypes TYPE('a) = map vu_type args"
+    by (simp add: procedure_type_def)
+  from wt have dist_glob: "distinct args \<and> (\<forall>v\<in>set args. \<not> vu_global v)"
+    by (simp, metis list_all_iff)
+  show "args \<in> procargvars TYPE('a)"
+    unfolding procargvars_def apply (simp add: dist_glob)
+    unfolding t list_all2_map2
+    by (rule list_all2_refl, simp)
+qed
+
+
+
 subsection {* Typed programs *}
 
 definition "label (l::string) (p::program) = p"
