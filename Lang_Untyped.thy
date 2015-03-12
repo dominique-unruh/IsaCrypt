@@ -12,6 +12,8 @@ definition t_domain :: "type \<Rightarrow> val set" where
   "t_domain t = tr_domain (Rep_type t)";
 definition t_default :: "type \<Rightarrow> val" where
   "t_default t = tr_default (Rep_type t)";
+lemma [simp]: "t_default t \<in> t_domain t"
+  unfolding t_domain_def t_default_def using Rep_type ..
 type_synonym variable_name = string
 
 record variable_untyped = 
@@ -36,7 +38,7 @@ typedef memory = "{m::memory_rep.
 apply (rule exI[where x="\<lparr> mem_globals = (\<lambda>v. t_default (vu_type v)),
                            mem_locals = (\<lambda>v. t_default (vu_type v)),
                            mem_stack = [] \<rparr>"])
-  by (auto, metis Rep_type mem_Collect_eq t_default_def t_domain_def)
+  by auto
 
 (*
 typedef memory = "{(m::variable_untyped\<Rightarrow>val). (\<forall>v. m v \<in> t_domain (vu_type v))}"
@@ -65,10 +67,9 @@ record expression_untyped_rep =
 typedef expression_untyped = "{(e::expression_untyped_rep).
   (\<forall>m. eur_fun e m \<in> t_domain (eur_type e)) \<and>
   (\<forall>m1 m2. (\<forall>v\<in>set (eur_vars e). memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<longrightarrow> eur_fun e m1 = eur_fun e m2)}";
-  apply (rule exI[of _ "\<lparr> eur_fun=(\<lambda>m. t_default undefined),
+  by (rule exI[of _ "\<lparr> eur_fun=(\<lambda>m. t_default undefined),
                           eur_type=undefined,
                           eur_vars=[] \<rparr>"], simp);
-  by (metis Rep_type mem_Collect_eq t_default_def t_domain_def);
 definition "eu_fun e == eur_fun (Rep_expression_untyped e)"
 definition "eu_type e == eur_type (Rep_expression_untyped e)"
 definition "eu_vars e == eur_vars (Rep_expression_untyped e)"

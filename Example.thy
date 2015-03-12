@@ -2,20 +2,6 @@ theory Example
 imports Hoare_Typed RHL_Typed Hoare_Tactics Modules
 begin 
 
-typedef ('a,'b) finite_map = "{m::'a\<rightharpoonup>'b. finite(dom m)}"
-  by (metis (poly_guards_query) finite_dom_map_of mem_Collect_eq) 
-
-datatype procedure_type = Null
-and closed_module = ClosedModule
-and  module_type = ModuleType
-  (* argument types *) "module_type list"
-  (* procedures *) "string \<rightharpoonup> procedure_type"
-
-datatype module = Module
-  (* argument types *) "module_type list"
-  (* submodules *) "string \<rightharpoonup> module \<rightharpoonup> module"
-  (* procedures *) "string \<rightharpoonup> procedure_rep"
-  (* variables *) "string \<rightharpoonup> variable_untyped"
 
 
 locale M begin

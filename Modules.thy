@@ -14,6 +14,8 @@ datatype module_type = ModuleType
  "(id,procedure_type) map" (* procedure types *)
 fun mt_proctypes :: "module_type \<Rightarrow> (id,procedure_type) map" where
   "mt_proctypes (ModuleType _ pt) = pt"
+fun mt_args :: "module_type \<Rightarrow> (id0,module_type) map" where
+  "mt_args (ModuleType a _) = a"
 
 fun module_type_map_to_proc_env :: "(id0,module_type) map \<Rightarrow> (id,procedure_type)map" where
   "module_type_map_to_proc_env T [] = None"
@@ -209,19 +211,54 @@ case (Proc body args ret)
 qed
 
 
-section {* Some tests (TODO: remove) *}
+lemma module_type_nonempty: 
+  assumes "finite (dom (mt_proctypes mT))"
+  assumes "finite (dom (mt_args mT))"
+  shows "\<exists>m. has_module_type m mT"
+proof -
+  obtain argT procT where mT_def: "mT = ModuleType argT procT" by (cases mT)
+  let ?some = "\<lambda>t p. well_typed_proc' (module_type_map_to_proc_env argT) p \<and> proctype_of p = t"
+  def procs == "(\<lambda>t. Some (SOME p. ?some t p)) \<circ>\<^sub>m procT"
+  have some: "\<And>t. ?some t (SOME p. ?some t p)" 
+    by (rule someI_ex, rule proctype_nonempty)
+  hence procs_good: "\<And>name t. 
+    procT name = Some t \<Longrightarrow> case procs name of None \<Rightarrow> False | Some p \<Rightarrow> proctype_of p = t"
+    unfolding procs_def by auto
+  def m == "Abs_module \<lparr> mr_module_args=argT, mr_procs=procs \<rparr>"
 
-(*
+  have wt_mod: "well_typed_module \<lparr> mr_module_args=argT, mr_procs=procs \<rparr>"
+    unfolding well_typed_module_def
+    apply (rule, smt2 assms(1) domIff mT_def map_comp_simps(1) module_rep.select_convs(2) mt_proctypes.simps procs_def rev_finite_subset subsetI)
+    apply (rule, metis assms(2) mT_def module_rep.select_convs(1) mt_args.simps)
+    apply simp
+    by (smt2 map_comp_Some_iff mem_Collect_eq option.sel procs_def proctype_nonempty ran_def someI_ex)
+    
+  hence rep: "Rep_module m = \<lparr> mr_module_args=argT, mr_procs=procs \<rparr>"
+    unfolding m_def by (subst Abs_module_inverse, simp_all)
+    
+  have "has_module_type m mT" 
+    unfolding has_module_type_def mT_def apply (simp add: rep wt_mod)
+    apply (rule, case_tac "procT name", auto)
+    using procs_good by auto
+  thus "\<exists>m. has_module_type m mT" ..
+qed
+
+
+section {* Some tests (TODO: remove) *}
+  
+text {*
 module type MT = {
   proc a(int) : bool
   proc b(int,int) : unit
 }
-*)
+*}
 
 definition MT :: module_type where
 "MT == ModuleType empty [[''a''] \<mapsto> procedure_type TYPE((int*unit,bool)procedure),
                          [''b''] \<mapsto> procedure_type TYPE((int*int*unit,unit)procedure)]"
-typedef MT = "{m. has_module_type m MT}" sorry  
+typedef MT = "{m. has_module_type m MT}"
+  apply (unfold mem_Collect_eq, rule module_type_nonempty)
+  by (simp_all add: MT_def)
 
 (* Only defined for closed module types *)
 definition get_MT_a :: "module \<Rightarrow> (int*unit,bool) procedure" where
@@ -243,13 +280,27 @@ lemma get_MT_b:
   using assms unfolding MT_def get_MT_b_def 
   by (rule get_proc_in_module', simp)
 
-(* 
+text {* 
 module M : MT = {
   proc a(x:int) { return x>0 }
   proc b(x:int, y:int) { x:=y; return () }
 }
-*)
+*}
 
+local_setup {*
+  fn lthy =>
+  let
+  val _ = @{print} @{binding bla.bli}
+  val q = Binding.qualify false "tmp"
+  val res = Local_Theory.define ((q@{binding bla}, NoSyn), ((q@{binding blu},[]), @{term 123})) lthy in
+  snd res end
+*}
+
+term tmp.bla
+thm blu
+
+
+locale M begin
 abbreviation "x == LVariable ''x'' :: int variable"
 abbreviation "y == LVariable ''y'' :: int variable"
 definition M_a :: "(int*unit,bool) procedure" where
@@ -262,6 +313,9 @@ definition M :: module where
                              [''b''] \<mapsto> mk_procedure_untyped M_b] \<rparr>"
 
 lemma "has_module_type M MT" sorry
+end
+
+term "M.x"
 
 end
 
