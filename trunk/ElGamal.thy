@@ -1,5 +1,5 @@
 theory ElGamal
-imports Hoare_Tactics
+imports Hoare_Tactics Modules
 begin
 
 type_synonym G = nat
@@ -19,8 +19,14 @@ abbreviation "m1 == LVariable ''m1''"
 abbreviation "b' == LVariable ''b_'' :: bool variable"
 abbreviation "tmp == LVariable ''tmp''"
 
+moduletype DDH_Adv where
+  "guess" :: "(G*G*G*unit,bool) procedure"
+
 record Adversary =
   Adv_guess :: "(G*G*G*unit,bool) procedure"
+
+moduletype DDH_Game where
+  "main" :: "(G*G*G*unit,bool) procedure"
 
 record DDH_Game =
   DDH_main :: "(unit,bool) procedure"
@@ -37,10 +43,25 @@ in
   \<lparr> DDH_main=main \<rparr>)
 "
 
+typedecl pk
+typedecl sk
+typedecl m
+typedecl c
+
+moduletype EncScheme where
+    kg :: "(unit,pk*sk) procedure"
+and enc :: "(pk*m*unit, c) procedure"
+and dec :: "(sk*c*unit, m) procedure"
+
+
 record ('pk,'sk,'m,'c) Scheme = 
   kg :: "(unit,'pk*'sk) procedure"
   enc :: "('pk*'m*unit,'c) procedure"
   dec :: "('sk*'c*unit, 'm) procedure"
+
+moduletype CPA_Adv where
+     choose :: "(pk*unit,m*m) procedure"
+and "guess" :: "(c*unit,bool) procedure"
 
 record ('pk,'sk,'m,'c) Adv =
   choose :: "('pk*unit,'m*'m) procedure"
