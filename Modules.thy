@@ -169,14 +169,6 @@ case (ProcRef x y z)
   note procref = this
   show ?thesis apply (rule FalseE)
     by (metis domI get_proc_in_module_def module_proc_type module_proc_notref option.sel procT procref type)
-(*  obtain p where somep: "get_proc_in_module M name = Some p"
-    apply (rule module_proc_defined)
-    apply (metis domI get_proc_in_module_def module_proc_defined module_proc_notref option.sel procT procref type)
-    apply (rule name) apply (rule type) by auto
-  with procref have someref: "get_proc_in_module M name = Some (ProcRef x y z)"
-    by (metis get_proc_in_module_def option.sel)
-  have False apply (rule module_proc_notref) 
-    using assms apply simp by (fact someref) *)
 next
 case (Proc body args ret)
   note proc = this
@@ -188,9 +180,9 @@ case (Proc body args ret)
     unfolding get_proc_in_module_def by auto
   have empty_args: "mr_module_args (Rep_module M) = empty"
     by (metis has_module_type'.simps has_module_type_def type)
-(*  have ran: "Proc body args ret \<in> ran (mr_procs (Rep_module M))"
+  (*  have ran: "Proc body args ret \<in> ran (mr_procs (Rep_module M))"
     by (metis (full_types) domI get_proc_in_module_def module_proc_type option.collapse option.distinct(1) proc procT ranI type)  *)
-(*  have "well_typed_module (Rep_module M)"
+  (*  have "well_typed_module (Rep_module M)"
     by (metis Rep_module mem_Collect_eq)  *)
 
   with wt_p_0 have wt_p: "well_typed_proc' empty p" 
@@ -253,9 +245,82 @@ module type MT = {
 }
 *}
 
-definition MT :: module_type where
+ML {*
+  type module_type_spec = 
+  { mt_args:(string*term) list,
+    mt_proctypes: (string list*typ) list
+  };
+*}
+
+ML {* @{term "procedure_type TYPE((unit,unit)procedure)"} *}
+
+ML {*
+  local
+  fun optionT t = Type(@{type_name option},[t]);
+  fun Some x = let val t = fastype_of x in Const(@{const_name Some},t --> optionT t) $ x end
+
+  fun fun_upd f x y = 
+    let val tx = fastype_of x
+        val ty = fastype_of y 
+    in
+    Const(@{const_name fun_upd}, (tx --> ty) --> tx --> ty --> (tx --> ty)) $ f $ x $ y
+    end                   
+
+  fun empty_map t1 t2 = Abs ("x", t1, Const (@{const_name None}, optionT t2))
+  in
+  fun alist_to_HOL_map t1 t2 l = fold (fn (x,y) => fn m => 
+    fun_upd m x (Some y)) l (empty_map t1 t2);
+  end;
+
+  local
+  fun procedure_type pt =
+    Const (@{const_name procedure_type}, Term.itselfT pt --> @{typ procedure_type}) $
+       Const(@{const_name Pure.type}, Term.itselfT pt);
+  
+  in
+  fun mk_module_type (spec:module_type_spec) =
+  (* TODO: check if names unique *)
+  let val args = alist_to_HOL_map @{typ string} @{typ module_type}
+                 (map (fn (n,mt) => (HOLogic.mk_string n,mt)) (#mt_args spec))
+      val procT = #mt_proctypes spec |>
+                  map (fn (n,pt) => (HOLogic.mk_list @{typ string} (map HOLogic.mk_string n), procedure_type pt)) |>
+                  alist_to_HOL_map @{typ "string list"} @{typ procedure_type}
+  in
+    @{term ModuleType} $ args $ procT
+  end 
+  end
+
+(*
+  val t = mk_module_type {mt_args=[("M1",@{term "undefined::module_type"})],
+                          mt_proctypes=[(["a"],@{typ "(int*unit,bool)procedure"}),
+                                        (["b"],@{typ "(int*int*unit,unit)procedure"})]};
+
+  val ct = cterm_of @{theory} t;
+*)
+*}
+
+(* definition MT :: module_type where
 "MT == ModuleType empty [[''a''] \<mapsto> procedure_type TYPE((int*unit,bool)procedure),
                          [''b''] \<mapsto> procedure_type TYPE((int*int*unit,unit)procedure)]"
+*)
+
+
+ML {*
+  val MT : module_type_spec  = {
+    mt_args=[], 
+    mt_proctypes=[(["a"],@{typ "(int*unit,bool)procedure"}),
+                  (["b"],@{typ "(int*int*unit,unit)procedure"})]};
+*}
+
+local_setup {*
+fn lthy =>
+  Local_Theory.define ((@{binding MT}, NoSyn), 
+                      ((Thm.def_binding @{binding MT},[]), mk_module_type MT)) lthy 
+  |> snd
+*}
+
+thm MT_def
+
 typedef MT = "{m. has_module_type m MT}"
   apply (unfold mem_Collect_eq, rule module_type_nonempty)
   by (simp_all add: MT_def)
