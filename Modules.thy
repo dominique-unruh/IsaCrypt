@@ -1,6 +1,8 @@
 theory Modules
 imports Lang_Typed
+keywords "moduletype" :: thy_decl
 begin
+
 
 section {* Procedures with procedure arguments *}
 
@@ -246,9 +248,16 @@ module type MT = {
 *}
 
 ML {*
+  type module_type_spec_raw = 
+  { mt_name: binding,
+    mt_args: (string*string) list,
+    mt_proctypes: (binding*string) list
+  };
   type module_type_spec = 
-  { mt_args:(string*term) list,
-    mt_proctypes: (string list*typ) list
+  { mt_name: binding,
+    mt_args: (string*term) list,
+    mt_proctypes: (string list*typ) list,
+    mt_def_thm : thm option
   };
 *}
 
@@ -289,14 +298,6 @@ ML {*
     @{term ModuleType} $ args $ procT
   end 
   end
-
-(*
-  val t = mk_module_type {mt_args=[("M1",@{term "undefined::module_type"})],
-                          mt_proctypes=[(["a"],@{typ "(int*unit,bool)procedure"}),
-                                        (["b"],@{typ "(int*int*unit,unit)procedure"})]};
-
-  val ct = cterm_of @{theory} t;
-*)
 *}
 
 (* definition MT :: module_type where
@@ -304,22 +305,54 @@ ML {*
                          [''b''] \<mapsto> procedure_type TYPE((int*int*unit,unit)procedure)]"
 *)
 
+ML {*
+  fun update_mt_def_thm ({mt_name,mt_args,mt_proctypes,mt_def_thm=_}:module_type_spec) mt_def_thm =
+     {mt_name=mt_name,mt_args=mt_args,mt_proctypes=mt_proctypes,mt_def_thm=mt_def_thm}
+*}
+
 
 ML {*
-  val MT : module_type_spec  = {
-    mt_args=[], 
-    mt_proctypes=[(["a"],@{typ "(int*unit,bool)procedure"}),
-                  (["b"],@{typ "(int*int*unit,unit)procedure"})]};
+(*  val parse_multipart_string =
+    Parse.binding >> (fn bind => Binding.name_of bind |> Long_Name.explode); *)
+
+  val parse_module_type : module_type_spec_raw parser = 
+    Parse.binding --| Parse.$$$ "where" -- (Parse.and_list1 (Parse.binding --| Parse.$$$ "::" -- Parse.typ))
+    >> (fn (name,procs) => { mt_name=name, mt_proctypes=procs, mt_args=[] });
+
+  fun module_type_spec_process {mt_name=name, mt_args=args, mt_proctypes=procs} lthy : module_type_spec =
+  {mt_name=name, 
+   mt_args=map (fn (n,t) => (n,Syntax.read_term lthy t)) args,
+   mt_proctypes=map (fn (n,t) => (Long_Name.explode (Binding.name_of n), Syntax.read_typ lthy t)) procs,
+   mt_def_thm=NONE
+  }
 *}
 
-local_setup {*
-fn lthy =>
-  Local_Theory.define ((@{binding MT}, NoSyn), 
-                      ((Thm.def_binding @{binding MT},[]), mk_module_type MT)) lthy 
-  |> snd
+ML {*
+val last_defined_module_type = Unsynchronized.ref NONE
+
+fun define_module_type spec_raw lthy =
+  let val mt = module_type_spec_process spec_raw lthy
+      val ((_,(_,thm)),lthy) = Local_Theory.define ((#mt_name mt, NoSyn), 
+                           ((Thm.def_binding (#mt_name mt),[]), mk_module_type mt)) lthy 
+      val mt : module_type_spec = update_mt_def_thm mt (SOME thm)
+      val _ = (last_defined_module_type := SOME mt)
+  in
+  lthy
+  end
 *}
 
-thm MT_def
+ML {*
+  Outer_Syntax.local_theory @{command_spec "moduletype"} "Declares a module type"
+    (parse_module_type >> define_module_type)
+*}
+
+moduletype MT where
+    a :: "(int*unit,bool) procedure" 
+and b :: "(int*int*unit,unit) procedure";
+
+print_theorems
+
+ML "the (!last_defined_module_type)"
 
 typedef MT = "{m. has_module_type m MT}"
   apply (unfold mem_Collect_eq, rule module_type_nonempty)
@@ -351,18 +384,6 @@ module M : MT = {
   proc b(x:int, y:int) { x:=y; return () }
 }
 *}
-
-local_setup {*
-  fn lthy =>
-  let
-  val _ = @{print} @{binding bla.bli}
-  val q = Binding.qualify false "tmp"
-  val res = Local_Theory.define ((q@{binding bla}, NoSyn), ((q@{binding blu},[]), @{term 123})) lthy in
-  snd res end
-*}
-
-term tmp.bla
-thm blu
 
 
 locale M begin
