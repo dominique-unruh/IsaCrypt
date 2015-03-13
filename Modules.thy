@@ -3,14 +3,6 @@ imports Lang_Typed
 keywords "moduletype" :: thy_decl
 begin
 
-
-section {* Procedures with procedure arguments *}
-
-(*
-typedef ('a,'b) finite_map = "{m::'a\<rightharpoonup>'b. finite(dom m)}"
-  by (metis (poly_guards_query) finite_dom_map_of mem_Collect_eq) 
-*)
-
 datatype module_type = ModuleType
  "(id0,module_type) map" (* args *)
  "(id,procedure_type) map" (* procedure types *)
@@ -250,20 +242,23 @@ module type MT = {
 ML {*
   type module_type_spec_raw = 
   { mt_name: binding,
-    mt_args: (string*string) list,
+    mt_args: (binding*string) list,
     mt_proctypes: (binding*string) list
   };
   type module_type_spec = 
   { mt_name: binding,
     mt_args: (string*term) list,
-    mt_proctypes: (string list*typ) list,
-    mt_def_thm : thm option
+    mt_proctypes: (binding*string list*typ) list,
+    mt_def_thm : thm option,
+    mt_getter_def_thms : (binding*string list*thm) list
   };
 *}
 
 ML {* @{term "procedure_type TYPE((unit,unit)procedure)"} *}
 
 ML {*
+  fun mk_id n = HOLogic.mk_list @{typ string} (map HOLogic.mk_string n)
+
   local
   fun optionT t = Type(@{type_name option},[t]);
   fun Some x = let val t = fastype_of x in Const(@{const_name Some},t --> optionT t) $ x end
@@ -292,7 +287,7 @@ ML {*
   let val args = alist_to_HOL_map @{typ string} @{typ module_type}
                  (map (fn (n,mt) => (HOLogic.mk_string n,mt)) (#mt_args spec))
       val procT = #mt_proctypes spec |>
-                  map (fn (n,pt) => (HOLogic.mk_list @{typ string} (map HOLogic.mk_string n), procedure_type pt)) |>
+                  map (fn (_,n,pt) => (mk_id n, procedure_type pt)) |>
                   alist_to_HOL_map @{typ "string list"} @{typ procedure_type}
   in
     @{term ModuleType} $ args $ procT
@@ -306,35 +301,72 @@ ML {*
 *)
 
 ML {*
-  fun update_mt_def_thm ({mt_name,mt_args,mt_proctypes,mt_def_thm=_}:module_type_spec) mt_def_thm =
-     {mt_name=mt_name,mt_args=mt_args,mt_proctypes=mt_proctypes,mt_def_thm=mt_def_thm}
+  fun update_mt_def_thm ({mt_name,mt_args,mt_proctypes,mt_def_thm=_,mt_getter_def_thms}:module_type_spec) mt_def_thm =
+     {mt_name=mt_name,mt_args=mt_args,mt_proctypes=mt_proctypes,mt_def_thm=mt_def_thm,mt_getter_def_thms=mt_getter_def_thms}
+  fun update_mt_getter_def_thms ({mt_name,mt_args,mt_proctypes,mt_def_thm,mt_getter_def_thms=_}:module_type_spec) mt_getter_def_thms =
+     {mt_name=mt_name,mt_args=mt_args,mt_proctypes=mt_proctypes,mt_def_thm=mt_def_thm,mt_getter_def_thms=mt_getter_def_thms}
+
 *}
+
+print_commands
 
 
 ML {*
 (*  val parse_multipart_string =
     Parse.binding >> (fn bind => Binding.name_of bind |> Long_Name.explode); *)
 
-  val parse_module_type : module_type_spec_raw parser = 
-    Parse.binding --| Parse.$$$ "where" -- (Parse.and_list1 (Parse.binding --| Parse.$$$ "::" -- Parse.typ))
-    >> (fn (name,procs) => { mt_name=name, mt_proctypes=procs, mt_args=[] });
+  fun read_term_T ctx T term = Syntax.parse_term ctx term 
+                               |> Type.constraint T
+                               |> Syntax.check_term ctx
 
-  fun module_type_spec_process {mt_name=name, mt_args=args, mt_proctypes=procs} lthy : module_type_spec =
+  val parse_module_subtyping = Parse.$$$ ":" || (Parse.$$$ "<" --| Parse.$$$ ":")
+
+  (* Parses (A<:MT1,B<:MT2,...)  --or A:MT1 etc*)
+  val parse_module_type_args : (binding*string) list parser = 
+    Parse.$$$ "(" |-- Parse.!!! (Parse.enum "," (Parse.binding --| parse_module_subtyping -- Parse.term)) --| Parse.$$$ ")"
+
+  (* Parses "name(A<:MT1,B<:MT2,...) where a :: type" *)
+  val parse_module_type : module_type_spec_raw parser = 
+    Parse.binding -- (* moduletype MT *) 
+    Scan.optional parse_module_type_args [] --| 
+    @{keyword "where"} -- (Parse.and_list (Parse.binding --| Parse.$$$ "::" -- Parse.typ))
+    >> (fn ((name,args),procs) => { mt_name=name, mt_proctypes=procs, mt_args=args });
+
+  fun module_type_spec_process 
+      ({mt_name=name, mt_args=args, mt_proctypes=procs}:module_type_spec_raw) 
+      lthy : module_type_spec =
   {mt_name=name, 
-   mt_args=map (fn (n,t) => (n,Syntax.read_term lthy t)) args,
-   mt_proctypes=map (fn (n,t) => (Long_Name.explode (Binding.name_of n), Syntax.read_typ lthy t)) procs,
-   mt_def_thm=NONE
+   mt_args=map (fn (n,t) => (Binding.name_of n,read_term_T lthy @{typ module_type} t)) args,
+   mt_proctypes=map (fn (n,t) => (n,Long_Name.explode (Binding.name_of n), Syntax.read_typ lthy t)) procs,
+   mt_def_thm=NONE, mt_getter_def_thms=[]
   }
 *}
 
 ML {*
 val last_defined_module_type = Unsynchronized.ref NONE
 
-fun define_module_type spec_raw lthy =
+(* definition get_MT_a :: "module \<Rightarrow> (int*unit,bool) procedure" where
+  "get_MT_a = get_proc_in_module' [''a'']" *)
+
+(* TODO: Should replace . by _ in getter_name *)
+fun define_module_type_getter (name_bind, name:string list, procT) 
+                              (lthy, mt:module_type_spec) : (local_theory*module_type_spec)=
+  let val getter_name = Binding.name ("get_"^(Binding.name_of(#mt_name mt))^"_"^String.concatWith "_" name)
+      val getter_def = Const(@{const_name get_proc_in_module'},@{typ id} --> @{typ module} --> procT)
+                       $ mk_id name
+      val ((_,(_,thm)),lthy) = Local_Theory.define ((getter_name, NoSyn),
+          ((Thm.def_binding getter_name,[]), getter_def)) lthy
+      val mt : module_type_spec = update_mt_getter_def_thms mt ((name_bind,name,thm) :: #mt_getter_def_thms mt)
+  in (lthy,mt) end
+
+fun define_module_type (spec_raw:module_type_spec_raw) lthy =
   let val mt = module_type_spec_process spec_raw lthy
       val ((_,(_,thm)),lthy) = Local_Theory.define ((#mt_name mt, NoSyn), 
                            ((Thm.def_binding (#mt_name mt),[]), mk_module_type mt)) lthy 
       val mt : module_type_spec = update_mt_def_thm mt (SOME thm)
+      val (lthy,mt) = if (#mt_args mt=[]) 
+                      then fold define_module_type_getter (#mt_proctypes mt) (lthy,mt) 
+                      else (lthy,mt)
       val _ = (last_defined_module_type := SOME mt)
   in
   lthy
@@ -358,18 +390,14 @@ typedef MT = "{m. has_module_type m MT}"
   apply (unfold mem_Collect_eq, rule module_type_nonempty)
   by (simp_all add: MT_def)
 
-(* Only defined for closed module types *)
-definition get_MT_a :: "module \<Rightarrow> (int*unit,bool) procedure" where
-  "get_MT_a = get_proc_in_module' [''a'']"
-definition get_MT_b :: "module \<Rightarrow> (int*int*unit,unit) procedure" where
-  "get_MT_b = get_proc_in_module' [''b'']"
-
 lemma get_MT_a:
-  fixes M::module
-  assumes "has_module_type M MT"
-  shows "get_proc_in_module M [''a''] = Some (mk_procedure_untyped (get_MT_a M))"
-  using assms unfolding MT_def get_MT_a_def 
-  by (rule get_proc_in_module', simp)
+  "has_module_type M MT \<Longrightarrow> get_proc_in_module M [''a''] = Some (mk_procedure_untyped (get_MT_a M))"
+  unfolding get_MT_a_def 
+  apply (rule get_proc_in_module')
+  unfolding MT_def
+  apply (fact asm_rl)
+  apply simp
+done
 
 lemma get_MT_b:
   fixes M::module
