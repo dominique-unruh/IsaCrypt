@@ -43,15 +43,17 @@ in
   \<lparr> DDH_main=main \<rparr>)
 "
 
-typedecl pk
-typedecl sk
-typedecl m
-typedecl c
+locale test =
+  fixes tmp :: "'pk::prog_type"
+  fixes tmp1 :: "'sk::prog_type"
+  fixes tmp2 :: "'m::prog_type"
+  fixes tmp3 :: "'c::prog_type"
 
-moduletype EncScheme where
-    kg :: "(unit,pk*sk) procedure"
-and enc :: "(pk*m*unit, c) procedure"
-and dec :: "(sk*c*unit, m) procedure"
+
+moduletype (in test) EncScheme where
+    kg :: "(unit,'pk*'sk) procedure"
+and enc :: "('pk*'m*unit, 'c) procedure"
+and dec :: "('sk*'c*unit, 'm) procedure"
 
 
 record ('pk,'sk,'m,'c) Scheme = 
@@ -59,9 +61,15 @@ record ('pk,'sk,'m,'c) Scheme =
   enc :: "('pk*'m*unit,'c) procedure"
   dec :: "('sk*'c*unit, 'm) procedure"
 
-moduletype CPA_Adv where
-     choose :: "(pk*unit,m*m) procedure"
-and "guess" :: "(c*unit,bool) procedure"
+class testc = fixes "test"::"'a"
+
+definition (in testc) "testx == undefined (undefined::'a)" 
+
+moduletype (in test) CPA_Adv where
+     choose :: "('pk*unit,'m*'m) procedure"
+and "guess" :: "('c*unit,bool) procedure"
+
+print_theorems
 
 record ('pk,'sk,'m,'c) Adv =
   choose :: "('pk*unit,'m*'m) procedure"
