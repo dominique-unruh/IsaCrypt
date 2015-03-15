@@ -240,6 +240,7 @@ record ('a::procargs,'b) procedure =
   p_body :: program
   p_args :: "'a procargvars"
   p_return :: "'b expression"
+
 definition "mk_procedure_untyped proc = 
   Proc (mk_program_untyped (p_body proc)) (Rep_procargvars (p_args proc)) (mk_expression_untyped (p_return proc))"
 

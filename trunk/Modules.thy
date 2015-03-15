@@ -44,6 +44,8 @@ fun has_module_type' :: "module_rep \<Rightarrow> module_type \<Rightarrow> bool
     | (Some procT, None) \<Rightarrow> False
     | (None, _) \<Rightarrow> True))"
 
+definition "ignore x y == y"
+
 definition "has_module_type M == has_module_type' (Rep_module M)"
 
 definition "is_closed_module modul == mr_module_args modul = empty"
@@ -219,17 +221,10 @@ proof -
   thus "\<exists>m. has_module_type m mT" ..
 qed
 
+ML_file "modules.ML"
 
 section {* Some tests (TODO: remove) *}
-  
-text {*
-module type MT = {
-  proc a(int) : bool
-  proc b(int,int) : unit
-}
-*}
 
-ML_file "modules.ML"
 
 moduletype MT where
     a :: "(int*unit,bool) procedure" 
@@ -237,7 +232,19 @@ and b :: "(int*int*unit,unit) procedure";
 
 print_theorems
 
+locale bla = fixes bla :: "'a::prog_type" begin
+definition "xxx == {undefined bla::int}"
+
+term xxx
+thm xxx_def
+
+print_commands
+
+moduletype MTX attach bla where
+    a :: "('a*unit,bool) procedure" 
+
 ML "val MT = the (!last_defined_module_type)"
+end
 
 typedef MT = "{m. has_module_type m MT}" 
   apply (unfold mem_Collect_eq, rule module_type_nonempty)
@@ -267,20 +274,15 @@ definition M :: module where
 lemma "has_module_type M MT" sorry
 end
 
-term "M.x"
-
-typedecl pk
-typedecl sk
-typedecl m
 
 (* TODO: make sure that the args of ()procedure are well-sorted.
   Example 
 
 typedecl c
 moduletype EncScheme where
-    dec :: "(unit, c) procedure"
+    dec :: "('c*unit, unit) procedure"
 
-should give a comprehensible error
+should give a comprehensible error  
 *)
 
 

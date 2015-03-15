@@ -2,95 +2,109 @@ theory ElGamal
 imports Hoare_Tactics Modules
 begin
 
-type_synonym G = nat
-consts g :: G
-consts q :: nat
-consts p :: nat
+default_sort prog_type
+
+locale group =
+  (* fixes 'G *)
+  fixes g::"'G::{prog_type,power}" (* generator *)
+  and q::nat (* group order *)
+begin
+
+moduletype DDH_Adv attach g where
+  "guess" :: "('G*'G*'G*unit,bool) procedure"
+moduletype DDH_Game attach g where
+  "main" :: "('G*'G*'G*unit,bool) procedure"
+end
 
 abbreviation "x == LVariable ''x'' :: nat variable"
 abbreviation "y == LVariable ''y'' :: nat variable "
 abbreviation "z == LVariable ''z'' :: nat variable"
 abbreviation "b == LVariable ''b'' :: bool variable"
-abbreviation "c == LVariable ''c'' :: nat variable"
-abbreviation "pk == LVariable ''pk''"
-abbreviation "sk == LVariable ''sk''"
-abbreviation "m0 == LVariable ''m0''"
-abbreviation "m1 == LVariable ''m1''"
+abbreviation "pk == LVariable ''pk'' :: 'pk variable"
+abbreviation "sk == LVariable ''sk'' :: 'sk variable"
+abbreviation "m0 == LVariable ''m0'' :: 'm variable"
+abbreviation "m1 == LVariable ''m1'' :: 'm variable"
 abbreviation "b' == LVariable ''b_'' :: bool variable"
 abbreviation "tmp == LVariable ''tmp''"
 
-moduletype DDH_Adv where
-  "guess" :: "(G*G*G*unit,bool) procedure"
-
+(*
 record Adversary =
   Adv_guess :: "(G*G*G*unit,bool) procedure"
 
-moduletype DDH_Game where
-  "main" :: "(G*G*G*unit,bool) procedure"
-
 record DDH_Game =
   DDH_main :: "(unit,bool) procedure"
+*)
 
-definition "DDH0 A = (let
-  main = proc () { x <- uniform {0..<q}; y <- uniform {0..<q}; b := call (Adv_guess A) (g^x mod p, g^y mod p, g^(x*y) mod p); return True }
-in
-  \<lparr> DDH_main=main \<rparr>)
-"
+(* Hack for typechecking to go through *)
+definition (in group) "A_guess == undefined ::  ('G \<times> 'G \<times> 'G \<times> unit, bool) procedure"
 
-definition "DDH1 A = (let
-  main = proc () { x <- uniform {0..<q}; y <- uniform {0..<q}; z <- uniform {0..<q}; b := call (Adv_guess A) (g^x mod p, g^y mod p, g^z mod p); return True }
-in
-  \<lparr> DDH_main=main \<rparr>)
-"
+definition (in group) "DDH0_main = 
+  proc () {
+    x <- uniform {0..<q};
+    y <- uniform {0..<q};
+    b := call A_guess (g^x, g^y, g^(x*y));
+    return True
+  }"
 
-locale test =
-  fixes tmp :: "'pk::prog_type"
-  fixes tmp1 :: "'sk::prog_type"
-  fixes tmp2 :: "'m::prog_type"
-  fixes tmp3 :: "'c::prog_type"
+definition (in group) DDH0 :: module where
+"DDH0 == Abs_module \<lparr> mr_module_args=[''A'' \<mapsto> DDH_Adv],
+                   mr_procs=[[''main''] \<mapsto> mk_procedure_untyped DDH0_main] \<rparr>"
+
+definition (in group) "DDH1_main = 
+  proc () {
+    x <- uniform {0..<q};
+    y <- uniform {0..<q};
+    z <- uniform {0..<q}; 
+    b := call A_guess (g^x, g^y, g^z);
+    return True 
+  }"
+
+definition (in group) DDH1 :: module where
+"DDH1 == Abs_module \<lparr> mr_module_args=[''A'' \<mapsto> DDH_Adv],
+                   mr_procs=[[''main''] \<mapsto> mk_procedure_untyped DDH1_main] \<rparr>"
 
 
-moduletype (in test) EncScheme where
+locale encscheme =
+  fixes stone :: "('pk::prog_type*'sk::prog_type*'m::prog_type*'c::prog_type)itself"
+begin
+
+moduletype EncScheme attach stone where
     kg :: "(unit,'pk*'sk) procedure"
-and enc :: "('pk*'m*unit, 'c) procedure"
-and dec :: "('sk*'c*unit, 'm) procedure"
+and enc :: "('pk*'m*unit, 'c::prog_type) procedure"
+and dec :: "('sk*'c::prog_type*unit, 'm) procedure"
 
-
-record ('pk,'sk,'m,'c) Scheme = 
-  kg :: "(unit,'pk*'sk) procedure"
-  enc :: "('pk*'m*unit,'c) procedure"
-  dec :: "('sk*'c*unit, 'm) procedure"
-
-class testc = fixes "test"::"'a"
-
-definition (in testc) "testx == undefined (undefined::'a)" 
-
-moduletype (in test) CPA_Adv where
+moduletype CPA_Adv(S:EncScheme) where
      choose :: "('pk*unit,'m*'m) procedure"
 and "guess" :: "('c*unit,bool) procedure"
 
-print_theorems
+end
 
-record ('pk,'sk,'m,'c) Adv =
-  choose :: "('pk*unit,'m*'m) procedure"
-  aguess :: "('c*unit,bool) procedure"
+term encscheme.EncScheme
 
-record CPA_Game =
-  CPA_main :: "(unit,bool) procedure"
+(* Hack for typechecking to go through *)
+definition (in encscheme) "A_choose == undefined :: ('pk*unit,'m*'m) procedure"
+definition (in encscheme) "A_guess == undefined :: ('c*unit,bool) procedure"
+definition (in encscheme) "S_kg == undefined :: (unit,'pk*'sk)procedure"
+definition (in encscheme) "S_enc == undefined :: ('pk*'m*unit,'c)procedure"
 
-definition "CPA S A :: CPA_Game == (let
-  main = proc () { 
-    tmp := call (kg S)();
-    pk := fst tmp;
-    sk := snd tmp;
-    tmp := call (choose A)(pk);
-    m0 := fst tmp;
-    m1 := snd tmp;
+abbreviation "c == LVariable ''c'' :: 'c variable"
+
+definition (in encscheme) 
+ "CPA_main = ignore stone (proc () { 
+    tmp := call S_kg();
+    pk := fst (tmp::'pk*'sk);
+    sk := snd (tmp::'pk*'sk);
+    tmp := call A_choose(pk);
+    m0 := fst (tmp::'m*'m);
+    m1 := snd (tmp::'m*'m);
     b <- uniform UNIV;
-    c := call (enc S)(pk, if b then m1 else m0);
-    b' := call (aguess A)(c);
+    c := call S_enc(pk, if b then m1 else m0);
+    b' := call A_guess(c);
     return (b'=b)
-  } in
-  \<lparr> CPA_main=main \<rparr>)"
+  })"
+
+definition (in encscheme) CPA :: module where
+"CPA == ignore stone (Abs_module \<lparr> mr_module_args=[''A'' \<mapsto> CPA_Adv, ''S'' \<mapsto> EncScheme],
+                   mr_procs=[[''main''] \<mapsto> mk_procedure_untyped CPA_main] \<rparr>)"
 
 end
