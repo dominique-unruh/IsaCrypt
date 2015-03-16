@@ -96,7 +96,17 @@ fun module_type_spec_process
 
 (* TODO: Should replace . by _ in getter_name? *)
 fun mk_getter_name (mt:module_type_spec) name = 
-Binding.qualify true (Binding.name_of(#mt_name mt)) name
+  Binding.qualify true (Binding.name_of(#mt_name mt)) name
+
+fun define_module_type_getter (name_bind, name:string list, procT) 
+                              (lthy, mt:module_type_spec) : (local_theory*module_type_spec)=
+  let val getter_name = mk_getter_name mt name_bind
+      val getter_def = Const(@{const_name get_proc_in_module'},@{typ id} --> @{typ module} --> procT)
+                       $ mk_id name
+      val ((getter_const,(_,thm)),lthy) = Local_Theory.define ((getter_name, NoSyn),
+          ((Thm.def_binding getter_name,[]), getter_def)) lthy
+      val mt : module_type_spec = update_mt_getter_def_thms mt ((name_bind,name,getter_const,procT,thm) :: #mt_getter_def_thms mt)
+  in (lthy,mt) end
 
 
 fun getter_lemma_prop (_:local_theory) (mt:module_type_spec) (_,name,getter_const,procT,_) = 
@@ -105,7 +115,6 @@ fun getter_lemma_prop (_:local_theory) (mt:module_type_spec) (_,name,getter_cons
       val rhs = @{term "Some::procedure_rep\<Rightarrow>_"} $ (Const(@{const_name mk_procedure_untyped}, procT--> @{typ procedure_rep}) $ (getter_const $ @{term "M::module"}))
       val concl = @{term "op= :: procedure_rep option \<Rightarrow> _ \<Rightarrow> _"} $ lhs $ rhs
       val prop = @{term "op==>"} $ HOLogic.mk_Trueprop prem $ HOLogic.mk_Trueprop concl
-(*        val prop = cterm_of (Proof_Context.theory_of lthy) prop *)
   in
     prop
   end;
@@ -133,16 +142,6 @@ fun getter_lemma_thm (getter as (bind,_,_,_,def_thm)) (lthy,mt) =
 
 (* For debugging purposes only *)
 val last_defined_module_type = Unsynchronized.ref NONE
-
-fun define_module_type_getter (name_bind, name:string list, procT) 
-                              (lthy, mt:module_type_spec) : (local_theory*module_type_spec)=
-  let val getter_name = mk_getter_name mt name_bind
-      val getter_def = Const(@{const_name get_proc_in_module'},@{typ id} --> @{typ module} --> procT)
-                       $ mk_id name
-      val ((getter_const,(_,thm)),lthy) = Local_Theory.define ((getter_name, NoSyn),
-          ((Thm.def_binding getter_name,[]), getter_def)) lthy
-      val mt : module_type_spec = update_mt_getter_def_thms mt ((name_bind,name,getter_const,procT,thm) :: #mt_getter_def_thms mt)
-  in (lthy,mt) end
 
 fun define_module_type (spec_raw:module_type_spec_raw) lthy =
   let val mt = module_type_spec_process spec_raw lthy
