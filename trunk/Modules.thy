@@ -142,7 +142,72 @@ proof -
   thus ?thesis by simp
 qed
 
+consts substitute_procs_in_proc :: 'a (* TODO: true thing *)
+
+(* TODO move *)
+consts closed_program :: "program_rep \<Rightarrow> bool" (* TODO does not contain ProcRef *)
+lemma closed_program_well_typed: "closed_program p \<Longrightarrow> well_typed' E p \<Longrightarrow> well_typed' E' p" sorry
+
 definition "get_proc_in_module' name modul = mk_procedure_typed (the (mr_procs (Rep_module modul) name))"
+definition "get_proc_in_module'' name mk_map modul args = mk_procedure_typed 
+  (substitute_procs_in_proc (mk_map args) (the (mr_procs (Rep_module modul) name)))"
+
+
+lemma get_proc_in_module'':
+  fixes M::module and mk_map::"'e\<Rightarrow>(id,procedure_rep)map" and procT name
+  assumes type: "has_module_type M (ModuleType argsT procT)"
+  (* TODO: extra assumptions *)
+  assumes procT: "procT name = Some (procedure_type TYPE(('a::procargs,'b::prog_type)procedure))"
+  shows "map_option (substitute_procs_in_proc (mk_map args)) (get_proc_in_module M name) =
+    Some (mk_procedure_untyped (get_proc_in_module'' name mk_map M args::('a,'b)procedure))"
+proof -
+  def E == "module_type_map_to_proc_env argsT"
+  obtain p where get_proc: "get_proc_in_module M name = Some p"
+             and wt_p: "well_typed_proc' E p"
+             and procT_name: "Some (proctype_of p) = procT name"
+    unfolding E_def using module_proc_type type procT by blast
+  hence p_def: "p = the (mr_procs (Rep_module M) name)"
+    unfolding get_proc_in_module_def by auto
+  have p_type: "proctype_of p = procedure_type TYPE(('a::procargs,'b::prog_type)procedure)"
+    by (metis procT_name option.sel procT)
+  obtain body pargs ret where
+    subst_p: "substitute_procs_in_proc (mk_map args) p = Proc body pargs ret" 
+    and subst_p_type: "proctype_of (substitute_procs_in_proc (mk_map args) p) = procedure_type TYPE(('a::procargs,'b::prog_type)procedure)"
+    and wt_p: "well_typed_proc' E (substitute_procs_in_proc (mk_map args) p)"
+    and closed: "closed_program (substitute_procs_in_proc (mk_map args) p)"
+    (* and other stuff *)
+  proof (cases p)
+  case (Proc body pargs ret)
+    thus ?thesis sorry 
+  next case (ProcRef body pargs ret)
+    thus ?thesis sorry
+  qed
+  from wt_p have wt_body: "well_typed' E body"
+    unfolding subst_p by simp
+  have "well_typed body" apply (rule closed_program_well_typed) using closed wt_p apply simp
+
+  show "map_option (substitute_procs_in_proc (mk_map args)) (get_proc_in_module M name) =
+         Some (mk_procedure_untyped (get_proc_in_module'' name mk_map M args::('a,'b)procedure))" 
+     unfolding get_proc_in_module''_def p_def[symmetric] subst_p
+       apply (subst mk_procedure_typed_inverse)
+       (* well_typed body *)
+       apply (fact wt_body)
+       (* pargs \<in> procargvars TYPE('a) *)
+       using subst_p_type wt_p unfolding p_def apply (rule procedure_type_procargvars)
+    (* eu_type ret = Type TYPE('b) *)
+    using p_type apply (simp add: p_def procedure_type_def)
+    (* get_proc_in_module M name = Some (Proc body pargs ret) *)
+    by (simp add: get_proc p_def)
+       sorry
+next
+case (Proc body pargs ret)
+  note proc = this
+
+
+  show "map_option (substitute_procs_in_proc (mk_map args)) (get_proc_in_module M name) =
+       Some (mk_procedure_untyped (get_proc_in_module'' name mk_map M args::('a,'b)procedure))" 
+qed
+
 
 lemma get_proc_in_module':
   fixes M::module and procT name
@@ -181,11 +246,14 @@ case (Proc body args ret)
        Some (mk_procedure_untyped (get_proc_in_module' name M::('a,'b)procedure))" 
     unfolding proc get_proc_in_module'_def
     apply (subst mk_procedure_typed_inverse)
+    (* well_typed body *)
     using wt_p p_def apply simp
-    defer
+    (* args \<in> procargvars TYPE('a) *)
+    using p_type wt_p unfolding p_def apply (rule procedure_type_procargvars)
+    (* eu_type ret = Type TYPE('b) *)
     using p_type apply (simp add: p_def procedure_type_def)
-    apply (simp add: get_proc p_def)
-    using p_type wt_p unfolding p_def by (rule procedure_type_procargvars)
+    (* get_proc_in_module M name = Some (Proc body args ret) *)
+    by (simp add: get_proc p_def)
 qed
 
 
@@ -242,6 +310,7 @@ print_commands
 
 moduletype MTX attach bla where
     a :: "('a*unit,bool) procedure" 
+print_theorems
 
 ML "val MT = the (!last_defined_module_type)"
 end
