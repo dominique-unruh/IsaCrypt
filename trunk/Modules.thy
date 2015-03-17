@@ -176,14 +176,31 @@ next case (ProcRef name argsT retT)
     by (simp add: p p' p'_type)
 qed
 (* TODO move *)
-consts closed_program :: "program_rep \<Rightarrow> bool" (* TODO does not contain ProcRef *)
-lemma closed_program_well_typed: "closed_program p \<Longrightarrow> well_typed' E p \<Longrightarrow> well_typed' E' p" sorry
+(* closed_program p \<equiv> p does not contain ProcRef's *)
+fun closed_program :: "program_rep \<Rightarrow> bool" where
+  "closed_program Skip = True"
+| "closed_program (Assign v e) = True"
+| "closed_program (Sample v e) = True"
+| "closed_program (Seq c d) = (closed_program c \<and> closed_program d)"
+| "closed_program (CallProc v (Proc body args ret) a) = closed_program body"
+| "closed_program (CallProc v (ProcRef name argsT retT) a) = False"
+| "closed_program (While e p) = closed_program p"
+| "closed_program (IfTE e p1 p2) = (closed_program p1 \<and> closed_program p2)"
+print_theorems
+
+(* TODO move *)
+lemma closed_program_well_typed: "closed_program p \<Longrightarrow> well_typed' E p \<Longrightarrow> well_typed' E' p"
+  by (induction rule: closed_program.induct, auto)
 
 (* TODO move *)
 lemma well_typed_proc_closed: 
   assumes "well_typed_proc' empty (Proc body args ret)"
   shows "closed_program body"
-sorry
+proof -
+  from assms have "well_typed body" by auto
+  thus "closed_program body"
+    by (induction rule: closed_program.induct, simp_all)
+qed
 
 
 definition "get_proc_in_module' name modul = mk_procedure_typed (the (mr_procs (Rep_module modul) name))"
@@ -195,6 +212,7 @@ lemma get_proc_in_module'':
   fixes M::module and mk_map::"'e\<Rightarrow>(id,procedure_rep)map" and procT name
   assumes type: "has_module_type M (ModuleType argsT procT)"
   assumes mk_map_t: "map_option proctype_of \<circ> mk_map args = module_type_proc_env (ModuleType argsT procT)"
+  assumes wt_mk_map: "\<forall>p'\<in>ran (mk_map args). well_typed_proc' Map.empty p'"
   assumes procT: "procT name = Some (procedure_type TYPE(('a::procargs,'b::prog_type)procedure))"
   shows "map_option (substitute_procs_in_proc (mk_map args)) (get_proc_in_module M name) =
     Some (mk_procedure_untyped (get_proc_in_module'' name mk_map M args::('a,'b)procedure))"
@@ -204,19 +222,22 @@ proof -
              and wt_p: "well_typed_proc' E p"
              and procT_name: "Some (proctype_of p) = procT name"
     unfolding E_def using module_proc_type type procT by blast
+
   hence p_def: "p = the (mr_procs (Rep_module M) name)"
     unfolding get_proc_in_module_def by auto
+
   have p_type: "proctype_of p = procedure_type TYPE(('a::procargs,'b::prog_type)procedure)"
     by (metis procT_name option.sel procT)
+
   have subst_p_type: "proctype_of (substitute_procs_in_proc (mk_map args) p) = procedure_type TYPE(('a::procargs,'b::prog_type)procedure)"
     apply (fold p_type, rule substitute_procs_in_proc_type)
     by (metis E_def mk_map_t module_type_proc_env_def mt_args.simps wt_p)
-  have wt_mk_map: "\<forall>p'\<in>ran (mk_map args). well_typed_proc' Map.empty p'"
-    sorry
+
   have wt_subst_p: "well_typed_proc' empty (substitute_procs_in_proc (mk_map args) p)"
     apply (rule substitute_procs_in_proc_welltyped)
     apply (metis E_def mk_map_t module_type_proc_env_def mt_args.simps wt_p)
     by (fact wt_mk_map)
+
   obtain body pargs ret where
     subst_p: "substitute_procs_in_proc (mk_map args) p = Proc body pargs ret" 
   proof (cases p)
@@ -226,12 +247,29 @@ proof -
     have subst_p: "substitute_procs_in_proc (mk_map args) p = Proc body pargs ret"
       unfolding p body_def by simp
     with that show ?thesis by auto
-  next case (ProcRef name argsT retT)
+  next case (ProcRef name pargsT retT)
     note p = this
-    obtain body pargs ret where "mk_map args name = Some (Proc body pargs ret)"
-      sorry
-    hence subst_p: "substitute_procs_in_proc (mk_map args) p = Proc body pargs ret"
-      unfolding p by simp
+    obtain p' where p': "mk_map args name = Some p'"
+    proof -
+      from mk_map_t have "(map_option proctype_of \<circ> mk_map args) name = module_type_proc_env (ModuleType argsT procT) name"
+        by simp
+      hence none: "mk_map args name = None \<Longrightarrow> module_type_proc_env (ModuleType argsT procT) name = None"
+        by simp
+      have "module_type_proc_env (ModuleType argsT procT) name \<noteq> None"
+        using wt_p by (simp add: p E_def module_type_proc_env_def)
+      with none and that show ?thesis by auto
+    qed
+    obtain body args' ret where "p' = Proc body args' ret"
+    proof (cases p')
+    case (Proc body args' ret) with that show ?thesis by auto
+    next case (ProcRef name argsT retT)
+      note thecase = this
+      from p' have "p'\<in>ran (mk_map args)" by (rule ranI)
+      with wt_mk_map have "well_typed_proc' Map.empty p'" by simp
+      thus ?thesis unfolding thecase by auto
+    qed
+    hence subst_p: "substitute_procs_in_proc (mk_map args) p = Proc body args' ret"
+      by (simp add: p p')
     with that show ?thesis by auto
   qed
   from wt_subst_p have wt_body: "well_typed' empty body"
@@ -348,6 +386,19 @@ moduletype MT where
 print_theorems
 moduletype MT2(M:MT) where
   b :: "(unit,unit) procedure";
+print_theorems
+definition "MT2_b \<equiv> get_proc_in_module'' [''b''] (\<lambda>a. [[''a'']\<mapsto>mk_procedure_untyped a])"
+
+lemma MT2_b:
+  fixes M and a::"('a::procargs,'b::prog_type)procedure"
+  assumes type:"has_module_type M MT2"
+  shows "map_option (substitute_procs_in_proc [[''a'']\<mapsto>mk_procedure_untyped a]) (get_proc_in_module M [''b'']) =
+       Some (mk_procedure_untyped (MT2_b M a))"
+proof (unfold MT2_b_def, rule get_proc_in_module'')
+  def argsT == "[''M'' \<mapsto> MT]" and procT == "[[''b''] \<mapsto> procedure_type TYPE((unit, unit) procedure)]"
+  have MT2_def: "MT2 == ModuleType argsT procT" unfolding MT2_def argsT_def procT_def.
+  show "has_module_type M (ModuleType argsT procT)" by (fold MT2_def, fact type)
+oops
 
 abbreviation "xxx == Variable ''x'' :: int variable"
 definition "mt2_b (a::(unit,int)procedure) \<equiv>
