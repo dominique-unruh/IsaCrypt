@@ -132,7 +132,8 @@ and well_typed_proc' :: "(id,procedure_type)map \<Rightarrow> procedure_rep \<Ri
 | "well_typed' E (CallProc v proc args) =
     (let procT = proctype_of proc in
     vu_type v = pt_returntype procT \<and> 
-    list_all2 (\<lambda>e T. eu_type e = T) args (pt_argtypes procT))"
+    list_all2 (\<lambda>e T. eu_type e = T) args (pt_argtypes procT) \<and>
+    well_typed_proc' E proc)"
 (*| "well_typed' E (CallProc v (Proc body pargs return) args) = 
     (eu_type return = vu_type v
      \<and> list_all2 (\<lambda>v e. vu_type v = eu_type e) pargs args
