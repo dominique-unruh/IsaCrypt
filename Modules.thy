@@ -22,6 +22,9 @@ lemma module_type_map_to_proc_env_empty:
   "module_type_map_to_proc_env empty = empty"
   by (rule ext, rule list.induct, auto)
 
+definition module_type_proc_env :: "module_type \<Rightarrow> (id,procedure_type)map" where
+  "module_type_proc_env mt = module_type_map_to_proc_env (mt_args mt)"
+
 record module_rep =
   mr_module_args :: "(id0,module_type) map"
   mr_procs :: "(id,procedure_rep) map"
@@ -142,7 +145,12 @@ proof -
   thus ?thesis by simp
 qed
 
-consts substitute_procs_in_proc :: 'a (* TODO: true thing *)
+(* TODO move *)
+fun substitute_procs :: "(id,procedure_rep)map \<Rightarrow> program_rep \<Rightarrow> program_rep" where
+  "substitute_procs m Skip = Skip"
+fun substitute_procs_in_proc :: "(id,procedure_rep)map \<Rightarrow> procedure_rep \<Rightarrow> procedure_rep" where
+  "substitute_procs_in_proc m (Proc body args ret) = Proc (substitute_procs m body) args ret"
+| "substitute_procs_in_proc m (ProcRef name args ret) = the (m name)"
 
 (* TODO move *)
 consts closed_program :: "program_rep \<Rightarrow> bool" (* TODO does not contain ProcRef *)
@@ -172,41 +180,59 @@ proof -
     by (metis procT_name option.sel procT)
   obtain body pargs ret where
     subst_p: "substitute_procs_in_proc (mk_map args) p = Proc body pargs ret" 
-    and subst_p_type: "proctype_of (substitute_procs_in_proc (mk_map args) p) = procedure_type TYPE(('a::procargs,'b::prog_type)procedure)"
-    and wt_p: "well_typed_proc' E (substitute_procs_in_proc (mk_map args) p)"
-    and closed: "closed_program (substitute_procs_in_proc (mk_map args) p)"
+    and subst_p_type: "proctype_of (Proc body pargs ret) = procedure_type TYPE(('a::procargs,'b::prog_type)procedure)"
+    and wt_p: "well_typed_proc' E (Proc body pargs ret)"
+    and closed: "closed_program body"
     (* and other stuff *)
   proof (cases p)
-  case (Proc body pargs ret)
-    thus ?thesis sorry 
-  next case (ProcRef body pargs ret)
-    thus ?thesis sorry
+  case (Proc body' pargs ret)
+    note p = this
+    def body == "substitute_procs (mk_map args) body'"
+    have subst_p: "substitute_procs_in_proc (mk_map args) p = Proc body pargs ret"
+      unfolding p body_def by simp
+    have subst_p_type: "proctype_of (Proc body pargs ret) = procedure_type TYPE(('a::procargs,'b::prog_type)procedure)"
+      sorry
+    have wt_p: "well_typed_proc' E (Proc body pargs ret)"
+      sorry
+    have closed: "closed_program body"
+      sorry
+    note subst_p subst_p_type wt_p closed
+    from this and that show ?thesis by auto
+  next case (ProcRef name argsT retT)
+    note p = this
+    obtain body pargs ret where "mk_map args name = Some (Proc body pargs ret)"
+      sorry
+    hence subst_p: "substitute_procs_in_proc (mk_map args) p = Proc body pargs ret"
+      unfolding p by simp
+    have subst_p_type: "proctype_of (Proc body pargs ret) = procedure_type TYPE(('a::procargs,'b::prog_type)procedure)"
+      sorry
+    have wt_p: "well_typed_proc' E (Proc body pargs ret)"
+      sorry
+    have closed: "closed_program body"
+      sorry
+    note subst_p subst_p_type wt_p closed
+    from this and that show ?thesis by auto
   qed
   from wt_p have wt_body: "well_typed' E body"
     unfolding subst_p by simp
-  have "well_typed body" apply (rule closed_program_well_typed) using closed wt_p apply simp
+  have "well_typed body" 
+    apply (rule closed_program_well_typed, fact closed)
+    using wt_p by auto
 
   show "map_option (substitute_procs_in_proc (mk_map args)) (get_proc_in_module M name) =
          Some (mk_procedure_untyped (get_proc_in_module'' name mk_map M args::('a,'b)procedure))" 
      unfolding get_proc_in_module''_def p_def[symmetric] subst_p
        apply (subst mk_procedure_typed_inverse)
        (* well_typed body *)
-       apply (fact wt_body)
+       apply (rule closed_program_well_typed, fact closed, fact wt_body)
        (* pargs \<in> procargvars TYPE('a) *)
        using subst_p_type wt_p unfolding p_def apply (rule procedure_type_procargvars)
-    (* eu_type ret = Type TYPE('b) *)
-    using p_type apply (simp add: p_def procedure_type_def)
-    (* get_proc_in_module M name = Some (Proc body pargs ret) *)
-    by (simp add: get_proc p_def)
-       sorry
-next
-case (Proc body pargs ret)
-  note proc = this
-
-
-  show "map_option (substitute_procs_in_proc (mk_map args)) (get_proc_in_module M name) =
-       Some (mk_procedure_untyped (get_proc_in_module'' name mk_map M args::('a,'b)procedure))" 
+       (* eu_type ret = Type TYPE('b) *)
+       using subst_p_type apply (simp add: p_def procedure_type_def)
+       (* get_proc_in_module M name = Some (Proc body pargs ret) *)
+       apply simp by (metis get_proc subst_p)
 qed
+
 
 
 lemma get_proc_in_module':
@@ -295,29 +321,147 @@ section {* Some tests (TODO: remove) *}
 
 
 moduletype MT where
-    a :: "(int*unit,bool) procedure" 
-and b :: "(int*int*unit,unit) procedure";
+  a :: "(unit,int) procedure";
+print_theorems
+moduletype MT2(M:MT) where
+  b :: "(unit,unit) procedure";
 
+abbreviation "xxx == Variable ''x'' :: int variable"
+definition "mt2_b (a::(unit,int)procedure) \<equiv>
+  proc() { xxx:=call a(); xxx:=call a(); return () }"
+
+ML {* @{thm mt2_b_def} *}
+
+definition "parametric_proc E mk_map (p::'e\<Rightarrow>('a::procargs,'b::prog_type)procedure) ==
+   SOME p'. proctype_of p' = procedure_type TYPE(('a,'b)procedure) \<and> well_typed_proc' E p' \<and>
+   (\<forall>a. mk_procedure_untyped (p a) = substitute_procs_in_proc (mk_map a) p')"
 print_theorems
 
-locale bla = fixes bla :: "'a::prog_type" begin
-definition "xxx == {undefined bla::int}"
+definition "parametric_proc_exists E mk_map (p::'e\<Rightarrow>('a::procargs,'b::prog_type)procedure) == 
+   \<exists>p'. proctype_of p' = procedure_type TYPE(('a,'b)procedure) \<and> well_typed_proc' E p' \<and>
+   (\<forall>a. mk_procedure_untyped (p a) = substitute_procs_in_proc (mk_map a) p')"
 
-term xxx
-thm xxx_def
+lemma parametric_proc_props:
+  assumes ex:"parametric_proc_exists E mk_map (p::'e\<Rightarrow>('a::procargs,'b::prog_type)procedure)"
+  defines "p' \<equiv> parametric_proc E mk_map p"
+  shows "proctype_of p' = procedure_type TYPE(('a,'b)procedure)" 
+  and   "well_typed_proc' E p'"
+  and   "\<And>a. mk_procedure_untyped (p a) = substitute_procs_in_proc (mk_map a) p'"
+using someI_ex[OF ex[unfolded parametric_proc_exists_def]]
+unfolding p'_def parametric_proc_def by metis+
 
-print_commands
+definition "parametric_prog_exists E mk_map p == 
+   \<exists>p'. well_typed' E p' \<and>
+   (\<forall>a. mk_program_untyped (p a) = substitute_procs (mk_map a) p')"
 
-moduletype MTX attach bla where
-    a :: "('a*unit,bool) procedure" 
-print_theorems
+lemma parametric_proc_exists_proc:
+  fixes (* pbody :: "'e \<Rightarrow> program" and args::"'a::procargs procargvars" and ret::"'b::prog_type expression"
+    and *) P :: "'e \<Rightarrow> ('a::procargs,'b::prog_type) procedure" and E::"(id,procedure_type) map"
+    and mk_map :: "'e \<Rightarrow> (id,procedure_rep) map"
+(*  defines "procT == procedure_type TYPE(('a,'b)procedure)" *)
+(*  defines "P == \<lambda>a. \<lparr> p_body=pbody a, p_args=args, p_return=ret \<rparr> :: ('a,'b)procedure" *)
+  assumes "parametric_prog_exists E mk_map (\<lambda>a. p_body (P a))"
+(*  shows "\<exists>p. proctype_of p = procT \<and> well_typed_proc' E p \<and>
+    (\<forall>a::'e. mk_procedure_untyped (P a) = substitute_procs_in_proc (mk_map a) p)"*)
+  shows "parametric_proc_exists E mk_map P"
 
-ML "val MT = the (!last_defined_module_type)"
-end
+sorry
 
-typedef MT = "{m. has_module_type m MT}" 
-  apply (unfold mem_Collect_eq, rule module_type_nonempty)
-  by (simp_all add: MT_def)
+
+lemma parametric_prog_exists_seq:
+  assumes "parametric_prog_exists E mk_map p1"
+  assumes "parametric_prog_exists E mk_map p2"
+  shows "parametric_prog_exists E mk_map (\<lambda>a. seq (p1 a) (p2 a))"
+sorry
+
+lemma parametric_prog_exists_callproc:
+  assumes "parametric_proc_exists E mk_map p"
+  shows "parametric_prog_exists E mk_map (\<lambda>a. callproc v (p a) args)"
+sorry
+
+lemma parametric_proc_exists_ref: (* TODO: generalize to tuples a *)
+  assumes "E name = Some \<lparr>pt_argtypes = procargtypes TYPE('a::procargs), pt_returntype = Type TYPE('b::prog_type)\<rparr>"
+  assumes "\<And>a. mk_map a name = Some (mk_procedure_untyped a)"
+  shows "parametric_proc_exists E mk_map (\<lambda>a. a :: ('a,'b)procedure)"
+unfolding parametric_proc_exists_def procedure_type_def
+apply (rule_tac x="ProcRef name ?arg ?ret" in exI)
+using assms by auto
+
+lemmas parametric_prog_existsI = parametric_prog_exists_callproc parametric_prog_exists_seq
+  parametric_proc_exists_proc (* Doesn't automate well: parametric_proc_exists_ref *)
+
+lemma
+  defines "E == module_type_proc_env MT2"
+  defines "mk_map a == ([[''M'',''a'']\<mapsto>mk_procedure_untyped a])"
+  defines "p' == parametric_proc E mk_map mt2_b"
+(*  shows "proctype_of p' = procedure_type TYPE((unit,int)procedure)" 
+  and   "well_typed_proc' E p'" *)
+  shows   "\<And>a. mk_procedure_untyped (mt2_b a) = substitute_procs_in_proc (mk_map a) p'"
+unfolding p'_def 
+apply (rule parametric_proc_props)
+  unfolding mt2_b_def 
+  unfolding E_def MT2_def module_type_proc_env_def MT_def procedure_type_def mk_map_def 
+  apply (rule parametric_prog_existsI, simp)
+  apply (rule parametric_prog_existsI, simp?)
+  apply (rule parametric_prog_existsI, simp?)
+  apply (rule parametric_proc_exists_ref[where name="[''M'',''a'']"], (auto)[2])
+  apply (rule parametric_prog_existsI, simp?)
+  apply (rule parametric_proc_exists_ref[where name="[''M'',''a'']"], (auto)[2])
+done
+
+lemma mt2_b_good:
+  defines "E == module_type_proc_env MT2"
+  defines "mk_map a == ([[''M'',''a'']\<mapsto>mk_procedure_untyped a])"
+(*  shows "\<exists>p. proctype_of p = procedure_type TYPE((unit,unit)procedure) \<and> well_typed_proc' E p \<and>
+    (\<forall>a::(unit,int)procedure. mk_procedure_untyped (mt2_b a) = substitute_procs_in_proc (mk_map a) p)" 
+  unfolding parametric_proc_exists_def[symmetric] *)
+  shows "parametric_proc_exists E mk_map mt2_b" 
+unfolding E_def MT2_def module_type_proc_env_def MT_def procedure_type_def mk_map_def[cong] mt2_b_def[cong] 
+  apply (rule parametric_prog_existsI, simp)
+  apply (rule parametric_prog_existsI, simp?)
+  apply (rule parametric_prog_existsI, simp?)
+  apply (rule parametric_proc_exists_ref[where name="[''M'',''a'']"], (auto)[2])
+  apply (rule parametric_prog_existsI, simp?)
+  apply (rule parametric_proc_exists_ref[where name="[''M'',''a'']"], (auto)[2])
+done
+
+definition M2 :: module where
+"M2 ==
+let E = (module_type_proc_env MT2) in
+let mk_map = (\<lambda>a. [[''M'',''a'']\<mapsto>mk_procedure_untyped a]) in
+ Abs_module \<lparr> mr_module_args=[''M''\<mapsto>MT],
+              mr_procs=[[''b''] \<mapsto> parametric_proc E mk_map
+                                         mt2_b ] \<rparr>"
+
+(* MT2.a should exist an be a function "procedure \<Rightarrow> procedure" *)
+
+lemma "has_module_type M2 MT2"
+proof - 
+  have eq: "module_type_map_to_proc_env [''M'' \<mapsto> MT] = module_type_proc_env MT2"
+    unfolding MT2_def module_type_proc_env_def by simp
+  have wt_M2: "well_typed_module
+     \<lparr>mr_module_args = [''M'' \<mapsto> MT],
+        mr_procs =
+          [[''b''] \<mapsto>
+           parametric_proc (module_type_proc_env MT2)
+            (\<lambda>a\<Colon>(unit, int) procedure.
+                [[''M'', ''a''] \<mapsto> mk_procedure_untyped a])
+            mt2_b]\<rparr>"
+    unfolding well_typed_module_def 
+    apply auto unfolding eq
+    apply (rule parametric_proc_props)
+    apply (rule mt2_b_good) done
+  show "has_module_type M2 MT2"
+    unfolding has_module_type_def
+    unfolding M2_def apply simp
+    apply (subst Abs_module_inverse, simp)
+    apply (rule wt_M2)
+    apply (subst (2) MT2_def) apply auto
+    apply (rule wt_M2)
+    apply (rule parametric_proc_props)
+    by (rule mt2_b_good)    
+qed
+  
 
 
 text {* 
