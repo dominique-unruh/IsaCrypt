@@ -1,5 +1,5 @@
 theory Ell1
-imports Main Setsum_Infinite Real_Vector_Spaces Complete_Lattices
+imports Main Setsum_Infinite Real_Vector_Spaces Complete_Lattices Extended_Sorry
 begin
 
 subsection {* ell1 (absolutely convergent real series) *}
@@ -65,6 +65,7 @@ lemma support_apply_to_ell1 [simp]: "support_ell1 (apply_to_ell1 f \<mu>) = f ` 
 
 lemma support_point_ell1 [simp]: "support_ell1 (point_ell1 x) = {x}"
   sorry
+
 
 definition "product_ell1 \<mu> \<nu> = Abs_ell1 (\<lambda>(x,y). Rep_ell1 \<mu> x * Rep_ell1 \<nu> y)"
 lemma fst_product_ell1 [simp]: "apply_to_ell1 fst (product_ell1 \<mu> \<nu>) = weight_ell1 \<nu> *\<^sub>R \<mu>"
