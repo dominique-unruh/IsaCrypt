@@ -387,18 +387,33 @@ print_theorems
 moduletype MT2(M:MT) where
   b :: "(unit,unit) procedure";
 print_theorems
-definition "MT2_b \<equiv> get_proc_in_module'' [''b''] (\<lambda>a. [[''a'']\<mapsto>mk_procedure_untyped a])"
+definition MT2_b :: "module \<Rightarrow> (unit,int)procedure \<Rightarrow> (unit,unit)procedure" where
+  "MT2_b \<equiv> get_proc_in_module'' [''b''] (\<lambda>a. [[''a'']\<mapsto>mk_procedure_untyped a])"
+
+(* TODO move *)
+lemma proctype_mk_untyped [simp]:
+  "proctype_of (mk_procedure_untyped (p::('a::procargs,'b::prog_type)procedure))
+  = procedure_type TYPE(('a,'b)procedure)"
+sorry
 
 lemma MT2_b:
-  fixes M and a::"('a::procargs,'b::prog_type)procedure"
+  fixes M and a::"(unit,int)procedure"
   assumes type:"has_module_type M MT2"
   shows "map_option (substitute_procs_in_proc [[''a'']\<mapsto>mk_procedure_untyped a]) (get_proc_in_module M [''b'']) =
        Some (mk_procedure_untyped (MT2_b M a))"
 proof (unfold MT2_b_def, rule get_proc_in_module'')
   def argsT == "[''M'' \<mapsto> MT]" and procT == "[[''b''] \<mapsto> procedure_type TYPE((unit, unit) procedure)]"
+  def mk_map == "\<lambda>a::(unit,int)procedure. [[''a'']\<mapsto>mk_procedure_untyped a]"
   have MT2_def: "MT2 == ModuleType argsT procT" unfolding MT2_def argsT_def procT_def.
   show "has_module_type M (ModuleType argsT procT)" by (fold MT2_def, fact type)
-oops
+  show "map_option proctype_of \<circ> (mk_map a) = module_type_proc_env (ModuleType argsT procT)"
+    unfolding mk_map_def argsT_def procT_def apply simp
+    unfolding module_type_proc_env_def MT_def apply simp
+    apply (rule ext, case_tac x, simp, simp)
+    sorry
+  show "\<forall>p'\<in>ran (mk_map a). well_typed_proc' Map.empty p'" sorry
+  show "procT [''b''] = Some (procedure_type TYPE((unit,unit) procedure))" sorry
+qed
 
 abbreviation "xxx == Variable ''x'' :: int variable"
 definition "mt2_b (a::(unit,int)procedure) \<equiv>
