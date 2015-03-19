@@ -479,7 +479,7 @@ using assms by auto
 lemmas parametric_prog_existsI = parametric_prog_exists_callproc parametric_prog_exists_seq
   parametric_proc_exists_proc (* Doesn't automate well: parametric_proc_exists_ref *)
 
-lemma
+lemma test1:
   defines "E == module_type_proc_env MT2"
   defines "mk_map a == ([[''M'',''a'']\<mapsto>mk_procedure_untyped a])"
   defines "p' == parametric_proc E mk_map mt2_b"

@@ -1,5 +1,5 @@
 theory Setsum_Infinite
-imports Main Topological_Spaces
+imports Main Topological_Spaces Extended_Sorry
 begin
 
 typedef 'a finite_set = "{S::'a set. finite S}" by auto
