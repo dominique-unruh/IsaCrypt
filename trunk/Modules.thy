@@ -443,6 +443,10 @@ definition "parametric_prog_exists E mk_map p ==
    \<exists>p'. well_typed' E p' \<and>
    (\<forall>a. mk_program_untyped (p a) = substitute_procs (mk_map a) p')"
 
+
+ML {* proofs := 2 *}
+
+
 lemma parametric_proc_exists_proc:
   fixes (* pbody :: "'e \<Rightarrow> program" and args::"'a::procargs procargvars" and ret::"'b::prog_type expression"
     and *) P :: "'e \<Rightarrow> ('a::procargs,'b::prog_type) procedure" and E::"(id,procedure_type) map"
@@ -490,13 +494,56 @@ unfolding p'_def
 apply (rule parametric_proc_props)
   unfolding mt2_b_def 
   unfolding E_def MT2_def module_type_proc_env_def MT_def procedure_type_def mk_map_def 
-  apply (rule parametric_prog_existsI, simp)
-  apply (rule parametric_prog_existsI, simp?)
-  apply (rule parametric_prog_existsI, simp?)
+  apply (rule parametric_proc_exists_proc, simp)
+  apply (rule parametric_prog_exists_seq, simp?)
+  apply (rule parametric_prog_exists_callproc, simp?)
   apply (rule parametric_proc_exists_ref[where name="[''M'',''a'']"], (auto)[2])
-  apply (rule parametric_prog_existsI, simp?)
+  apply (rule parametric_prog_exists_callproc, simp?)
   apply (rule parametric_proc_exists_ref[where name="[''M'',''a'']"], (auto)[2])
 done
+
+ML {*
+fun join_thms (thms: Proofterm.pthm list) = ignore (Future.joins (map (#3 o #2) thms));
+
+val all_oracles_of =
+  let
+    fun collect (PBody {oracles, thms, ...}) =
+      tap join_thms thms |> fold (fn (i, (name, _, body)) => fn (x, seen) =>
+        (if Inttab.defined seen i then (x, seen)
+        else (@{print} (i,name); 
+          let
+            val body' = Future.join body;
+            val (x', seen') = collect body' (x, Inttab.update (i, ()) seen);
+          in (@{print} oracles; (if null oracles then x' else oracles :: x', seen')) end)));
+  in fn body =>  (#1 (collect body ([], Inttab.empty))) end;
+
+fun ora_of seen (PBody {oracles, thms, ...}) found = 
+  let val found = if null oracles then found else oracles::found
+      val (found,seen) = fold (fn (i, (name,_,body)) => fn (found,seen) =>
+                               if Inttab.defined seen i then (found,seen)
+                               else (ora_of (Inttab.update (i,()) seen) (Future.join body) found))
+                         thms (found,seen)
+  in
+  (found,seen)
+  end
+
+fun ALL_oracles_of thm = ora_of Inttab.empty (Thm.proof_body_of thm) [] |> fst
+
+fun get_thms (PBody {thms, ...}) = thms;
+*}
+
+
+print_sorry parametric_prog_exists_seq
+
+ML {*
+  @{thm test1} |> ALL_oracles_of |> List.concat |> map fst
+*}
+
+ML {*
+  @{thm test1} |> Thm.proof_body_of  |> get_thms |> hd |> snd |> #3 |> Future.join |> get_thms |> (fn x => nth x 2)
+*}
+
+print_sorry test1
 
 lemma mt2_b_good:
   defines "E == module_type_proc_env MT2"
