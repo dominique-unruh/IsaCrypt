@@ -89,6 +89,7 @@ typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. \<mu> x\<ge>0) \<a
   apply (rule exI[where x="\<lambda>x. 0"], auto) unfolding SetSums_def
   apply (rule exI[where x=0])
   using setsum_0 by auto
+abbreviation "distr_pr == Rep_distr"
 
 definition support_distr :: "'a distr \<Rightarrow> 'a set" where
   "support_distr \<mu> = {x. Rep_distr \<mu> x > 0}"
@@ -112,9 +113,13 @@ definition "weight_distr \<mu> = SetSum (\<lambda>x. Rep_distr \<mu> x) UNIV"
 definition point_distr :: "'a \<Rightarrow> 'a distr" where "point_distr a = Abs_distr (\<lambda>x. if x=a then 1 else 0)";
 lemma weight_point_distr [simp]: "weight_distr (point_distr x) = 1"
   sorry
+lemma point_distr_pr [simp]: "distr_pr (point_distr a) x = (if x=a then 1 else 0)"
+  unfolding point_distr_def apply (subst Abs_distr_inverse, auto) 
+  sorry
 
-
-consts compose_distr :: "('a \<Rightarrow> 'b distr) \<Rightarrow> 'a distr \<Rightarrow> 'b distr";
+definition compose_distr :: "('a \<Rightarrow> 'b distr) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
+  "compose_distr f \<mu> == Abs_distr
+    (\<lambda>b. SetSum (\<lambda>a. Rep_distr \<mu> a * Rep_distr (f a) b) UNIV)"
 definition apply_to_distr :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
   "apply_to_distr f = compose_distr (\<lambda>x. point_distr (f x))"
 
@@ -122,6 +127,7 @@ lemma apply_to_distr_twice [simp]: "apply_to_distr f (apply_to_distr g \<mu>) = 
   sorry
 
 lemma apply_to_distr_id [simp]: "apply_to_distr (\<lambda>x. x) \<mu> = \<mu>"
+  (*unfolding apply_to_distr_def compose_distr_def point_distr_pr*)
   sorry
 
 lemma support_compose_distr [simp]: "support_distr (compose_distr f g) = (\<Union>x\<in>support_distr g. support_distr (f x))"

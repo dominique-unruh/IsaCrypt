@@ -29,12 +29,8 @@ lemma test: "hoare {P &m} x:=1; x:=2; x:=3; x:=4; x:=5; x:=6 {x<10}"
   apply (wp, skip, simp)
 done
 
-lemma test2: "1=1 \<and> 2=2"
-proof
-  show "1=1" sorry
-  show "2=2" sorry
-qed
-  
+print_sorry test
+
 definition "example = 
   PROGRAM[
     x := 0;
