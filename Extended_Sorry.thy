@@ -5,17 +5,27 @@ keywords
   "print_sorry" :: thy_decl
 begin
 
+ML " proofs := 0 "
+
+
 definition "ANNOTATION (prop::prop) (msg::string option) (pos::string) == True"
 lemma ANNOTATION: "ANNOTATION prop msg pos" unfolding ANNOTATION_def ..
 
 ML_file "extended_sorry.ML"
 
-lemma test1: assumes "1=1" shows "1=1" sorry
-lemma test2: assumes "1=1" shows "1=1" apply (rule test1) sorry
-lemma test3: assumes "1=1" shows "1=1" apply (rule test2) sorry
-lemma test4: assumes "1=1" shows "1=1" apply (rule test3) sorry
-
-print_sorry test4
+consts testconst :: int
+lemma [simp]: "testconst*testconst = 0" sorry
+lemma test1: "testconst*testconst*testconst*testconst = 0"
+  by simp
+lemma [simp]: "undefined testconst = (0::int)"
+proof -
+  have x: "undefined testconst == testconst*testconst*testconst*testconst" sorry
+  show ?thesis
+    unfolding x by (rule test1)
+qed
+lemma test2: "undefined testconst + 1 = (1::int)"
+  by simp
+print_sorry test2
 
 (*
 lemma bla: "undefined=x" 

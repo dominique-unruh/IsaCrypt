@@ -54,8 +54,12 @@ definition "memory_update_untyped m v x =
     Abs_memory (m\<lparr>mem_globals := (mem_globals m)(v:=varval)\<rparr>)
    else
     Abs_memory (m\<lparr>mem_locals := (mem_locals m)(v:=varval)\<rparr>))";
-lemma memory_lookup_update_same_untyped: "memory_lookup_untyped (memory_update_untyped m v a) v = a"
-  sorry
+lemma memory_lookup_update_same_untyped: "a \<in> t_domain (vu_type v) \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) v = a"
+  unfolding memory_lookup_untyped_def memory_update_untyped_def Let_def
+  apply auto
+  apply (subst Abs_memory_inverse, auto)
+  using Rep_memory apply auto
+  by (subst Abs_memory_inverse, auto)
 lemma memory_lookup_update_notsame_untyped: 
   "v \<noteq> w \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) w = memory_lookup_untyped m w"
   sorry

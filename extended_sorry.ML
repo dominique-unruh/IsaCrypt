@@ -1,5 +1,4 @@
 
-if !proofs < 1 then proofs := 1 else ();
 
 type annotation = {
   thy:theory,
@@ -28,7 +27,36 @@ fun cheat_tac_annot msg pos i st =
   SUBGOAL (fn (goal,i) =>
     rtac (make_thm_annot {thy=Thm.theory_of_thm st, prop=goal, position=pos, message=msg}) i) i st;
 
-fun print_annotated_oracles ctx thm =
+local
+fun ora_of seen (PBody {oracles, thms, ...}) found path = 
+  let val found = if null oracles then found else (path,oracles)::found
+      val (found,seen) = fold (fn (i, (name,_,body)) => fn (found,seen) =>
+                               if Inttab.defined seen i then (found,seen)
+                               else (ora_of (Inttab.update (i,()) seen) (Future.join body) found (name::path)))
+                         thms (found,seen)
+  in
+  (found,seen)
+  end
+in
+fun all_oracles_of thm = ora_of Inttab.empty (Thm.proof_body_of thm) [] [] |> fst |> rev
+end
+
+fun markup_thm_name ctx name =
+  let val namespace = Global_Theory.facts_of (Proof_Context.theory_of ctx) |> Facts.space_of
+      val (markup,name) = Name_Space.markup_extern ctx namespace name
+  in
+  Markup.markup markup name  
+  end;
+
+type print_annotated_conf = {
+  show_empty: bool
+};
+
+val print_annotated_conf_default = {
+  show_empty=false
+};
+
+fun print_annotated_oracles (conf:print_annotated_conf) ctx thm =
   let fun render_annot prop msg pos = 
          let val prop_str = Syntax.pretty_term ctx prop |> Pretty.str_of
              val msg_str = (case msg of Const(@{const_name None},_) => ""
@@ -43,21 +71,27 @@ fun print_annotated_oracles ctx thm =
         Logic.dest_implies trm |> fst
         |> HOLogic.dest_Trueprop
         |> (fn (Const(@{const_name ANNOTATION},_)$prop$msg$pos) => render_annot prop msg pos | t => raise (TERM("parsing annotation",[t])))
-      fun to_str (name,term) = 
-        if name="Extended_Sorry.skip_proof" then "Method sorry: "^(term |> extract_annot)
-        else if name="Pure.skip_proof" then "Method sorry"
-        else "Oracle "^name^": "^(Syntax.pretty_term ctx term |> Pretty.string_of)
+        handle TERM _ => "[--unknown data--]"
+      fun ora_to_str (name,term) = 
+        if name="Extended_Sorry.skip_proof" then "  sorry: "^(term |> extract_annot)
+        else if name="Pure.skip_proof" then "  sorry"
+        else "  "^name^": "^(Syntax.pretty_term ctx term |> Pretty.string_of)
+      fun path_to_str path = 
+        let val path = if #show_empty conf
+                       then map (fn "" => "<anonymous>" | x => x) path
+                       else filter (fn x=>x<>"") path
+            val path = map (markup_thm_name ctx) path
+            val path = rev path
+        in String.concatWith " > " path end
+      fun thm_to_str (path,oras) =
+        (path_to_str path)::(map ora_to_str oras)
   in
-  thm |> Thm.proof_body_of
-  |> Proofterm.all_oracles_of
-  |> map to_str
-  |> String.concatWith "\n"
-  |> writeln
+  thm |> all_oracles_of |> map thm_to_str |> List.concat |> String.concatWith "\n" |> writeln
   end;
 
 let
 fun print thms ctxt =
-  (Attrib.eval_thms ctxt thms |> map (print_annotated_oracles ctxt); ctxt)
+  (Attrib.eval_thms ctxt thms |> map (print_annotated_oracles print_annotated_conf_default ctxt); ctxt)
 in
 Outer_Syntax.local_theory @{command_spec "print_sorry"}
 "show all occurrences of sorry (and other oracles)"

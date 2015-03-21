@@ -47,7 +47,9 @@ definition "memory_update m (v::'a variable) (a::'a::prog_type) =
   memory_update_untyped m (mk_variable_untyped v) (embedding a)"
 lemma memory_lookup_update_same [simp]: "memory_lookup (memory_update m v a) v = a"
   unfolding memory_lookup_def memory_update_def
-  by (metis embedding_inv f_inv_into_f memory_lookup_update_same_untyped rangeI)
+  apply (subst memory_lookup_update_same_untyped)
+  apply (metis embedding_Type mk_variable_untyped_type)
+  by (metis embedding_inv f_inv_into_f rangeI)
 lemma memory_lookup_update_same': "var_eq v w \<Longrightarrow> (memory_lookup (memory_update m v a) w == a)"
   unfolding memory_lookup_def memory_update_def
   by (smt2 memory_lookup_def memory_lookup_update_same memory_update_def var_eq_def)
@@ -194,8 +196,13 @@ class procargs =
 definition procargvars :: "'a::procargs itself \<Rightarrow> variable_untyped list set" where
   "procargvars _ = {vs. distinct vs \<and> list_all2 (\<lambda>v t. vu_type v = t) vs (procargtypes TYPE('a)) \<and> 
                     (\<forall>v\<in>set vs. \<not> vu_global v)}"
-lemma procargvars_not_empty: "procargvars (TYPE('a::procargs)) \<noteq> {}" 
+lemma procargvars_not_empty: "procargvars TYPE('a::procargs) \<noteq> {}" 
+  unfolding procargvars_def apply auto
   sorry
+lemma procargvars_local: "\<forall>l\<in>procargvars TYPE('a::procargs). \<forall>v\<in>set l. \<not> vu_global v"
+  unfolding procargvars_def by auto
+lemma procargvars_distinct: "\<forall>vs\<in>procargvars TYPE('a::procargs). distinct vs"
+  unfolding procargvars_def by auto
 lemma procargs_typematch: "\<forall>es\<in>procargs TYPE('a::procargs). \<forall>vs\<in>procargvars TYPE('a). 
      list_all2 (\<lambda>v e. vu_type v = eu_type e) vs es"
   sorry
@@ -378,7 +385,9 @@ proof -
   apply (subst Abs_program_inverse, auto)
   apply (subst list_all2_map2)
   apply (subst swap[THEN sym])
-  by (metis Rep_procargs Rep_procargvars procargs_typematch)
+  apply (metis Rep_procargs Rep_procargvars procargs_typematch)
+  unfolding list_all_iff using Rep_procargvars procargvars_local apply auto[1]
+  using Rep_procargvars procargvars_distinct by auto
 qed
 
 (*lemma denotation_seq: "denotation (seq p q) m = 
