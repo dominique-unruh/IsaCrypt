@@ -382,13 +382,65 @@ section {* Some tests (TODO: remove) *}
 
 
 moduletype MT where
-  a :: "(unit,int) procedure";
+  a :: "(unit,int) procedure"
+and c :: "(int*unit,bool) procedure";
 print_theorems
 moduletype MT2(M:MT) where
   b :: "(unit,unit) procedure";
 print_theorems
-definition MT2_b :: "module \<Rightarrow> (unit,int)procedure \<Rightarrow> (unit,unit)procedure" where
-  "MT2_b \<equiv> get_proc_in_module'' [''b''] (\<lambda>a. [[''a'']\<mapsto>mk_procedure_untyped a])"
+
+definition MT2_b_mk_map :: "(unit,int)procedure \<times> (int*unit,bool)procedure \<Rightarrow> (id,procedure_rep)map" where
+  "MT2_b_mk_map \<equiv> (\<lambda>(a,c). [[''M'',''a'']\<mapsto>mk_procedure_untyped a,[''M'',''c'']\<mapsto>mk_procedure_untyped c])"
+
+ML {*
+fun define_module_mk_map lthy =
+let val procs = [(["M","a"],@{typ "(unit,int)procedure"}),
+                 (["M","c"],@{typ "(int*unit,bool)procedure"})
+                 ]
+    val mt_name = @{binding "MT2"}
+
+    val mapT = @{typ "(id,procedure_rep) map"}
+    fun body [] = (@{term "empty::(id,procedure_rep)map"},0)
+      | body ((n1,t1)::rest) =
+          let val (b,i) = body rest
+              val n1' = HOLogic.mk_list @{typ "string"} (map HOLogic.mk_string n1)
+              val p = Const(@{const_name mk_procedure_untyped},t1--> @{typ procedure_rep})$Bound i
+              val b' = @{term "fun_upd::(id,procedure_rep)map=>id=>procedure_rep option=>(id,procedure_rep)map"}
+                       $ b $ n1' $ (@{term "Some::_\<Rightarrow>procedure_rep option"} $ p)
+          in
+          (b',i+1)
+          end
+    val body = body procs |> fst
+    fun name_to_id n = String.concatWith "_" n
+    fun abs [] = @{term "\<lambda>_::unit. empty"}
+      | abs [(n1,t1),(n2,t2)] =
+          Const(@{const_name case_prod},(t1 --> t2 --> mapT) --> (HOLogic.mk_prodT(t1,t2) --> mapT)) $ 
+          Abs(name_to_id n1,t1,Abs(name_to_id n2,t2,body))
+      | abs ((n1,t1)::rest) =
+          let val rest' = abs rest
+              val restT = fastype_of rest'
+              val (t2,t3) = restT |> dest_funT |> fst |> HOLogic.dest_prodT
+          in
+          Const(@{const_name case_prod},(t1-->restT) --> (HOLogic.mk_prodT(t1,HOLogic.mk_prodT(t2,t3))-->mapT)) $
+          Abs(name_to_id n1,t1,abs rest)
+          end
+    val mk_map_def = abs procs
+    val mk_map_name = Binding.qualified true "mk_map" mt_name
+    val ((const,(_,thm)),lthy) = Local_Theory.define ((mk_map_name, NoSyn),
+          ((Thm.def_binding mk_map_name,[]), mk_map_def)) lthy
+in
+@{print} (const,thm);
+lthy
+end;
+*}
+local_setup {*
+define_module_mk_map
+*}
+
+thm MT2_b_mk_map_def MT2.mk_map_def
+
+definition MT2_b :: "module \<Rightarrow> (unit,int)procedure \<times> (int*unit,bool)procedure \<Rightarrow> (unit,unit)procedure" where
+  "MT2_b \<equiv> get_proc_in_module'' [''b''] MT2.mk_map"
 
 (* TODO move *)
 lemma proctype_mk_untyped [simp]:
