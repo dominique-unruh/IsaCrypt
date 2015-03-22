@@ -65,6 +65,7 @@ class IsabelleProcess(object):
             exit(1)
             
     def shutdown(self):
+        self.log("Shutting down.")
         if self.isabelle_proc and self.isabelle_proc.poll()==None:
             self.isabelle_proc.terminate()
             time.sleep(1)
@@ -162,15 +163,18 @@ if __name__ == "__main__":
 """)
 
 def start_server():
-    # TODO: check options, in particular for security (local access only)
-    daemon = Pyro4.Daemon()
+    try: shutdown_server()
+    except: pass
+    try: os.remove(".isabelle-test-server-socket")
+    except: pass
+    daemon = Pyro4.Daemon(unixsocket=".isabelle-test-server-socket")
     server = IsabelleProcess()
     server.uri=daemon.register(server)
-    with open(".isabelle_test_server","w") as f: f.write(str(server.uri))
+    with open(".isabelle-test-server","w") as f: f.write(str(server.uri))
     daemon.requestLoop()
 
 def shutdown_server():
-    uri=open(".isabelle_test_server","r").read()
+    uri=open(".isabelle-test-server","r").read()
     isabelle_server=Pyro4.Proxy(uri)
     isabelle_server.shutdown()
 
@@ -179,7 +183,7 @@ def get_server():
     global isabelle_server
     def connect():
         global isabelle_server
-        uri=open(".isabelle_test_server","r").read()
+        uri=open(".isabelle-test-server","r").read()
         isabelle_server=Pyro4.Proxy(uri)
         isabelle_server.check()
     def start():
