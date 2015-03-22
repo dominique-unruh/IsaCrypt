@@ -3,10 +3,10 @@ imports Main Ell1 BNF_Cardinal_Order_Relation
 begin
 
 (* For proving instances of types declared with 
-  "datatype" (not "datatype_new"), see ? ? ?
+  "datatype" (not "datatype_new"), see, e.g., "char"
 
   For proving instances of types declared with 
-  "typedef", see, e.g., ell1
+  "typedef", see, e.g., "ell1"
 *)
                                        
 definition "powertower t == \<forall>n. \<exists>i. inj_on i (Pow (t n)) \<and> i ` (Pow (t n)) \<subseteq> t (Suc n)"
