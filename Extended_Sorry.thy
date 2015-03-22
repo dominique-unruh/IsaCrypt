@@ -1,8 +1,8 @@
 theory Extended_Sorry
 imports HOL String
 keywords
-(*  "sorry2" :: "qed" % "proof" *)
-  "print_sorry" :: thy_decl
+    "SORRY" :: "qed" % "proof"
+and "print_sorry" :: thy_decl
 begin
 
 ML " proofs := 0 "
@@ -14,12 +14,12 @@ lemma ANNOTATION: "ANNOTATION prop msg pos" unfolding ANNOTATION_def ..
 ML_file "extended_sorry.ML"
 
 consts testconst :: int
-lemma [simp]: "testconst*testconst = 0" sorry
+lemma [simp]: "testconst*testconst = 0" SORRY
 lemma test1: "testconst*testconst*testconst*testconst = 0"
   by simp
 lemma [simp]: "undefined testconst = (0::int)"
 proof -
-  have x: "undefined testconst == testconst*testconst*testconst*testconst" sorry
+  have x: "undefined testconst == testconst*testconst*testconst*testconst" SORRY
   show ?thesis
     unfolding x by (rule test1)
 qed
