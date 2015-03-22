@@ -381,21 +381,23 @@ ML_file "modules.ML"
 section {* Some tests (TODO: remove) *}
 
 
+
+term "''x'' = (a::_::prog_type)"
+
 moduletype MT where
   a :: "(unit,int) procedure"
-and c :: "(int*unit,bool) procedure";
 print_theorems
 moduletype MT2(M:MT) where
   b :: "(unit,unit) procedure";
 print_theorems
 
-definition MT2_b_mk_map :: "(unit,int)procedure \<times> (int*unit,bool)procedure \<Rightarrow> (id,procedure_rep)map" where
-  "MT2_b_mk_map \<equiv> (\<lambda>(a,c). [[''M'',''a'']\<mapsto>mk_procedure_untyped a,[''M'',''c'']\<mapsto>mk_procedure_untyped c])"
+definition MT2_b_mk_map :: "(unit,int)procedure \<Rightarrow> (id,procedure_rep)map" where
+  "MT2_b_mk_map \<equiv> (\<lambda>a. [[''M'',''a'']\<mapsto>mk_procedure_untyped a])"
 
 ML {*
 fun define_module_mk_map lthy =
-let val procs = [(["M","a"],@{typ "(unit,int)procedure"}),
-                 (["M","c"],@{typ "(int*unit,bool)procedure"})
+let val procs = [(["M","a"],@{typ "(unit,int)procedure"})
+(*                 (["M","c"],@{typ "(int*unit,bool)procedure"}) *)
                  ]
     val mt_name = @{binding "MT2"}
 
@@ -413,6 +415,7 @@ let val procs = [(["M","a"],@{typ "(unit,int)procedure"}),
     val body = body procs |> fst
     fun name_to_id n = String.concatWith "_" n
     fun abs [] = @{term "\<lambda>_::unit. empty"}
+      | abs [(n1,t1)] = Abs(name_to_id n1,t1,body)
       | abs [(n1,t1),(n2,t2)] =
           Const(@{const_name case_prod},(t1 --> t2 --> mapT) --> (HOLogic.mk_prodT(t1,t2) --> mapT)) $ 
           Abs(name_to_id n1,t1,Abs(name_to_id n2,t2,body))
@@ -439,7 +442,7 @@ define_module_mk_map
 
 thm MT2_b_mk_map_def MT2.mk_map_def
 
-definition MT2_b :: "module \<Rightarrow> (unit,int)procedure \<times> (int*unit,bool)procedure \<Rightarrow> (unit,unit)procedure" where
+definition MT2_b :: "module \<Rightarrow> (unit,int)procedure \<Rightarrow> (unit,unit)procedure" where
   "MT2_b \<equiv> get_proc_in_module'' [''b''] MT2.mk_map"
 
 (* TODO move *)
@@ -451,11 +454,11 @@ sorry
 lemma MT2_b:
   fixes M and a::"(unit,int)procedure"
   assumes type:"has_module_type M MT2"
-  shows "map_option (substitute_procs_in_proc [[''a'']\<mapsto>mk_procedure_untyped a]) (get_proc_in_module M [''b'']) =
+  shows "map_option (substitute_procs_in_proc [[''M'',''a'']\<mapsto>mk_procedure_untyped a]) (get_proc_in_module M [''b'']) =
        Some (mk_procedure_untyped (MT2_b M a))"
-proof (unfold MT2_b_def, rule get_proc_in_module'')
+proof (unfold MT2_b_def MT2.mk_map_def, rule get_proc_in_module'')
   def argsT == "[''M'' \<mapsto> MT]" and procT == "[[''b''] \<mapsto> procedure_type TYPE((unit, unit) procedure)]"
-  def mk_map == "\<lambda>a::(unit,int)procedure. [[''a'']\<mapsto>mk_procedure_untyped a]"
+  def mk_map == "\<lambda>a::(unit,int)procedure. [[''M'',''a'']\<mapsto>mk_procedure_untyped a]"
   have MT2_def: "MT2 == ModuleType argsT procT" unfolding MT2_def argsT_def procT_def.
   show "has_module_type M (ModuleType argsT procT)" by (fold MT2_def, fact type)
   show "map_option proctype_of \<circ> (mk_map a) = module_type_proc_env (ModuleType argsT procT)"

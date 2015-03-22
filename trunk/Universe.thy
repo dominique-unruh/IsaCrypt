@@ -1,6 +1,13 @@
 theory Universe
 imports Main Ell1 BNF_Cardinal_Order_Relation
 begin
+
+(* For proving instances of types declared with 
+  "datatype" (not "datatype_new"), see ? ? ?
+
+  For proving instances of types declared with 
+  "typedef", see, e.g., ell1
+*)
                                        
 definition "powertower t == \<forall>n. \<exists>i. inj_on i (Pow (t n)) \<and> i ` (Pow (t n)) \<subseteq> t (Suc n)"
 
@@ -218,6 +225,15 @@ instance apply (rule prog_type_classI, rule exI[where x="\<lambda>l. (length l, 
   by (rule injI, metis nth_equalityI old.prod.inject)
 end
 
-
+instantiation nibble :: prog_type begin
+instance apply (rule prog_type_classI, rule exI[where x=Rep_nibble])
+  by (metis Rep_nibble_inverse injI)
 end
 
+instantiation char :: prog_type begin
+instance apply (rule prog_type_classI, rule exI[where x=Rep_char])
+  by (metis Rep_char_inverse injI)
+end
+
+
+end

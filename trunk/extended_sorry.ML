@@ -121,6 +121,6 @@ fun skip_proof msg pos = (local_skip_proof msg pos) o (global_skip_proof msg pos
 
 fun parse_position toks = (Token.pos_of (hd toks), toks);
 
-Outer_Syntax.command @{command_spec "sorry"} "skip proof (quick-and-dirty mode only!)"
+Outer_Syntax.command @{command_spec "SORRY"} "skip proof (quick-and-dirty mode only!)"
     (parse_position -- Scan.option Parse.string >> (fn (pos,msg) => skip_proof msg pos));
 
