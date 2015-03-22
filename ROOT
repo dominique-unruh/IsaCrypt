@@ -5,7 +5,3 @@ session "EasyCrypt" = "HOL" +
   document_files (in ".")
     "root.tex"
 
-session "HOL_dirty" = "HOL" +
-  options [quick_and_dirty = true]
-  theories [document = false]
-
