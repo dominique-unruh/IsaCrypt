@@ -30,6 +30,14 @@ record module_rep =
   mr_procs :: "(id,procedure_rep) map"
 (* TODO variables *)
 
+locale test = 
+  fixes x::"'a set"
+begin
+  typedef 'b x = "{undefined::'b}" by auto
+  print_theorems
+end
+
+
 definition well_typed_module :: "module_rep \<Rightarrow> bool" where
   "well_typed_module m == finite(dom(mr_procs m)) \<and> finite(dom(mr_module_args m)) 
   \<and> (\<forall>p\<in>ran(mr_procs m). well_typed_proc' (module_type_map_to_proc_env(mr_module_args m)) p)"
@@ -393,6 +401,8 @@ print_theorems
 
 definition MT2_b_mk_map :: "(unit,int)procedure \<Rightarrow> (id,procedure_rep)map" where
   "MT2_b_mk_map \<equiv> (\<lambda>a. [[''M'',''a'']\<mapsto>mk_procedure_untyped a])"
+
+thm MT_def
 
 ML {*
 fun define_module_mk_map lthy =
