@@ -146,6 +146,7 @@ and well_typed_proc' :: "procedure_type list \<Rightarrow> procedure_rep \<Right
     (well_typed' E body \<and> list_all (\<lambda>v. \<not> vu_global v) pargs \<and> distinct pargs)"
 
 abbreviation "well_typed == well_typed' []"
+abbreviation "well_typed_proc == well_typed_proc' []"
 
 typedef program = "{prog. well_typed prog}"
   apply (rule exI[where x=Skip]) by simp
