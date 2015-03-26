@@ -111,11 +111,11 @@ datatype program_rep =
 | CallProc variable_untyped procedure_rep "expression_untyped list"
 and procedure_rep =
   Proc program_rep "variable_untyped list" expression_untyped
-| ProcRef id "type list" type
+| ProcRef nat "procedure_rep list"(*env for the ref'd proc*) "type list"(*argtypes*) type(*returntype*)
 
 fun is_concrete_proc where 
   "is_concrete_proc (Proc x y z) = True"
-| "is_concrete_proc (ProcRef x y z) = False"
+| "is_concrete_proc (ProcRef x y z w) = False"
 
 record procedure_type =
   pt_argtypes :: "type list"
@@ -123,10 +123,10 @@ record procedure_type =
 
 fun proctype_of :: "procedure_rep \<Rightarrow> procedure_type" where
   "proctype_of (Proc body args return) = \<lparr> pt_argtypes=map vu_type args, pt_returntype=eu_type return \<rparr>"
-| "proctype_of (ProcRef name args return) = \<lparr> pt_argtypes=args, pt_returntype=return \<rparr>"
+| "proctype_of (ProcRef name env args return) = \<lparr> pt_argtypes=args, pt_returntype=return \<rparr>"
 
-fun well_typed' :: "(id,procedure_type)map \<Rightarrow> program_rep \<Rightarrow> bool" 
-and well_typed_proc' :: "(id,procedure_type)map \<Rightarrow> procedure_rep \<Rightarrow> bool" where
+fun well_typed' :: "procedure_type list \<Rightarrow> program_rep \<Rightarrow> bool" 
+and well_typed_proc' :: "procedure_type list \<Rightarrow> procedure_rep \<Rightarrow> bool" where
   "well_typed' E (Seq p1 p2) = (well_typed' E p1 \<and> well_typed' E p2)"
 | "well_typed' E (Assign v e) = (eu_type e = vu_type v)"
 | "well_typed' E (Sample v e) = (ed_type e = vu_type v)"
@@ -138,22 +138,14 @@ and well_typed_proc' :: "(id,procedure_type)map \<Rightarrow> procedure_rep \<Ri
     vu_type v = pt_returntype procT \<and> 
     list_all2 (\<lambda>e T. eu_type e = T) args (pt_argtypes procT) \<and>
     well_typed_proc' E proc)"
-(*| "well_typed' E (CallProc v (Proc body pargs return) args) = 
-    (eu_type return = vu_type v
-     \<and> list_all2 (\<lambda>v e. vu_type v = eu_type e) pargs args
-     )"
-| "well_typed' E (CallProc v (ProcRef name x y) args) = 
-    (case E name of
-       None \<Rightarrow> False
-     | Some progtype \<Rightarrow>
-        pt_returntype progtype = vu_type v
-        \<and> list_all2 (\<lambda>t e. t = eu_type e) (pt_argtypes progtype) args)"*)
-| "well_typed_proc' E (ProcRef name argtypes returntype) = 
-    (E name = Some \<lparr> pt_argtypes=argtypes, pt_returntype=returntype \<rparr>)"
+(* TODO: env not checked? Perhaps should drop ProcRef from well_typed_proc' completely? *)
+| "well_typed_proc' E (ProcRef i env argtypes returntype) = 
+    (length E \<le> i \<and> 
+    E!i = \<lparr> pt_argtypes=argtypes, pt_returntype=returntype \<rparr>)"
 | "well_typed_proc' E (Proc body pargs return) = 
     (well_typed' E body \<and> list_all (\<lambda>v. \<not> vu_global v) pargs \<and> distinct pargs)"
 
-abbreviation "well_typed == well_typed' empty"
+abbreviation "well_typed == well_typed' []"
 
 typedef program = "{prog. well_typed prog}"
   apply (rule exI[where x=Skip]) by simp
@@ -189,7 +181,7 @@ fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
                                             (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)))"
 | "denotation_untyped (CallProc v (Proc body pargs return) args) m = 
   apply_to_distr (restore_locals m) (denotation_untyped body (init_locals pargs args m))"
-| "denotation_untyped (CallProc v (ProcRef x y z) args) m = 0" (* Cannot happen for well-typed programs *)
+| "denotation_untyped (CallProc v (ProcRef x y z w) args) m = 0" (* Cannot happen for well-typed programs *)
 definition "denotation prog = denotation_untyped (mk_program_untyped prog)"
 
 fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
@@ -206,7 +198,7 @@ and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" whe
       [v. v\<leftarrow>pargs, vu_global v] (* Empty for well-typed progs *)
       @ [v. v\<leftarrow>vars_untyped body, vu_global v]
       @ [v. v\<leftarrow>eu_vars return, vu_global v]"
-| "vars_proc_untyped (ProcRef name argT retT) = []"
+| "vars_proc_untyped (ProcRef name env argT retT) = [v. p\<leftarrow>env, v\<leftarrow>vars_proc_untyped p]"
 
 definition "vars prog = vars_untyped (mk_program_untyped prog)"
 
