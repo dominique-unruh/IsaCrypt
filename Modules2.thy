@@ -13,6 +13,8 @@ class module_type =
   assumes "length (module_type_procs a) = length (module_type_proc_names TYPE('a))"
   assumes "length (module_type_procs a) = length (module_type_proc_types TYPE('a))"
 
+thm module_type_class_def
+
 class module_type_closed = module_type +
   assumes "module_type_environment TYPE('a) = []"
 
@@ -124,35 +126,212 @@ by pat_completeness auto
 definition "module_type_proc_types_open MT \<equiv> 
   map (ProcTypeOpen (module_type_environment MT)) (module_type_proc_types MT)"
 
-definition "MT2_env \<equiv> module_type_proc_types_open TYPE(MT)"
-typedef MT2 = "{procs. length procs = 1 \<and> map proctype_of procs = [procedure_type TYPE((bool*unit,bool)procedure)] \<and>
-  (\<forall>p\<in>set procs. well_typed_proc'' MT2_env p)}" sorry
-definition "MT2_b m \<equiv> \<lambda>MT::MT. mk_procedure_typed (subst_proc (module_type_procs MT) (Rep_MT2 m!0)) :: (bool*unit,bool)procedure"
-instantiation MT2 :: module_type begin
-definition "module_type_procs_MT2 (m::MT2) == Rep_MT2 m :: procedure_rep list" 
-definition "module_type_proc_names_MT2 (_::MT2 itself) == [[''b'']]" 
-definition "module_type_proc_types_MT2 (_::MT2 itself) == [procedure_type TYPE((bool*unit,bool)procedure)]"
-definition "module_type_environment_MT2 (_::MT2 itself) == MT2_env"
-instance apply intro_classes
-  unfolding module_type_proc_names_MT2_def module_type_procs_MT2_def module_type_proc_types_MT2_def 
-  using Rep_MT2
-  by auto
-end
+ML {*
+type module_type_spec = {
+  name: binding,
+  arguments: {name:binding, typ:typ} list,
+  procs: {name:binding, typ:typ} list
+};
+*}
 
-typedef MT3 = "{(x,y).
+definition "module_type_rep_set env proctypes \<equiv>
+{procs. map proctype_of procs = proctypes \<and> (\<forall>p\<in>set procs. well_typed_proc'' env p)}"
+lemma module_type_rep_set_inhabited: "\<exists>x. x \<in> module_type_rep_set env procT"
+  sorry
+
+ML {*
+fun mk_nat i = 
+  if i=0 then @{term "0::nat"}
+  else if i<0 then raise Match
+  else @{term "Suc"} $ mk_nat (i-1);;
+*}
+
+ML {*
+val MT2_spec:module_type_spec = {
+  name = @{binding MT2},
+  procs = [{name = @{binding b}, typ = @{typ "(bool*unit,bool)procedure"}}],
+  arguments = [{name = @{binding M}, typ = @{typ "MT"}}] 
+};
+*}
+
+ML {* @{term "E!1"} *}
+
+ML {*
+fun define_module_type (spec:module_type_spec) (thy:theory) =
+  let 
+      (* Sanity checks on spec *)
+      val _ = if has_duplicates (op=) (#arguments spec |> map #name |> map Binding.name_of)
+              then raise (ERROR "Two module arguments with the same name")
+              else ()
+      val _ = if has_duplicates (op=) (#procs spec |> map #name |> map Binding.name_of)
+              then raise (ERROR "Two procedures with the same name")
+              else ()
+
+      (* Perform the equivalent of:
+         typedef MT = "module_type_rep_set 
+           (module_type_proc_types_open TYPE(arg1) @ ... @ module_type_proc_types_open TYPE(argn))
+           [procedure_type TYPE(proctype1), ... , procedure_type TYPE(proctypen)]"
+              by (fact module_type_rep_set_inhabited)
+      *)
+      val env = #arguments spec
+                |> map (fn {typ,...} => 
+                   Const(@{const_name module_type_proc_types_open},Term.itselfT typ--> @{typ "procedure_type_open list"})
+                           $ Logic.mk_type typ)
+                |> foldr1 (fn(x,y) => @{term "append::_\<Rightarrow>_\<Rightarrow>procedure_type_open list"}$x$y)
+                   handle List.Empty => @{term "[]::procedure_type_open list"}
+      val procTs = #procs spec
+                   |> map (fn {typ,...} => Const(@{const_name procedure_type},Term.itselfT typ--> @{typ procedure_type}) $
+                                           Logic.mk_type typ)
+                   |> HOLogic.mk_list @{typ "procedure_type"}
+      val rep_set = @{term module_type_rep_set} $ env $ procTs
+      val ((mt_name,typdef_info),thy) = 
+        Typedef.add_typedef_global (#name spec,[],NoSyn) rep_set NONE 
+            (rtac @{thm module_type_rep_set_inhabited} 1) thy
+      val _ = writeln ("Define typed "^mt_name)
+
+      (* Perform equivalent of:
+         instantiation MT :: module_type begin *)
+      val thy = Class.instantiation ([mt_name],[],@{sort "module_type"}) thy
+
+      (* definition "module_type_procs_MT == Rep_MT" *)
+      val bind = #name spec |> Binding.prefix_name "module_type_procs_"
+      val MT = #abs_type (fst typdef_info)
+      val Rep_MT = let val i=fst typdef_info in Const(#Rep_name i,MT --> #rep_type i) end
+      val ((mt_procs_const,(_,mt_procs_def)),thy) = Local_Theory.define
+          ((bind,NoSyn), ((Thm.def_binding bind,[]), Rep_MT)) thy
+
+      (* definition "module_type_proc_names_MT == %(_::MT itself). [[''b'']]" *)
+      val bind = #name spec |> Binding.prefix_name "module_type_proc_names_"
+      val rhs = #procs spec |> map (fn p => #name p |> Binding.name_of 
+                  |> Long_Name.explode |> map HOLogic.mk_string
+                  |> HOLogic.mk_list @{typ id0}) |> HOLogic.mk_list @{typ id}
+                  |> Term.absdummy (Term.itselfT MT)
+      val ((mt_proc_names_const,(_,mt_proc_names_def)),thy) = Local_Theory.define
+          ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy
+
+      (* definition "module_type_proc_types_MT == %(_::MT itself). [procedure_type TYPE((...)procedure)]" *)
+      val bind = #name spec |> Binding.prefix_name "module_type_proc_types_"
+      val rhs = #procs spec |> map #typ |> map (fn t =>  
+                  Const(@{const_name procedure_type},Term.itselfT t--> @{typ procedure_type}) $
+                      Logic.mk_type t)
+                  |> HOLogic.mk_list @{typ procedure_type}
+                  |> Term.absdummy (Term.itselfT MT)
+      val ((mt_proc_types_const,(_,mt_proc_types_def)),thy) = Local_Theory.define
+          ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy
+
+      (* definition "module_type_environment_MT == %(_::MT itself). module_type_proc_types_open TYPE(MT1) @ ..." *)
+      val bind = #name spec |> Binding.prefix_name "module_type_environment_"
+      val rhs = env |> Term.absdummy (Term.itselfT MT)
+      val ((mt_environment_const,(_,mt_environment_def)),thy) = Local_Theory.define
+          ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy
+      
+      (* Perform the equivalent of:
+         instance sorry *)
+      val thy = Class.prove_instantiation_exit (fn _ => Skip_Proof.cheat_tac 1) thy
+      (* TODO: Actually prove this *)
+
+      (* Perform equivalent of:
+         instantiation MT :: module_type_closed begin
+         (if MT is a closed module type)   *)
+      val thy = if #arguments spec=[] then
+          Class.instantiation ([mt_name],[],@{sort "module_type_closed"}) thy
+          |> Class.prove_instantiation_exit (fn _ => Skip_Proof.cheat_tac 1)
+          else thy
+          (* TODO prove this *)
+
+      (* For each proci in #procs spec: 
+         definition "MT.proci == %(M::MT) (M1::arg1) ... (Mn::argn).
+                     (mk_procedure_typed (subst_proc
+                         (module_type_procs M1 @ ... @ module_type_procs Mn)
+                         ((module_type_procs M)!i)) :: (...)procedure)" *)
+      val env_procs = #arguments spec
+                |> map (fn {typ,name} => 
+                   Const(@{const_name module_type_procs},typ--> @{typ "procedure_rep list"})
+                           $ Free(Binding.name_of name,typ))
+                |> foldr1 (fn(x,y) => @{term "append::_\<Rightarrow>_\<Rightarrow>procedure_rep list"}$x$y)
+                   handle List.Empty => @{term "[]::procedure_rep list"}
+      val env_proc_vars = #arguments spec
+                |> map (fn {typ,name} => (Binding.name_of name,typ))
+      val M = Name.variant_list (#arguments spec |> map #name |> map Binding.name_of) [#name spec |> Binding.name_of] |> hd
+      fun define_getter (i,proc) (getters,thy:local_theory) =
+      let val get_proc = @{term "nth::_\<Rightarrow>_\<Rightarrow>procedure_rep"} $ (Const(@{const_name module_type_procs},MT--> @{typ "procedure_rep list"}) $ Free(M,MT)) $ mk_nat i
+          val rhs = Const(@{const_name mk_procedure_typed},@{typ procedure_rep}--> #typ proc) $
+                    (@{term subst_proc} $ env_procs $ get_proc)
+          val rhs = rhs |> fold absfree (rev env_proc_vars) |> absfree (M,MT)
+          val bind = #name proc |> Binding.qualify true (#name spec |> Binding.name_of)
+          val ((getter_const,(_,getter_def)),thy) = Local_Theory.define
+              ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy
+      in ((getter_const,getter_def)::getters,thy) end
+      val thy = Named_Target.theory_init thy
+      val (getters,thy) = fold_index define_getter (#procs spec) ([],thy)
+      val thy = Named_Target.exit thy
+
+      val _ = (getters,mt_environment_const,mt_environment_def,mt_proc_types_const,mt_proc_types_def,mt_proc_names_const,mt_proc_names_def, mt_procs_def, mt_procs_const)
+  in
+  thy
+  end;
+*}
+
+setup "define_module_type MT2_spec"
+thm MT2.b_def
+
+
+
+
+
+
+print_theorems
+
+
+
+
+
+(*definition "module_type_getter i m == mk_procedure_typed (subst_proc (module_type_procs MT) (Rep_MT2 m!i))"*)
+
+(*typedef MT2 = "module_type_rep_set (module_type_proc_types_open TYPE(MT)) [procedure_type TYPE((bool*unit,bool)procedure)]" 
+  by (fact module_type_rep_set_inhabited)*)
+(*instantiation MT2 :: module_type begin*)
+(*definition "module_type_procs_MT2 (m::MT2) == Rep_MT2 m :: procedure_rep list"  *)
+(*definition "module_type_proc_names_MT2 (_::MT2 itself) == [[''b'']]" *)
+(*definition "module_type_proc_types_MT2 (_::MT2 itself) == [procedure_type TYPE((bool*unit,bool)procedure)]"
+definition "module_type_environment_MT2 (_::MT2 itself) == module_type_proc_types_open TYPE(MT)"*)
+definition "MT2_b m \<equiv> \<lambda>MT::MT. mk_procedure_typed (subst_proc (module_type_procs MT) (Rep_MT2 m!0)) :: (bool*unit,bool)procedure"
+
+lemma "MT2_b = MT2.b"
+  apply (rule ext)
+  unfolding MT2_b_def MT2.b_def
+  unfolding module_type_procs_MT2_def
+  ..
+  
+
+ML {*
+val MT3_spec:module_type_spec = {
+  name = @{binding MT3},
+  procs = [{name = @{binding x}, typ = @{typ "(bool*unit,string)procedure"}},
+           {name = @{binding y}, typ = @{typ "(string*unit,string)procedure"}}],
+  arguments = [{name = @{binding M}, typ = @{typ "MT"}},
+               {name = @{binding M2}, typ = @{typ "MT2"}}] 
+     };
+*}
+
+setup "define_module_type MT3_spec"
+thm MT3.x_def
+term MT3.x
+(*typedef MT3 = "{(x,y).
   proctype_of x=procedure_type TYPE((bool*unit,string)procedure) \<and>
   proctype_of y=procedure_type TYPE((string*unit,string)procedure) \<and>
   well_typed_proc' (module_type_proc_types TYPE(MT) @ module_type_proc_types TYPE(MT2)) x \<and>
-  well_typed_proc' (module_type_proc_types TYPE(MT) @ module_type_proc_types TYPE(MT2)) y}" sorry
-definition "MT3_x (m::MT3) (m1::MT) (m2::MT2) \<equiv>
+  well_typed_proc' (module_type_proc_types TYPE(MT) @ module_type_proc_types TYPE(MT2)) y}" sorry *)
+(*definition "MT3_x (m::MT3) (m1::MT) (m2::MT2) \<equiv>
   case Rep_MT3 m of (x,y) \<Rightarrow> (mk_procedure_typed (subst_proc (module_type_procs m1 @ module_type_procs m2) x) :: (bool*unit,string)procedure)"
 definition "MT3_y (m::MT3) (m1::MT) (m2::MT2) \<equiv>
-  case Rep_MT3 m of (x,y) \<Rightarrow> (mk_procedure_typed (subst_proc (module_type_procs m1 @ module_type_procs m2) y) :: (string*unit,string)procedure)"
+  case Rep_MT3 m of (x,y) \<Rightarrow> (mk_procedure_typed (subst_proc (module_type_procs m1 @ module_type_procs m2) y) :: (string*unit,string)procedure)"*)
+(*
 instantiation MT3 :: module_type begin
 definition "module_type_procs_MT3 (m::MT3) == case Rep_MT3 m of (x,y) \<Rightarrow> [x,y]" 
 definition "module_type_proc_names_MT3 (_::MT3 itself) == [[''x''],[''y'']]" 
 definition "module_type_proc_types_MT3 (_::MT3 itself) == [procedure_type TYPE((bool*unit,string)procedure), procedure_type TYPE((string*unit,string)procedure)]" 
 instance apply intro_classes sorry
 end
-
+*)
 
