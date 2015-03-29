@@ -5,11 +5,7 @@ HEAP = /home/unruh/.isabelle/Isabelle2014/heaps/polyml-5.5.2_x86-linux/EasyCrypt
 def :
 	error
 
-HOL_dirty : ROOT
-	/opt/Isabelle/bin/isabelle build -b -d . -v HOL_dirty
-
-
-$(HEAP) : ROOT *.thy 
+heap $(HEAP) : ROOT *.thy 
 	/opt/Isabelle/bin/isabelle build -b -d . -v EasyCrypt 
 	ls -lh $(BROWSER_INFO)/document.pdf
 
