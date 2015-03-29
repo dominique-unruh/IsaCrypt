@@ -1,4 +1,5 @@
-
+structure Extended_Sorry =
+struct
 
 type annotation = {
   thy:theory,
@@ -89,7 +90,7 @@ fun print_annotated_oracles (conf:print_annotated_conf) ctx thm =
   thm |> all_oracles_of |> map thm_to_str |> List.concat |> String.concatWith "\n" |> writeln
   end;
 
-let
+val _ = let
 fun print thms ctxt =
   (Attrib.eval_thms ctxt thms |> map (print_annotated_oracles print_annotated_conf_default ctxt); ctxt)
 in
@@ -121,6 +122,7 @@ fun skip_proof msg pos = (local_skip_proof msg pos) o (global_skip_proof msg pos
 
 fun parse_position toks = (Token.pos_of (hd toks), toks);
 
-Outer_Syntax.command @{command_spec "SORRY"} "skip proof (quick-and-dirty mode only!)"
+val _ = Outer_Syntax.command @{command_spec "SORRY"} "skip proof (quick-and-dirty mode only!)"
     (parse_position -- Scan.option Parse.string >> (fn (pos,msg) => skip_proof msg pos));
 
+end
