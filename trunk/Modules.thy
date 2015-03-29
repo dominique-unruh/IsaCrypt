@@ -1,4 +1,4 @@
-theory Modules2
+theory Modules
 imports Lang_Typed
 begin
 
