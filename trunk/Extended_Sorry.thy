@@ -7,6 +7,12 @@ begin
 
 ML " proofs := 0 "
 
+(* TODO: print_sorry should also print:
+- val proven_classrels_of = #proven_classrels o rep_data;
+val proven_arities_of = #proven_arities o rep_data;
+val inst_params_of = #inst_params o rep_data;
+But these are not accessible! *)
+
 
 definition "ANNOTATION (prop::prop) (msg::string option) (pos::string) == True"
 lemma ANNOTATION: "ANNOTATION prop msg pos" unfolding ANNOTATION_def ..

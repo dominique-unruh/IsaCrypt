@@ -18,7 +18,10 @@ datatype module_type_info = ModTypeInfo of {
   mt_proc_names_thm: thm,
   mt_proc_types_const: term,
   mt_proc_types_thm: thm,
-  getters: {const: term, thm: thm} list
+  mt_make_const: term option,
+  mt_make_thm: thm option,
+  getters: {name: binding, const: term, thm: thm} list,
+  MAKE_inverse_lemmas: {name: binding, thm_name: string, thm: thm} list
 };
 
 (* For debugging purposes only! *)
@@ -66,7 +69,7 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
       val ((mt_name,typdef_info),thy) = 
         Typedef.add_typedef_global (#name spec,[],NoSyn) rep_set NONE 
             (rtac @{thm module_type_rep_set_inhabited} 1) thy
-      val _ = writeln ("Define typed "^mt_name)
+      val _ = writeln ("Defined module type "^mt_name)
 
       (* Perform equivalent of:
          instantiation MT :: module_type begin *)
@@ -118,11 +121,14 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
           else thy
           (* TODO prove this *)
 
+      val thy = Named_Target.theory_init thy
+
       (* For each proci in #procs spec: 
          definition "MT.proci == %(M::MT) (M1::arg1) ... (Mn::argn).
                      (mk_procedure_typed (subst_proc
                          (module_type_procs M1 @ ... @ module_type_procs Mn)
-                         ((module_type_procs M)!i)) :: (...)procedure)" *)
+                         ((module_type_procs M)!i)) :: (...)procedure)" 
+      *)
       val env_procs = #arguments spec
                 |> map (fn {typ,name} => 
                    Const(@{const_name module_type_procs},typ--> @{typ "procedure_rep list"})
@@ -140,9 +146,55 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
           val bind = #name proc |> Binding.qualify true (#name spec |> Binding.name_of)
           val ((getter_const,(_,getter_def)),thy) = Local_Theory.define
               ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy
-      in ({const=getter_const, thm=getter_def}::getters,thy) end
-      val thy = Named_Target.theory_init thy
+      in ({name= #name proc, const=getter_const, thm=getter_def}::getters,thy) end
       val (getters,thy) = fold_index define_getter (#procs spec) ([],thy)
+      val getters = rev getters
+
+      (* definition "MT_make == \<lambda>(proc1::typ1) (proc2::typ2) ....
+            Abs_MT [mk_procedure_untyped proc1, mk_procedure_untyped proc2, ...]"
+         (only if MT is closed) *)
+      val proc_vars = #procs spec
+              |> map (fn {name,typ} => (Binding.name_of name,typ))
+      val rhs = proc_vars |> map (fn p => Const(@{const_name mk_procedure_untyped},snd p--> @{typ procedure_rep})$Free p)
+            |> HOLogic.mk_list @{typ procedure_rep}
+            |> (fn l => Const(#Abs_name(fst typdef_info),#rep_type(fst typdef_info) --> MT) $ l)
+      val rhs = rhs |> fold absfree (rev proc_vars)
+      val bind = #name spec |> Binding.qualified true "MAKE" 
+      val (make_const,make_thm,thy) =
+        if #arguments spec = []
+        then let val ((make_const,(_,make_thm)),thy) = Local_Theory.define
+              ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy
+             in (SOME make_const, SOME make_thm, thy) end
+        else (NONE,NONE,thy)
+
+      (* lemma "MT.proci (MT.MAKE proc1 proc2 ...) = proci"
+         for each proci
+         (only if MT is closed) *)
+      (*val proc_vars_fresh = fold (fn (v,T) => fn (vs,ctx) => 
+                                  Name.variant v ctx |> apfst (fn v=>(v,T)::vs))
+                            (rev proc_vars) ([],thy)
+      val _ = @{print} proc_vars_fresh*)
+      val proc_vars_schematic = map (fn (v,T) => (Var((v,0),T))) proc_vars
+      fun MAKE_inverse ({name,const,...},pvar) (lemmas,thy) =
+        let val MAKE = fold (fn x => fn f => f$x) proc_vars_schematic (the make_const)
+            val prop = Logic.mk_equals (const $ MAKE, pvar)
+(*            val thm = cterm_of (Proof_Context.theory_of thy) prop |> Goal.init
+                    |> Skip_Proof.cheat_tac 1 (* TODO: prove this *)
+                    |> Seq.hd |> Goal.finish thy |> Goal.norm_result thy *)
+            val thm = Goal.prove thy [] [] prop (fn _ => Skip_Proof.cheat_tac 1)
+                    (* TODO: prove this *)
+(* apply (unfold MT.a_def MT.MAKE_def module_type_procs_MT_def)
+  apply (subst Abs_MT_inverse)
+  apply (simp add: subst_proc_empty module_type_rep_set_def)
+  apply (simp add: subst_proc_empty) *)
+            val thm_bind = #name spec |> Binding.qualified true "MAKE"
+                    |> Binding.qualified true (Binding.name_of name)
+            val ((thm_name,thms),thy) = Local_Theory.note ((thm_bind,@{attributes [simp]}),[thm]) thy
+        in ({name=name, thm_name=thm_name, thm=hd thms}::lemmas,thy) end
+      val (MAKE_inverse_lemmas,thy) = if #arguments spec = []
+                then fold MAKE_inverse (ListPair.zip (getters, proc_vars_schematic)) ([],thy)
+                else ([],thy)
+
       val thy = Named_Target.exit thy
 
       val info = ModTypeInfo {spec=spec, instantiated=inst_info,
@@ -150,7 +202,8 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
           mt_proc_types_const=mt_proc_types_const, mt_proc_types_thm=mt_proc_types_def,
           mt_proc_names_const=mt_proc_names_const, mt_proc_names_thm=mt_proc_names_def,
           mt_procs_const=mt_procs_const, mt_procs_thm=mt_procs_def,
-          getters=getters
+          getters=getters, mt_make_const=make_const, mt_make_thm=make_thm,
+          MAKE_inverse_lemmas=MAKE_inverse_lemmas
           }
       val _ = last_defined_module_type := SOME info
   in
