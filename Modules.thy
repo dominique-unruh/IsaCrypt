@@ -98,15 +98,63 @@ lemma module_type_rep_set_inhabited: "\<exists>x. x \<in> module_type_rep_set en
 
 ML_file "modules.ML"
 
+ML {*
+  Goal.prove @{context} ["x"] [] @{prop "x=x"} (fn _ => simp_tac @{context} 1)
+  |> prop_of
+*}
+
+ML ListPair.zip
+
 setup {*
 fn thy => thy |> snd o
 Modules.define_module_type {
   name = @{binding MT},
   arguments = [],
-  procs = [{name = @{binding a}, typ = @{typ "(unit,int)procedure"}}]
+  procs = [{name = @{binding a}, typ = @{typ "(unit,int)procedure"}},
+           {name = @{binding b}, typ = @{typ "(int*unit,int)procedure"}}]
 }*}
 
+thm MT.MAKE.b
 
+(* TODO move *)
+lemma subst_proc_empty:
+  assumes "well_typed_proc'' [] p"
+  shows "subst_proc [] p = p"
+  sorry
+
+(* TODO move *)
+lemma proctype_of_mk_procedure_untyped [simp]:
+  fixes p :: "('a::procargs,'b::prog_type)procedure"
+  shows "proctype_of (mk_procedure_untyped p) = procedure_type TYPE(('a::procargs,'b::prog_type)procedure)"
+  sorry
+
+(* TODO move *)
+lemma well_typed''_mk_procedure_untyped [simp]:
+  fixes p :: "('a::procargs,'b::prog_type)procedure"
+  shows "well_typed_proc'' [] (mk_procedure_untyped p)"
+  sorry
+
+(* TODO move *)
+lemma mk_procedure_untyped_inverse [simp]: 
+  "mk_procedure_typed (mk_procedure_untyped p) = p"
+  SORRY
+
+declare[[simp_trace=false]]
+(*definition "MT_make == \<lambda>(p1::(unit,int)procedure) (p2::(int*unit,int)procedure).
+  Abs_MT [mk_procedure_untyped p1, mk_procedure_untyped p2]"*)
+(*lemma MT_MAKE_a: "MT.a (MT.MAKE a b) = a"
+  apply (unfold MT.a_def MT.MAKE_def module_type_procs_MT_def)
+  apply (subst Abs_MT_inverse)
+  (* First goal *)
+  (* apply (simp only: list.simps Set.ball_simps HOL.simp_thms Modules.proctype_of_mk_procedure_untyped) *)
+  apply (simp add: subst_proc_empty module_type_rep_set_def)
+  (* Second goal *)
+  apply (simp add: subst_proc_empty)
+done*)
+
+lemma "MT.b (MT.MAKE undefined undefined) = undefined" by simp
+
+thm MT.MAKE.a
 
 setup {* fn thy => thy |> 
 Modules.define_module_type {
@@ -115,9 +163,23 @@ Modules.define_module_type {
   arguments = [{name = @{binding M}, typ = @{typ "MT"}}] 
 } |> snd*}
 
+thm MT2.b_def
+
+definition "MT2_INST == \<lambda>MT2::MT2. \<lambda>MT::MT.
+  Abs_MT2_instantiated (map (subst_proc (module_type_procs MT)) (module_type_procs MT2))"
+lemma "MT2_instantiated.b (MT2_INST MT2 MT) = MT2.b MT2 MT"
+  unfolding MT2_INST_def MT2_instantiated.b_def module_type_procs_MT2_instantiated_def
+  apply (subst Abs_MT2_instantiated_inverse)
+  unfolding module_type_rep_set_def module_type_procs_MT2_def
+  apply simp 
+  using Rep_MT2
+  unfolding module_type_rep_set_def module_type_procs_MT2_def
+  apply auto
+  sorry
+
 (* TODO:
-  constant: MT2.instantiate :: MT2 \<Rightarrow> MT \<Rightarrow> MT2_instantiated
-  thm: MT2_instantiated_b (MT2.instantiate MT2 MT) = MT2_b MT2 MT
+  constant: MT2.INST :: MT2 \<Rightarrow> MT \<Rightarrow> MT2_instantiated
+  thm: MT2_instantiated.b (MT2.INST MT2 MT) = MT2.b MT2 MT
 
   TODO: Should MT2_b be curried or tupled?
 *)
@@ -138,4 +200,6 @@ Modules.define_module_type {
                {name = @{binding M2}, typ = @{typ "MT2"}}] 
   };
 *}
+
+thm MT3.x_def
 
