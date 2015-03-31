@@ -1,5 +1,5 @@
 theory Modules
-imports Lang_Typed
+imports Lang_Typed TermX_Antiquot
 begin
 
 datatype procedure_type_open = ProcTypeOpen "procedure_type_open list" "procedure_type"
