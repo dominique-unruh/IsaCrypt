@@ -57,9 +57,8 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
       *)
       val env = #arguments spec
                 |> map (fn {typ,...} => 
-                   Const(@{const_name module_type_proc_types_open},Term.itselfT typ--> @{typ "procedure_type_open list"})
-                           $ Logic.mk_type typ)
-                |> foldr1 (fn(x,y) => @{term "append::_\<Rightarrow>_\<Rightarrow>procedure_type_open list"}$x$y)
+                   @{termx "module_type_proc_types_open TYPE(?'typ::module_type)"})
+                |> foldr1 (fn(x,y) => @{termx "?x @ ?y :: procedure_type_open list"})
                    handle List.Empty => @{term "[]::procedure_type_open list"}
       val procTs = #procs spec
                    |> map (fn {typ,...} => Const(@{const_name procedure_type},Term.itselfT typ--> @{typ procedure_type}) $
@@ -133,7 +132,7 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
                 |> map (fn {typ,name} => 
                    Const(@{const_name module_type_procs},typ--> @{typ "procedure_rep list"})
                            $ Free(Binding.name_of name,typ))
-                |> foldr1 (fn(x,y) => @{term "append::_\<Rightarrow>_\<Rightarrow>procedure_rep list"}$x$y)
+                |> foldr1 (fn(x,y) => @{termx "?x @ ?y :: procedure_rep list"})
                    handle List.Empty => @{term "[]::procedure_rep list"}
       val env_proc_vars = #arguments spec
                 |> map (fn {typ,name} => (Binding.name_of name,typ))
