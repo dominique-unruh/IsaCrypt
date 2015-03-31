@@ -1,7 +1,10 @@
 structure TermX_Antiquot =
 struct
 
-val termx_parser = Args.context -- Scan.lift Args.name_inner_syntax
+val termx_parser = Args.context -- 
+-- Scan.optional (Parse.$$$ "with" |-- Parse.and1_list)
+-- 
+Scan.lift Args.name_inner_syntax
 val typx_parser = Args.context -- Scan.lift Args.name_inner_syntax
 
 val print_pair = ML_Syntax.print_pair

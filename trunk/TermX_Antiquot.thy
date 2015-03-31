@@ -1,5 +1,5 @@
 theory TermX_Antiquot
-imports Pure
+imports Main
 begin
 
 ML_file "termx_antiquot.ML"
@@ -7,6 +7,17 @@ ML_file "termx_antiquot.ML"
 setup {* ML_Antiquotation.inline @{binding termx} TermX_Antiquot.termx_antiquot *}
 
 setup {* ML_Antiquotation.inline @{binding typx} TermX_Antiquot.typx_antiquot *}
+
+typedecl int 
+typedecl 'a list
+
+consts XXX :: "'a \<Rightarrow> 'b \<Rightarrow> int"
+
+declare[[ML_exception_trace=false]]
+
+class test1
+class test2
+
 
 (*
 typedecl int
