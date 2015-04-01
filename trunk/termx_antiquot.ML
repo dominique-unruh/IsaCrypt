@@ -1,9 +1,10 @@
 structure TermX_Antiquot =
 struct
 
-val termx_parser = Args.context
-(*-- Scan.optional (Parse.$$$ "with" |-- Parse.list (Args.tvar -- Parse.$$$ "=" |-- Args.typ) []*)
--- Scan.lift Args.name_inner_syntax
+val termx_parser = Args.context -- Scan.lift (
+Args.name_inner_syntax
+-- Scan.optional (@{keyword "where"} |-- Scan.repeat1 Args.name_inner_syntax) []
+--| Scan.ahead Parse.eof)
 
 val typx_parser = Args.context -- Scan.lift Args.name_inner_syntax
 
@@ -14,16 +15,16 @@ val print_int = ML_Syntax.print_int
 val print_indexname = ML_Syntax.print_indexname
 val print_sort = ML_Syntax.print_sort
 
+fun strip_prime str = (@{assert} (String.sub(str,0) = #"'"); String.extract(str,1,NONE))
+       
 fun print_typ (Type arg) = "Term.Type " ^ print_pair print_string (print_list print_typ) arg
   | print_typ (TFree arg) = "Term.TFree " ^ print_pair print_string print_sort arg
   | print_typ (t as TVar ((n,0),_)) = 
-      (@{assert} (String.sub(n,0) = #"'");
-       let val n = String.extract(n,1,NONE)
+      (let val n = strip_prime n
        in if ML_Syntax.is_identifier n then "("^n^":typ)" (* TODO check sort? *)
           else raise (TYPE("schematic type variables must be valid ML identifiers",[t],[])) end)
   | print_typ (t as TVar ((n,1),_)) = 
-      (@{assert} (String.sub(n,0) = #"'");
-       let val n = String.extract(n,1,NONE)
+      (let val n = strip_prime n
        in if ML_Syntax.is_identifier n then ML_Syntax.atomic("fastype_of "^n) (* TODO check sort? *)
           else raise (TYPE("schematic type variables must be valid ML identifiers",[t],[])) end)
   | print_typ (t as TVar _) = raise (TYPE("must not have schematic type variables with index !=0",[t],[]))
@@ -47,11 +48,20 @@ fun typx (ctx,str) =
 
 val typx_antiquot = typx_parser >> typx
 
-fun termx (ctx,str) =
+fun termx (ctx,(str,abbrevs)) =
   let val ctx = Proof_Context.set_mode Proof_Context.mode_schematic ctx
-      val trm = Syntax.read_term ctx str
+      val abbrevs = abbrevs |> map (Syntax.read_typ ctx)
+                    |> map dest_funT |> map (apfst (fst o dest_TVar))
+      val trm = Syntax.parse_term ctx str
+      val trm = (fold (fn subst => Term.subst_TVars [subst]) abbrevs) trm
+      val trm = Syntax.check_term ctx trm
+      val trm_ML = print_term trm |> ML_Syntax.atomic
+      val case_ML = fold (fn ((v,_),T) => fn ML => 
+             "case "^strip_prime v^":typ of "^print_typ T^" => "^ML^" | _ => raise(TYPE("^
+              ML_Syntax.print_string("cannot match "^strip_prime v^" as \""^(Syntax.pretty_typ ctx T |> Pretty.string_of)^"\"")^",["^strip_prime v^":typ],[]))")
+             (rev abbrevs) trm_ML |> ML_Syntax.atomic
   in
-  print_term trm |> ML_Syntax.atomic
+  case_ML
   end
 
 val termx_antiquot = termx_parser >> termx

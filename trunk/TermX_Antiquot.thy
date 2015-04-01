@@ -22,19 +22,26 @@ val _ = writeln t
 *}
 
 
-(*
+
 ML {* let val x = @{term "xx::int"} val a = @{typ "int"} in cterm_of @{theory} @{termx "x==?x::?'a"} end *}
+
+ML {* 
+val x = @{typ "int list"};
+@{termx "[]::?'x" where "?'x\<Rightarrow>?'a list"}
+*}
+
+declare[[show_types]]
 
 ML {*
 local
-val src = "@{termx \"?x::?'x.1==y\"}"
+val src = "@{termx \"x::?'x==y::?'y\" where \"?'x\<Rightarrow>?'y\"   \"?'y\<Rightarrow>?'z\<Rightarrow>?'a\"}"
 val ((_,body),_) = ML_Context.eval_antiquotes (ML_Lex.read @{here} src, @{here}) (SOME (Context.Proof @{context}))
 in
 (*val _ = writeln (ML_Lex.flatten env) *)
 val _ = writeln (ML_Lex.flatten body)
 end
 *}
-*)
+
 
 
 end
