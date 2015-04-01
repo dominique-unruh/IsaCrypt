@@ -1,5 +1,5 @@
 theory TermX_Antiquot
-imports Main
+imports Main (* Could be Pure *)
 begin
 
 ML_file "termx_antiquot.ML"
@@ -8,19 +8,21 @@ setup {* ML_Antiquotation.inline @{binding termx} TermX_Antiquot.termx_antiquot 
 
 setup {* ML_Antiquotation.inline @{binding typx} TermX_Antiquot.typx_antiquot *}
 
-typedecl int 
-typedecl 'a list
+class test
+locale bla begin
+typedef x = "{1::int}" by auto
+print_theorems
+end
 
-consts XXX :: "'a \<Rightarrow> 'b \<Rightarrow> int"
-
-declare[[ML_exception_trace=false]]
-
-class test1
-class test2
+ML {* 
+val ctx = Proof_Context.set_mode Proof_Context.mode_schematic @{context}
+val (_$((Const(_,t))$(_$_))) = Syntax.parse_term ctx "x::?'b==x::?'a"
+val (Type(_,[TVar (_,[t,_]),_])) = t
+val _ = writeln t
+*}
 
 
 (*
-typedecl int
 ML {* let val x = @{term "xx::int"} val a = @{typ "int"} in cterm_of @{theory} @{termx "x==?x::?'a"} end *}
 
 ML {*
