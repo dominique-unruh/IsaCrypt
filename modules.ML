@@ -61,8 +61,9 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
                 |> foldr1 (fn(x,y) => @{termx "?x @ ?y :: procedure_type_open list"})
                    handle List.Empty => @{term "[]::procedure_type_open list"}
       val procTs = #procs spec
-                   |> map (fn {typ,...} => Const(@{const_name procedure_type},Term.itselfT typ--> @{typ procedure_type}) $
-                                           Logic.mk_type typ)
+                   |> map (fn {typ,...} => @{termx "procedure_type TYPE(?'typ)" where "?'typ\<Rightarrow>(?'a::procargs,?'b::prog_type)procedure"})
+(*Const(@{const_name procedure_type},Term.itselfT typ--> @{typ procedure_type}) $
+                                           Logic.mk_type typ) *)
                    |> HOLogic.mk_list @{typ "procedure_type"}
       val rep_set = @{term module_type_rep_set} $ env $ procTs
       val ((mt_name,typdef_info),thy) = 
@@ -92,9 +93,10 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
 
       (* definition "module_type_proc_types_MT == %(_::MT itself). [procedure_type TYPE((...)procedure)]" *)
       val bind = #name spec |> Binding.prefix_name "module_type_proc_types_"
-      val rhs = #procs spec |> map #typ |> map (fn t =>  
-                  Const(@{const_name procedure_type},Term.itselfT t--> @{typ procedure_type}) $
-                      Logic.mk_type t)
+      val rhs = #procs spec |> map #typ |> map (fn typ =>  
+                  @{termx "procedure_type TYPE(?'typ)" where "?'typ\<Rightarrow>(?'a::procargs,?'b::prog_type)procedure"})
+(*                  Const(@{const_name procedure_type},Term.itselfT t--> @{typ procedure_type}) $
+                      Logic.mk_type t) *)
                   |> HOLogic.mk_list @{typ procedure_type}
                   |> Term.absdummy (Term.itselfT MT)
       val ((mt_proc_types_const,(_,mt_proc_types_def)),thy) = Local_Theory.define
@@ -129,18 +131,20 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
                          ((module_type_procs M)!i)) :: (...)procedure)" 
       *)
       val env_procs = #arguments spec
-                |> map (fn {typ,name} => 
-                   Const(@{const_name module_type_procs},typ--> @{typ "procedure_rep list"})
+                |> map (fn {typ,name} => @{termx "module_type_procs::?'typ::module_type\<Rightarrow>_"}
+                   (*Const(@{const_name module_type_procs},typ--> @{typ "procedure_rep list"})*)
                            $ Free(Binding.name_of name,typ))
                 |> foldr1 (fn(x,y) => @{termx "?x @ ?y :: procedure_rep list"})
                    handle List.Empty => @{term "[]::procedure_rep list"}
       val env_proc_vars = #arguments spec
                 |> map (fn {typ,name} => (Binding.name_of name,typ))
       val M = Name.variant_list (#arguments spec |> map #name |> map Binding.name_of) [#name spec |> Binding.name_of] |> hd
-      fun define_getter (i,proc) (getters,thy:local_theory) =
-      let val get_proc = @{term "nth::_\<Rightarrow>_\<Rightarrow>procedure_rep"} $ (Const(@{const_name module_type_procs},MT--> @{typ "procedure_rep list"}) $ Free(M,MT)) $ mk_nat i
-          val rhs = Const(@{const_name mk_procedure_typed},@{typ procedure_rep}--> #typ proc) $
-                    (@{term subst_proc} $ env_procs $ get_proc)
+      fun define_getter (i,proc as {typ=procT,...}) (getters,thy:local_theory) =
+      let val M_Free = Free(M,MT)
+          val i_nat = mk_nat i
+          val rhs = @{termx "mk_procedure_typed (subst_proc ?env_procs 
+                               (nth (module_type_procs (?M_Free:: ?'MT::module_type)) ?i_nat)) :: ?'procT" 
+                                     where "?'procT\<Rightarrow>(?'a::procargs,?'b::prog_type)procedure"}
           val rhs = rhs |> fold absfree (rev env_proc_vars) |> absfree (M,MT)
           val bind = #name proc |> Binding.qualify true (#name spec |> Binding.name_of)
           val ((getter_const,(_,getter_def)),thy) = Local_Theory.define
