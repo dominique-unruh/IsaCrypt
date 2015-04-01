@@ -2,7 +2,7 @@ structure TermX_Antiquot =
 struct
 
 val termx_parser = Args.context
--- Scan.optional (Parse.$$$ "with" |-- Parse.list (Args.tvar -- Parse.$$$ "=" |-- Args.typ) []
+(*-- Scan.optional (Parse.$$$ "with" |-- Parse.list (Args.tvar -- Parse.$$$ "=" |-- Args.typ) []*)
 -- Scan.lift Args.name_inner_syntax
 
 val typx_parser = Args.context -- Scan.lift Args.name_inner_syntax
