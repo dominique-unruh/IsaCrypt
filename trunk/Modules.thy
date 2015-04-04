@@ -219,49 +219,56 @@ thm MT2.INST_def
 abbreviation "subst_proc_in_prog_dom procs pg == subst_proc_in_prog_subst_proc_dom(Inl(procs,pg))"
 abbreviation "subst_proc_dom procs pc == subst_proc_in_prog_subst_proc_dom(Inr(procs,pc))"
 
+definition "has_proctypeopen T p == case T of ProcTypeOpen e t \<Rightarrow> well_typed_proc'' e p \<and> proctype_of p = t" 
+
 thm subst_proc_in_prog_subst_proc.pinduct
 lemma subst_proc_dom:
-  defines "match \<equiv> list_all2 (\<lambda>T p. case T of ProcTypeOpen e _ \<Rightarrow> well_typed_proc'' e p)"
-  assumes "match procsT procs"
+  assumes "list_all2 has_proctypeopen procsT procs"
   shows "well_typed'' procsT pg  \<Longrightarrow> subst_proc_in_prog_dom procs pg" (is "?t1\<Longrightarrow>?t2")
     and "well_typed_proc'' procsT pc \<Longrightarrow> subst_proc_dom procs pc" (is "?t4\<Longrightarrow>?t5")
 proof -
-  have thesis: "(well_typed'' procsT pg \<longrightarrow> (\<forall>procs. match procsT procs
+  have thesis: "(well_typed'' procsT pg \<longrightarrow> (\<forall>procs. list_all2 has_proctypeopen procsT procs
                 \<longrightarrow> subst_proc_in_prog_dom procs pg)) \<and>
-        (well_typed_proc'' procsT pc \<longrightarrow> (\<forall>procs.  match procsT procs
+        (well_typed_proc'' procsT pc \<longrightarrow> (\<forall>procs. list_all2 has_proctypeopen procsT procs
                 \<longrightarrow> subst_proc_dom procs pc))"
-  proof (induct rule: well_typed''_well_typed_proc''.induct)
-  case wt_Seq thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
+  apply (induct rule: well_typed''_well_typed_proc''.induct)
+  apply ((auto, subst subst_proc_in_prog_subst_proc.domintros, auto, tactic"ALLGOALS(K no_tac)")[1])+
+  proof -
+(*  case wt_Seq thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
   case wt_Assign thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
   case wt_While thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
   case wt_Sample thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
   case wt_Skip thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
   case wt_IfTE thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
   case wt_CallProc thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
-  case wt_Proc thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
+  case wt_Proc thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next*)
   case (wt_ProcRef E i pi_envT pi_t env argtypes returntype) note case_assms = this
     hence Ei: "nth_opt (E\<Colon>procedure_type_open list) (i\<Colon>nat) =
           Some (ProcTypeOpen (pi_envT\<Colon>procedure_type_open list) (pi_t\<Colon>procedure_type))" 
       and length: "length (pi_envT\<Colon>procedure_type_open list) = length (env\<Colon>procedure_rep list)"
-      and "list_all2 (\<lambda>T p. case T of ProcTypeOpen x T \<Rightarrow> proctype_of p = T) pi_envT env"
-     and wt_env: "list_all2 (\<lambda>T p. well_typed_proc'' (case T of ProcTypeOpen e x \<Rightarrow> e) p \<and>
-         (\<forall>procs. match (case T of ProcTypeOpen e x \<Rightarrow> e) procs \<longrightarrow>
+      and pt_env: "list_all2 (\<lambda>T p. case T of ProcTypeOpen x T \<Rightarrow> proctype_of p = T) pi_envT env"
+      and wt_env: "list_all2 (\<lambda>T p. well_typed_proc'' (case T of ProcTypeOpen e x \<Rightarrow> e) p \<and>
+          (\<forall>procs. list_all2 has_proctypeopen (case T of ProcTypeOpen e x \<Rightarrow> e) procs \<longrightarrow>
              subst_proc_dom procs p)) pi_envT env"
     and "pi_t = \<lparr>pt_argtypes = argtypes, pt_returntype = returntype\<rparr>"
     by simp_all
     show ?case
     proof (rule,rule)
-      fix procs assume "match E procs"
+      fix procs assume "list_all2 has_proctypeopen E procs"
       {fix p assume "p\<in>set env"
-        then obtain j where "p=nth env j" and "j<length env"
+        then obtain j where pj: "p=nth env j" and j: "j<length env"
           by (metis in_set_conv_nth)
         def T=="nth pi_envT j"
-        have "well_typed_proc'' (case T of ProcTypeOpen e x \<Rightarrow> e) p \<and>
-         (\<forall>procs. match (case T of ProcTypeOpen e x \<Rightarrow> e) procs \<longrightarrow>
-             subst_proc_dom procs p)"
+        have "case T of ProcTypeOpen x T \<Rightarrow> proctype_of p = T"
+          by (metis (mono_tags) T_def j list_all2_nthD2 pj pt_env)
+        have "well_typed_proc'' (case T of ProcTypeOpen e x \<Rightarrow> e) p" and
+          "\<And>procs. list_all2 has_proctypeopen (case T of ProcTypeOpen e x \<Rightarrow> e) procs \<Longrightarrow>
+             subst_proc_dom procs p"
+          by (metis (erased, lifting) T_def j pj list_all2_nthD2 wt_env)+
+        have "list_all2 has_proctypeopen (case T of ProcTypeOpen e x \<Rightarrow> e) procs"
         have "subst_proc_dom procs p"
           
-        sorry}
+        }
       note x_dom = this
       show "subst_proc_dom procs (ProcRef i env argtypes returntype)"
         apply (subst subst_proc_in_prog_subst_proc.domintros)

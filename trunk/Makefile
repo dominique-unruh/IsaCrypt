@@ -26,3 +26,6 @@ testsuite.py : tests.py tests/*.thy
 
 test: testsuite.py tests.py
 	cricket-unittest &
+
+get_eisbach :
+	hg clone https://bitbucket.org/makarius/method_definition eisbach
