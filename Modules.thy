@@ -2,8 +2,7 @@ theory Modules
 imports Lang_Typed TermX_Antiquot
 begin
 
-datatype procedure_type_open = ProcTypeOpen "procedure_type_open list" "procedure_type"
-
+(*datatype procedure_type_open = ProcTypeOpen "procedure_type_open list" "procedure_type"*)
 
 fun nth_opt :: "'a list \<Rightarrow> nat \<Rightarrow> 'a option" where
   "nth_opt (x#xs) 0 = Some x"
@@ -21,6 +20,9 @@ lemma case_ProcTypeOpen_mono': "A \<le> B \<Longrightarrow> Modules.procedure_ty
   apply (case_tac "x::procedure_type_open")
   by (simp add: le_fun_def)*)
 
+
+
+(*
 inductive well_typed'' :: "procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool"
 and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \<Rightarrow> bool" where
   wt_Seq: "well_typed'' E p1 \<and> well_typed'' E p2 \<Longrightarrow> well_typed'' E (Seq p1 p2)"
@@ -33,18 +35,25 @@ and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \
    list_all2 (\<lambda>e T. eu_type e = T) args (pt_argtypes (proctype_of prc)) \<Longrightarrow>
    well_typed_proc'' E prc \<Longrightarrow>
    well_typed'' E (CallProc v prc args)"
-| wt_ProcRef: "nth_opt E i = Some(ProcTypeOpen pi_envT pi_t) \<Longrightarrow> 
+(*| wt_ProcRef: "nth_opt E i = Some(ProcTypeOpen pi_envT pi_t) \<Longrightarrow> 
    length pi_envT = length env \<Longrightarrow>
    list_all2 (\<lambda>T p. case T of ProcTypeOpen _ T \<Rightarrow> proctype_of p = T) pi_envT env \<Longrightarrow>
    list_all2 (\<lambda>T p. (\<lambda>e. well_typed_proc'' e p) (case T of ProcTypeOpen e _ \<Rightarrow> e)) pi_envT env  \<Longrightarrow>
    pi_t = \<lparr> pt_argtypes=argtypes, pt_returntype=returntype \<rparr> \<Longrightarrow>
    well_typed_proc'' E (ProcRef i env argtypes returntype)"
+*)
+| wt_ProcRef: "
+  nth_opt E i = Some(ProcTypeOpen Ei_E Ei_T) \<Longrightarrow>
+  (\<And>x. x\<in>set env \<Longrightarrow> wt_ProcRef E x) \<Longrightarrow>
+  (list_all2 well_typed_proc'' Ei_E env) \<Longrightarrow>
+  well_typed_proc'' E (ProcRef i env argtypes returntype)"
 | wt_Proc: "well_typed'' E body \<Longrightarrow>
    list_all (\<lambda>v. \<not> vu_global v) pargs \<Longrightarrow>
    distinct pargs \<Longrightarrow>
    well_typed_proc'' E (Proc body pargs ret)"
+*)
 
-thm well_typed''_well_typed_proc''.inducts
+
 (*
 function (sequential) well_typed'' :: "procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool" 
 and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \<Rightarrow> bool" where
@@ -102,14 +111,49 @@ proof -
 qed
 *)
 
-function (domintros,sequential) subst_proc_in_prog :: "procedure_rep list \<Rightarrow> program_rep \<Rightarrow> program_rep" 
-and subst_proc :: "procedure_rep list \<Rightarrow> procedure_rep \<Rightarrow> procedure_rep" where
-  "subst_proc_in_prog env Skip = Skip"
-| "subst_proc_in_prog env (Seq c1 c2) = Seq (subst_proc_in_prog env c1) (subst_proc_in_prog env c2)"
-| "subst_proc env (Proc body args ret) = Proc (subst_proc_in_prog env body) args ret"
-| "subst_proc env (ProcRef i env' argsT retT)
-    = subst_proc (map (subst_proc env) env') (env!i)"
-by pat_completeness auto
+ML Term.betapply
+declare[[show_types=false]]
+
+fun subst_proc_in_prog :: "procedure_rep list \<Rightarrow> program_rep \<Rightarrow> program_rep"
+and subst_proc :: "procedure_rep list \<Rightarrow> procedure_rep \<Rightarrow> procedure_rep"
+where
+  "subst_proc_in_prog insts Skip = Skip"
+| "subst_proc_in_prog insts (Seq p1 p2) = Seq (subst_proc_in_prog insts p1) (subst_proc_in_prog insts p2)"
+| "subst_proc_in_prog insts (IfTE c p1 p2) = IfTE c (subst_proc_in_prog insts p1) (subst_proc_in_prog insts p2)"
+| "subst_proc_in_prog insts (While c p) = While c (subst_proc_in_prog insts p)"
+| "subst_proc_in_prog insts (CallProc v p e) = CallProc v (subst_proc insts p) e"
+| "subst_proc_in_prog insts (Assign v e) = Assign v e"
+| "subst_proc_in_prog insts (Sample v e) = Sample v e"
+| "subst_proc insts (Proc body args ret) = Proc (subst_proc_in_prog insts body) args ret"
+| "subst_proc insts (ProcRef i T) =
+    (if i<length insts then insts!i
+    else ProcRef (i-length insts) T)"
+| "subst_proc insts (ProcInst inst p) = subst_proc ((subst_proc insts inst)#insts) p"
+
+inductive well_typed'' :: "procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool"
+and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \<Rightarrow> bool" where
+  wt_Seq: "well_typed'' E p1 \<and> well_typed'' E p2 \<Longrightarrow> well_typed'' E (Seq p1 p2)"
+| wt_Assign: "eu_type e = vu_type v \<Longrightarrow> well_typed'' E (Assign v e)"
+| wt_Sample: "ed_type e = vu_type v \<Longrightarrow> well_typed'' E (Sample v e)"
+| wt_Skip: "well_typed'' E Skip"
+| wt_While: "eu_type e = bool_type \<Longrightarrow> well_typed'' E p \<Longrightarrow> well_typed'' E (While e p)"
+| wt_IfTE: "eu_type e = bool_type \<Longrightarrow> well_typed'' E thn \<Longrightarrow>  well_typed'' E els \<Longrightarrow> well_typed'' E (IfTE e thn els)"
+| wt_CallProc: "vu_type v = pt_returntype (proctype_of prc) \<Longrightarrow>
+   list_all2 (\<lambda>e T. eu_type e = T) args (pt_argtypes (proctype_of prc)) \<Longrightarrow>
+   well_typed_proc'' E prc \<Longrightarrow>
+   well_typed'' E (CallProc v prc args)"
+| wt_Proc: "well_typed'' E body \<Longrightarrow>
+   list_all (\<lambda>v. \<not> vu_global v) pargs \<Longrightarrow>
+   distinct pargs \<Longrightarrow>
+   well_typed_proc'' E (Proc body pargs ret)"
+| wt_ProcRef: "nth_opt E i = Some T \<Longrightarrow> well_typed_proc'' E (ProcRef i T)"
+| wt_ProcInst: "
+  well_typed_proc'' E inst \<Longrightarrow>
+  proctype_of inst = T \<Longrightarrow>
+  well_typed_proc'' ((ProgTypeOpen E T)#E') prc \<Longrightarrow>
+  well_typed_proc'' E' (ProcInst inst prc)
+"
+
 
 definition "module_type_rep_set env proctypes \<equiv>
 {procs. map proctype_of procs = proctypes \<and> (\<forall>p\<in>set procs. well_typed_proc'' env p)}"
@@ -166,12 +210,6 @@ Modules.define_module_type {
 thm MT.MAKE.b
 
 (* TODO move *)
-lemma subst_proc_empty:
-  assumes "well_typed_proc'' [] p"
-  shows "subst_proc [] p = p"
-  sorry
-
-(* TODO move *)
 lemma proctype_of_mk_procedure_untyped [simp]:
   fixes p :: "('a::procargs,'b::prog_type)procedure"
   shows "proctype_of (mk_procedure_untyped p) = procedure_type TYPE(('a::procargs,'b::prog_type)procedure)"
@@ -216,122 +254,21 @@ Modules.define_module_type {
 
 thm MT2.INST_def
 
+(*
 abbreviation "subst_proc_in_prog_dom procs pg == subst_proc_in_prog_subst_proc_dom(Inl(procs,pg))"
 abbreviation "subst_proc_dom procs pc == subst_proc_in_prog_subst_proc_dom(Inr(procs,pc))"
+*)
 
 definition "has_proctypeopen T p == case T of ProcTypeOpen e t \<Rightarrow> well_typed_proc'' e p \<and> proctype_of p = t" 
 
-thm subst_proc_in_prog_subst_proc.pinduct
-lemma subst_proc_dom:
-  assumes "list_all2 has_proctypeopen procsT procs"
-  shows "well_typed'' procsT pg  \<Longrightarrow> subst_proc_in_prog_dom procs pg" (is "?t1\<Longrightarrow>?t2")
-    and "well_typed_proc'' procsT pc \<Longrightarrow> subst_proc_dom procs pc" (is "?t4\<Longrightarrow>?t5")
-proof -
-  have thesis: "(well_typed'' procsT pg \<longrightarrow> (\<forall>procs. list_all2 has_proctypeopen procsT procs
-                \<longrightarrow> subst_proc_in_prog_dom procs pg)) \<and>
-        (well_typed_proc'' procsT pc \<longrightarrow> (\<forall>procs. list_all2 has_proctypeopen procsT procs
-                \<longrightarrow> subst_proc_dom procs pc))"
-  apply (induct rule: well_typed''_well_typed_proc''.induct)
-  apply ((auto, subst subst_proc_in_prog_subst_proc.domintros, auto, tactic"ALLGOALS(K no_tac)")[1])+
-  proof -
-(*  case wt_Seq thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
-  case wt_Assign thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
-  case wt_While thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
-  case wt_Sample thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
-  case wt_Skip thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
-  case wt_IfTE thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
-  case wt_CallProc thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next
-  case wt_Proc thus ?case by (auto, subst subst_proc_in_prog_subst_proc.domintros, auto) next*)
-  case (wt_ProcRef E i pi_envT pi_t env argtypes returntype) note case_assms = this
-    hence Ei: "nth_opt (E\<Colon>procedure_type_open list) (i\<Colon>nat) =
-          Some (ProcTypeOpen (pi_envT\<Colon>procedure_type_open list) (pi_t\<Colon>procedure_type))" 
-      and length: "length (pi_envT\<Colon>procedure_type_open list) = length (env\<Colon>procedure_rep list)"
-      and pt_env: "list_all2 (\<lambda>T p. case T of ProcTypeOpen x T \<Rightarrow> proctype_of p = T) pi_envT env"
-      and wt_env: "list_all2 (\<lambda>T p. well_typed_proc'' (case T of ProcTypeOpen e x \<Rightarrow> e) p \<and>
-          (\<forall>procs. list_all2 has_proctypeopen (case T of ProcTypeOpen e x \<Rightarrow> e) procs \<longrightarrow>
-             subst_proc_dom procs p)) pi_envT env"
-    and "pi_t = \<lparr>pt_argtypes = argtypes, pt_returntype = returntype\<rparr>"
-    by simp_all
-    show ?case
-    proof (rule,rule)
-      fix procs assume "list_all2 has_proctypeopen E procs"
-      {fix p assume "p\<in>set env"
-        then obtain j where pj: "p=nth env j" and j: "j<length env"
-          by (metis in_set_conv_nth)
-        def T=="nth pi_envT j"
-        have "case T of ProcTypeOpen x T \<Rightarrow> proctype_of p = T"
-          by (metis (mono_tags) T_def j list_all2_nthD2 pj pt_env)
-        have "well_typed_proc'' (case T of ProcTypeOpen e x \<Rightarrow> e) p" and
-          "\<And>procs. list_all2 has_proctypeopen (case T of ProcTypeOpen e x \<Rightarrow> e) procs \<Longrightarrow>
-             subst_proc_dom procs p"
-          by (metis (erased, lifting) T_def j pj list_all2_nthD2 wt_env)+
-        have "list_all2 has_proctypeopen (case T of ProcTypeOpen e x \<Rightarrow> e) procs"
-        have "subst_proc_dom procs p"
-          
-        }
-      note x_dom = this
-      show "subst_proc_dom procs (ProcRef i env argtypes returntype)"
-        apply (subst subst_proc_in_prog_subst_proc.domintros)
-        apply (fact x_dom)
-        using wt_env length by blast
-        apply (auto simp: case_assms)
-    
-    sorry
-  qed
-  with assms show "?t1\<Longrightarrow>?t2" and "?t4\<Longrightarrow>?t5" by auto
-qed
 
-(*
-\<forall>p\<in>set env. subst_proc_dom procs p
-
-| "nth_opt E i = Some(ProcTypeOpen pi_envT pi_t) \<Longrightarrow> 
-   length pi_envT = length env \<Longrightarrow>
-   list_all2 (\<lambda>T p. case T of ProcTypeOpen _ T \<Rightarrow> proctype_of p = T) pi_envT env \<Longrightarrow>
-   list_all2 (\<lambda>T p. (\<lambda>e. well_typed_proc'' e p) (case T of ProcTypeOpen e _ \<Rightarrow> e)) pi_envT env  \<Longrightarrow>
-   pi_t = \<lparr> pt_argtypes=argtypes, pt_returntype=returntype \<rparr> \<Longrightarrow>
-   well_typed_proc'' E (ProcRef i env argtypes returntype)"
-
-| "subst_proc env (ProcRef i env' argsT retT)
-    = subst_proc (map (subst_proc env) env') (env!i)"
-*)
-
-apply ((subst subst_proc_in_prog_subst_proc.domintros, auto)[1])
-apply ((subst subst_proc_in_prog_subst_proc.domintros, auto)[1])
-apply ((subst subst_proc_in_prog_subst_proc.domintros, auto)[1])
-apply ((subst subst_proc_in_prog_subst_proc.domintros, auto)[1])
-apply ((subst subst_proc_in_prog_subst_proc.domintros, auto)[1])
-
-apply ((subst subst_proc_in_prog_subst_proc.domintros, auto)[1])
-
-apply ((subst subst_proc_in_prog_subst_proc.domintros, auto)[1])
-apply (rule c1,simp_all)[1]
-apply (fact c2)
-by ((subst subst_proc_in_prog_subst_proc.domintros, auto)[1])+
-  thus "well_typed'' procsT pg \<Longrightarrow> subst_proc_in_prog_dom procs pg"
-    and "well_typed_proc'' procsT pc \<Longrightarrow> subst_proc_dom procs pc" by auto
-qed
-
-lemma proctype_of_subst_proc:
-  assumes wt: "well_typed_proc'' procsT p"
-  shows "proctype_of (subst_proc procs m) = proctype_of p"
-proof -
-  show 
-"proctype_of (subst_proc procs m) = proctype_of p"
-thm well_typed''_well_typed_proc''.induct
-  using wt apply (induct p rule:well_typed''_well_typed_proc''.induct)
-sorry
-
-lemma welltyped_subst_proc:
-  assumes "welltyped_proc'' (ProcTypeOpen (module_type_environment MT)) p"
-  shows "welltyped_proc'' [] (subst_proc procs m)"
-sorry
-*)
-
-definition "MT2_INST == \<lambda>MT2::MT2. \<lambda>MT::MT.
-  Abs_MT2_instantiated (map (subst_proc (module_type_procs MT)) (module_type_procs MT2))"
-lemma "MT2_instantiated.b (MT2_INST MT2 MT) = MT2.b MT2 MT"
-  unfolding MT2_INST_def MT2_instantiated.b_def module_type_procs_MT2_instantiated_def
-  apply (subst Abs_MT2_instantiated_inverse)
+declare[[show_consts]]
+thm MT2.INST_def
+(*definition "MT2_INST == \<lambda>MT2::MT2. \<lambda>MT::MT.
+  Abs_MT2_instantiated (map (subst_proc (module_type_procs MT)) (module_type_procs MT2))" *)
+lemma "MT2_instantiated.b (MT2.INST MT2 MT) = MT2.b MT2 MT"
+  unfolding MT2.INST_def MT2_instantiated.b_def
+  apply (subst module_type_construct_inverse)
   unfolding module_type_rep_set_def module_type_procs_MT2_def
   apply simp 
   using Rep_MT2
