@@ -91,6 +91,12 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
       val ((mt_procs_const,(_,mt_procs_def)),thy) = Local_Theory.define
           ((bind,NoSyn), ((Thm.def_binding bind,[]), Rep_MT)) thy
 
+      (* definition "module_type_construct_MT == Abs_MT" *)
+      val bind = #name spec |> Binding.prefix_name "module_type_construct_"
+      val Abs_MT = Abs typedef_info
+      val ((mt_constr_const,(_,mt_constr_def)),thy) = Local_Theory.define
+          ((bind,NoSyn), ((Thm.def_binding bind,[]), Abs_MT)) thy
+
       (* definition "module_type_proc_names_MT == %(_::MT itself). [[''b'']]" *)
       val bind = #name spec |> Binding.prefix_name "module_type_proc_names_"
       val rhs = #procs spec |> map (fn p => #name p |> Binding.name_of 
