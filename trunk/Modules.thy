@@ -2,6 +2,12 @@ theory Modules
 imports Lang_Typed TermX_Antiquot
 begin
 
+
+datatype procedure_type_open = ProcSimple procedure_type | ProcFun procedure_type_open procedure_type_open
+fun ProcFun' where
+  "ProcFun' [] T = T"
+| "ProcFun' (T#Ts) U = ProcFun T (ProcFun' Ts U)"
+
 (*datatype procedure_type_open = ProcTypeOpen "procedure_type_open list" "procedure_type"*)
 
 fun nth_opt :: "'a list \<Rightarrow> nat \<Rightarrow> 'a option" where
@@ -11,7 +17,6 @@ fun nth_opt :: "'a list \<Rightarrow> nat \<Rightarrow> 'a option" where
 
 lemma list_all2_mono' [mono]: "A \<le> B \<Longrightarrow> list_all2 A \<le> list_all2 B"
   apply auto unfolding list_all2_iff by auto
-ML {* @{term "(case T of ProcTypeOpen e T \<Rightarrow> well_typed_proc'' e p)"} *}
 
 (*lemma case_ProcTypeOpen_mono: "A \<le> B \<Longrightarrow> (case t of ProcTypeOpen e T \<Rightarrow> A e T) \<le> (case t of ProcTypeOpen e T \<Rightarrow> B e T)"
   by (cases t, simp add: le_fun_def)
@@ -114,6 +119,33 @@ qed
 ML Term.betapply
 declare[[show_types=false]]
 
+fun lift_proc_in_prog :: "[program_rep, nat] \<Rightarrow> program_rep"
+and lift_proc :: "[procedure_rep, nat] \<Rightarrow> procedure_rep" where
+  "lift_proc_in_prog Skip i = Skip"
+| "lift_proc (ProcRef i) k = (if i < k then ProcRef i else ProcRef (Suc i))"
+| "lift_proc (ProcAppl s t) k = ProcAppl (lift_proc s k) (lift_proc t k)"
+| "lift_proc (ProcAbs s) k = ProcAbs (lift_proc s (Suc k))"
+
+fun subst_proc_in_prog :: "[nat, procedure_rep, program_rep] \<Rightarrow> program_rep"
+and subst_proc :: "[nat, procedure_rep, procedure_rep] \<Rightarrow> procedure_rep"
+where
+  "subst_proc_in_prog i p Skip = Skip"
+| "subst_proc k s (ProcRef i) = 
+      (if k < i then ProcRef (i - 1) else if i=k then s else ProcRef i)"
+| "subst_proc k s (ProcAppl t u) = ProcAppl (subst_proc k s t) (subst_proc k s u)"
+| "subst_proc k s (ProcAbs t) = ProcAbs (subst_proc (Suc k) (lift_proc s 0) t)"
+
+function (sequential,domintros) beta_reduce_proc_in_prog :: "program_rep \<Rightarrow> program_rep"
+and beta_reduce_proc :: "procedure_rep \<Rightarrow> procedure_rep" where
+  "beta_reduce_proc_in_prog Skip = Skip"
+| "beta_reduce_proc (Proc body args ret) = Proc (beta_reduce_proc_in_prog body) args ret"
+| "beta_reduce_proc (ProcAppl p q) = 
+      (case beta_reduce_proc p of ProcAbs p' \<Rightarrow> beta_reduce_proc (subst_proc 0 q p')
+          | p' \<Rightarrow> ProcAppl p' (beta_reduce_proc q))"
+| "beta_reduce_proc (ProcAbs p) = ProcAbs (beta_reduce_proc p)"
+by pat_completeness auto
+
+(*
 fun subst_proc_in_prog :: "procedure_rep list \<Rightarrow> program_rep \<Rightarrow> program_rep"
 and subst_proc :: "procedure_rep list \<Rightarrow> procedure_rep \<Rightarrow> procedure_rep"
 where
@@ -125,14 +157,75 @@ where
 | subst_proc_Assign: "subst_proc_in_prog insts (Assign v e) = Assign v e"
 | subst_proc_Sample: "subst_proc_in_prog insts (Sample v e) = Sample v e"
 | subst_proc_Proc: "subst_proc insts (Proc body args ret) = Proc (subst_proc_in_prog insts body) args ret"
-| subst_proc_ProcRef: "subst_proc insts (ProcRef i T) =
+| subst_proc_ProcRef: "subst_proc insts (ProcRef i) =
     (if i<length insts then insts!i
-    else ProcRef (i-length insts) T)"
-| subst_proc_ProcInst: "subst_proc insts (ProcInst inst p) = subst_proc ((subst_proc insts inst)#insts) p"
+    else ProcRef (i-length insts) n)"
+| subst_proc_ProcAppl: "subst_proc insts (ProcAppl (ProcAbs p) q) =
+  subst_procs (q#insts) p"
+| subst_proc_ProcAbs: "subst_proc insts (ProcAbs p) = undefined"
 print_theorems
+*)
+
+(*
+E \<turnstile> q:u   E,u \<turnstile> p:t
+-------------------
+E \<turnstile> p$q : t
+
+subst inst p$q = subst (subst inst q, inst) p
+
+E!i = (F\<Rightarrow>t)
+--------------------------
+E@F \<turnstile> Ref i -drop- |E| : t
+
+subst inst (Ref i -drop- n) = 
+  subst (drop n inst) inst!i
+
+q(a,b) = a(b)
+r(a) = q(a,a)
+r(r) = q(r,r) = r(r) infinity
+
+q(a) = a = Ref0-1
+subst [x] q = x
+
+r(q,a) = q $ a = Ref0-2 $ Ref1-2
+
+subst [q,y] r =
+  subst [q,y] (Ref0-2 $ Ref1-2)
+= subst [subst [q,y] Ref1-2,q,y] Ref0-2
+= subst [subst [] y,q,y] Ref0-2
+
+
+p(q) = r(q,a) = 
+
+E,t \<turnstile> p:u
+----------
+E \<turnstile> %.p : t\<Rightarrow>u
+
+E \<turnstile> p:t   E \<turnstile> q:t\<Rightarrow>u
+--------------------
+E \<turnstile> q$p : u
+
+---------------
+E \<turnstile> Ref i : E_i
+
+
+q(a) = a(d)
+ = (Ref 0) -inst- d
+ = %a. a d
+ = %. 0 d
+
+p(a,b) = q(a(b))
+ = q -inst- (Ref2 -inst- Ref0)
+ = %a %b. q $ (a $ b)
+ = %%. q $ 1 $ 0
+
+Ref i = Bound i
+A -inst- B \<equiv> (\<lambda>x. A) B
+
+*)
 
 inductive well_typed'' :: "procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool"
-and well_typed_proc'' :: "procedure_type_open \<Rightarrow> procedure_rep \<Rightarrow> bool" where
+and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \<Rightarrow> procedure_type_open \<Rightarrow> bool" where
   wt_Seq: "well_typed'' E p1 \<and> well_typed'' E p2 \<Longrightarrow> well_typed'' E (Seq p1 p2)"
 | wt_Assign: "eu_type e = vu_type v \<Longrightarrow> well_typed'' E (Assign v e)"
 | wt_Sample: "ed_type e = vu_type v \<Longrightarrow> well_typed'' E (Sample v e)"
@@ -141,24 +234,38 @@ and well_typed_proc'' :: "procedure_type_open \<Rightarrow> procedure_rep \<Righ
 | wt_IfTE: "eu_type e = bool_type \<Longrightarrow> well_typed'' E thn \<Longrightarrow>  well_typed'' E els \<Longrightarrow> well_typed'' E (IfTE e thn els)"
 | wt_CallProc: "vu_type v = pt_returntype T \<Longrightarrow>
    list_all2 (\<lambda>e T. eu_type e = T) args (pt_argtypes T) \<Longrightarrow>
-   well_typed_proc'' (ProcTypeOpen E T) prc \<Longrightarrow>
+   well_typed_proc'' E prc (ProcSimple T) \<Longrightarrow>
    well_typed'' E (CallProc v prc args)"
 | wt_Proc: "well_typed'' E body \<Longrightarrow>
    list_all (\<lambda>v. \<not> vu_global v) pargs \<Longrightarrow>
    eu_type ret = pt_returntype T \<Longrightarrow>
    list_all2 (\<lambda>e T. vu_type e = T) pargs (pt_argtypes T) \<Longrightarrow>
    distinct pargs \<Longrightarrow>
-   well_typed_proc'' (ProcTypeOpen E T) (Proc body pargs ret)"
-| wt_ProcRef: "nth_opt E i = Some (ProcTypeOpen envT T) \<Longrightarrow> 
-  well_typed_proc'' (ProcTypeOpen E T) (ProcRef i (ProcTypeOpen envT T))" (* TODO check *)
-| wt_ProcInst: "
-  well_typed_proc'' (ProcTypeOpen E instT) inst \<Longrightarrow>
-  well_typed_proc'' (ProcTypeOpen (ProcTypeOpen E instT#E') T) prc \<Longrightarrow>
-  well_typed_proc'' (ProcTypeOpen E' T) (ProcInst inst prc)"
+   well_typed_proc'' E (Proc body pargs ret) (ProcSimple T)"
+| wt_ProcRef: "nth_opt E i = Some T \<Longrightarrow> well_typed_proc'' E (ProcRef i) T"
+| wt_ProcAppl: "well_typed_proc'' E p (ProcFun T U) \<Longrightarrow>
+  well_typed_proc'' E q T \<Longrightarrow>
+  well_typed_proc'' E (ProcAppl p q) U"
+| wt_ProcAbs: "well_typed_proc'' (T#E) p U \<Longrightarrow> well_typed_proc'' E (ProcAbs p) (ProcFun T U)"
+
+abbreviation "beta_reduce_proc_in_prog_dom pg == beta_reduce_proc_in_prog_beta_reduce_proc_dom(Inl pg)"
+abbreviation "beta_reduce_proc_dom pc == beta_reduce_proc_in_prog_beta_reduce_proc_dom(Inr pc)"
+
+lemma well_typed_subst_proc_dom:
+  assumes "well_typed_proc'' E p T"
+  shows "beta_reduce_proc_dom p"
+proof -
+  have "well_typed'' E pg \<Longrightarrow> beta_reduce_proc_in_prog_dom pg"
+   and "well_typed_proc'' E p T \<Longrightarrow> beta_reduce_proc_dom p"
+ apply (induct E pg and E p T rule:well_typed''_well_typed_proc''.inducts)
+ apply auto
+
+lemma well_typed_subst_proc:
+  assumes "well_typed_proc'' E p T"
+  shows "well_typed_proc'' E (beta_reduce_proc p) T"
 
 
-
-
+(*
 lemma wt_Seq_iff: "well_typed'' E (Seq p1 p2) = (well_typed'' E p1 \<and> well_typed'' E p2)"   
   by (rule iffI, cases rule:well_typed''.cases, auto, simp add: well_typed''_well_typed_proc''.intros)
 lemma wt_IfTE_iff: "well_typed'' E (IfTE e thn els) = (eu_type e = bool_type \<and> well_typed'' E thn \<and>  well_typed'' E els)"
@@ -187,8 +294,9 @@ lemma wt_ProcInst_iff: "well_typed_proc'' (ProcTypeOpen E' T) (ProcInst inst prc
   (\<exists>E instT. well_typed_proc'' (ProcTypeOpen E instT) inst \<and>
   well_typed_proc'' (ProcTypeOpen (ProcTypeOpen E instT#E') T) prc)"
   by (rule iffI, cases rule:well_typed_proc''.cases, auto, simp add: well_typed''_well_typed_proc''.intros)
+*)
 
-definition "module_type_rep_set env proctypes \<equiv> {procs. list_all2 (\<lambda>T p. well_typed_proc'' (ProcTypeOpen env T) p) proctypes procs}"
+definition "module_type_rep_set envT proctypes \<equiv> {procs. list_all2 (\<lambda>T p. well_typed_proc'' [] p (ProcFun' envT (ProcSimple T))) proctypes procs}"
 lemma module_type_rep_set_inhabited: "\<exists>x. x \<in> module_type_rep_set env procT"
   sorry
 
@@ -201,11 +309,11 @@ class module_type =
   assumes "distinct (module_type_proc_names TYPE('a))"
   assumes "length (module_type_procs a) = length (module_type_proc_names TYPE('a))"
   assumes module_type_procs_welltyped: "list_all2 
-          (\<lambda>T p. well_typed_proc'' (ProcTypeOpen (module_type_environment TYPE('a)) T) p)
+          (\<lambda>T p. well_typed_proc'' [] p (ProcFun' (module_type_environment TYPE('a)) (ProcSimple T)))
           (module_type_proc_types TYPE('a)) (module_type_procs m)"
   assumes module_type_construct_inverse: 
       "list_all2 
-          (\<lambda>T p. well_typed_proc'' (ProcTypeOpen (module_type_environment TYPE('a)) T) p)
+          (\<lambda>T p. well_typed_proc'' [] p (ProcFun' (module_type_environment TYPE('a)) (ProcSimple T)))
           (module_type_proc_types TYPE('a)) procs
       \<Longrightarrow> module_type_procs (module_type_construct procs) = procs"
   assumes module_type_procs_inverse: "module_type_construct (module_type_procs m) = m"
@@ -213,12 +321,44 @@ class module_type =
 class module_type_closed = module_type +
   assumes closed_module_type_empty: "module_type_environment TYPE('a) = []"
 
+(*
 definition "module_type_proc_types_open MT \<equiv> 
   map (ProcTypeOpen (module_type_environment MT)) (module_type_proc_types MT)"
+*)
 
 definition "module_type_instantiation (_::'mt::module_type itself) (_::'mtc::module_type_closed itself)
   == module_type_proc_names TYPE('mt) = module_type_proc_names TYPE('mtc)
    \<and> module_type_proc_types TYPE('mt) = module_type_proc_types TYPE('mtc)" 
+
+
+
+lemma welltyped_subst_proc: 
+  (* TODO assumptions *)
+  shows "well_typed_proc'' (ProcTypeOpen envT T) (subst_proc insts p)"
+proof -
+  have "list_all2 well_typed_proc'' envT insts \<Longrightarrow>
+        well_typed'' envT pg \<Longrightarrow>
+        well_typed'' envT (subst_proc_in_prog insts pg)"
+   and "list_all2 well_typed_proc'' envT insts \<Longrightarrow>
+        (\<And>T. well_typed_proc'' (ProcTypeOpen envT T) p \<Longrightarrow>
+        well_typed_proc'' (ProcTypeOpen envT T) (subst_proc insts p))"
+  proof (induction insts pg and insts p rule:subst_proc_in_prog_subst_proc.induct)
+  case 1 (* Skip *) show ?case by (simp add: wt_Skip) next
+  case 2 (* Seq *) thus ?case by (simp add: wt_Seq_iff) next
+  case 3 (* IfTE *) thus ?case by (simp add: wt_IfTE_iff) next
+  case 4 (* While *) thus ?case by (simp add: wt_While_iff) next
+  case (5 insts v p e) (* CallProc *) thus ?case by (auto simp: wt_CallProc_iff) next
+  case 6 (* Assign *) thus ?case by (simp add: wt_Assign_iff) next
+  case 7 (* Sample *) thus ?case by (simp add: wt_Sample_iff) next
+  case 8 (* Proc *) thus ?case  by (simp add: wt_Proc_iff) next
+  case (9 insts i instT) (* ProcRef *) thus ?case
+    apply (cases instT)
+    apply (simp add: wt_ProcRef_iff) 
+    apply auto 
+  next
+  case 10 (* ProcInst *) thus ?case apply (auto simp: wt_ProcInst_iff) 
+qed
+
 
 
 ML_file "modules.ML"
@@ -296,33 +436,6 @@ abbreviation "subst_proc_dom procs pc == subst_proc_in_prog_subst_proc_dom(Inr(p
 *)
 
 (*definition "has_proctypeopen T p == case T of ProcTypeOpen e t \<Rightarrow> well_typed_proc'' e p \<and> proctype_of p = t" *)
-
-lemma welltyped_subst_proc: 
-  (* TODO assumptions *)
-  shows "well_typed_proc'' (ProcTypeOpen envT T) (subst_proc insts p)"
-proof -
-  have "list_all2 well_typed_proc'' envT insts \<Longrightarrow>
-        well_typed'' envT pg \<Longrightarrow>
-        well_typed'' envT (subst_proc_in_prog insts pg)"
-   and "list_all2 well_typed_proc'' envT insts \<Longrightarrow>
-        (\<And>T. well_typed_proc'' (ProcTypeOpen envT T) p \<Longrightarrow>
-        well_typed_proc'' (ProcTypeOpen envT T) (subst_proc insts p))"
-  proof (induction insts pg and insts p rule:subst_proc_in_prog_subst_proc.induct)
-  case 1 (* Skip *) show ?case by (simp add: wt_Skip) next
-  case 2 (* Seq *) thus ?case by (simp add: wt_Seq_iff) next
-  case 3 (* IfTE *) thus ?case by (simp add: wt_IfTE_iff) next
-  case 4 (* While *) thus ?case by (simp add: wt_While_iff) next
-  case (5 insts v p e) (* CallProc *) thus ?case by (auto simp: wt_CallProc_iff) next
-  case 6 (* Assign *) thus ?case by (simp add: wt_Assign_iff) next
-  case 7 (* Sample *) thus ?case by (simp add: wt_Sample_iff) next
-  case 8 (* Proc *) thus ?case  by (simp add: wt_Proc_iff) next
-  case (9 insts i instT) (* ProcRef *) thus ?case
-    apply (cases instT)
-    apply (simp add: wt_ProcRef_iff) 
-    apply auto 
-  next
-  case 10 (* ProcInst *) thus ?case apply (auto simp: wt_ProcInst_iff) 
-qed
 
 lemma proctype_subst_proc:
   (* TODO: assumptions *)
