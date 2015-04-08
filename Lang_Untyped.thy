@@ -106,8 +106,6 @@ record procedure_type =
   pt_argtypes :: "type list"
   pt_returntype :: "type"
 
-datatype procedure_type_open = ProcTypeOpen "procedure_type_open list" "procedure_type"
-
 datatype program_rep =
   Assign variable_untyped expression_untyped
 | Sample variable_untyped expression_distr
@@ -118,8 +116,9 @@ datatype program_rep =
 | CallProc variable_untyped procedure_rep "expression_untyped list"
 and procedure_rep =
   Proc program_rep "variable_untyped list" expression_untyped
-| ProcRef nat procedure_type_open(*expected type of env!nat*)
-| ProcInst procedure_rep(*insert this*) procedure_rep(*into this*)
+| ProcRef nat (* deBruijn index *)
+| ProcAbs procedure_rep
+| ProcAppl procedure_rep procedure_rep
 
 (*
 fun is_concrete_proc where 
@@ -129,8 +128,8 @@ fun is_concrete_proc where
 
 fun proctype_of :: "procedure_rep \<Rightarrow> procedure_type" where
   "proctype_of (Proc body args return) = \<lparr> pt_argtypes=map vu_type args, pt_returntype=eu_type return \<rparr>"
-| "proctype_of (ProcRef name (ProcTypeOpen _ T)) = T"
-| "proctype_of (ProcInst inst p) = proctype_of p"
+(*| "proctype_of (ProcRef name (ProcTypeOpen _ T)) = T"*)
+| "proctype_of (ProcAppl p arg) = proctype_of p"
 
 fun well_typed' :: "procedure_type list \<Rightarrow> program_rep \<Rightarrow> bool" 
 and well_typed_proc' :: "procedure_type list \<Rightarrow> procedure_rep \<Rightarrow> bool" where
@@ -189,7 +188,7 @@ fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
                                             (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)))"
 | "denotation_untyped (CallProc v (Proc body pargs return) args) m = 
   apply_to_distr (restore_locals m) (denotation_untyped body (init_locals pargs args m))"
-| "denotation_untyped (CallProc v (ProcRef x T) args) m = 0" (* Cannot happen for well-typed programs *)
+(*| "denotation_untyped (CallProc v (ProcRef x T) args) m = 0" (* Cannot happen for well-typed programs *)*)
 definition "denotation prog = denotation_untyped (mk_program_untyped prog)"
 
 fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
@@ -206,8 +205,9 @@ and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" whe
       [v. v\<leftarrow>pargs, vu_global v] (* Empty for well-typed progs *)
       @ [v. v\<leftarrow>vars_untyped body, vu_global v]
       @ [v. v\<leftarrow>eu_vars return, vu_global v]"
-| "vars_proc_untyped (ProcRef name T) = []"
-| "vars_proc_untyped (ProcInst inst p) = (vars_proc_untyped inst) @ (vars_proc_untyped p)"
+| "vars_proc_untyped (ProcRef i) = []"
+| "vars_proc_untyped (ProcAppl p q) = (vars_proc_untyped p) @ (vars_proc_untyped q)"
+| "vars_proc_untyped (ProcAbs p) = vars_proc_untyped p"
 
 definition "vars prog = vars_untyped (mk_program_untyped prog)"
 
