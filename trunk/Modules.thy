@@ -261,6 +261,13 @@ abbreviation "subst_proc_dom procs pc == subst_proc_in_prog_subst_proc_dom(Inr(p
 
 definition "has_proctypeopen T p == case T of ProcTypeOpen e t \<Rightarrow> well_typed_proc'' e p \<and> proctype_of p = t" 
 
+lemma proctype_subst_proc:
+  (* TODO: assumptions *)
+  shows "proctype_of (subst_proc insts p) = proctype_of p"
+apply (rule subst_proc_in_prog_subst_proc.induct[where Q="\<lambda>insts p. proctype_of (subst_proc insts p) = proctype_of p" and P="\<lambda>insts p. True"])
+apply simp_all
+apply (case_tac T, simp)
+TODO: need well_typedness in IH
 
 declare[[show_consts]]
 thm MT2.INST_def
@@ -269,10 +276,9 @@ thm MT2.INST_def
 lemma "MT2_instantiated.b (MT2.INST MT2 MT) = MT2.b MT2 MT"
   unfolding MT2.INST_def MT2_instantiated.b_def
   apply (subst module_type_construct_inverse)
-  unfolding module_type_rep_set_def module_type_procs_MT2_def
+  unfolding module_type_proc_types_MT2_instantiated_def
   apply simp 
-  using Rep_MT2
-  unfolding module_type_rep_set_def module_type_procs_MT2_def
+  using module_type_procs1 module_type_procs2
   apply auto
   sorry
 
