@@ -121,13 +121,16 @@ and procedure_rep =
 | ProcRef nat procedure_type_open(*expected type of env!nat*)
 | ProcInst procedure_rep(*insert this*) procedure_rep(*into this*)
 
+(*
 fun is_concrete_proc where 
   "is_concrete_proc (Proc x y z) = True"
 | "is_concrete_proc (ProcRef x T) = False"
+*)
 
 fun proctype_of :: "procedure_rep \<Rightarrow> procedure_type" where
   "proctype_of (Proc body args return) = \<lparr> pt_argtypes=map vu_type args, pt_returntype=eu_type return \<rparr>"
 | "proctype_of (ProcRef name (ProcTypeOpen _ T)) = T"
+| "proctype_of (ProcInst inst p) = proctype_of p"
 
 fun well_typed' :: "procedure_type list \<Rightarrow> program_rep \<Rightarrow> bool" 
 and well_typed_proc' :: "procedure_type list \<Rightarrow> procedure_rep \<Rightarrow> bool" where
