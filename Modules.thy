@@ -153,7 +153,7 @@ and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \
   well_typed_proc'' ((ProgTypeOpen E T)#E') prc \<Longrightarrow>
   well_typed_proc'' E' (ProcInst inst prc)
 "
-
+print_theorems
 
 definition "module_type_rep_set env proctypes \<equiv>
 {procs. map proctype_of procs = proctypes \<and> (\<forall>p\<in>set procs. well_typed_proc'' env p)}"
@@ -261,13 +261,32 @@ abbreviation "subst_proc_dom procs pc == subst_proc_in_prog_subst_proc_dom(Inr(p
 
 definition "has_proctypeopen T p == case T of ProcTypeOpen e t \<Rightarrow> well_typed_proc'' e p \<and> proctype_of p = t" 
 
+
 lemma proctype_subst_proc:
   (* TODO: assumptions *)
-  shows "proctype_of (subst_proc insts p) = proctype_of p"
-apply (rule subst_proc_in_prog_subst_proc.induct[where Q="\<lambda>insts p. proctype_of (subst_proc insts p) = proctype_of p" and P="\<lambda>insts p. True"])
-apply simp_all
+  shows "list_all2 has_proctypeopen envT insts \<longrightarrow> 
+  has_proctypeopen (ProcTypeOpen envT T) p \<longrightarrow>
+  has_proctypeopen (ProcTypeOpen envT T) (subst_proc insts p)"
+proof -
+  have "list_all2 has_proctypeopen envT insts \<Longrightarrow>
+         well_typed'' envT pg \<Longrightarrow>
+         well_typed'' envT (subst_proc_in_prog insts pg)" and
+        "(list_all2 has_proctypeopen envT insts \<Longrightarrow>
+        has_proctypeopen (ProcTypeOpen envT T) p \<Longrightarrow>
+        has_proctypeopen (ProcTypeOpen envT T) (subst_proc insts p))"
+  apply (induct insts pg and insts p rule:subst_proc_in_prog_subst_proc.induct)
+  unfolding has_proctypeopen_def 
+  apply ((auto, tactic "ALLGOALS (K no_tac)")[1])+
+  apply auto
+  apply (rule wt_Proc)
+  apply (subst t1)
+  apply simp
+apply (rule subst_proc_in_prog_subst_proc.induct[where 
+  Q="\<lambda>insts p. list_all2 has_proctypeopen envT insts \<longrightarrow> 
+  has_proctypeopen (ProgTypeOpen envT T) p \<longrightarrow>
+  has_proctypeopen (ProgTypeOpen envT T) (subst_proc insts p)" and P="\<lambda>insts p. True"], simp_all)
 apply (case_tac T, simp)
-TODO: need well_typedness in IH
+apply TODO: need well_typedness in IH
 
 declare[[show_consts]]
 thm MT2.INST_def
