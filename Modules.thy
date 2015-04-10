@@ -122,6 +122,13 @@ declare[[show_types=false]]
 fun lift_proc_in_prog :: "[program_rep, nat] \<Rightarrow> program_rep"
 and lift_proc :: "[procedure_rep, nat] \<Rightarrow> procedure_rep" where
   "lift_proc_in_prog Skip i = Skip"
+| "lift_proc_in_prog (Assign v e) i = Assign v e"
+| "lift_proc_in_prog (Sample v e) i = Sample v e"
+| "lift_proc_in_prog (Seq p1 p2) i = Seq (lift_proc_in_prog p1 i) (lift_proc_in_prog p2 i)"
+| "lift_proc_in_prog (IfTE c p1 p2) i = IfTE c (lift_proc_in_prog p1 i) (lift_proc_in_prog p2 i)"
+| "lift_proc_in_prog (While c p1) i = While c (lift_proc_in_prog p1 i)"
+| "lift_proc_in_prog (CallProc v p a) i = CallProc v (lift_proc p i) a"
+| "lift_proc (Proc body args ret) i = Proc (lift_proc_in_prog body i) args ret"
 | "lift_proc (ProcRef i) k = (if i < k then ProcRef i else ProcRef (Suc i))"
 | "lift_proc (ProcAppl s t) k = ProcAppl (lift_proc s k) (lift_proc t k)"
 | "lift_proc (ProcAbs s) k = ProcAbs (lift_proc s (Suc k))"
@@ -129,16 +136,26 @@ and lift_proc :: "[procedure_rep, nat] \<Rightarrow> procedure_rep" where
 fun subst_proc_in_prog :: "[nat, procedure_rep, program_rep] \<Rightarrow> program_rep"
 and subst_proc :: "[nat, procedure_rep, procedure_rep] \<Rightarrow> procedure_rep"
 where
-  "subst_proc_in_prog i p Skip = Skip"
-| "subst_proc k s (ProcRef i) = 
+  subst_proc_Skip: "subst_proc_in_prog i p Skip = Skip"
+| subst_proc_Seq: "subst_proc_in_prog i p (Seq c1 c2) = Seq (subst_proc_in_prog i p c1) (subst_proc_in_prog i p c2)"
+| subst_proc_Assign: "subst_proc_in_prog i p (Assign v e) = Assign v e"
+| subst_proc_Sample: "subst_proc_in_prog i p (Sample v e) = Sample v e"
+| subst_proc_IfTE: "subst_proc_in_prog i p (IfTE e c1 c2) = IfTE e (subst_proc_in_prog i p c1) (subst_proc_in_prog i p c2)"
+| subst_proc_While: "subst_proc_in_prog i p (While e c) = While e (subst_proc_in_prog i p c)"
+| subst_proc_CallProc: "subst_proc_in_prog i p (CallProc v p' args) = CallProc v (subst_proc i p p') args"
+| subst_proc_Proc: "subst_proc i p (Proc body args ret) =
+     Proc (subst_proc_in_prog i p body) args ret"
+| subst_proc_ProcRef: "subst_proc k s (ProcRef i) = 
       (if k < i then ProcRef (i - 1) else if i=k then s else ProcRef i)"
-| "subst_proc k s (ProcAppl t u) = ProcAppl (subst_proc k s t) (subst_proc k s u)"
-| "subst_proc k s (ProcAbs t) = ProcAbs (subst_proc (Suc k) (lift_proc s 0) t)"
+| subst_proc_ProcAppl: "subst_proc k s (ProcAppl t u) = ProcAppl (subst_proc k s t) (subst_proc k s u)"
+| subst_proc_ProcAbs: "subst_proc k s (ProcAbs t) = ProcAbs (subst_proc (Suc k) (lift_proc s 0) t)"
 
-function (sequential,domintros) beta_reduce_proc_in_prog :: "program_rep \<Rightarrow> program_rep"
+function (sequential,domintros) beta_reduce_prog :: "program_rep \<Rightarrow> program_rep"
 and beta_reduce_proc :: "procedure_rep \<Rightarrow> procedure_rep" where
-  "beta_reduce_proc_in_prog Skip = Skip"
-| "beta_reduce_proc (Proc body args ret) = Proc (beta_reduce_proc_in_prog body) args ret"
+  "beta_reduce_prog Skip = Skip"
+| "beta_reduce_prog (Seq p1 p2) = Seq (beta_reduce_prog p1) (beta_reduce_prog p2)"
+| "beta_reduce_prog (CallProc v p e) = CallProc v (beta_reduce_proc p) e"
+| "beta_reduce_proc (Proc body args ret) = Proc (beta_reduce_prog body) args ret"
 | "beta_reduce_proc (ProcAppl p q) = 
       (case beta_reduce_proc p of ProcAbs p' \<Rightarrow> beta_reduce_proc (subst_proc 0 q p')
           | p' \<Rightarrow> ProcAppl p' (beta_reduce_proc q))"
@@ -232,33 +249,339 @@ and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \
 | wt_Skip: "well_typed'' E Skip"
 | wt_While: "eu_type e = bool_type \<Longrightarrow> well_typed'' E p \<Longrightarrow> well_typed'' E (While e p)"
 | wt_IfTE: "eu_type e = bool_type \<Longrightarrow> well_typed'' E thn \<Longrightarrow>  well_typed'' E els \<Longrightarrow> well_typed'' E (IfTE e thn els)"
-| wt_CallProc: "vu_type v = pt_returntype T \<Longrightarrow>
-   list_all2 (\<lambda>e T. eu_type e = T) args (pt_argtypes T) \<Longrightarrow>
-   well_typed_proc'' E prc (ProcSimple T) \<Longrightarrow>
+| wt_CallProc: "well_typed_proc'' E prc (ProcSimple \<lparr> pt_argtypes=map eu_type args, pt_returntype=vu_type v \<rparr>) \<Longrightarrow>
    well_typed'' E (CallProc v prc args)"
 | wt_Proc: "well_typed'' E body \<Longrightarrow>
    list_all (\<lambda>v. \<not> vu_global v) pargs \<Longrightarrow>
-   eu_type ret = pt_returntype T \<Longrightarrow>
-   list_all2 (\<lambda>e T. vu_type e = T) pargs (pt_argtypes T) \<Longrightarrow>
    distinct pargs \<Longrightarrow>
-   well_typed_proc'' E (Proc body pargs ret) (ProcSimple T)"
+   well_typed_proc'' E (Proc body pargs ret) (ProcSimple \<lparr> pt_argtypes=map vu_type pargs, pt_returntype=eu_type ret\<rparr>)"
 | wt_ProcRef: "nth_opt E i = Some T \<Longrightarrow> well_typed_proc'' E (ProcRef i) T"
 | wt_ProcAppl: "well_typed_proc'' E p (ProcFun T U) \<Longrightarrow>
   well_typed_proc'' E q T \<Longrightarrow>
   well_typed_proc'' E (ProcAppl p q) U"
 | wt_ProcAbs: "well_typed_proc'' (T#E) p U \<Longrightarrow> well_typed_proc'' E (ProcAbs p) (ProcFun T U)"
+lemma wt_Assign_iff: "eu_type e = vu_type v = well_typed'' E (Assign v e)"
+  apply (rule iffI, simp add: wt_Assign)
+  by (cases rule:well_typed''.cases, auto)
+lemma wt_Seq_iff: "(well_typed'' E p1 \<and> well_typed'' E p2) = well_typed'' E (Seq p1 p2)"
+  apply (rule iffI, simp add: wt_Seq)
+  by (cases rule:well_typed''.cases, auto)
+lemma wt_Sample_iff: "(ed_type e = vu_type v) = well_typed'' E (Sample v e)"
+  apply (rule iffI, simp add: wt_Sample)
+  by (cases rule:well_typed''.cases, auto)
+lemma wt_While_iff: "(eu_type e = bool_type \<and> well_typed'' E p) = well_typed'' E (While e p)"
+  apply (rule iffI, simp add: wt_While)
+  by (cases rule:well_typed''.cases, auto)
+lemma wt_IfTE_iff: "(eu_type e = bool_type \<and> well_typed'' E thn \<and>  well_typed'' E els) = well_typed'' E (IfTE e thn els)"
+  apply (rule iffI, simp add: wt_IfTE)
+  by (cases rule:well_typed''.cases, auto)
+lemma wt_CallProc_iff: "
+   well_typed_proc'' E prc (ProcSimple \<lparr> pt_argtypes=map eu_type args, pt_returntype=vu_type v\<rparr>) =
+   well_typed'' E (CallProc v prc args)"
+  apply (rule iffI, auto simp: wt_CallProc)
+  by (cases rule:well_typed''.cases, auto)
+lemma wt_Proc_iff: "
+  (T'=ProcSimple \<lparr> pt_argtypes=map vu_type pargs, pt_returntype=eu_type ret\<rparr> \<and> 
+   well_typed'' E body \<and>
+   list_all (\<lambda>v. \<not> vu_global v) pargs \<and>
+   distinct pargs) =
+   well_typed_proc'' E (Proc body pargs ret) T'"
+  apply (rule iffI, simp add: wt_Proc)
+  by (cases rule:well_typed_proc''.cases, auto)
+lemma wt_ProcRef_iff: "(nth_opt E i = Some T) = well_typed_proc'' E (ProcRef i) T"
+  apply (rule iffI, simp add: wt_ProcRef)
+  by (cases rule:well_typed_proc''.cases, auto)
+lemma wt_ProcAppl_iff: "(\<exists>T. well_typed_proc'' E p (ProcFun T U) \<and>
+  well_typed_proc'' E q T) =
+  well_typed_proc'' E (ProcAppl p q) U"
+  apply (rule iffI, auto simp: wt_ProcAppl)
+  by (cases rule:well_typed_proc''.cases, auto)
+lemma wt_ProcAbs_iff: "(\<exists>T U. TU = ProcFun T U \<and> well_typed_proc'' (T#E) p U) = well_typed_proc'' E (ProcAbs p) TU"
+  apply (rule iffI, auto simp: wt_ProcAbs)
+  by (cases rule:well_typed_proc''.cases, auto)
 
-abbreviation "beta_reduce_proc_in_prog_dom pg == beta_reduce_proc_in_prog_beta_reduce_proc_dom(Inl pg)"
-abbreviation "beta_reduce_proc_dom pc == beta_reduce_proc_in_prog_beta_reduce_proc_dom(Inr pc)"
+
+
+abbreviation "beta_reduce_prog_dom pg == beta_reduce_prog_beta_reduce_proc_dom(Inl pg)"
+abbreviation "beta_reduce_proc_dom pc == beta_reduce_prog_beta_reduce_proc_dom(Inr pc)"
+
+fun R :: "procedure_type_open \<Rightarrow> procedure_rep \<Rightarrow> bool" where
+  "R (ProcSimple T) p = (beta_reduce_proc_dom p \<and> well_typed_proc'' [] p (ProcSimple T))"
+| "R (ProcFun T U) p = (beta_reduce_proc_dom p \<and> well_typed_proc'' [] p (ProcFun T U) \<and>
+  (\<forall>p'. R T p' \<longrightarrow> R U (ProcAppl p p')))"
+
+lemma well_typed_lift:
+  assumes "well_typed_proc'' (F@E) q T"
+  shows "well_typed_proc'' (F@U#E) (lift_proc q (length F)) T"
+proof -
+  have "\<And>T F. well_typed'' (F@E) pg \<Longrightarrow> well_typed'' (F@T#E) (lift_proc_in_prog pg (length F))"
+   and res:"\<And>T U F. well_typed_proc'' (F@E) q U \<Longrightarrow> well_typed_proc'' (F@T#E) (lift_proc q (length F)) U"
+  proof (induct pg and q) 
+  case Assign thus ?case by (auto simp: wt_Assign_iff[symmetric])
+  next case Sample thus ?case by (auto simp: wt_Sample_iff[symmetric])
+  next case (Proc body args ret) thus ?case by (auto simp: wt_Proc_iff[symmetric])
+  next case (CallProc v p a U) thus ?case by (auto simp: wt_CallProc_iff[symmetric])
+  next case Seq thus ?case by (auto simp: wt_Seq_iff[symmetric])
+  next case Skip thus ?case by (auto simp: wt_Skip)
+  next case IfTE thus ?case by (auto simp: wt_IfTE_iff[symmetric])
+  next case While thus ?case by (auto simp: wt_While_iff[symmetric])
+  next case (ProcRef n)
+    have nth: "nth_opt (F @ T # E) (length F) = Some T"
+      by (induct F, auto)
+    have nth2: "\<And>n. length F < n \<Longrightarrow> nth_opt (F@T#E) n = nth_opt (F@E) (n - Suc 0)"
+      apply (induct F arbitrary: n, case_tac n, auto)
+      apply (case_tac n, auto)
+      by (metis Suc_pred gr0_conv_Suc lessE nth_opt.simps(2)) 
+    have nth3: "n < length F \<Longrightarrow> nth_opt (F@T#E) n = nth_opt (F @ E) n"
+      apply (induct F arbitrary: n, auto)
+      by (case_tac n, auto)
+    from ProcRef show ?case apply (auto simp: wt_ProcRef_iff[symmetric] nth3)
+      by (subst nth2, auto)
+  next case (ProcAbs p T U) 
+    from ProcAbs.prems obtain U1 U2 where U:"U=ProcFun U1 U2"
+      and wt: "well_typed_proc'' (U1#F@E) p U2"
+      unfolding wt_ProcAbs_iff[symmetric] by auto
+    show ?case apply (simp add: wt_ProcAbs_iff[symmetric]) 
+      apply (rule exI[of _ U1], rule exI[of _ U2], simp add: U)
+      apply (rule ProcAbs.hyps[where F="U1#F" and T=T and U=U2, simplified])
+      by (fact wt)
+  next case (ProcAppl p1 p2 ) thus ?case by (auto simp: wt_ProcAppl_iff[symmetric], metis)
+  qed
+  from res assms show ?thesis .
+qed
+  
+lemma well_typed_subst':
+  assumes "well_typed_proc'' (F@E) q T"
+  shows "well_typed'' (F@T#E) pg \<Longrightarrow> well_typed'' (F@E) (subst_proc_in_prog (length F) q pg)"
+  and "well_typed_proc'' (F@T#E) p U \<Longrightarrow> well_typed_proc'' (F@E) (subst_proc (length F) q p) U"
+proof -
+  fix pg
+  have res:"\<And>T E F q.
+    well_typed'' (F@T#E) pg \<Longrightarrow>
+    well_typed_proc'' (F@E) q T \<Longrightarrow>
+    well_typed'' (F@E) (subst_proc_in_prog (length F) q pg)"
+   and  "\<And>T U E F q.
+    well_typed_proc'' (F@T#E) p U \<Longrightarrow>
+    well_typed_proc'' (F@E) q T \<Longrightarrow>
+    well_typed_proc'' (F@E) (subst_proc (length F) q p) U"
+  proof (induct pg and p)
+    case Assign thus ?case by (auto simp: wt_Assign_iff[symmetric])
+    next case Sample thus ?case by (auto simp: wt_Sample_iff[symmetric])
+    next case Proc thus ?case by (auto simp: wt_Proc_iff[symmetric])
+    next case (ProcRef n) 
+      have nth: "nth_opt (F @ T # E) (length F) = Some T"
+        by (induct F, auto)
+      have tmp: "\<And>x l m. x#l@m = (x#l)@m" by auto
+      have nth2: "length F < n \<Longrightarrow> nth_opt (F@T#E) n = nth_opt (F@E) (n - Suc 0)"
+        apply (induct F arbitrary: n, case_tac n, auto)
+        apply (case_tac n, auto)
+        by (metis Suc_pred gr0_conv_Suc lessE nth_opt.simps(2)) 
+      have nth3: "n < length F \<Longrightarrow> nth_opt (F@T#E) n = nth_opt (F @ E) n"
+        apply (induct F arbitrary: n, auto)
+        by (case_tac n, auto)
+      from ProcRef show ?case by (auto simp: wt_ProcRef_iff[symmetric] nth nth2 nth3)
+    next case (ProcAppl p1 p2)
+      from ProcAppl.prems(1) obtain T' where 
+        wt1: "well_typed_proc'' (F@T#E) p1 (ProcFun T' U)" and wt2: "well_typed_proc'' (F@T#E) p2 T'"
+        unfolding wt_ProcAppl_iff[symmetric] by auto
+      have wt1': "well_typed_proc'' (F@E) (subst_proc (length F) q p1) (ProcFun T' U)"
+        by (rule ProcAppl, rule wt1, rule ProcAppl)
+      have wt2': "well_typed_proc'' (F@E) (subst_proc (length F) q p2) T'"
+        by (rule ProcAppl, rule wt2, rule ProcAppl)
+      show ?case apply simp
+        unfolding wt_ProcAppl_iff[symmetric] apply (rule exI[of _ T']) using wt1' wt2' by auto
+    next case Seq thus ?case by (auto simp: wt_Seq_iff[symmetric])
+    next case Skip show ?case by (simp, rule wt_Skip)
+    next case IfTE thus ?case by (auto simp: wt_IfTE_iff[symmetric])
+    next case While thus ?case by (auto simp: wt_While_iff[symmetric])
+    next case CallProc thus ?case by (auto simp: wt_CallProc_iff[symmetric])
+    next case (ProcAbs p)
+      from ProcAbs.prems obtain T' U' where U: "U = ProcFun T' U'" and wt: "well_typed_proc'' (T' # F @ T # E) p U'" 
+        unfolding wt_ProcAbs_iff[symmetric] by auto  
+      show ?case apply simp
+        unfolding wt_ProcAbs_iff[symmetric]
+        apply (rule exI[of _ T'], rule exI[of _ U'], auto simp: U wt)
+        apply (rule ProcAbs.hyps[of "T'#F", simplified])
+        apply (fact wt) 
+        apply (rule well_typed_lift[where F="[]", simplified])
+        by (fact ProcAbs.prems)
+    qed
+  with assms
+  show "well_typed'' (F@T#E) pg \<Longrightarrow> well_typed'' (F@E) (subst_proc_in_prog (length F) q pg)"
+  and "well_typed_proc'' (F@T#E) p U \<Longrightarrow> well_typed_proc'' (F@E) (subst_proc (length F) q p) U"
+    by auto
+qed
+
+lemma well_typed_subst:
+  assumes "well_typed_proc'' (F@E) q T"
+  assumes "well_typed'' (F@T#E) pg"
+  shows "well_typed'' (F@E) (subst_proc_in_prog (length F) q pg)"
+using assms by (rule well_typed_subst')
+
+lemma well_typed_proc_subst:
+  assumes "well_typed_proc'' (F@E) q T"
+  assumes "well_typed_proc'' (F@T#E) p U"
+  shows "well_typed_proc'' (F@E) (subst_proc (length F) q p) U"
+using assms by (rule well_typed_subst')
+
+lemma nth_opt_prefix: "nth_opt F n = Some T \<Longrightarrow> nth_opt (F @ E) n = Some T"
+  apply (induction F arbitrary: n, auto)
+  by (case_tac n, auto)
+
+
+lemma well_typed_extend:
+  shows "well_typed'' [] p \<Longrightarrow> well_typed'' E p"
+    and "well_typed_proc'' [] q T \<Longrightarrow> well_typed_proc'' E q T"
+proof -
+  have "\<And>E F. well_typed'' F p \<Longrightarrow> well_typed'' (F@E) p"
+   and "\<And>T E F. well_typed_proc'' F q T \<Longrightarrow> well_typed_proc'' (F@E) q T"
+    proof (induction p and q)
+    next case Assign thus ?case by (auto simp: wt_Assign_iff[symmetric])
+    next case Sample thus ?case by (auto simp: wt_Sample_iff[symmetric])
+    next case Seq thus ?case by (auto simp: wt_Seq_iff[symmetric])
+    next case IfTE thus ?case by (auto simp: wt_IfTE_iff[symmetric])
+    next case While thus ?case by (auto simp: wt_While_iff[symmetric])
+    next case ProcRef thus ?case apply (auto simp: wt_ProcRef_iff[symmetric])
+      by (rule nth_opt_prefix)
+    next case Skip thus ?case by (auto simp: wt_Skip)
+    next case (CallProc v p a) thus ?case by (auto simp: wt_CallProc_iff[symmetric])
+    next case (ProcAbs p) thus ?case apply (auto simp: wt_ProcAbs_iff[symmetric])
+      by (metis append_Cons)
+    next case (Proc body args ret) thus ?case by (auto simp: wt_Proc_iff[symmetric])
+    next case (ProcAppl p1 p2) thus ?case by (auto simp: wt_ProcAppl_iff[symmetric], metis)
+  qed
+  from assms this[where F="[]", simplified]
+  show "well_typed'' [] p \<Longrightarrow> well_typed'' E p"
+    and "well_typed_proc'' [] q T \<Longrightarrow> well_typed_proc'' E q T"
+      by auto
+qed
 
 lemma well_typed_subst_proc_dom:
-  assumes "well_typed_proc'' E p T"
+(*  assumes "well_typed_proc'' E p T"*)
   shows "beta_reduce_proc_dom p"
 proof -
-  have "well_typed'' E pg \<Longrightarrow> beta_reduce_proc_in_prog_dom pg"
+  have R_term: "\<And>T p. R T p \<Longrightarrow> beta_reduce_proc_dom p"
+    by (case_tac T, simp_all)
+  {fix p E F v have "list_all2 (well_typed_proc'' []) v E \<Longrightarrow> well_typed'' E p
+        \<Longrightarrow> well_typed'' [] (fold (subst_proc_in_prog 0) v p)"
+    proof (induction arbitrary: p rule:list_all2_induct)
+    case Nil thus ?case by auto next
+    case (Cons v1 v E1 E) show ?case apply simp
+      apply (rule Cons.IH)
+      apply (rule well_typed_subst[where F="[]" and T=E1, simplified])
+      apply (rule well_typed_extend)
+      apply (fact Cons.hyps)
+      by (fact Cons.prems)
+    qed}
+  hence well_typed_subst': "\<And>v E p. list_all2 (well_typed_proc'' []) v (rev E) \<Longrightarrow> well_typed'' E p
+        \<Longrightarrow> well_typed'' [] (foldr (subst_proc_in_prog 0) v p)"
+     unfolding foldr_conv_fold 
+     unfolding list_all2_rev1[symmetric] .
+  note well_typed_subst_list = this
+
+  have "well_typed'' E pg \<Longrightarrow> list_all2 R E (rev v) \<Longrightarrow> beta_reduce_prog_dom (foldr (subst_proc_in_prog 0) v pg)"
+   and "well_typed_proc'' E p T \<Longrightarrow>
+        (\<And>v. list_all2 R E (rev v) \<Longrightarrow>
+              R T (foldr (subst_proc 0) v p))" 
+  proof (induction E pg and E p T arbitrary:v rule:well_typed''_well_typed_proc''.inducts)
+  case (wt_Seq E p1 p2) 
+    have com: "foldr (subst_proc_in_prog 0) v (Seq p1 p2) = Seq (foldr (subst_proc_in_prog 0) v p1) (foldr (subst_proc_in_prog 0) v p2)"
+      apply (subst foldr_conv_fold)
+      by (induct v, auto)
+    show ?case by (auto simp: com wt_Seq beta_reduce_prog_beta_reduce_proc.domintros)
+  next case (wt_While c E p)
+    have com: "foldr (subst_proc_in_prog 0) v (While c p) = While c (foldr (subst_proc_in_prog 0) v p)"
+      by (induct v, auto)
+    show ?case by (auto simp: com beta_reduce_prog_beta_reduce_proc.domintros)
+  next case (wt_Assign e x)
+    have com: "foldr (subst_proc_in_prog 0) v (Assign x e) = Assign x e"
+      by (induct v, auto)
+    show ?case by (auto simp: com wt_Assign beta_reduce_prog_beta_reduce_proc.domintros)
+  next case (wt_Sample e x)
+    have com: "foldr (subst_proc_in_prog 0) v (Sample x e) = Sample x e"
+      by (induct v, auto)
+    show ?case by (auto simp: com wt_Sample beta_reduce_prog_beta_reduce_proc.domintros)
+  next case (wt_CallProc E prc args x)
+    have com: "foldr (subst_proc_in_prog 0) v (CallProc x prc args) = CallProc x (foldr (subst_proc 0) v prc) args"
+      by (induct v, auto)
+    show ?case
+      using wt_CallProc by (auto simp: com beta_reduce_prog_beta_reduce_proc.domintros)
+  next case (wt_Proc E body pargs ret v) term ?case
+    have com: "foldr (subst_proc 0) v (Proc body pargs ret) = Proc (foldr (subst_proc_in_prog 0) v body) pargs ret"
+      by (induct v, auto)
+    have l:"list_all2 (well_typed_proc'' []) v (rev E)"
+      apply (subst list_all2_swap)
+      apply (rule list_all2_mono[where P=R])
+      apply (unfold list_all2_rev1)
+      apply (fact wt_Proc.prems)
+      by (metis R.simps procedure_type_open.exhaust)
+    show ?case 
+      apply (auto simp: com)
+      apply (rule beta_reduce_prog_beta_reduce_proc.domintros)
+      using wt_Proc apply simp
+      apply (rule Modules.wt_Proc)
+      apply (rule well_typed_subst', fact l, fact wt_Proc.hyps)
+      apply (simp add: wt_Proc)
+      by (simp add: wt_Proc)
+  next case wt_Skip
+    have com: "foldr (subst_proc_in_prog 0) v Skip = Skip"
+      by (induct v, auto)
+    thus ?case by (auto simp: com beta_reduce_prog_beta_reduce_proc.domintros)
+  next case (wt_IfTE e E p1 p2) 
+    have com: "foldr (subst_proc_in_prog 0) v (IfTE e p1 p2) = IfTE e (foldr (subst_proc_in_prog 0) v p1) (foldr (subst_proc_in_prog 0) v p2)"
+      by (induct v, auto)
+    show ?case by (auto simp: com beta_reduce_prog_beta_reduce_proc.domintros)
+
+  next case (wt_ProcRef E i T v) 
+    {fix E::"procedure_type_open list" and i T have "nth_opt E i = Some T \<Longrightarrow> \<not> length E \<le> i"
+      by (induct E i rule:nth_opt.induct, auto)}
+    note nth = this
+    {fix E p T x i have "well_typed'' E pg \<Longrightarrow> i\<ge>length E \<Longrightarrow> subst_proc_in_prog i x pg = pg"
+     and "well_typed_proc'' E p T \<Longrightarrow> i\<ge>length E \<Longrightarrow> subst_proc i x p = p"
+      apply (induct arbitrary: i x and i x rule:well_typed''_well_typed_proc''.inducts, auto simp: nth)
+      by (metis le_trans less_imp_le_nat nth)}
+    from this[of "[]"] 
+    have wt_sub: "\<And>i x p T. well_typed_proc'' [] p T \<Longrightarrow> subst_proc i x p = p" by auto
+    have "\<forall>p\<in>set v. \<exists>T. well_typed_proc'' [] p T"
+      by (metis wt_ProcRef.prems R.elims(2) in_set_conv_nth list_all2_nthD2 list_all2_rev1)
+    with wt_sub have inv:"\<And>x p. p\<in>set v \<Longrightarrow> subst_proc 0 x p = p" by metis
+    hence inv2: "\<And>a vv. a\<in>set (rev v) \<Longrightarrow> fold (subst_proc 0) vv a = a"
+      by (induct_tac vv, auto)
+    have lenE: "length E > i" 
+      apply (insert wt_ProcRef.hyps, induction E arbitrary: i)
+      by (auto, case_tac i, auto)
+    have lenV: "length v > i"
+      by (metis wt_ProcRef.prems lenE length_rev list_all2_conv_all_nth)
+    {fix v have "length v > i \<Longrightarrow> (\<And>a vv. a\<in>set (rev v) \<Longrightarrow> fold (subst_proc 0) vv a = a)
+              \<Longrightarrow> foldr (subst_proc 0) (rev v) (ProcRef i) = v!i"
+      apply (unfold foldr_conv_fold)
+      by (induction v arbitrary: i, auto)}
+    hence com: "foldr (subst_proc 0) v (ProcRef i) = (rev v)!i"
+      using lenV inv2 by (metis length_rev rev_rev_ident set_rev) 
+    {fix v have "nth_opt E i = Some T \<Longrightarrow> list_all2 R E v \<Longrightarrow> R T (v!i)"
+      apply (induction v arbitrary: E i, auto, case_tac E, auto)
+      by (metis not0_implies_Suc not_less0 nth_Cons_Suc nth_non_equal_first_eq nth_opt.simps(1) nth_opt.simps(2) option.inject)}
+    hence ?case apply (auto simp: com) 
+      using wt_ProcRef by auto 
+  next case (wt_ProcAppl E p T U q)  term?case
+    have com: "foldr (subst_proc 0) v (ProcAppl p q) = ProcAppl (foldr (subst_proc 0) v p) (foldr (subst_proc 0) v q)"
+      by (induct v, auto)
+    from wt_ProcAppl show ?case by (auto simp: com beta_reduce_prog_beta_reduce_proc.domintros)
+  next case (wt_ProcAbs T E p U) term?case 
+    have com: "foldr (subst_proc k) v (ProcAbs p) 
+               = ProcAbs (foldr (subst_proc (Suc k)) (map (\<lambda>x. lift_proc x 0) v) p)"
+      by (induct v, auto)
+(* | subst_proc_ProcAbs: "subst_proc k s (ProcAbs t) = ProcAbs (subst_proc (Suc k) (lift_proc s 0) t)"
+*)
+    from wt_ProcAppl show ?case by (auto simp: com beta_reduce_prog_beta_reduce_proc.domintros)
+  with assms show ?thesis
+qed
+
+  have "well_typed'' E pg \<Longrightarrow> beta_reduce_prog_dom pg"
    and "well_typed_proc'' E p T \<Longrightarrow> beta_reduce_proc_dom p"
  apply (induct E pg and E p T rule:well_typed''_well_typed_proc''.inducts)
- apply auto
+ apply (simp_all add: beta_reduce_proc_in_prog_beta_reduce_proc.domintros)
+ apply (rule beta_reduce_proc_in_prog_beta_reduce_proc.domintros, auto)
 
 lemma well_typed_subst_proc:
   assumes "well_typed_proc'' E p T"
