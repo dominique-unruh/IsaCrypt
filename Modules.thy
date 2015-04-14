@@ -133,32 +133,6 @@ using assms by (rule well_typed_subst')
 
 
 
-lemma well_typed_extend:
-  shows "well_typed'' [] p \<Longrightarrow> well_typed'' E p"
-    and "well_typed_proc'' [] q T \<Longrightarrow> well_typed_proc'' E q T"
-proof -
-  have "\<And>E F. well_typed'' F p \<Longrightarrow> well_typed'' (F@E) p"
-   and "\<And>T E F. well_typed_proc'' F q T \<Longrightarrow> well_typed_proc'' (F@E) q T"
-    proof (induction p and q)
-    next case Assign thus ?case by (auto simp: wt_Assign_iff[symmetric])
-    next case Sample thus ?case by (auto simp: wt_Sample_iff[symmetric])
-    next case Seq thus ?case by (auto simp: wt_Seq_iff[symmetric])
-    next case IfTE thus ?case by (auto simp: wt_IfTE_iff[symmetric])
-    next case While thus ?case by (auto simp: wt_While_iff[symmetric])
-    next case ProcRef thus ?case by (auto simp: wt_ProcRef_iff[symmetric] nth_append)
-    next case Skip thus ?case by (auto simp: wt_Skip)
-    next case (CallProc v p a) thus ?case by (auto simp: wt_CallProc_iff[symmetric])
-    next case (ProcAbs p) thus ?case apply (auto simp: wt_ProcAbs_iff[symmetric])
-      by (metis append_Cons)
-    next case (Proc body args ret) thus ?case by (auto simp: wt_Proc_iff[symmetric])
-    next case (ProcAppl p1 p2) thus ?case by (auto simp: wt_ProcAppl_iff[symmetric], metis)
-  qed
-  from assms this[where F="[]", simplified]
-  show "well_typed'' [] p \<Longrightarrow> well_typed'' E p"
-    and "well_typed_proc'' [] q T \<Longrightarrow> well_typed_proc'' E q T"
-      by auto
-qed
-
 
 definition "module_type_rep_set envT proctypes \<equiv> {procs. list_all2 (\<lambda>T p. well_typed_proc'' [] p (ProcFun' envT (ProcSimple T))) proctypes procs}"
 lemma module_type_rep_set_inhabited: "\<exists>x. x \<in> module_type_rep_set env procT"

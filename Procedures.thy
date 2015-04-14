@@ -1,6 +1,47 @@
 theory Procedures
-imports Lang_Untyped "~~/src/HOL/Proofs/Lambda/Commutation" "~~/src/HOL/Proofs/Lambda/StrongNorm"
+imports "~~/src/HOL/Proofs/Lambda/Commutation" "~~/src/HOL/Proofs/Lambda/StrongNorm" Lang_Untyped 
 begin
+
+subsection {* Various facts and definitions *}
+
+definition "freshvar vs = (SOME vn. \<forall>v\<in>set vs. vn \<noteq> vu_name v)"
+lemma freshvar_global: "mk_variable_untyped (Variable (freshvar vs)) \<notin> set vs"
+  sorry
+lemma freshvar_local: "mk_variable_untyped (LVariable (freshvar vs)) \<notin> set vs"
+  sorry
+
+fun fresh_variables_local :: "variable_untyped list \<Rightarrow> type list \<Rightarrow> variable_untyped list" where
+  "fresh_variables_local used [] = []"
+| "fresh_variables_local used (t#ts) =
+    (let vn=freshvar used in 
+     let v=\<lparr> vu_name=vn, vu_type=t, vu_global=False \<rparr> in
+     v#fresh_variables_local (v#used) ts)"
+lemma fresh_variables_local_distinct: "distinct (fresh_variables_local used ts)"
+  sorry
+lemma fresh_variables_local_local: "\<forall>v\<in>set (fresh_variables_local used ts). \<not> vu_global v"
+  apply (induction ts arbitrary: used, auto)
+  by (metis (poly_guards_query) set_ConsD variable_untyped.select_convs(3)) 
+lemma fresh_variables_local_type: "map vu_type (fresh_variables_local used ts) = ts"
+  apply (induction ts arbitrary: used, auto)
+  by (metis list.simps(9) variable_untyped.select_convs(2))
+  
+
+lemma proctype_inhabited: "\<exists>p. well_typed_proc p \<and> proctype_of p = pT"
+proof (rule,rule)
+  def args == "fresh_variables_local [] (pt_argtypes pT) :: variable_untyped list"
+  def ret == "Abs_expression_untyped \<lparr> eur_fun=(\<lambda>m. t_default (pt_returntype pT)), eur_type=pt_returntype pT, eur_vars=[] \<rparr> :: expression_untyped"
+  def p == "(Proc Skip args ret)"
+  show "well_typed_proc p" 
+    unfolding p_def apply simp
+    unfolding args_def using fresh_variables_local_distinct fresh_variables_local_local
+    by (metis pred_list_def)
+  show "proctype_of p = pT" 
+    unfolding p_def args_def apply (simp add: fresh_variables_local_type)
+    unfolding ret_def eu_type_def
+    by (subst Abs_expression_untyped_inverse, auto)
+qed
+
+
 
 subsection {* Simply-typed lambda calculus over procedures *}
 
@@ -67,6 +108,34 @@ lemma wt_ProcAppl_iff: "(\<exists>T. well_typed_proc'' E p (ProcFun T U) \<and>
 lemma wt_ProcAbs_iff: "(\<exists>T U. TU = ProcFun T U \<and> well_typed_proc'' (T#E) p U) = well_typed_proc'' E (ProcAbs p) TU"
   apply (rule iffI, auto simp: wt_ProcAbs)
   by (cases rule:well_typed_proc''.cases, auto)
+
+
+lemma well_typed_extend:
+  shows "well_typed'' [] p \<Longrightarrow> well_typed'' E p"
+    and "well_typed_proc'' [] q T \<Longrightarrow> well_typed_proc'' E q T"
+proof -
+  have "\<And>E F. well_typed'' F p \<Longrightarrow> well_typed'' (F@E) p"
+   and "\<And>T E F. well_typed_proc'' F q T \<Longrightarrow> well_typed_proc'' (F@E) q T"
+    proof (induction p and q)
+    next case Assign thus ?case by (auto simp: wt_Assign_iff[symmetric])
+    next case Sample thus ?case by (auto simp: wt_Sample_iff[symmetric])
+    next case Seq thus ?case by (auto simp: wt_Seq_iff[symmetric])
+    next case IfTE thus ?case by (auto simp: wt_IfTE_iff[symmetric])
+    next case While thus ?case by (auto simp: wt_While_iff[symmetric])
+    next case ProcRef thus ?case by (auto simp: wt_ProcRef_iff[symmetric] nth_append)
+    next case Skip thus ?case by (auto simp: wt_Skip)
+    next case (CallProc v p a) thus ?case by (auto simp: wt_CallProc_iff[symmetric])
+    next case (ProcAbs p) thus ?case apply (auto simp: wt_ProcAbs_iff[symmetric])
+      by (metis append_Cons)
+    next case (Proc body args ret) thus ?case by (auto simp: wt_Proc_iff[symmetric])
+    next case (ProcAppl p1 p2) thus ?case by (auto simp: wt_ProcAppl_iff[symmetric], metis)
+  qed
+  from assms this[where F="[]", simplified]
+  show "well_typed'' [] p \<Longrightarrow> well_typed'' E p"
+    and "well_typed_proc'' [] q T \<Longrightarrow> well_typed_proc'' E q T"
+      by auto
+qed
+
 
 fun lift_proc_in_prog :: "[program_rep, nat] \<Rightarrow> program_rep"
 and lift_proc :: "[procedure_rep, nat] \<Rightarrow> procedure_rep" where
@@ -219,7 +288,7 @@ fun to_dB where
 
 abbreviation "ProcT == Fun (Atom 0) (Atom 0)"
 
-fun typ_conv :: "procedure_type_open \<Rightarrow> type" where
+fun typ_conv :: "procedure_type_open \<Rightarrow> LambdaType.type" where
   "typ_conv (ProcSimple _) = ProcT"
 | "typ_conv (ProcFun T U) = Fun (typ_conv T) (typ_conv U)"
 
@@ -675,7 +744,8 @@ lemma beta_reduce_rewrite:
   shows "beta_reduce p = beta_reduce q"
 by (metis accp_downwards_aux assms(1) assms(2) beta_reduce_def2(1) beta_reduce_def2(2) beta_unique rtranclp_converseI rtranclp_trans)
 
-definition "apply_procedures p args = fold (\<lambda>p q. beta_reduce (ProcAppl p q)) p args"
+definition "apply_procedure p arg = beta_reduce (ProcAppl p arg)"
+definition "apply_procedures p args = fold apply_procedure p args"
 
 
 (* Undoing syntax changes introduced by Lambda and LambdaType *)

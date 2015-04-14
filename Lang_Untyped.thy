@@ -78,7 +78,9 @@ definition "eu_fun e == eur_fun (Rep_expression_untyped e)"
 definition "eu_type e == eur_type (Rep_expression_untyped e)"
 definition "eu_vars e == eur_vars (Rep_expression_untyped e)"
 
-
+lemma expression_type_inhabited: "\<exists>e. eu_type e = T"
+  apply (rule exI[where x="Abs_expression_untyped \<lparr> eur_fun=(\<lambda>x. t_default T), eur_type=T, eur_vars=[] \<rparr>"])
+  unfolding eu_type_def by (subst Abs_expression_untyped_inverse, auto)
 
 record expression_distr_rep =
   edr_fun :: "memory \<Rightarrow> val distr"
@@ -130,24 +132,23 @@ fun proctype_of :: "procedure_rep \<Rightarrow> procedure_type" where
   "proctype_of (Proc body args return) = \<lparr> pt_argtypes=map vu_type args, pt_returntype=eu_type return \<rparr>"
 | "proctype_of _ = undefined" (* Cannot happen for well-typed programs *)
 
-fun well_typed :: "program_rep \<Rightarrow> bool" 
-and well_typed_proc :: "procedure_rep \<Rightarrow> bool" where
+fun well_typed :: "program_rep \<Rightarrow> bool" where
   "well_typed (Seq p1 p2) = (well_typed p1 \<and> well_typed p2)"
 | "well_typed (Assign v e) = (eu_type e = vu_type v)"
 | "well_typed (Sample v e) = (ed_type e = vu_type v)"
 | "well_typed Skip = True"
 | "well_typed (While e p) = ((eu_type e = bool_type) \<and> well_typed p)"
 | "well_typed (IfTE e thn els) = ((eu_type e = bool_type) \<and> well_typed thn \<and> well_typed els)"
-| "well_typed (CallProc v proc args) =
-    (let procT = proctype_of proc in
-    vu_type v = pt_returntype procT \<and> 
-    map eu_type args = pt_argtypes procT \<and>
-    well_typed_proc proc)"
-| "well_typed_proc (Proc body pargs return) = 
+| "well_typed (CallProc v (Proc body pargs ret) args) =
+    (vu_type v = eu_type ret \<and> 
+    map eu_type args = map vu_type pargs \<and>
+    well_typed body \<and> list_all (\<lambda>v. \<not> vu_global v) pargs \<and> distinct pargs)"
+| "well_typed (CallProc v _ args) = False"
+
+fun well_typed_proc :: "procedure_rep \<Rightarrow> bool" where
+  "well_typed_proc (Proc body pargs ret) = 
     (well_typed body \<and> list_all (\<lambda>v. \<not> vu_global v) pargs \<and> distinct pargs)"
-| "well_typed_proc (ProcRef _) = False"
-| "well_typed_proc (ProcAbs p) = False"
-| "well_typed_proc (ProcAppl p q) = False"
+| "well_typed_proc _ = False"
 
 typedef program = "{prog. well_typed prog}"
   apply (rule exI[where x=Skip]) by simp
