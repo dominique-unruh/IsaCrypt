@@ -128,8 +128,7 @@ fun is_concrete_proc where
 
 fun proctype_of :: "procedure_rep \<Rightarrow> procedure_type" where
   "proctype_of (Proc body args return) = \<lparr> pt_argtypes=map vu_type args, pt_returntype=eu_type return \<rparr>"
-(*| "proctype_of (ProcRef name (ProcTypeOpen _ T)) = T"*)
-(*| "proctype_of (ProcAppl p arg) = proctype_of p"*)
+| "proctype_of _ = undefined" (* Cannot happen for well-typed programs *)
 
 fun well_typed' :: "procedure_type list \<Rightarrow> program_rep \<Rightarrow> bool" 
 and well_typed_proc' :: "procedure_type list \<Rightarrow> procedure_rep \<Rightarrow> bool" where
@@ -192,7 +191,7 @@ fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
                                             (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)))"
 | "denotation_untyped (CallProc v (Proc body pargs return) args) m = 
   apply_to_distr (restore_locals m) (denotation_untyped body (init_locals pargs args m))"
-(*| "denotation_untyped (CallProc v (ProcRef x T) args) m = 0" (* Cannot happen for well-typed programs *)*)
+| "denotation_untyped (CallProc v _ args) m = 0" (* Cannot happen for well-typed programs *)
 definition "denotation prog = denotation_untyped (mk_program_untyped prog)"
 
 fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
