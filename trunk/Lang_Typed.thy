@@ -330,7 +330,6 @@ instance apply intro_classes unfolding procedure_functor_type_procedure_ext_def 
   using well_typed_proc_well_typed_proc'' mk_procedure_untyped by metis
 end
 
-declare[[show_sorts]]
 definition procfun_apply :: "('a::procedure_functor,'b::procedure_functor)procfun \<Rightarrow> 'a \<Rightarrow> 'b" where
    "procfun_apply f p = procedure_functor_mk_typed (apply_procedure (procedure_functor_mk_untyped f) (procedure_functor_mk_untyped p))"
 
