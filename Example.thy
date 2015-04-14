@@ -1,13 +1,21 @@
 theory Example
-imports Hoare_Typed RHL_Typed Hoare_Tactics Modules
+imports Hoare_Typed RHL_Typed Hoare_Tactics 
 begin 
-
-
 
 locale M begin
   abbreviation "(x::int variable) == Variable ''x''"
   definition "invoke == proc (x) { x:=1; return () }"
 end
+
+ML {*
+  
+  fun supertac = ???
+*}
+
+method_setup superduper = {* etc *}
+
+lemma "1=2"
+  apply (superduper ...)
 
 
 term M.invoke
@@ -31,13 +39,15 @@ done
 
 print_sorry test
 
+
+
 definition "example = 
   PROGRAM[
     x := 0;
     b := True;
     while (b) {
       b <- uniform UNIV;
-      x := x+1
+      x := x+1;
     };
     skip;
     if (\<not>b) { skip; x := 15; skip }

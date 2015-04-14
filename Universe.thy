@@ -35,6 +35,8 @@ instantiation "nat" :: prog_type begin
 instance apply intro_classes using powertower_nat by auto
 end
 
+
+
 lemma prog_type_classI':
   assumes "\<exists>f::'a\<Rightarrow>'b::prog_type. inj f"
   shows "\<exists>t n (i::'a\<Rightarrow>val). powertower t \<and> inj i \<and> range i \<subseteq> t n"
