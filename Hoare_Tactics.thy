@@ -26,7 +26,7 @@ lemma split_program_untyped_denotation: "denotation_untyped (split_program_untyp
   by (auto simp: rev_program_untyped_denotation denotation_untyped_assoc)
 lemma split_program_untyped_welltyped: "well_typed p \<Longrightarrow> well_typed q \<Longrightarrow> well_typed (split_program_untyped n m p q)"
   apply (induction n arbitrary: p q)
-  apply (case_tac q, auto simp: rev_program_untyped_welltyped)
+  close (case_tac q, auto simp: rev_program_untyped_welltyped)
   by (case_tac p, auto)
 definition "rev_program p q = Abs_program (rev_program_untyped (Rep_program p) (Rep_program q))"
 lemma rev_program_seq: "rev_program p (seq q r) == rev_program (seq p q) r"

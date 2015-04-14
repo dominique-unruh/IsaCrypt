@@ -48,7 +48,7 @@ definition "memory_update m (v::'a variable) (a::'a::prog_type) =
 lemma memory_lookup_update_same [simp]: "memory_lookup (memory_update m v a) v = a"
   unfolding memory_lookup_def memory_update_def
   apply (subst memory_lookup_update_same_untyped)
-  apply (metis embedding_Type mk_variable_untyped_type)
+  close (metis embedding_Type mk_variable_untyped_type)
   by (metis embedding_inv f_inv_into_f rangeI)
 lemma memory_lookup_update_same': "var_eq v w \<Longrightarrow> (memory_lookup (memory_update m v a) w == a)"
   unfolding memory_lookup_def memory_update_def
@@ -100,9 +100,9 @@ proof (rule trans[OF _ Rep_expression_untyped_inverse], cases "Rep_expression_un
     apply (subst Abs_expression_untyped_inject)
     unfolding e_fun_def e_vars_def
     apply (auto simp: embedding_Type)
-    apply (smt2 Rep_expression mem_Collect_eq)
-    apply (fact f_t)
-    apply (metis f_touches)
+    close (smt2 Rep_expression mem_Collect_eq)
+    close (fact f_t)
+    close (metis f_touches)
     unfolding rep_abs apply (auto simp: t)
     by (simp add: inv)
 
@@ -232,9 +232,8 @@ instance apply intro_classes
   unfolding procargs_prod_def procargs_len_prod_def 
             mk_variable_untyped_def procargtypes_prod_def
   apply (auto simp: procargs_not_empty procargs_len)
-  apply (metis procargtypes_len)
-  apply (metis procargs_typematch'')
-  done
+  close (metis procargtypes_len)
+  by (metis procargs_typematch'')
 end
 
 typedef ('a::procargs) procargs = "procargs TYPE('a)" using procargs_not_empty by auto
@@ -385,8 +384,8 @@ proof -
   apply (subst Abs_program_inverse, auto)
   apply (subst list_all2_map2)
   apply (subst swap[THEN sym])
-  apply (metis Rep_procargs Rep_procargvars procargs_typematch)
-  unfolding list_all_iff using Rep_procargvars procargvars_local apply auto[1]
+  close (metis Rep_procargs Rep_procargvars procargs_typematch)
+  unfolding list_all_iff using Rep_procargvars procargvars_local close auto
   using Rep_procargvars procargvars_distinct by auto
 qed
 

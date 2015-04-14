@@ -1,5 +1,5 @@
 theory Ell1
-imports Main Setsum_Infinite Real_Vector_Spaces Complete_Lattices
+imports Main Tools Setsum_Infinite Real_Vector_Spaces Complete_Lattices
 begin
 
 subsection {* ell1 (absolutely convergent real series) *}
