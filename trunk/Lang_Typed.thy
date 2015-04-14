@@ -204,7 +204,7 @@ lemma procargvars_local: "\<forall>l\<in>procargvars TYPE('a::procargs). \<foral
 lemma procargvars_distinct: "\<forall>vs\<in>procargvars TYPE('a::procargs). distinct vs"
   unfolding procargvars_def by auto
 lemma procargs_typematch: "\<forall>es\<in>procargs TYPE('a::procargs). \<forall>vs\<in>procargvars TYPE('a). 
-     list_all2 (\<lambda>v e. vu_type v = eu_type e) vs es"
+     map vu_type vs = map eu_type es"
   sorry
 
 instantiation unit :: procargs begin
@@ -282,7 +282,7 @@ definition procargvars_add :: "('a::prog_type) variable \<Rightarrow> ('b::proca
 
 lemma procedure_type_procargvars:
   assumes procT: "proctype_of (Proc body args ret) = procedure_type TYPE(('a::procargs,'b::prog_type)procedure)"
-  and wt: "well_typed_proc' E (Proc body args ret)"
+  and wt: "well_typed_proc (Proc body args ret)"
   shows "args \<in> procargvars TYPE('a)"
 proof -
   from procT have t: "procargtypes TYPE('a) = map vu_type args"
@@ -311,12 +311,12 @@ lemma fresh_variables_local_type: "map vu_type (fresh_variables_local used ts) =
   by (metis list.simps(9) variable_untyped.select_convs(2))
   
 
-lemma proctype_nonempty: "\<exists>p. well_typed_proc' E p \<and> proctype_of p = pT"
+lemma proctype_nonempty: "\<exists>p. well_typed_proc p \<and> proctype_of p = pT"
 proof (rule,rule)
   def args == "fresh_variables_local [] (pt_argtypes pT) :: variable_untyped list"
   def ret == "Abs_expression_untyped \<lparr> eur_fun=(\<lambda>m. t_default (pt_returntype pT)), eur_type=pt_returntype pT, eur_vars=[] \<rparr> :: expression_untyped"
   def p == "(Proc Skip args ret)"
-  show "well_typed_proc' E p" 
+  show "well_typed_proc p" 
     unfolding p_def apply simp
     unfolding args_def using fresh_variables_local_distinct fresh_variables_local_local
     by (metis pred_list_def)
@@ -382,8 +382,6 @@ proof -
   show ?thesis
   unfolding callproc_def denotation_def mk_procedure_untyped_def 
   apply (subst Abs_program_inverse, auto)
-  apply (subst list_all2_map2)
-  apply (subst swap[THEN sym])
   close (metis Rep_procargs Rep_procargvars procargs_typematch)
   unfolding list_all_iff using Rep_procargvars procargvars_local close auto
   using Rep_procargvars procargvars_distinct by auto

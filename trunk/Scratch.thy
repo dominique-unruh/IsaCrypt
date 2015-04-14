@@ -1,38 +1,110 @@
 theory Scratch
-imports "~~/src/HOL/Proofs/Lambda/InductTermi"
+imports Tools "~~/src/HOL/Proofs/Lambda/Commutation"  "~~/src/HOL/Proofs/Lambda/Lambda" 
 begin
 
-lemma badlemma: "False" sorry
-class noneq = assumes neq: "a\<noteq>b"
-instantiation nat :: noneq begin
-instance apply intro_classes
-  using badlemma apply auto done
-end
-lemma bad2: "(1::nat)\<noteq>1"
-  by (rule neq)
-thm_deps bad2
-unused_thms
-ML Thm_Deps.unused_thms
-inductive betasub :: "[dB, dB] => bool"  (infixl "\<longrightarrow>\<^sub>\<beta>" 50)
+
+inductive par_beta :: "[dB, dB] => bool"  (infixl "=>" 50)
   where
-     "Abs s \<degree> t \<longrightarrow>\<^sub>\<beta> s[t/0]"
-  | "s \<longrightarrow>\<^sub>\<beta> t ==> s \<degree> u \<longrightarrow>\<^sub>\<beta> t \<degree> u"
-  | "s \<longrightarrow>\<^sub>\<beta> t ==> u \<degree> s \<longrightarrow>\<^sub>\<beta> u \<degree> t"
-  | "s \<longrightarrow>\<^sub>\<beta> t ==> Abs s \<longrightarrow>\<^sub>\<beta> Abs t"
-  | "App f g \<longrightarrow>\<^sub>\<beta> f"
-term beta
+    var [simp, intro!]: "Var n => Var n"
+  | abs [simp, intro!]: "s => t ==> Abs s => Abs t"
+  | app [simp, intro!]: "[| s => s'; t => t' |] ==> s \<degree> t => s' \<degree> t'"
+  | beta [simp, intro!]: "[| s => s'; t => t' |] ==> (Abs s) \<degree> t => s'[t'/0]"
 
-lemma "IT x \<Longrightarrow> x=App f g \<Longrightarrow> IT f"
-  apply (induct arbitrary: f g rule:IT.cases)
-  apply clarify
+inductive_cases par_beta_cases [elim!]:
+  "Var n => t"
+  "Abs s => Abs t"
+  "(Abs s) \<degree> t => u"
+  "s \<degree> t => u"
+  "Abs s => t"
 
-lemma bla: "undefined=2 \<and> 2=3" 
-  apply rule
-  apply (tactic {* cheat_tac_annot (SOME "hello there") @{here} 1 *})
-  sorry
 
-ML {*
-print_annotated_oracles @{context} @{thm bla};
-*}
+subsection {* Inclusions *}
+
+text {* @{text "beta \<subseteq> par_beta \<subseteq> beta^*"} \medskip *}
+
+lemma par_beta_varL [simp]:
+    "(Var n => t) = (t = Var n)"
+  by blast
+
+lemma par_beta_refl [simp]: "t => t"  (* par_beta_refl [intro!] causes search to blow up *)
+  by (induct t) simp_all
+
+lemma beta_subset_par_beta: "beta <= par_beta"
+  apply (rule predicate2I)
+  apply (erule beta.induct)
+     apply (blast intro!: par_beta_refl)+
+  done
+
+lemma par_beta_subset_beta: "par_beta <= beta^**"
+  apply (rule predicate2I)
+  apply (erule par_beta.induct)
+     apply blast
+    apply (blast del: rtranclp.rtrancl_refl intro: rtranclp.rtrancl_into_rtrancl)+
+      -- {* @{thm[source] rtrancl_refl} complicates the proof by increasing the branching factor *}
+  done
+
+
+subsection {* Misc properties of @{text "par_beta"} *}
+
+lemma par_beta_lift [simp]:
+    "t => t' \<Longrightarrow> lift t n => lift t' n"
+  apply (induct t arbitrary: t' n)
+apply auto[]
+apply auto
+thm lift.simps(3) par_beta.abs par_beta_cases(2)
+by (metis Suc_eq_plus1 lift.simps(3) par_beta.abs par_beta_cases(2))
+
+lemma par_beta_subst:
+    "s => s' \<Longrightarrow> t => t' \<Longrightarrow> t[s/n] => t'[s'/n]"
+proof (induct t arbitrary: s s' t' n)
+case Var thus ?case by (simp add: subst_Var)
+next case App thus ?case 
+   apply (auto simp: subst_subst [symmetric])
+   by (fastforce intro!: par_beta_lift)
+next case Abs thus ?case by auto
+qed
+
+
+subsection {* Confluence (directly) *}
+
+lemma diamond_par_beta: "diamond par_beta"
+  apply (unfold diamond_def commute_def square_def)
+  apply (rule impI [THEN allI [THEN allI]])
+  apply (erule par_beta.induct)
+     apply (blast intro!: par_beta_subst)+
+  done
+
+
+subsection {* Complete developments *}
+
+fun
+  cd :: "dB => dB"
+where
+  "cd (Var n) = Var n"
+| "cd (Var n \<degree> t) = Var n \<degree> cd t"
+| "cd ((s1 \<degree> s2) \<degree> t) = cd (s1 \<degree> s2) \<degree> cd t"
+| "cd (Abs u \<degree> t) = (cd u)[cd t/0]"
+| "cd (Abs s) = Abs (cd s)"
+
+lemma par_beta_cd: "s => t \<Longrightarrow> t => cd s"
+  apply (induct s arbitrary: t rule: cd.induct)
+      apply auto
+  apply (fast intro!: par_beta_subst)
+  done
+
+
+subsection {* Confluence (via complete developments) *}
+
+lemma diamond_par_beta2: "diamond par_beta"
+  apply (unfold diamond_def commute_def square_def)
+  apply (blast intro: par_beta_cd)
+  done
+
+theorem beta_confluent: "confluent beta"
+  apply (rule diamond_to_confluence)
+  close (rule diamond_par_beta2)
+  close (rule beta_subset_par_beta)
+  close (rule par_beta_subset_beta)
+  done
 
 

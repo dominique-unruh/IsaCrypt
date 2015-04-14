@@ -141,7 +141,7 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
 
       (* For each proci in #procs spec: 
          definition "MT.proci == %(M::MT) (M1::arg1) ... (Mn::argn).
-                     (mk_procedure_typed (subst_proc
+                     (mk_procedure_typed (apply_procedures
                          (module_type_procs M1 @ ... @ module_type_procs Mn)
                          ((module_type_procs M)!i)) :: (...)procedure)" 
       *)
@@ -156,7 +156,7 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
       val M_Free = Free(M,MT)
       fun define_getter (i,proc as {typ=procT,...}) (getters,thy:local_theory) =
       let val i_nat = mk_nat i
-          val rhs = @{termx "mk_procedure_typed (subst_proc ?env_procs 
+          val rhs = @{termx "mk_procedure_typed (apply_procedures ?env_procs 
                                (nth (module_type_procs (?M_Free:: ?'MT::module_type)) ?i_nat)) :: ?'procT" 
                                      where "?'procT\<Rightarrow>(?'a::procargs,?'b::prog_type)procedure"}
           val rhs = rhs |> fold absfree (rev env_proc_vars) |> absfree (M,MT)
@@ -200,10 +200,6 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
                     |> Seq.hd |> Goal.finish thy |> Goal.norm_result thy *)
             val thm = Goal.prove thy [] [] prop (fn _ => Skip_Proof.cheat_tac 1)
                     (* TODO: prove this *)
-(* apply (unfold MT.a_def MT.MAKE_def module_type_procs_MT_def)
-  apply (subst Abs_MT_inverse)
-  apply (simp add: subst_proc_empty module_type_rep_set_def)
-  apply (simp add: subst_proc_empty) *)
             val thm_bind = #name spec |> Binding.qualified true "MAKE"
                     |> Binding.qualified true (Binding.name_of name)
             val ((thm_name,thms),thy) = Local_Theory.note ((thm_bind,@{attributes [simp]}),[thm]) thy
@@ -213,12 +209,12 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
                 else ([],thy)
 
       (* definition "MT.inst == \<lambda>(M::MT) (M1::arg1) ... (Mn::argn). Abs_MT_instantiated
-          (map (subst_proc (module_type_procs M1 @ ... @ module_type_procs Mn))
+          (map (apply_procedures (module_type_procs M1 @ ... @ module_type_procs Mn))
                 (module_type_procs M))"
          (only if args \<noteq> []) *)
       fun define_MT_INST thy =
       let val MT_inst = the inst_info |> dest_ModTypeInfo |> #typedef_info |> fst |> #abs_type
-          val rhs = @{termx "(module_type_construct::_\<Rightarrow>?'MT_inst::module_type) (map (subst_proc ?env_procs)
+          val rhs = @{termx "(module_type_construct::_\<Rightarrow>?'MT_inst::module_type) (map (apply_procedures ?env_procs)
               (module_type_procs (?M_Free::?'MT::module_type)))"}
           val rhs = rhs |> fold absfree (rev env_proc_vars) |> absfree (M,MT)
           val bind = #name spec |> Binding.qualified true "INST"

@@ -130,32 +130,24 @@ fun proctype_of :: "procedure_rep \<Rightarrow> procedure_type" where
   "proctype_of (Proc body args return) = \<lparr> pt_argtypes=map vu_type args, pt_returntype=eu_type return \<rparr>"
 | "proctype_of _ = undefined" (* Cannot happen for well-typed programs *)
 
-fun well_typed' :: "procedure_type list \<Rightarrow> program_rep \<Rightarrow> bool" 
-and well_typed_proc' :: "procedure_type list \<Rightarrow> procedure_rep \<Rightarrow> bool" where
-  "well_typed' E (Seq p1 p2) = (well_typed' E p1 \<and> well_typed' E p2)"
-| "well_typed' E (Assign v e) = (eu_type e = vu_type v)"
-| "well_typed' E (Sample v e) = (ed_type e = vu_type v)"
-| "well_typed' E Skip = True"
-| "well_typed' E (While e p) = ((eu_type e = bool_type) \<and> well_typed' E p)"
-| "well_typed' E (IfTE e thn els) = ((eu_type e = bool_type) \<and> well_typed' E thn \<and> well_typed' E els)"
-| "well_typed' E (CallProc v proc args) =
+fun well_typed :: "program_rep \<Rightarrow> bool" 
+and well_typed_proc :: "procedure_rep \<Rightarrow> bool" where
+  "well_typed (Seq p1 p2) = (well_typed p1 \<and> well_typed p2)"
+| "well_typed (Assign v e) = (eu_type e = vu_type v)"
+| "well_typed (Sample v e) = (ed_type e = vu_type v)"
+| "well_typed Skip = True"
+| "well_typed (While e p) = ((eu_type e = bool_type) \<and> well_typed p)"
+| "well_typed (IfTE e thn els) = ((eu_type e = bool_type) \<and> well_typed thn \<and> well_typed els)"
+| "well_typed (CallProc v proc args) =
     (let procT = proctype_of proc in
     vu_type v = pt_returntype procT \<and> 
-    list_all2 (\<lambda>e T. eu_type e = T) args (pt_argtypes procT) \<and>
-    well_typed_proc' E proc)"
-(*(* TODO: env not checked? Perhaps should drop ProcRef from well_typed_proc' completely? *)
-| "well_typed_proc' E (ProcRef i T argtypes returntype) = 
-    (length E \<le> i \<and> 
-    E!i = \<lparr> pt_argtypes=argtypes, pt_returntype=returntype \<rparr>)" *)
-| "well_typed_proc' E (Proc body pargs return) = 
-    (well_typed' E body \<and> list_all (\<lambda>v. \<not> vu_global v) pargs \<and> distinct pargs)"
-(* TODO: remove E from arguments, or use it *)
-| "well_typed_proc' E (ProcRef _) = False"
-| "well_typed_proc' E (ProcAbs p) = False"
-| "well_typed_proc' E (ProcAppl p q) = False"
-
-abbreviation "well_typed == well_typed' []"
-abbreviation "well_typed_proc == well_typed_proc' []"
+    map eu_type args = pt_argtypes procT \<and>
+    well_typed_proc proc)"
+| "well_typed_proc (Proc body pargs return) = 
+    (well_typed body \<and> list_all (\<lambda>v. \<not> vu_global v) pargs \<and> distinct pargs)"
+| "well_typed_proc (ProcRef _) = False"
+| "well_typed_proc (ProcAbs p) = False"
+| "well_typed_proc (ProcAppl p q) = False"
 
 typedef program = "{prog. well_typed prog}"
   apply (rule exI[where x=Skip]) by simp
@@ -221,4 +213,4 @@ lemma denotation_untyped_assoc: "denotation_untyped (Seq (Seq x y) z) = denotati
   unfolding denotation_untyped_Seq[THEN ext] 
   unfolding compose_distr_trans ..
 
-end;
+end
