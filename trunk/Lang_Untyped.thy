@@ -129,7 +129,7 @@ fun is_concrete_proc where
 fun proctype_of :: "procedure_rep \<Rightarrow> procedure_type" where
   "proctype_of (Proc body args return) = \<lparr> pt_argtypes=map vu_type args, pt_returntype=eu_type return \<rparr>"
 (*| "proctype_of (ProcRef name (ProcTypeOpen _ T)) = T"*)
-| "proctype_of (ProcAppl p arg) = proctype_of p"
+(*| "proctype_of (ProcAppl p arg) = proctype_of p"*)
 
 fun well_typed' :: "procedure_type list \<Rightarrow> program_rep \<Rightarrow> bool" 
 and well_typed_proc' :: "procedure_type list \<Rightarrow> procedure_rep \<Rightarrow> bool" where
@@ -150,6 +150,10 @@ and well_typed_proc' :: "procedure_type list \<Rightarrow> procedure_rep \<Right
     E!i = \<lparr> pt_argtypes=argtypes, pt_returntype=returntype \<rparr>)" *)
 | "well_typed_proc' E (Proc body pargs return) = 
     (well_typed' E body \<and> list_all (\<lambda>v. \<not> vu_global v) pargs \<and> distinct pargs)"
+(* TODO: remove E from arguments, or use it *)
+| "well_typed_proc' E (ProcRef _) = False"
+| "well_typed_proc' E (ProcAbs p) = False"
+| "well_typed_proc' E (ProcAppl p q) = False"
 
 abbreviation "well_typed == well_typed' []"
 abbreviation "well_typed_proc == well_typed_proc' []"
