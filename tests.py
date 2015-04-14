@@ -38,7 +38,7 @@ class IsabelleProcess(object):
 
     def start_isabelle_proc(self):
         if self.isabelle_proc!=None: return
-        logic = "HOL"
+        logic = "HOL-EC-Prereqs"
         cmd = ['/opt/Isabelle/bin/isabelle_process', '-o', 'quick_and_dirty=true', logic, '-q']
         self.isabelle_proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
         self.communicate_until(run_theory_ml,"*** INITIALIZATION FINISHED ***");
@@ -112,6 +112,10 @@ def run_theory(thy):
             assert out.find(v)==-1
         elif k=="ERROR_NOT":
             assert err.find(v)==-1
+        elif k=="OUTPUT":
+            assert out.find(v)!=-1
+        elif k=="ERROR":
+            assert err.find(v)!=-1
         else:
             raise Exception("Undefined expect-keyword "+k)
 
@@ -129,6 +133,8 @@ def parse_thy(thy):
         elif key=="SUITE": info['suite'] = val
         elif key=="OUTPUT_NOT": expect.append(("OUTPUT_NOT",val))
         elif key=="ERROR_NOT": expect.append(("ERROR_NOT",val))
+        elif key=="OUTPUT": expect.append(("OUTPUT",val))
+        elif key=="ERROR": expect.append(("ERROR",val))
         else: raise RuntimeError("Unknown key {} in {}".format(key,thy))
 
     if expect==[]: expect.append(("SUCCEED",0))
