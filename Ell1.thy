@@ -1,5 +1,5 @@
 theory Ell1
-imports Main Tools Setsum_Infinite Real_Vector_Spaces Complete_Lattices
+imports Main Tools Setsum_Infinite Real_Vector_Spaces Complete_Lattices "~~/src/HOL/Probability/Measure_Space"
 begin
 
 subsection {* ell1 (absolutely convergent real series) *}
@@ -85,33 +85,64 @@ lemma point_ell1_inj: "point_ell1 x = point_ell1 y \<Longrightarrow> x = y"
 
 subsection {* Distributions (with weight <= 1) *}
 
-typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. \<mu> x\<ge>0) \<and> (\<exists>b\<le>1. SetSums_to \<mu> UNIV b)}"
-  apply (rule exI[where x="\<lambda>x. 0"], auto) unfolding SetSums_def
-  apply (rule exI[where x=0])
-  using setsum_0 by auto
-abbreviation "distr_pr == Rep_distr"
+typedef 'a distr = "{M::'a measure. emeasure M (space M) \<le> 1 \<and> space M = UNIV \<and> sets M = UNIV}"
+  by (rule exI[of _ "sigma UNIV UNIV"], auto simp: emeasure_sigma)
+abbreviation "distr_pr d E == emeasure (Rep_distr d) E"
+abbreviation "distr_pr1 d x == distr_pr d {x}"
 
 definition support_distr :: "'a distr \<Rightarrow> 'a set" where
-  "support_distr \<mu> = {x. Rep_distr \<mu> x > 0}"
+  "support_distr \<mu> = {x. distr_pr1 \<mu> x > 0}"
 
 instantiation distr :: (type) zero begin
-definition zero_distr :: "'a distr" where "zero_distr = Abs_distr (\<lambda>x. 0)";
+definition zero_distr :: "'a distr" where "zero_distr = Abs_distr (sigma UNIV UNIV)";
 instance ..
 end
 
 instantiation distr :: (type) scaleR begin
-definition "scaleR_distr r \<mu> = Abs_distr (\<lambda>x. r * Rep_distr \<mu> x)"
+definition "scaleR_distr r \<mu> = Abs_distr (measure_of 
+  (space (Rep_distr \<mu>)) (sets (Rep_distr \<mu>)) (\<lambda>E. ereal r * emeasure (Rep_distr \<mu>) E))"
 instance ..
 end
 
 lemma scaleR_one_distr: "1 *\<^sub>R (\<mu>::'a distr) = \<mu>"
-  unfolding scaleR_distr_def using Rep_distr_inverse by auto  
+  unfolding scaleR_distr_def one_ereal_def[symmetric]
+  by (auto simp: measure_of_of_measure Rep_distr_inverse)
 
-definition "weight_distr \<mu> = SetSum (\<lambda>x. Rep_distr \<mu> x) UNIV"
+definition "weight_distr \<mu> = distr_pr \<mu> UNIV"
 
+lemma Rep_Abs_distr_measure_of: "X UNIV \<le> 1 \<Longrightarrow> Rep_distr (Abs_distr (measure_of UNIV UNIV X)) = measure_of UNIV UNIV X"
+  apply (subst Abs_distr_inverse) by (auto simp: emeasure_measure_of_conv)
 
-definition point_distr :: "'a \<Rightarrow> 'a distr" where "point_distr a = Abs_distr (\<lambda>x. if x=a then 1 else 0)";
+definition "mk_distr f == Abs_distr (measure_of UNIV UNIV f)"
+lemma mk_distr_pr: 
+  assumes "f UNIV \<le> 1"
+  assumes "\<And>x. f x \<ge> 0"
+  assumes "f {} = 0"
+  assumes "\<And>A. disjoint_family A \<Longrightarrow> (\<Sum>i. f (A i)) = f (\<Union>i. A i)"
+  shows "distr_pr (mk_distr f) = f"
+proof -
+  have sigma_UNIV: "sigma_sets UNIV UNIV = UNIV"
+    by (metis UNIV_eq_I iso_tuple_UNIV_I sigma_sets.Basic)
+  have "measure_space UNIV (sigma_sets UNIV UNIV) f"
+    unfolding measure_space_def apply auto
+    apply (metis Pow_UNIV sigma_algebra_sigma_sets top_greatest)
+    unfolding positive_def using assms close auto
+    unfolding sigma_UNIV countably_additive_def
+    using assms by auto
+  thus ?thesis
+    unfolding mk_distr_def
+    apply (subst Abs_distr_inverse) 
+    by (auto simp: emeasure_measure_of_conv assms)
+qed
+
+definition point_distr :: "'a \<Rightarrow> 'a distr" where
+  "point_distr a = mk_distr (\<lambda>E. if a\<in>E then 1 else 0)";
+lemma point_distr_pr: "distr_pr (point_distr a) E = (if a\<in>E then 1 else 0)"
+  unfolding point_distr_def apply (subst mk_distr_pr, auto)
+  
 lemma weight_point_distr [simp]: "weight_distr (point_distr x) = 1"
+  unfolding point_distr_def weight_distr_def 
+  apply (subst Rep_Abs_distr_measure_of, auto simp: emeasure_measure_of_conv)
   sorry
 lemma point_distr_pr [simp]: "distr_pr (point_distr a) x = (if x=a then 1 else 0)"
   unfolding point_distr_def apply (subst Abs_distr_inverse, auto) 
