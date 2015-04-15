@@ -6,7 +6,7 @@ session "EasyCrypt" = "HOL-EC-Prereqs" +
     "root.tex"
 
 
-session "HOL-EC-Prereqs" in "~~/src/HOL" = "HOL" +
+session "HOL-EC-Prereqs" in "~~/src/HOL" = "HOL-Multivariate_Analysis" +
   description {*
     Lambda Calculus in de Bruijn's Notation.
 
@@ -20,5 +20,4 @@ session "HOL-EC-Prereqs" in "~~/src/HOL" = "HOL" +
   theories
     "Proofs/Lambda/StrongNorm"
     "Proofs/Lambda/Commutation"
-    "Multivariate_Analysis/Multivariate_Analysis"
     "Probability/Measure_Space"
