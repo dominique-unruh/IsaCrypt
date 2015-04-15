@@ -87,7 +87,7 @@ subsection {* Distributions (with weight <= 1) *}
 
 typedef 'a distr = "{M::'a measure. emeasure M (space M) \<le> 1 \<and> space M = UNIV \<and> sets M = UNIV}"
   by (rule exI[of _ "sigma UNIV UNIV"], auto simp: emeasure_sigma)
-abbreviation "distr_pr d E == emeasure (Rep_distr d) E"
+definition "distr_pr d == emeasure (Rep_distr d)"
 abbreviation "distr_pr1 d x == distr_pr d {x}"
 
 definition support_distr :: "'a distr \<Rightarrow> 'a set" where
@@ -104,11 +104,11 @@ definition "scaleR_distr r \<mu> = Abs_distr (measure_of
 instance ..
 end
 
-lemma scaleR_one_distr: "1 *\<^sub>R (\<mu>::'a distr) = \<mu>"
+lemma scaleR_one_distr [simp]: "1 *\<^sub>R (\<mu>::'a distr) = \<mu>"
   unfolding scaleR_distr_def one_ereal_def[symmetric]
   by (auto simp: measure_of_of_measure Rep_distr_inverse)
 
-definition "weight_distr \<mu> = distr_pr \<mu> UNIV"
+abbreviation "weight_distr \<mu> == distr_pr \<mu> UNIV"
 
 lemma Rep_Abs_distr_measure_of: "X UNIV \<le> 1 \<Longrightarrow> Rep_distr (Abs_distr (measure_of UNIV UNIV X)) = measure_of UNIV UNIV X"
   apply (subst Abs_distr_inverse) by (auto simp: emeasure_measure_of_conv)
@@ -130,7 +130,7 @@ proof -
     unfolding sigma_UNIV countably_additive_def
     using assms by auto
   thus ?thesis
-    unfolding mk_distr_def
+    unfolding mk_distr_def distr_pr_def
     apply (subst Abs_distr_inverse) 
     by (auto simp: emeasure_measure_of_conv assms)
 qed
@@ -139,14 +139,9 @@ definition point_distr :: "'a \<Rightarrow> 'a distr" where
   "point_distr a = mk_distr (\<lambda>E. if a\<in>E then 1 else 0)";
 lemma point_distr_pr: "distr_pr (point_distr a) E = (if a\<in>E then 1 else 0)"
   unfolding point_distr_def apply (subst mk_distr_pr, auto)
-  
+  sorry
 lemma weight_point_distr [simp]: "weight_distr (point_distr x) = 1"
-  unfolding point_distr_def weight_distr_def 
-  apply (subst Rep_Abs_distr_measure_of, auto simp: emeasure_measure_of_conv)
-  sorry
-lemma point_distr_pr [simp]: "distr_pr (point_distr a) x = (if x=a then 1 else 0)"
-  unfolding point_distr_def apply (subst Abs_distr_inverse, auto) 
-  sorry
+  unfolding point_distr_pr by simp
 
 definition compose_distr :: "('a \<Rightarrow> 'b distr) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
   "compose_distr f \<mu> == Abs_distr
