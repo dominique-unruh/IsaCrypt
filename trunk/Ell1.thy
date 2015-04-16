@@ -1,5 +1,5 @@
 theory Ell1
-imports Main Tools Setsum_Infinite Real_Vector_Spaces Complete_Lattices "~~/src/HOL/Probability/Measure_Space"
+imports Main Tools Setsum_Infinite Real_Vector_Spaces Complete_Lattices "~~/src/HOL/Probability/Nonnegative_Lebesgue_Integration" 
 begin
 
 subsection {* ell1 (absolutely convergent real series) *}
@@ -87,7 +87,8 @@ subsection {* Distributions (with weight <= 1) *}
 
 typedef 'a distr = "{M::'a measure. emeasure M (space M) \<le> 1 \<and> space M = UNIV \<and> sets M = UNIV}"
   by (rule exI[of _ "sigma UNIV UNIV"], auto simp: emeasure_sigma)
-definition "distr_pr d == emeasure (Rep_distr d)"
+definition "distr_pre d == emeasure (Rep_distr d)"
+definition "distr_pr d == measure (Rep_distr d)"
 abbreviation "distr_pr1 d x == distr_pr d {x}"
 
 definition support_distr :: "'a distr \<Rightarrow> 'a set" where
@@ -113,13 +114,15 @@ abbreviation "weight_distr \<mu> == distr_pr \<mu> UNIV"
 lemma Rep_Abs_distr_measure_of: "X UNIV \<le> 1 \<Longrightarrow> Rep_distr (Abs_distr (measure_of UNIV UNIV X)) = measure_of UNIV UNIV X"
   apply (subst Abs_distr_inverse) by (auto simp: emeasure_measure_of_conv)
 
-definition "mk_distr f == Abs_distr (measure_of UNIV UNIV f)"
-lemma mk_distr_pr: 
+definition "mk_distr (f::_\<Rightarrow>real) == Abs_distr (measure_of UNIV UNIV f)"
+definition "mk_distre (f::_\<Rightarrow>ereal) == Abs_distr (measure_of UNIV UNIV f)"
+print_theorems
+lemma mk_distre_pr: 
   assumes "f UNIV \<le> 1"
   assumes "\<And>x. f x \<ge> 0"
   assumes "f {} = 0"
   assumes "\<And>A. disjoint_family A \<Longrightarrow> (\<Sum>i. f (A i)) = f (\<Union>i. A i)"
-  shows "distr_pr (mk_distr f) = f"
+  shows "distr_pre (mk_distre f) = f"
 proof -
   have sigma_UNIV: "sigma_sets UNIV UNIV = UNIV"
     by (metis UNIV_eq_I iso_tuple_UNIV_I sigma_sets.Basic)
@@ -130,10 +133,18 @@ proof -
     unfolding sigma_UNIV countably_additive_def
     using assms by auto
   thus ?thesis
-    unfolding mk_distr_def distr_pr_def
+    unfolding mk_distre_def distr_pre_def
     apply (subst Abs_distr_inverse) 
     by (auto simp: emeasure_measure_of_conv assms)
 qed
+
+lemma mk_distr_pr: 
+  assumes "f UNIV \<le> 1"
+  assumes "\<And>x. f x \<ge> 0"
+  assumes "f {} = 0"
+  assumes "\<And>A. disjoint_family A \<Longrightarrow> (\<Sum>i. f (A i)) = f (\<Union>i. A i)"
+  shows "distr_pr (mk_distr f) = f"
+sorry
 
 definition point_distr :: "'a \<Rightarrow> 'a distr" where
   "point_distr a = mk_distr (\<lambda>E. if a\<in>E then 1 else 0)";
@@ -144,17 +155,38 @@ lemma weight_point_distr [simp]: "weight_distr (point_distr x) = 1"
   unfolding point_distr_pr by simp
 
 definition compose_distr :: "('a \<Rightarrow> 'b distr) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
-  "compose_distr f \<mu> == Abs_distr
-    (\<lambda>b. SetSum (\<lambda>a. Rep_distr \<mu> a * Rep_distr (f a) b) UNIV)"
+  "compose_distr f \<mu> == mk_distre (\<lambda>E. (\<integral>\<^sup>+ a. distr_pre (f a) E \<partial>Rep_distr \<mu>))"
 definition apply_to_distr :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
-  "apply_to_distr f = compose_distr (\<lambda>x. point_distr (f x))"
+  "apply_to_distr f \<mu> = Abs_distr (distr (Rep_distr \<mu>) (sigma UNIV UNIV) f)"
+
+lemma [simp]: "space (Rep_distr \<mu>) = UNIV"
+  using Rep_distr[of \<mu>] by auto
+lemma [simp]: "sets (Rep_distr \<mu>) = UNIV"
+  using Rep_distr[of \<mu>] by auto
 
 lemma apply_to_distr_twice [simp]: "apply_to_distr f (apply_to_distr g \<mu>) = apply_to_distr (\<lambda>x. f (g x)) \<mu>"
-  sorry
+proof -
+  let ?\<mu> = "Rep_distr \<mu>"
+  have valid: "emeasure (distr (Rep_distr \<mu>) (sigma UNIV UNIV) g) UNIV \<le> 1" sorry
+  show ?thesis
+    unfolding apply_to_distr_def
+    apply (subst Abs_distr_inverse, auto simp: valid)
+    apply (subst distr_distr)
+    unfolding measurable_def o_def
+    by (auto intro: Rep_distr)
+qed
 
 lemma apply_to_distr_id [simp]: "apply_to_distr (\<lambda>x. x) \<mu> = \<mu>"
-  (*unfolding apply_to_distr_def compose_distr_def point_distr_pr*)
-  sorry
+proof -
+  let ?\<mu> = "Rep_distr \<mu>"
+  have "?\<mu> = distr ?\<mu> ?\<mu> (\<lambda>x .x)" using distr_id by auto
+  moreover have "... = distr ?\<mu> (sigma UNIV UNIV) (\<lambda>x. x)"
+    by (rule distr_cong, auto)
+  finally have eq:"... = ?\<mu>" by simp
+  show ?thesis
+    unfolding apply_to_distr_def unfolding eq
+    by (rule Rep_distr_inverse)
+qed
 
 lemma support_compose_distr [simp]: "support_distr (compose_distr f g) = (\<Union>x\<in>support_distr g. support_distr (f x))"
   sorry
