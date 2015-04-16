@@ -1,5 +1,5 @@
 theory Ell1
-imports Main Tools Setsum_Infinite Real_Vector_Spaces Complete_Lattices "~~/src/HOL/Probability/Nonnegative_Lebesgue_Integration" 
+imports Main Tools Setsum_Infinite Real_Vector_Spaces Complete_Lattices "~~/src/HOL/Probability/Binary_Product_Measure" 
 begin
 
 subsection {* ell1 (absolutely convergent real series) *}
@@ -197,7 +197,13 @@ lemma support_apply_to_distr [simp]: "support_distr (apply_to_distr f \<mu>) = f
 lemma support_point_distr [simp]: "support_distr (point_distr x) = {x}"
   sorry
 
-definition "product_distr \<mu> \<nu> = Abs_distr (\<lambda>(x,y). Rep_distr \<mu> x * Rep_distr \<nu> y)"
+definition "product_distr \<mu> \<nu> = Abs_distr (Rep_distr \<mu>  \<Otimes>\<^sub>M  Rep_distr \<nu>)"
+
+lemma [simp]: "sigma_finite_measure (Rep_distr \<mu>)"
+  unfolding sigma_finite_measure_def apply (rule exI[of _ "{UNIV}"])
+  apply auto using Rep_distr
+  by (metis (full_types, lifting) ereal_infty_less_eq(1) ereal_times(1) mem_Collect_eq) 
+
 lemma fst_product_distr [simp]: "apply_to_distr fst (product_distr \<mu> \<nu>) = weight_distr \<nu> *\<^sub>R \<mu>"
   sorry
 lemma snd_product_distr [simp]: "apply_to_distr snd (product_distr \<mu> \<nu>) = weight_distr \<mu> *\<^sub>R \<nu>"
@@ -205,6 +211,28 @@ lemma snd_product_distr [simp]: "apply_to_distr snd (product_distr \<mu> \<nu>) 
 lemma support_product_distr [simp]: "support_distr (product_distr \<mu> \<nu>) = support_distr \<mu> \<times> support_distr \<nu>"
   sorry
 lemma product_distr_sym: "apply_to_distr (\<lambda>(x,y). (y,x)) (product_distr \<mu> \<nu>) = product_distr \<nu> \<mu>"
+proof -
+  have \<mu>1: "emeasure (Rep_distr \<mu>) UNIV \<le> 1" and \<nu>1: "emeasure (Rep_distr \<nu>) UNIV \<le> 1" using Rep_distr by auto
+  have 11: "1::ereal == 1 * 1" by auto
+  have mult_mono: "\<And>a b c d. a\<le>c \<Longrightarrow> b\<le>d \<Longrightarrow> b\<ge>0 \<Longrightarrow> c\<ge>0 \<Longrightarrow> (a::ereal) * b \<le> c * d"
+    by (metis ereal_mult_left_mono mult.commute order_trans)
+  have leq1: "emeasure (Rep_distr \<mu>) UNIV * emeasure (Rep_distr \<nu>) UNIV \<le> 1"
+    apply (subst 11) apply (rule mult_mono) using Rep_distr by auto
+  have leq1': "emeasure (Rep_distr \<mu> \<Otimes>\<^sub>M Rep_distr \<nu>) UNIV \<le> 1"
+    apply (subst UNIV_Times_UNIV[symmetric])
+    unfolding space_pair_measure apply simp
+    apply (subst UNIV_Times_UNIV[symmetric])
+    by (subst sigma_finite_measure.emeasure_pair_measure_Times, auto simp: leq1)
+  show ?thesis 
+    unfolding apply_to_distr_def product_distr_def
+    apply (subst Abs_distr_inverse)
+    apply (auto simp: leq1' space_pair_measure sets_pair_measure)
+    find_theorems "sigma_sets UNIV" sorry
+
+by
+UNIV_Times_UNIV
+  let ?\<mu> = "Rep_distr \<mu>" let ?\<nu> = "Rep_distr \<nu>"
+apply  distr_pair_swap
   sorry
 
 lemma apply_to_point_distr [simp]: "apply_to_distr f (point_distr x) = point_distr (f x)"
