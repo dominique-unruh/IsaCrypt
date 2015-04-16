@@ -18,13 +18,17 @@ datatype module_type_info = ModTypeInfo of {
   mt_proc_names_thm: thm,
   mt_proc_types_const: term,
   mt_proc_types_thm: thm,
-  mt_make_const: term option,
-  mt_make_thm: thm option,
+  mt_make_const: term,
+  mt_make_thm: thm,
+  mt_constr_const: term,
+  mt_constr_def: thm,
   getters: {name: binding, const: term, thm: thm} list,
   MAKE_inverse_lemmas: {name: binding, thm_name: string, thm: thm} list,
   typedef_info: Typedef.info,
-  mt_inst_const: term option,
-  mt_inst_def: thm option
+  inst_const: term,
+  inst_def: thm,
+  unmake_const: term,
+  unmake_def: thm
 };
 
 (* For debugging purposes only! *)
@@ -34,6 +38,14 @@ fun mk_nat i =
   if i=0 then @{term "0::nat"}
   else if i<0 then raise Match
   else @{term "Suc"} $ mk_nat (i-1);;
+
+fun mapi f l =
+let fun m _ [] = []
+      | m i (a::b) = f i a :: m (i+1) b
+in m 0 l end;;
+
+(*fun strip_fun_argsT (Type(@{type_name fun},[_,T])) = strip_fun_argsT T
+  | strip_fun_argsT T = T*)
 
 fun Rep (info:Typedef.info) = 
   let val i=fst info in Const(#Rep_name i,#abs_type i --> #rep_type i) end
@@ -58,6 +70,12 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
                                        arguments = [],
                                        procs = #procs spec} thy |> apfst SOME
 
+      (* Contains the procedure / procedure functor types of all functions of the arguments of this module *)
+      val env_proc_types = #arguments spec |> map #typ |> map Term.dest_Type |> map fst |>
+                           map (fn name => Sign.the_const_type thy (name^".UNMAKE")) |>
+                           map Term.dest_funT |> map snd |> map HOLogic.strip_tupleT |> List.concat
+      fun env_proc_types_procfunT T = fold_rev (fn a => fn b => Type(@{type_name procfun},[a,b])) env_proc_types T
+
       (* Perform the equivalent of:
          typedef MT = "module_type_rep_set 
            (module_type_proc_types_open TYPE(arg1) @ ... @ module_type_proc_types_open TYPE(argn))
@@ -71,8 +89,6 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
                    handle List.Empty => @{term "[]::procedure_type_open list"}
       val procTs = #procs spec
                    |> map (fn {typ,...} => @{termx "procedure_type TYPE(?'typ)" where "?'typ\<Rightarrow>(?'a::procargs,?'b::prog_type)procedure"})
-(*Const(@{const_name procedure_type},Term.itselfT typ--> @{typ procedure_type}) $
-                                           Logic.mk_type typ) *)
                    |> HOLogic.mk_list @{typ "procedure_type"}
       val rep_set = @{term module_type_rep_set} $ env $ procTs
       val ((mt_name,typedef_info),thy) = 
@@ -110,8 +126,6 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
       val bind = #name spec |> Binding.prefix_name "module_type_proc_types_"
       val rhs = #procs spec |> map #typ |> map (fn typ =>  
                   @{termx "procedure_type TYPE(?'typ)" where "?'typ\<Rightarrow>(?'a::procargs,?'b::prog_type)procedure"})
-(*                  Const(@{const_name procedure_type},Term.itselfT t--> @{typ procedure_type}) $
-                      Logic.mk_type t) *)
                   |> HOLogic.mk_list @{typ procedure_type}
                   |> Term.absdummy (Term.itselfT MT)
       val ((mt_proc_types_const,(_,mt_proc_types_def)),thy) = Local_Theory.define
@@ -141,7 +155,7 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
 
       (* For each proci in #procs spec: 
          definition "MT.proci == %(M::MT) (M1::arg1) ... (Mn::argn).
-                     (mk_procedure_typed (apply_procedures
+                     (mk_procedure_typed (instantiate_procedure
                          (module_type_procs M1 @ ... @ module_type_procs Mn)
                          ((module_type_procs M)!i)) :: (...)procedure)" 
       *)
@@ -156,7 +170,7 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
       val M_Free = Free(M,MT)
       fun define_getter (i,proc as {typ=procT,...}) (getters,thy:local_theory) =
       let val i_nat = mk_nat i
-          val rhs = @{termx "mk_procedure_typed (apply_procedures ?env_procs 
+          val rhs = @{termx "mk_procedure_typed (instantiate_procedure ?env_procs 
                                (nth (module_type_procs (?M_Free:: ?'MT::module_type)) ?i_nat)) :: ?'procT" 
                                      where "?'procT\<Rightarrow>(?'a::procargs,?'b::prog_type)procedure"}
           val rhs = rhs |> fold absfree (rev env_proc_vars) |> absfree (M,MT)
@@ -167,37 +181,26 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
       val (getters,thy) = fold_index define_getter (#procs spec) ([],thy)
       val getters = rev getters
 
-      (* definition "MT_make == \<lambda>(proc1::typ1) (proc2::typ2) ....
-            Abs_MT [mk_procedure_untyped proc1, mk_procedure_untyped proc2, ...]"
-         (only if MT is closed) *)
-      val proc_vars = #procs spec
-              |> map (fn {name,typ} => (Binding.name_of name,typ))
-      val rhs = proc_vars |> map (fn p => Const(@{const_name mk_procedure_untyped},snd p--> @{typ procedure_rep})$Free p)
-            |> HOLogic.mk_list @{typ procedure_rep}
-            |> (fn l => Abs typedef_info $ l)
-      val rhs = rhs |> fold absfree (rev proc_vars)
-      val bind = #name spec |> Binding.qualified true "MAKE" 
-      val (make_const,make_thm,thy) =
-        if #arguments spec = []
-        then let val ((make_const,(_,make_thm)),thy) = Local_Theory.define
-              ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy
-             in (SOME make_const, SOME make_thm, thy) end
-        else (NONE,NONE,thy)
+      (* definition "MT.MAKE == \<lambda>(proc1::procfun(args,typ1) (proc2::procfun(args,typ2)) ....
+            module_type_construct [procedure_functor_mk_untyped proc1, procedure_functor_mk_untyped proc2, ...]" *)
+      val proc_vars = #procs spec |> map (fn {name,typ} => (Binding.name_of name,env_proc_types_procfunT typ))
+      local
+        val rhs = proc_vars |> map Free |> map (fn p => @{termx "procedure_functor_mk_untyped (?p::?'p.1::procedure_functor)"})
+              |> HOLogic.mk_list @{typ procedure_rep}
+              |> (fn l => @{termx "module_type_construct ?l :: ?'MT::module_type"})
+        val rhs = rhs |> fold absfree (rev proc_vars)
+        val bind = #name spec |> Binding.qualified true "MAKE" 
+      in
+      val ((make_const,(_,make_thm)),thy) = Local_Theory.define
+              ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy end
 
       (* lemma "MT.proci (MT.MAKE proc1 proc2 ...) = proci"
-         for each proci
-         (only if MT is closed) *)
-      (*val proc_vars_fresh = fold (fn (v,T) => fn (vs,ctx) => 
-                                  Name.variant v ctx |> apfst (fn v=>(v,T)::vs))
-                            (rev proc_vars) ([],thy)
-      val _ = @{print} proc_vars_fresh*)
+         for each proci *)
+      (* TODO: also when not closed \<rightarrow> In this case, the lhs gets module-args, and the rhs gets corresponding proc-fun args *)
       val proc_vars_schematic = map (fn (v,T) => (Var((v,0),T))) proc_vars
       fun MAKE_inverse ({name,const,...},pvar) (lemmas,thy) =
-        let val MAKE = fold (fn x => fn f => f$x) proc_vars_schematic (the make_const)
+        let val MAKE = fold (fn x => fn f => f$x) proc_vars_schematic make_const
             val prop = Logic.mk_equals (const $ MAKE, pvar)
-(*            val thm = cterm_of (Proof_Context.theory_of thy) prop |> Goal.init
-                    |> Skip_Proof.cheat_tac 1 (* TODO: prove this *)
-                    |> Seq.hd |> Goal.finish thy |> Goal.norm_result thy *)
             val thm = Goal.prove thy [] [] prop (fn _ => Skip_Proof.cheat_tac 1)
                     (* TODO: prove this *)
             val thm_bind = #name spec |> Binding.qualified true "MAKE"
@@ -208,22 +211,35 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
                 then fold MAKE_inverse (ListPair.zip (getters, proc_vars_schematic)) ([],thy)
                 else ([],thy)
 
-      (* definition "MT.inst == \<lambda>(M::MT) (M1::arg1) ... (Mn::argn). Abs_MT_instantiated
-          (map (apply_procedures (module_type_procs M1 @ ... @ module_type_procs Mn))
-                (module_type_procs M))"
-         (only if args \<noteq> []) *)
-      fun define_MT_INST thy =
-      let val MT_inst = the inst_info |> dest_ModTypeInfo |> #typedef_info |> fst |> #abs_type
-          val rhs = @{termx "(module_type_construct::_\<Rightarrow>?'MT_inst::module_type) (map (apply_procedures ?env_procs)
-              (module_type_procs (?M_Free::?'MT::module_type)))"}
-          val rhs = rhs |> fold absfree (rev env_proc_vars) |> absfree (M,MT)
-          val bind = #name spec |> Binding.qualified true "INST"
-          val ((INST_const,(_,INST_def)),thy) = Local_Theory.define
+      (* definition "MT.UNMAKE == \<lambda>M. (module_type_procs m!0, module_type_procs m!1, ...) :: MT \<Rightarrow> procfun(arg,typ1) \<times> ... \<times> procfun(arg,typn)" *)
+      local val rhs = #procs spec |> map #typ |> mapi (fn i => fn procT => 
+                     let val M=Bound 0 val i' = mk_nat i val procT' = env_proc_types_procfunT procT in
+                     @{termx "procedure_functor_mk_typed (module_type_procs (?M::?'MT::module_type) ! ?i') 
+                             :: ?'procT'::procedure_functor"} end) 
+               |> HOLogic.mk_tuple |> (fn x => Term.Abs("M",MT,x))
+            val bind = #name spec |> Binding.qualified true "UNMAKE" 
+      in 
+      val ((unmake_const,(_,unmake_def)),thy) = Local_Theory.define
               ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy
-          val _ = rhs |> Syntax.pretty_term thy |> Pretty.writeln
-      (* TODO *)
-      in (SOME INST_const,SOME INST_def,thy) end
-      val (INST_const,INST_def,thy) = if #arguments spec = [] then (NONE,NONE,thy) else define_MT_INST thy
+      end
+      
+      (* definition "MT.inst :: ... \<Rightarrow> MT_instantiated == \<lambda>(M::MT) (M1::arg1) ... (Mn::argn). Abs_MT_instantiated
+          (map (instantiate_procedure (module_type_procs M1 @ ... @ module_type_procs Mn))
+                (module_type_procs M))"
+
+         (if args=[], it becomes "MT.inst :: MT\<Rightarrow>MT == (\<lambda>x. x))
+      *)
+      local
+          val MT_inst = if #arguments spec = [] then MT
+                        else the inst_info |> dest_ModTypeInfo |> #typedef_info |> fst |> #abs_type
+          val rhs = if #arguments spec = [] then @{termx "\<lambda>x::?'MT. x"}
+              else @{termx "(module_type_construct::_\<Rightarrow>?'MT_inst::module_type) (map (instantiate_procedure ?env_procs)
+                      (module_type_procs (?M_Free::?'MT::module_type)))"} |> fold absfree (rev env_proc_vars) |> absfree (M,MT)
+          val bind = #name spec |> Binding.qualified true "INST"
+      in
+      val ((INST_const,(_,INST_def)),thy) = Local_Theory.define
+          ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy
+      end
 
       val thy = Named_Target.exit thy
 
@@ -234,7 +250,8 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
           mt_procs_const=mt_procs_const, mt_procs_thm=mt_procs_def,
           getters=getters, mt_make_const=make_const, mt_make_thm=make_thm,
           MAKE_inverse_lemmas=MAKE_inverse_lemmas, typedef_info=typedef_info,
-          mt_inst_const=INST_const, mt_inst_def=INST_def
+          inst_const=INST_const, inst_def=INST_def, mt_constr_const=mt_constr_const,
+          mt_constr_def=mt_constr_def, unmake_const=unmake_const, unmake_def=unmake_def
           }
       val _ = last_defined_module_type := SOME info
   in
