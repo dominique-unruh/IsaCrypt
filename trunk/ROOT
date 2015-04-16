@@ -8,13 +8,7 @@ session "EasyCrypt" = "HOL-EC-Prereqs" +
 
 session "HOL-EC-Prereqs" in "~~/src/HOL" = "HOL-Multivariate_Analysis" +
   description {*
-    Lambda Calculus in de Bruijn's Notation.
-
-    This session defines lambda-calculus terms with de Bruijn indixes and
-    proves confluence of beta, eta and beta+eta.
-
-    The paper "More Church-Rosser Proofs (in Isabelle/HOL)" describes the whole
-    theory (see http://www.in.tum.de/~nipkow/pubs/jar2001.html).
+    Prerequisites for running the Easycrypt theories.
   *}
   options [document_graph]
   theories

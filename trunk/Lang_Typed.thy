@@ -302,6 +302,9 @@ typedef ('a::procedure_functor,'b::procedure_functor) procfun = "{p::procedure_r
   apply (rule exI[of _ "ProcAbs (procedure_functor_mk_untyped (undefined::'b))"], auto)
   by (rule wt_ProcAbs, rule well_typed_extend, rule procedure_functor_welltyped)
 
+type_notation "procfun" (infixr "=proc=>" 0)
+
+
 instantiation procfun :: (procedure_functor,procedure_functor) procedure_functor begin
 definition "procedure_functor_type (_::('a,'b)procfun itself)
      == ProcFun (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b))"

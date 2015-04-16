@@ -34,7 +34,7 @@ declare[[show_types]]
 
 ML {*
 local
-val src = "@{termx \"x::?'x==y::?'y\" where \"?'x\<Rightarrow>?'y\"   \"?'y\<Rightarrow>?'z\<Rightarrow>?'a\"}"
+val src = "@{termx \"hd (?l::?'l.1)\" where \"?'l.1\<Rightarrow>?'a list\"}"
 val ((_,body),_) = ML_Context.eval_antiquotes (ML_Lex.read @{here} src, @{here}) (SOME (Context.Proof @{context}))
 in
 (*val _ = writeln (ML_Lex.flatten env) *)

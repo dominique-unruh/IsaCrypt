@@ -46,9 +46,6 @@ qed
 subsection {* Simply-typed lambda calculus over procedures *}
 
 datatype procedure_type_open = ProcSimple procedure_type | ProcFun procedure_type_open procedure_type_open
-fun ProcFun' where
-  "ProcFun' [] T = T"
-| "ProcFun' (T#Ts) U = ProcFun T (ProcFun' Ts U)"
 
 inductive well_typed'' :: "procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool"
 and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \<Rightarrow> procedure_type_open \<Rightarrow> bool" where
@@ -745,7 +742,6 @@ lemma beta_reduce_rewrite:
 by (metis accp_downwards_aux assms(1) assms(2) beta_reduce_def2(1) beta_reduce_def2(2) beta_unique rtranclp_converseI rtranclp_trans)
 
 definition "apply_procedure p arg = beta_reduce (ProcAppl p arg)"
-definition "apply_procedures p args = fold apply_procedure p args"
 
 
 (* Undoing syntax changes introduced by Lambda and LambdaType *)

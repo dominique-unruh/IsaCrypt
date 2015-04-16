@@ -51,14 +51,15 @@ val typx_antiquot = typx_parser >> typx
 fun termx (ctx,(str,abbrevs)) =
   let val ctx = Proof_Context.set_mode Proof_Context.mode_schematic ctx
       val abbrevs = abbrevs |> map (Syntax.read_typ ctx)
-                    |> map dest_funT |> map (apfst (fst o dest_TVar))
+                    |> map dest_funT
       val trm = Syntax.parse_term ctx str
-      val trm = (fold (fn subst => Term.subst_TVars [subst]) abbrevs) trm
+      val trm = (fold (fn subst => Term.subst_TVars [subst |> apfst (fst o dest_TVar)]) abbrevs) trm
       val trm = Syntax.check_term ctx trm
       val trm_ML = print_term trm |> ML_Syntax.atomic
-      val case_ML = fold (fn ((v,_),T) => fn ML => 
-             "case "^strip_prime v^":typ of "^print_typ T^" => "^ML^" | _ => raise(TYPE("^
-              ML_Syntax.print_string("cannot match "^strip_prime v^" as \""^(Syntax.pretty_typ ctx T |> Pretty.string_of)^"\"")^",["^strip_prime v^":typ],[]))")
+      val case_ML = fold (fn (v,T) => fn ML => 
+             "case "^print_typ v^":typ of "^print_typ T^" => "^ML^" | _ => raise(TYPE("^
+              ML_Syntax.print_string("cannot match '"^print_typ v^"' as \""^(Syntax.pretty_typ ctx T |> Pretty.string_of)^"\"")
+              ^",["^print_typ v^":typ],[]))")
              (rev abbrevs) trm_ML |> ML_Syntax.atomic
   in
   case_ML
