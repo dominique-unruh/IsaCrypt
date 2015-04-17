@@ -96,6 +96,8 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
             (rtac @{thm module_type_rep_set_inhabited} 1) thy
       val _ = writeln ("Defined module type "^mt_name)
 
+      val export_target = Proof_Context.init_global thy
+      fun export_thm thy thm = case Proof_Context.export thy export_target [thm] of [thm'] => thm' | _ => raise Match
       (* Perform equivalent of:
          instantiation MT :: module_type begin *)
       val thy = Class.instantiation ([mt_name],[],@{sort "module_type"}) thy
@@ -104,14 +106,16 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
       val bind = #name spec |> Binding.prefix_name "module_type_procs_"
       val MT = #abs_type (fst typedef_info)
       val Rep_MT = Rep typedef_info
-      val ((mt_procs_const,(_,mt_procs_def)),thy) = Local_Theory.define
+      val ((mt_procs_const,(_,mt_procs_def0)),thy) = Local_Theory.define
           ((bind,NoSyn), ((Thm.def_binding bind,[]), Rep_MT)) thy
+      val mt_procs_def = export_thm thy mt_procs_def0
 
       (* definition "module_type_construct_MT == Abs_MT" *)
       val bind = #name spec |> Binding.prefix_name "module_type_construct_"
       val Abs_MT = Abs typedef_info
-      val ((mt_constr_const,(_,mt_constr_def)),thy) = Local_Theory.define
+      val ((mt_constr_const,(_,mt_constr_def0)),thy) = Local_Theory.define
           ((bind,NoSyn), ((Thm.def_binding bind,[]), Abs_MT)) thy
+      val mt_constr_def = export_thm thy mt_constr_def0
 
       (* definition "module_type_proc_names_MT == %(_::MT itself). [[''b'']]" *)
       val bind = #name spec |> Binding.prefix_name "module_type_proc_names_"
@@ -119,8 +123,9 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
                   |> Long_Name.explode |> map HOLogic.mk_string
                   |> HOLogic.mk_list @{typ id0}) |> HOLogic.mk_list @{typ id}
                   |> Term.absdummy (Term.itselfT MT)
-      val ((mt_proc_names_const,(_,mt_proc_names_def)),thy) = Local_Theory.define
+      val ((mt_proc_names_const,(_,mt_proc_names_def0)),thy) = Local_Theory.define
           ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy
+      val mt_proc_names_def = export_thm thy mt_proc_names_def0
 
       (* definition "module_type_proc_types_MT == %(_::MT itself). [procedure_type TYPE((...)procedure)]" *)
       val bind = #name spec |> Binding.prefix_name "module_type_proc_types_"
@@ -128,28 +133,40 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
                   @{termx "procedure_type TYPE(?'typ)" where "?'typ\<Rightarrow>(?'a::procargs,?'b::prog_type)procedure"})
                   |> HOLogic.mk_list @{typ procedure_type}
                   |> Term.absdummy (Term.itselfT MT)
-      val ((mt_proc_types_const,(_,mt_proc_types_def)),thy) = Local_Theory.define
+      val ((mt_proc_types_const,(_,mt_proc_types_def0)),thy) = Local_Theory.define
           ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy
+      val mt_proc_types_def = export_thm thy mt_proc_types_def0
 
       (* definition "module_type_environment_MT == %(_::MT itself). module_type_proc_types_open TYPE(MT1) @ ..." *)
       val bind = #name spec |> Binding.prefix_name "module_type_environment_"
       val rhs = env |> Term.absdummy (Term.itselfT MT)
-      val ((mt_environment_const,(_,mt_environment_def)),thy) = Local_Theory.define
+      val ((mt_environment_const,(_,mt_environment_def0)),thy) = Local_Theory.define
           ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy
-      
-      (* Perform the equivalent of:
-         instance sorry *)
-      val thy = Class.prove_instantiation_exit (fn _ => Skip_Proof.cheat_tac 1) thy
-      (* TODO: Actually prove this *)
+      val mt_environment_def = export_thm thy mt_environment_def0
+
+      (* Perform the rough equivalent of:
+         instance apply OFCLASS_module_type[...] by simp_all *)
+      local
+      val definitional_thms =  
+                [mt_procs_def, mt_constr_def, mt_proc_names_def, mt_proc_types_def, mt_environment_def,
+                 #Rep (snd typedef_info), #Rep_inverse (snd typedef_info), #Abs_inverse (snd typedef_info) ]
+      in
+      val OFCLASS_thm = @{thm OFCLASS_module_type} OF definitional_thms
+      val thy = Class.prove_instantiation_exit 
+            (fn _ => rtac OFCLASS_thm 1 THEN ALLGOALS (simp_tac thy)) thy end
 
       (* Perform equivalent of:
          instantiation MT :: module_type_closed begin
          (if MT is a closed module type)   *)
       val thy = if #arguments spec=[] then
-          Class.instantiation ([mt_name],[],@{sort "module_type_closed"}) thy
-          |> Class.prove_instantiation_exit (fn _ => Skip_Proof.cheat_tac 1)
-          else thy
-          (* TODO prove this *)
+        let val thy = Class.instantiation ([mt_name],[],@{sort "module_type_closed"}) thy
+            val definitional_thms = Proof_Context.export thy export_target [mt_environment_def]
+            val OFCLASS_closed_thm = @{thm OFCLASS_module_type_closed} OF definitional_thms
+            val thy = Class.prove_instantiation_exit (fn _ => 
+                rtac OFCLASS_closed_thm 1 THEN
+                rtac OFCLASS_thm 1 THEN
+                ALLGOALS (simp_tac thy)) thy
+        in thy end else thy
 
       val thy = Named_Target.theory_init thy
 

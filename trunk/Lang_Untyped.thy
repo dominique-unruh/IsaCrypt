@@ -94,8 +94,8 @@ typedef expression_distr = "{(e::expression_distr_rep).
                           edr_vars=[] \<rparr>"], simp);
   unfolding support_distr_def zero_distr_def
   apply (subst Abs_distr_inverse, auto)
-  apply (rule exI[where x=0], auto)
-  by (rule setsum_0)
+  by (metis ereal_eq_0(2) ereal_less_eq(6) ereal_zero_mult zero_le_one)
+
 definition "ed_fun e == edr_fun (Rep_expression_distr e)"
 definition "ed_type e == edr_type (Rep_expression_distr e)"
 definition "ed_vars e == edr_vars (Rep_expression_distr e)"
@@ -180,8 +180,8 @@ fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
 | denotation_untyped_Skip: "denotation_untyped (Skip) m = point_distr m"
 | "denotation_untyped (IfTE e thn els) m = (if (eu_fun e m = embedding True) then denotation_untyped thn m else denotation_untyped els m)"
 | "denotation_untyped (While e p) m = 
-      ell1_to_distr (\<Sum>n. distr_to_ell1 (compose_distr (\<lambda>m. if eu_fun e m = embedding True then 0 else point_distr m)
-                                            (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)))"
+    Abs_distr (\<lambda>m'. \<Sum>n. Rep_distr (compose_distr (\<lambda>m. if eu_fun e m = embedding True then 0 else point_distr m)
+                                            (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)) m')"
 | "denotation_untyped (CallProc v (Proc body pargs return) args) m = 
   apply_to_distr (restore_locals m) (denotation_untyped body (init_locals pargs args m))"
 | "denotation_untyped (CallProc v _ args) m = 0" (* Cannot happen for well-typed programs *)
@@ -212,6 +212,6 @@ definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"
 
 lemma denotation_untyped_assoc: "denotation_untyped (Seq (Seq x y) z) = denotation_untyped (Seq x (Seq y z))"
   unfolding denotation_untyped_Seq[THEN ext] 
-  unfolding compose_distr_trans ..
+  unfolding compose_distr_assoc ..
 
 end

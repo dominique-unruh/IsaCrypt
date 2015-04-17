@@ -31,6 +31,10 @@ lemma embedding_inv [simp]: "(embedding x = embedding y) = (x = y)"
   apply (rule someI_ex[of "\<lambda>f. inj f"]) using small_cardinal
   by auto
 
+lemma embedding_inv': "inv embedding (embedding x) = x"
+  by (metis embedding_inv f_inv_into_f range_eqI)
+  
+
 instantiation "nat" :: prog_type begin
 instance apply intro_classes using powertower_nat by auto
 end
@@ -202,10 +206,10 @@ instance apply (rule prog_type_classI, rule exI[where x="Rep_distr"])
   by (metis Rep_distr_inverse injI)
 end
 
-instantiation "ell1" :: (prog_type)prog_type begin
+(*instantiation "ell1" :: (prog_type)prog_type begin
 instance apply (rule prog_type_classI, rule exI[where x="Rep_ell1"])
   by (metis Rep_ell1_inverse injI)
-end
+end*)
 
 instantiation option :: (prog_type)prog_type begin
 instance apply (rule prog_type_classI, rule exI[where x="\<lambda>x. case x of Some x \<Rightarrow> Inl x | None \<Rightarrow> Inr ()"])
