@@ -1,4 +1,4 @@
-theory Ell1
+theory Distr
 imports Main Tools Real_Vector_Spaces Complete_Lattices Extended_Sorry "~~/src/HOL/Probability/Nonnegative_Lebesgue_Integration"
 begin
 
