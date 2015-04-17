@@ -741,7 +741,7 @@ lemma beta_reduce_rewrite:
   shows "beta_reduce p = beta_reduce q"
 by (metis accp_downwards_aux assms(1) assms(2) beta_reduce_def2(1) beta_reduce_def2(2) beta_unique rtranclp_converseI rtranclp_trans)
 
-definition "apply_procedure p arg = beta_reduce (ProcAppl p arg)"
+definition "apply_procedure p a = beta_reduce (ProcAppl p a)"
 
 
 (* Undoing syntax changes introduced by Lambda and LambdaType *)

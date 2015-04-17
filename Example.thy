@@ -7,17 +7,6 @@ locale M begin
   definition "invoke == proc (x) { x:=1; return () }"
 end
 
-ML {*
-  
-  fun supertac = ???
-*}
-
-method_setup superduper = {* etc *}
-
-lemma "1=2"
-  apply (superduper ...)
-
-
 term M.invoke
 
 abbreviation "(x::int variable) == Variable ''x''"
@@ -81,7 +70,7 @@ end
 
 (*declare [[simproc del: memory_lookup_update]]*)
 
-lemma test: assumes "Q == \<lambda>m. memory_lookup m x = 13"
+lemma test2: assumes "Q == \<lambda>m. memory_lookup m x = 13"
  (* fixes x::"int variable" and y::"int variable"
   assumes "\<not> var_eq x y"
  *) shows "hoare {\<lambda>m. memory_lookup m x = 13} x := x+1; x := x+1; y := 5; if (False) x:=4 {x \<ge> 15}"

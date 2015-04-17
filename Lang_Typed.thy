@@ -122,6 +122,10 @@ lemma mk_expression_untyped_type [simp]: "eu_type (mk_expression_untyped (e::'a:
   unfolding mk_expression_untyped_def eu_type_def
   apply (subst Abs_expression_untyped_inverse, auto simp: embedding_Type)
   by (smt2 Rep_expression e_fun_def e_vars_def mem_Collect_eq)  
+lemma mk_expression_untyped_vars [simp]: "eu_vars (mk_expression_untyped (e::'a::prog_type expression)) = e_vars e"
+  unfolding mk_expression_untyped_def eu_vars_def
+  apply (subst Abs_expression_untyped_inverse, auto simp: embedding_Type)
+  by (smt2 Rep_expression e_fun_def e_vars_def mem_Collect_eq)  
 lemma e_fun_bool_untyped: "e_fun (e::bool expression) m = (eu_fun (mk_expression_untyped e) m = embedding True)"
   by (metis (poly_guards_query) embedding_inv mk_expression_untyped_fun)
 
@@ -411,8 +415,8 @@ lemma denotation_sample: "denotation (sample v e) m = apply_to_distr (memory_upd
 
 lemma denotation_ifte: "denotation (ifte e thn els) m = (if e_fun e m then denotation thn m else denotation els m)"
   unfolding denotation_def mk_untyped_ifte by simp
-lemma denotation_while: "denotation (while e p) m = ell1_to_distr (\<Sum>n. distr_to_ell1 (compose_distr (\<lambda>m. if e_fun e m then 0 else point_distr m)
-                                                  (while_iter n (e_fun e) (denotation p) m)))"
+lemma denotation_while: "denotation (while e p) m = Abs_distr (\<lambda>m'. \<Sum>n. Rep_distr (compose_distr (\<lambda>m. if e_fun e m then 0 else point_distr m)
+                                                  (while_iter n (e_fun e) (denotation p) m)) m')"
   unfolding denotation_def mk_untyped_while by simp 
 
 lemma denotation_callproc: "denotation (callproc v proc args) m =
@@ -428,9 +432,9 @@ lemmas denotation_simp = denotation_seq denotation_skip denotation_assign denota
 
 (* TODO: goes in the wrong direction for nice formatting.
   We want left parenthized denotations! *)
-lemma denotation_trans: "denotation (seq (seq x y) z) = denotation (seq x (seq y z))"
+lemma denotation_seq_assoc: "denotation (seq (seq x y) z) = denotation (seq x (seq y z))"
   unfolding denotation_seq[THEN ext] 
-  unfolding compose_distr_trans ..
+  unfolding compose_distr_assoc ..
 
 
 subsection {* Concrete syntax for programs *}

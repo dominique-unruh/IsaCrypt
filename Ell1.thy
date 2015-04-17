@@ -1,7 +1,8 @@
 theory Ell1
-imports Main Tools Setsum_Infinite Real_Vector_Spaces Complete_Lattices "~~/src/HOL/Probability/Nonnegative_Lebesgue_Integration"
+imports Main Tools Real_Vector_Spaces Complete_Lattices Extended_Sorry "~~/src/HOL/Probability/Nonnegative_Lebesgue_Integration"
 begin
 
+(*
 subsection {* ell1 (absolutely convergent real series) *}
 typedef 'a ell1 = "{\<mu>::'a\<Rightarrow>real. SetSums (\<lambda>x. abs(\<mu> x)) UNIV}"
   apply (rule exI[of _ "\<lambda>x. 0"], auto) unfolding SetSums_def
@@ -81,7 +82,7 @@ lemma apply_to_point_ell1 [simp]: "apply_to_ell1 f (point_ell1 x) = point_ell1 (
   sorry
 lemma point_ell1_inj: "point_ell1 x = point_ell1 y \<Longrightarrow> x = y"
   sorry
-
+*)
 
 subsection {* Distributions (with weight <= 1) *}
 
@@ -142,22 +143,31 @@ definition apply_to_distr :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a distr \<Rig
   "apply_to_distr f \<mu> = Abs_distr (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
 
 lemma compose_point_distr_r [simp]: "compose_distr f (point_distr x) = f x"
-  sorry
+proof -
+  have rw: "\<And>y b. ereal ((if y = x then 1 else 0) * distr_pr (f y) b) =
+                  ereal (distr_pr (f x) b) * indicator {x} y"
+    by simp
+  show ?thesis
+    unfolding compose_distr_def 
+    apply simp unfolding rw
+    apply (subst nn_integral_cmult_indicator)
+    close (simp add: distr_pr_geq0)
+    close simp
+    by (simp add: Rep_distr_inverse)
+qed
+
 lemma compose_point_distr_l [simp]: "compose_distr (\<lambda>x. point_distr (f x)) \<mu> = apply_to_distr f \<mu>"
   unfolding compose_distr_def point_distr_def apply_to_distr_def
   apply (subst Abs_distr_inverse, auto)
   by (subst ereal_indicator, auto)
 
 lemma apply_to_distr_twice [simp]: "apply_to_distr f (apply_to_distr g \<mu>) = apply_to_distr (\<lambda>x. f (g x)) \<mu>"
-sorry
+  SORRY
 
 lemma apply_to_distr_id [simp]: "apply_to_distr (\<lambda>x. x) \<mu> = \<mu>"
 proof -
   have rew1: "\<And>x b. ereal (distr_pr \<mu> x) * indicator {x} b = ereal (distr_pr \<mu> b) * indicator {b} x"
     by (case_tac "x=b", auto)
-(*  have rew2: "\<integral>\<^sup>+ x. ereal (distr_pr \<mu> b) * indicator {x} b \<partial>count_space UNIV \<equiv>
-              ereal (distr_pr \<mu> b) * (emeasure (count_space UNIV)) {x}
-             \<integral>\<^sup>+ x. ereal (distr_pr \<mu> b) * indicator {x} b \<partial>count_space UNIV \<equiv> *)
   show ?thesis
     unfolding apply_to_distr_def compose_distr_def point_distr_pr
     unfolding ereal_mult_indicator rew1 
@@ -166,28 +176,28 @@ proof -
 qed
 
 lemma support_compose_distr [simp]: "support_distr (compose_distr f g) = (\<Union>x\<in>support_distr g. support_distr (f x))"
-  sorry
+  SORRY
 
 lemma support_apply_to_distr [simp]: "support_distr (apply_to_distr f \<mu>) = f ` support_distr \<mu>"
-  sorry
+  SORRY
 
 lemma support_point_distr [simp]: "support_distr (point_distr x) = {x}"
-  sorry
+  SORRY
 
 definition "product_distr \<mu> \<nu> = Abs_distr (\<lambda>(x,y). Rep_distr \<mu> x * Rep_distr \<nu> y)"
 lemma fst_product_distr [simp]: "apply_to_distr fst (product_distr \<mu> \<nu>) = weight_distr \<nu> *\<^sub>R \<mu>"
-  sorry
+  SORRY
 lemma snd_product_distr [simp]: "apply_to_distr snd (product_distr \<mu> \<nu>) = weight_distr \<mu> *\<^sub>R \<nu>"
-  sorry
+  SORRY
 lemma support_product_distr [simp]: "support_distr (product_distr \<mu> \<nu>) = support_distr \<mu> \<times> support_distr \<nu>"
-  sorry
+  SORRY
 lemma product_distr_sym: "apply_to_distr (\<lambda>(x,y). (y,x)) (product_distr \<mu> \<nu>) = product_distr \<nu> \<mu>"
-  sorry
+  SORRY
 
 lemma apply_to_point_distr [simp]: "apply_to_distr f (point_distr x) = point_distr (f x)"
-  sorry
+  SORRY
 lemma point_distr_inj: "point_distr x = point_distr y \<Longrightarrow> x = y"
-  sorry
+  SORRY
 
 
 definition uniform :: "'a set \<Rightarrow> 'a distr" where
@@ -205,9 +215,10 @@ proof
 qed
 
 
-lemma compose_distr_trans: "compose_distr (\<lambda>x. compose_distr g (f x)) \<mu> = compose_distr g (compose_distr f \<mu>)" 
-  sorry  
+lemma compose_distr_assoc: "compose_distr (\<lambda>x. compose_distr g (f x)) \<mu> = compose_distr g (compose_distr f \<mu>)" 
+  SORRY
 
+(*
 subsection {* Combining ell1 and distr *}
 
 definition "distr_to_ell1 \<mu> = Abs_ell1 (Rep_distr \<mu>)"
@@ -217,7 +228,7 @@ lemma distr_to_ell1_apply_comm [simp]: "distr_to_ell1 (apply_to_distr f \<mu>) =
   sorry
 lemma support_distr_to_ell1 [simp]: "support_ell1 (distr_to_ell1 \<mu>) = support_distr \<mu>"
   sorry
-
+*)
 
 
 end
