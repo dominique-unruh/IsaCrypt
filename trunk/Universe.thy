@@ -1,5 +1,5 @@
 theory Universe
-imports Main Ell1 BNF_Cardinal_Order_Relation
+imports Main Distr BNF_Cardinal_Order_Relation
 begin
 
 (* For proving instances of types declared with 
@@ -201,6 +201,7 @@ instance apply (rule prog_type_classI)
   by (metis Rep_real_inverse inj_on_inverseI)
 end
 
+(* Such instantiations should happen automatically via "Interpretation" (see how "typeref" does it) *)
 instantiation "distr" :: (prog_type)prog_type begin
 instance apply (rule prog_type_classI, rule exI[where x="Rep_distr"])
   by (metis Rep_distr_inverse injI)
