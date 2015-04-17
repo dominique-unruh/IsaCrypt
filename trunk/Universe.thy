@@ -1,5 +1,5 @@
 theory Universe
-imports Main Distr BNF_Cardinal_Order_Relation
+imports Main BNF_Cardinal_Order_Relation
 begin
 
 (* For proving instances of types declared with 
@@ -39,8 +39,6 @@ instantiation "nat" :: prog_type begin
 instance apply intro_classes using powertower_nat by auto
 end
 
-
-
 lemma prog_type_classI':
   assumes "\<exists>f::'a\<Rightarrow>'b::prog_type. inj f"
   shows "\<exists>t n (i::'a\<Rightarrow>val). powertower t \<and> inj i \<and> range i \<subseteq> t n"
@@ -56,6 +54,11 @@ proof -
     apply (metis (mono_tags, hide_lams) `inj i` `inj f` comp_apply injI inj_eq)
     by (metis `range i \<subseteq> t n` range_eqI subsetCE)
 qed 
+
+lemma prog_type_classI:
+  assumes "\<exists>f::'a\<Rightarrow>'b::prog_type. inj f"
+  shows "OFCLASS('a, prog_type_class)"
+apply intro_classes using assms by (rule prog_type_classI')
 
 instantiation set :: (prog_type) prog_type begin
 instance proof
@@ -88,15 +91,6 @@ instance proof
     apply (rule conjI, fact `inj i3`)
     by (fact i3rng)    
 qed
-end
-
-lemma prog_type_classI:
-  assumes "\<exists>f::'a\<Rightarrow>'b::prog_type. inj f"
-  shows "OFCLASS('a, prog_type_class)"
-apply intro_classes using assms by (rule prog_type_classI')
-
-instantiation unit :: prog_type begin;
-instance apply (rule prog_type_classI) by (rule exI, rule injI, simp)
 end
 
 instantiation bool :: prog_type begin
@@ -182,37 +176,63 @@ instance
   by (rule injI, auto)
 end
 
-instantiation int :: prog_type begin;
-instance
-  apply (rule prog_type_classI)
-  apply (rule exI[where x="\<lambda>n. if n \<ge> 0 then Inl (nat n) else Inr (nat (-n))"])
-  apply (rule injI)
-  by (metis Inl_Inr_False int_nat_eq minus_minus minus_zero nat_0 nat_0_iff nat_int neg_le_iff_le sum.inject(1) sum.inject(2))
+instantiation list :: (prog_type) prog_type begin
+instance apply (rule prog_type_classI, rule exI[where x="\<lambda>l. (length l, nth l)"])
+  by (rule injI, metis nth_equalityI old.prod.inject)
 end
 
-instantiation rat :: prog_type begin
-instance apply (rule prog_type_classI) apply (rule exI[where x=Rep_rat])
-  by (metis Rep_rat_inverse inj_on_def)
-end
+lemma OFCLASS_prog_type_typedef:
+  fixes Rep::"'a\<Rightarrow>_::prog_type"
+  assumes "\<And>x y. (Rep x = Rep y) = (x = y)" 
+  shows "OFCLASS('a,prog_type_class)"
+apply (rule prog_type_classI, rule exI[of _ Rep])
+using assms unfolding inj_on_def by auto
 
-instantiation real :: prog_type begin
-instance apply (rule prog_type_classI)
-  apply (rule exI[where x=Rep_real])
-  by (metis Rep_real_inverse inj_on_inverseI)
-end
+(*instantiation int::prog_type begin
+instance by (fact OFCLASS_prog_type_typedef[OF Rep_int_inject]) end *)
 
-(* Such instantiations should happen automatically via "Interpretation" (see how "typeref" does it) *)
-instantiation "distr" :: (prog_type)prog_type begin
-instance apply (rule prog_type_classI, rule exI[where x="Rep_distr"])
-  by (metis Rep_distr_inverse injI)
-end
+(*
+instantiation rat::prog_type begin
+instance by (fact OFCLASS_prog_type_typedef[OF Rep_rat_inject]) end
+  
+instantiation real::prog_type begin
+instance by (fact OFCLASS_prog_type_typedef[OF Rep_real_inject]) end
+*)
 
-(*instantiation "ell1" :: (prog_type)prog_type begin
-instance apply (rule prog_type_classI, rule exI[where x="Rep_ell1"])
-  by (metis Rep_ell1_inverse injI)
-end*)
+subsection {* Automatically instantiate new types (defined via typedef) *}
 
-instantiation option :: (prog_type)prog_type begin
+
+ML {*
+fun instantiate_prog_type tycon thy =
+let val arity = Sign.arity_number thy tycon
+    val sorts = replicate arity @{sort "prog_type"}
+    val vs = Name.invent_names Name.context "'a" sorts
+    val Rep_inject = 
+      case Typedef.get_info_global thy tycon of
+        [info] => #Rep_inject (snd info)
+      | [] => error (tycon^" not defined by typedef")
+      | _ => error ("Typedef.get_info_global thy \""^tycon^"\" returns several items")
+    val OFCLASS_prog_type_typedef = Global_Theory.get_thm thy "Universe.OFCLASS_prog_type_typedef"
+    val OFCLASS_thm = OFCLASS_prog_type_typedef OF [Rep_inject]
+      handle THM _ => error ("Instance proof failed (when instantiating thm OFCLASS_prog_type_typedef).\nProbably the representing set of the type '"^tycon^"' is not of sort prog_type.")
+    val thy = Class.instantiation ([tycon],vs,@{sort "prog_type"}) thy
+    val thy = Class.prove_instantiation_exit (fn _ => rtac OFCLASS_thm 1) thy
+      handle THM _ => error ("Instance proof failed.")
+in
+thy
+end;
+
+fun try_instantiate_prog_type tycon thy =
+  instantiate_prog_type tycon thy
+  handle ERROR _ => (tracing ("Did not instantiate "^tycon^" :: prog_type"); thy);
+*}
+
+
+setup {* Typedef.interpretation try_instantiate_prog_type *}
+
+subsection {* Instantiation for types not handled by automated mechanism *}
+
+(*instantiation option :: (prog_type)prog_type begin
 instance apply (rule prog_type_classI, rule exI[where x="\<lambda>x. case x of Some x \<Rightarrow> Inl x | None \<Rightarrow> Inr ()"])
 proof (rule injI) (* Sledgehammer proof *)
   fix x :: "'a option" and y :: "'a option"
@@ -220,27 +240,18 @@ proof (rule injI) (* Sledgehammer proof *)
   then obtain esk3\<^sub>1 :: "'a option \<Rightarrow> 'a" where "y = x \<or> None = x \<or> y = None" by (metis option.case(2) option.exhaust sum.sel(1))
   thus "x = y" using a1 by (metis (no_types) Inr_not_Inl option.case_eq_if)
 qed
-end
+end*)
 
-instantiation Datatype.node :: (prog_type,prog_type) prog_type begin
-instance apply (rule prog_type_classI, rule exI[where x=Rep_Node])
-  by (metis injI Rep_Node_inverse)
-end
+(*instantiation distr::(prog_type)prog_type begin
+instance by (fact OFCLASS_prog_type_typedef[OF Rep_distr_inject]) end*)
 
-instantiation list :: (prog_type) prog_type begin
-instance apply (rule prog_type_classI, rule exI[where x="\<lambda>l. (length l, nth l)"])
-  by (rule injI, metis nth_equalityI old.prod.inject)
-end
+(*instantiation nibble::prog_type begin
+instance by (fact OFCLASS_prog_type_typedef[OF Rep_nibble_inject]) end*)
 
-instantiation nibble :: prog_type begin
-instance apply (rule prog_type_classI, rule exI[where x=Rep_nibble])
-  by (metis Rep_nibble_inverse injI)
-end
-
-instantiation char :: prog_type begin
+(*instantiation char :: prog_type begin
 instance apply (rule prog_type_classI, rule exI[where x=Rep_char])
   by (metis Rep_char_inverse injI)
-end
+end*)
 
 
 end

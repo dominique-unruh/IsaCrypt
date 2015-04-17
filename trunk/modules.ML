@@ -156,7 +156,7 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
             (fn _ => rtac OFCLASS_thm 1 THEN ALLGOALS (simp_tac thy)) thy end
 
       (* Perform equivalent of:
-         instantiation MT :: module_type_closed begin
+         instantiation MT :: module_type_closed begin instance ... end
          (if MT is a closed module type)   *)
       val thy = if #arguments spec=[] then
         let val thy = Class.instantiation ([mt_name],[],@{sort "module_type_closed"}) thy
