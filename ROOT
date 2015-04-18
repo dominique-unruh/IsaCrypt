@@ -14,4 +14,4 @@ session "HOL-EC-Prereqs" in "~~/src/HOL" = "HOL-Multivariate_Analysis" +
   theories
     "Proofs/Lambda/StrongNorm"
     "Proofs/Lambda/Commutation"
-    "Probability/Nonnegative_Lebesgue_Integration"
+    "Probability/Binary_Product_Measure"
