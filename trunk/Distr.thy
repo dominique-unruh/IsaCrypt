@@ -270,25 +270,60 @@ proof -
   show ?thesis by auto
 qed
 
+lemma nn_integral_counting_single:
+  assumes "x\<in>X"
+  shows "f x \<le> \<integral>\<^sup>+x. f x \<partial>count_space X"
+proof -
+  have "(\<integral>\<^sup>+x. f x \<partial>count_space X) = \<integral>\<^sup>+x. max 0 (f x) \<partial>count_space X"
+    by (metis nn_integral_max_0)
+  also have "... \<ge> \<integral>\<^sup>+x'. max 0 (f x') * indicator {x} x' \<partial>count_space X" (is "_ \<ge> ...")
+    apply (rule nn_integral_mono) unfolding indicator_def by auto
+  also have "\<dots> = \<integral>\<^sup>+x'. max 0 (f x') \<partial>count_space {x}"
+    apply (subst nn_integral_restrict_space[symmetric])
+    close auto
+    unfolding restrict_count_space using assms by auto
+  also have "\<dots> = max 0 (f x)"
+    by (subst nn_integral_count_space_finite, auto)
+  finally show ?thesis using assms by auto
+qed
 
 definition compose_distr :: "('a \<Rightarrow> 'b distr) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
   "compose_distr f \<mu> == Abs_distr (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV))"
 lemma compose_distr_pr: "distr_pr (compose_distr f \<mu>) b =
   real (\<integral>\<^sup>+a. distr_pr \<mu> a * distr_pr (f a) b \<partial>count_space UNIV)"
 proof -
+  have aux1: "\<And>a b::ereal. a\<ge>0 \<Longrightarrow> b\<le>1 \<Longrightarrow> a*b \<le> a"
+    by (metis ereal_mult_right_mono monoid_mult_class.mult.left_neutral mult.commute) 
+  have nn_integral_counting_single_aux: "\<And>x X f. x\<in>X \<Longrightarrow> (\<integral>\<^sup>+x. f x \<partial>count_space X) < \<infinity> \<Longrightarrow> f x < \<infinity>"
+    by (metis ereal_infty_less(1) nn_integral_counting_single not_less)
+    
   have "(\<integral>\<^sup>+ b. \<integral>\<^sup>+ a. ereal (distr_pr \<mu> a * distr_pr (f a) b)
             \<partial>count_space UNIV \<partial>count_space UNIV) =
         (\<integral>\<^sup>+ a. \<integral>\<^sup>+ b. ereal (distr_pr \<mu> a * distr_pr (f a) b)
-            \<partial>count_space UNIV \<partial>count_space UNIV)"
+            \<partial>count_space UNIV \<partial>count_space UNIV)" (is "?int_ba = ?int_ab")
     by (rule Fubini_count_space)
-  
-  have x:"\<And>y. (\<integral>\<^sup>+ x. ereal (distr_pr \<mu> x * distr_pr (f x) y) \<partial>count_space UNIV) < \<infinity>"
-    sorry
+  also have "... = (\<integral>\<^sup>+ a. ereal (distr_pr \<mu> a) * \<integral>\<^sup>+ b. ereal (distr_pr (f a) b)
+            \<partial>count_space UNIV \<partial>count_space UNIV)"
+    by (subst nn_integral_cmult[symmetric], auto simp: distr_pr_geq0)
+  also have "... \<le> (\<integral>\<^sup>+ a. ereal (distr_pr \<mu> a) \<partial>count_space UNIV)"
+    apply (rule nn_integral_mono, auto, rule aux1)
+    close (metis distr_pr_geq0 ereal_less_eq(5))
+    using Rep_distr by auto
+  also have "\<dots> \<le> 1"
+    using Rep_distr by auto
+  finally have "?int_ba \<le> 1" by simp
+  with `?int_ba = ?int_ab` have "?int_ab \<le> 1" by simp
+  have int_b:"\<And>a. (\<integral>\<^sup>+ b. ereal (distr_pr \<mu> b * distr_pr (f b) a) \<partial>count_space UNIV) < \<infinity>"
+    apply (rule_tac x=a and X=UNIV in nn_integral_counting_single_aux, auto)
+    using `?int_ba \<le> 1`
+    by (metis PInfty_neq_ereal(1) ereal_infty_less_eq(1) one_ereal_def)
   show ?thesis
     unfolding compose_distr_def apply (subst Abs_distr_inverse, auto)
     apply (metis nn_integral_nonneg real_of_ereal_pos)
     apply (subst ereal_real')
-    using x close auto
+    using int_b close auto
+    using `?int_ba \<le> 1` .
+qed
 
 definition apply_to_distr :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
   "apply_to_distr f \<mu> = Abs_distr (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
