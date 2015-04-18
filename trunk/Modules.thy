@@ -2,12 +2,6 @@ theory Modules
 imports Lang_Typed TermX_Antiquot Procedures
 begin
 
-(* TODO: 
-
-- Define MT.MAKE also for non-closed modules (using procfun-type)
-- Define getters also for non-closed modules (using procfun-type)
-*)
-
 lemma well_typed_lift_same:
   assumes "i\<ge>length E"
   shows "well_typed'' E pg \<Longrightarrow> lift_proc_in_prog pg i = pg"
@@ -245,6 +239,7 @@ Modules.define_module_type {
            {name = @{binding b}, typ = @{typ "(int*unit,int)procedure"}}]
 }*}
 
+
 (* TODO: move *)
 lemma mk_expression_untyped_inverse: "mk_expression_typed (mk_expression_untyped e) = e"
   unfolding mk_expression_typed_def mk_expression_untyped_fun
@@ -282,6 +277,8 @@ Modules.define_module_type {
   arguments = [{name = @{binding M}, typ = @{typ "MT"}},{name = @{binding MX}, typ = @{typ "MT"}}] 
 } |> snd*}
 print_theorems
+
+lemma "MT2.b (MT2.MAKE b) M1 M2 \<equiv> procfun_apply (procfun_apply (procfun_apply (procfun_apply b (MT.a M1)) (MT.b M1)) (MT.a M2)) (MT.b M2)"
 
 lemma instantiate_procedure_nil: "instantiate_procedure [] x = x" unfolding instantiate_procedure_def by simp
 
