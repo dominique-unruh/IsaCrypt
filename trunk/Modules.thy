@@ -301,9 +301,27 @@ proof -
     by (metis tmp)
 qed
 
-lemma "MT2.b (MT2.MAKE b) M1 M2 \<equiv> procfun_apply (procfun_apply (procfun_apply (procfun_apply b (MT.a M1)) (MT.b M1)) (MT.a M2)) (MT.b M2)"
+lemma tmp1:
+  fixes p::"('a::procedure_functor,'b::procedure_functor)procfun" and q::'a
+  shows "well_typed_proc'' [] (apply_procedure (procedure_functor_mk_untyped p) (procedure_functor_mk_untyped q))
+    (procedure_functor_type TYPE('b))"
+sorry
+lemma tmp2:
+  fixes p::"('a::procedure_functor,'b::procedure_functor)procfun" and q::'a
+  shows "beta_reduced (apply_procedure (procedure_functor_mk_untyped p) (procedure_functor_mk_untyped q))"
+sorry
+
+lemma "MT2.b (MT2.MAKE b) M1 M2 = procfun_apply (procfun_apply (procfun_apply (procfun_apply b (MT.a M1)) (MT.b M1)) (MT.a M2)) (MT.b M2)"
+proof -
+  show ?thesis
   unfolding procfun_apply_def
-  apply (subst procedure_functor_mk_typed_inverse)
+  apply (subst procedure_functor_mk_typed_inverse, fact tmp1, fact tmp2)
+  apply (subst procedure_functor_mk_typed_inverse, fact tmp1, fact tmp2)
+  apply (subst procedure_functor_mk_typed_inverse, fact tmp1, fact tmp2)
+  unfolding MT2.b_def procedure_functor_mk_typed_procedure_ext_def
+  apply (tactic "cong_tac 1", simp)
+find_theorems "module_type_procs (?M1::MT)"
+  unfolding module_type_procs_
 
 lemma "MT2_instantiated.b (MT2.INST MT2 MT MTX) = MT2.b MT2 MT MTX"
   unfolding MT2.INST_def MT2_instantiated.b_def MT2.b_def

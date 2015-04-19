@@ -121,6 +121,8 @@ and procedure_rep =
 | ProcRef nat (* deBruijn index *)
 | ProcAbs procedure_rep
 | ProcAppl procedure_rep procedure_rep
+| ProcPair procedure_rep procedure_rep
+| ProcUnpair bool procedure_rep (* ProcUnpair True = fst, ProcUnpair False = snd *)
 
 (*
 fun is_concrete_proc where 
@@ -204,6 +206,8 @@ and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" whe
 | "vars_proc_untyped (ProcRef i) = []"
 | "vars_proc_untyped (ProcAppl p q) = (vars_proc_untyped p) @ (vars_proc_untyped q)"
 | "vars_proc_untyped (ProcAbs p) = vars_proc_untyped p"
+| "vars_proc_untyped (ProcPair p q) = vars_proc_untyped p @ vars_proc_untyped q"
+| "vars_proc_untyped (ProcUnpair _ p) = vars_proc_untyped p"
 
 definition "vars prog = vars_untyped (mk_program_untyped prog)"
 
