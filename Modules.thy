@@ -278,7 +278,6 @@ Modules.define_module_type {
 } |> snd*}
 print_theorems
 
-lemma "MT2.b (MT2.MAKE b) M1 M2 \<equiv> procfun_apply (procfun_apply (procfun_apply (procfun_apply b (MT.a M1)) (MT.b M1)) (MT.a M2)) (MT.b M2)"
 
 lemma instantiate_procedure_nil: "instantiate_procedure [] x = x" unfolding instantiate_procedure_def by simp
 
@@ -302,6 +301,9 @@ proof -
     by (metis tmp)
 qed
 
+lemma "MT2.b (MT2.MAKE b) M1 M2 \<equiv> procfun_apply (procfun_apply (procfun_apply (procfun_apply b (MT.a M1)) (MT.b M1)) (MT.a M2)) (MT.b M2)"
+  unfolding procfun_apply_def
+  apply (subst procedure_functor_mk_typed_inverse)
 
 lemma "MT2_instantiated.b (MT2.INST MT2 MT MTX) = MT2.b MT2 MT MTX"
   unfolding MT2.INST_def MT2_instantiated.b_def MT2.b_def
