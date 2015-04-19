@@ -45,7 +45,10 @@ qed
 
 subsection {* Simply-typed lambda calculus over procedures *}
 
-datatype procedure_type_open = ProcSimple procedure_type | ProcFun procedure_type_open procedure_type_open
+datatype procedure_type_open = 
+   ProcTSimple procedure_type
+ | ProcTFun procedure_type_open procedure_type_open
+ | ProcTPair procedure_type_open procedure_type_open
 
 inductive well_typed'' :: "procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool"
 and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \<Rightarrow> procedure_type_open \<Rightarrow> bool" where
@@ -55,17 +58,19 @@ and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \
 | wt_Skip: "well_typed'' E Skip"
 | wt_While: "eu_type e = bool_type \<Longrightarrow> well_typed'' E p \<Longrightarrow> well_typed'' E (While e p)"
 | wt_IfTE: "eu_type e = bool_type \<Longrightarrow> well_typed'' E thn \<Longrightarrow>  well_typed'' E els \<Longrightarrow> well_typed'' E (IfTE e thn els)"
-| wt_CallProc: "well_typed_proc'' E prc (ProcSimple \<lparr> pt_argtypes=map eu_type args, pt_returntype=vu_type v \<rparr>) \<Longrightarrow>
+| wt_CallProc: "well_typed_proc'' E prc (ProcTSimple \<lparr> pt_argtypes=map eu_type args, pt_returntype=vu_type v \<rparr>) \<Longrightarrow>
    well_typed'' E (CallProc v prc args)"
 | wt_Proc: "well_typed'' E body \<Longrightarrow>
    list_all (\<lambda>v. \<not> vu_global v) pargs \<Longrightarrow>
    distinct pargs \<Longrightarrow>
-   well_typed_proc'' E (Proc body pargs ret) (ProcSimple \<lparr> pt_argtypes=map vu_type pargs, pt_returntype=eu_type ret\<rparr>)"
+   well_typed_proc'' E (Proc body pargs ret) (ProcTSimple \<lparr> pt_argtypes=map vu_type pargs, pt_returntype=eu_type ret\<rparr>)"
 | wt_ProcRef: "i<length E \<Longrightarrow> E!i = T \<Longrightarrow> well_typed_proc'' E (ProcRef i) T"
-| wt_ProcAppl: "well_typed_proc'' E p (ProcFun T U) \<Longrightarrow>
+| wt_ProcAppl: "well_typed_proc'' E p (ProcTFun T U) \<Longrightarrow>
   well_typed_proc'' E q T \<Longrightarrow>
   well_typed_proc'' E (ProcAppl p q) U"
-| wt_ProcAbs: "well_typed_proc'' (T#E) p U \<Longrightarrow> well_typed_proc'' E (ProcAbs p) (ProcFun T U)"
+| wt_ProcAbs: "well_typed_proc'' (T#E) p U \<Longrightarrow> well_typed_proc'' E (ProcAbs p) (ProcTFun T U)"
+| wt_ProcPair: "well_typed_proc'' E p T \<Longrightarrow> well_typed_proc'' E q U \<Longrightarrow> well_typed_proc'' E (ProcPair p q) (ProcTPair T U)"
+| wt_ProcUnpair: "well_typed_proc'' E p (ProcTPair T U) \<Longrightarrow> well_typed_proc'' E (ProcUnpair b p) (if b then T else U)"
 lemma wt_Assign_iff: "eu_type e = vu_type v = well_typed'' E (Assign v e)"
   apply (rule iffI, simp add: wt_Assign)
   by (cases rule:well_typed''.cases, auto)
@@ -82,12 +87,12 @@ lemma wt_IfTE_iff: "(eu_type e = bool_type \<and> well_typed'' E thn \<and>  wel
   apply (rule iffI, simp add: wt_IfTE)
   by (cases rule:well_typed''.cases, auto)
 lemma wt_CallProc_iff: "
-   well_typed_proc'' E prc (ProcSimple \<lparr> pt_argtypes=map eu_type args, pt_returntype=vu_type v\<rparr>) =
+   well_typed_proc'' E prc (ProcTSimple \<lparr> pt_argtypes=map eu_type args, pt_returntype=vu_type v\<rparr>) =
    well_typed'' E (CallProc v prc args)"
   apply (rule iffI, auto simp: wt_CallProc)
   by (cases rule:well_typed''.cases, auto)
 lemma wt_Proc_iff: "
-  (T'=ProcSimple \<lparr> pt_argtypes=map vu_type pargs, pt_returntype=eu_type ret\<rparr> \<and> 
+  (T'=ProcTSimple \<lparr> pt_argtypes=map vu_type pargs, pt_returntype=eu_type ret\<rparr> \<and> 
    well_typed'' E body \<and>
    list_all (\<lambda>v. \<not> vu_global v) pargs \<and>
    distinct pargs) =
@@ -97,15 +102,22 @@ lemma wt_Proc_iff: "
 lemma wt_ProcRef_iff: "(i<length E \<and> E!i = T) = well_typed_proc'' E (ProcRef i) T"
   apply (rule iffI, simp add: wt_ProcRef)
   by (cases rule:well_typed_proc''.cases, auto)
-lemma wt_ProcAppl_iff: "(\<exists>T. well_typed_proc'' E p (ProcFun T U) \<and>
+lemma wt_ProcAppl_iff: "(\<exists>T. well_typed_proc'' E p (ProcTFun T U) \<and>
   well_typed_proc'' E q T) =
   well_typed_proc'' E (ProcAppl p q) U"
   apply (rule iffI, auto simp: wt_ProcAppl)
   by (cases rule:well_typed_proc''.cases, auto)
-lemma wt_ProcAbs_iff: "(\<exists>T U. TU = ProcFun T U \<and> well_typed_proc'' (T#E) p U) = well_typed_proc'' E (ProcAbs p) TU"
+lemma wt_ProcAbs_iff: "(\<exists>T U. TU = ProcTFun T U \<and> well_typed_proc'' (T#E) p U) = well_typed_proc'' E (ProcAbs p) TU"
   apply (rule iffI, auto simp: wt_ProcAbs)
   by (cases rule:well_typed_proc''.cases, auto)
-
+lemma wt_ProcPair_iff: "(\<exists>T U. TU = ProcTPair T U \<and> well_typed_proc'' E p T \<and> well_typed_proc'' E q U) = well_typed_proc'' E (ProcPair p q) TU"
+  apply (rule iffI, auto simp: wt_ProcPair)
+  by (cases rule:well_typed_proc''.cases, auto)
+lemma wt_ProcUnpair_iff: "(\<exists>T U. TU = (if b then T else U) \<and> well_typed_proc'' E p (ProcTPair T U))
+  = well_typed_proc'' E (ProcUnpair b p) TU"
+  apply (rule iffI, auto simp: wt_ProcUnpair)
+  apply (cases rule:well_typed_proc''.cases, auto)
+  by (cases b, auto)
 
 lemma well_typed_extend:
   shows "well_typed'' [] p \<Longrightarrow> well_typed'' E p"
@@ -126,6 +138,9 @@ proof -
       by (metis append_Cons)
     next case (Proc body args ret) thus ?case by (auto simp: wt_Proc_iff[symmetric])
     next case (ProcAppl p1 p2) thus ?case by (auto simp: wt_ProcAppl_iff[symmetric], metis)
+    next case (ProcPair p q T E F) thus ?case by (auto simp: wt_ProcPair_iff[symmetric])
+    next case (ProcUnpair b p T E F) thus ?case apply (auto simp: wt_ProcUnpair_iff[symmetric])
+      by (cases b, auto)
   qed
   from assms this[where F="[]", simplified]
   show "well_typed'' [] p \<Longrightarrow> well_typed'' E p"
@@ -146,6 +161,8 @@ and lift_proc :: "[procedure_rep, nat] \<Rightarrow> procedure_rep" where
 | "lift_proc (Proc body args ret) i = Proc (lift_proc_in_prog body i) args ret"
 | "lift_proc (ProcRef i) k = (if i < k then ProcRef i else ProcRef (Suc i))"
 | "lift_proc (ProcAppl s t) k = ProcAppl (lift_proc s k) (lift_proc t k)"
+| "lift_proc (ProcPair s t) k = ProcPair (lift_proc s k) (lift_proc t k)"
+| "lift_proc (ProcUnpair b s) k = ProcUnpair b (lift_proc s k)"
 | "lift_proc (ProcAbs s) k = ProcAbs (lift_proc s (Suc k))"
 
 fun subst_proc_in_prog :: "[nat, procedure_rep, program_rep] \<Rightarrow> program_rep"
@@ -163,6 +180,8 @@ where
 | subst_proc_ProcRef: "subst_proc k s (ProcRef i) = 
       (if k < i then ProcRef (i - 1) else if i=k then s else ProcRef i)"
 | subst_proc_ProcAppl: "subst_proc k s (ProcAppl t u) = ProcAppl (subst_proc k s t) (subst_proc k s u)"
+| subst_proc_ProcPair: "subst_proc k s (ProcPair t u) = ProcPair (subst_proc k s t) (subst_proc k s u)"
+| subst_proc_ProcUnpair: "subst_proc k s (ProcUnpair b t) = ProcUnpair b (subst_proc k s t)"
 | subst_proc_ProcAbs: "subst_proc k s (ProcAbs t) = ProcAbs (subst_proc (Suc k) (lift_proc s 0) t)"
 
 (* TODO remove? Try (seems to be handlede automatically by simp anyway) *)
@@ -256,6 +275,25 @@ abbreviation "Proc0 == Abs(Var 0)"
 abbreviation "Proc1 == Abs(Var 0)"
 abbreviation "Proc2 == Abs(Abs(Var 0))"
 
+(*
+
+T \<longrightarrow> (T\<Rightarrow>unit) \<Rightarrow> unit
+
+Abs A \<longrightarrow> Abs A
+
+inl a :: (%x y. x a)
+inr b :: (%x y. y b)
+T+U == 
+
+pair a b = (\<lambda>x. x a b) ::
+T*U == (T \<Rightarrow> U \<Rightarrow> T+U) \<Rightarrow> T+U
+
+fst p = p (%x y. x) :: T*U \<Rightarrow> T+U
+
+
+*)
+
+
 fun prog_to_dB :: "program_rep \<Rightarrow> dB" and proc_to_dB :: "procedure_rep \<Rightarrow> dB" where
   "prog_to_dB Skip = Proc0"
 | "prog_to_dB (Assign v e) = Proc0"
@@ -286,8 +324,8 @@ fun to_dB where
 abbreviation "ProcT == Fun (Atom 0) (Atom 0)"
 
 fun typ_conv :: "procedure_type_open \<Rightarrow> LambdaType.type" where
-  "typ_conv (ProcSimple _) = ProcT"
-| "typ_conv (ProcFun T U) = Fun (typ_conv T) (typ_conv U)"
+  "typ_conv (ProcTSimple _) = ProcT"
+| "typ_conv (ProcTFun T U) = Fun (typ_conv T) (typ_conv U)"
 
 lemma typ_pres:
   shows "well_typed'' E pg \<Longrightarrow> (\<lambda>i. typ_conv (E!i)) \<turnstile> prog_to_dB pg : ProcT"
