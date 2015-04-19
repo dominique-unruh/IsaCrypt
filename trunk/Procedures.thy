@@ -1,5 +1,5 @@
 theory Procedures
-imports "~~/src/HOL/Proofs/Lambda/Commutation" "~~/src/HOL/Proofs/Lambda/StrongNorm" Lang_Untyped 
+imports "~~/src/HOL/Proofs/Lambda/Commutation" TypedLambda Lang_Untyped 
 begin
 
 subsection {* Various facts and definitions *}
@@ -279,7 +279,10 @@ abbreviation "Proc2 == Abs(Abs(Var 0))"
 
 T \<longrightarrow> (T\<Rightarrow>unit) \<Rightarrow> unit
 
-Abs A \<longrightarrow> Abs A
+Abs A : T\<Rightarrow>U \<longrightarrow> %p. p (%t. A') : ((T\<Rightarrow>U) \<Rightarrow> unit) \<Rightarrow> unit
+A' : T |- (U\<Rightarrow>unit) \<Rightarrow> unit
+%t. A': T \<Rightarrow> (U\<Rightarrow>unit) \<Rightarrow> unit
+p (%t A') : 
 
 inl a :: (%x y. x a)
 inr b :: (%x y. y b)
@@ -323,7 +326,7 @@ fun to_dB where
 
 abbreviation "ProcT == Fun (Atom 0) (Atom 0)"
 
-fun typ_conv :: "procedure_type_open \<Rightarrow> LambdaType.type" where
+fun typ_conv :: "procedure_type_open \<Rightarrow> TypedLambda.type" where
   "typ_conv (ProcTSimple _) = ProcT"
 | "typ_conv (ProcTFun T U) = Fun (typ_conv T) (typ_conv U)"
 
@@ -783,7 +786,7 @@ definition "apply_procedure p a = beta_reduce (ProcAppl p a)"
 
 
 (* Undoing syntax changes introduced by Lambda and LambdaType *)
-declare [[syntax_ambiguity_warning = false]]
+declare [[syntax_ambiguity_warning = true]]
 no_syntax "\<^const>Lambda.dB.App" :: "dB\<Rightarrow>dB\<Rightarrow>dB" (infixl "\<degree>" 200)
 no_syntax "\<^const>Lambda.subst" :: "[dB, dB, nat] => dB"  ("_[_'/_]" [300, 0, 0] 300)
 no_syntax "\<^const>Lambda.beta" :: "[dB, dB] => bool"  (infixl "\<rightarrow>\<^sub>\<beta>" 50)
