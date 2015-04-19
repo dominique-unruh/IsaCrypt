@@ -211,7 +211,7 @@ fun define_module_type (spec:module_type_spec) (thy:theory) : module_type_info*t
       val ((make_const,(_,make_thm)),thy) = Local_Theory.define
               ((bind,NoSyn), ((Thm.def_binding bind,[]), rhs)) thy end
 
-      (* lemma "MT.proci (MT.MAKE proc1 proc2 ...) = proci"
+      (* lemma MT.MAKE.proci: "MT.proci (MT.MAKE proc1 proc2 ...) = proci"
          for each proci *)
       (* TODO: also when not closed \<rightarrow> In this case, the lhs gets module-args, and the rhs gets corresponding proc-fun args *)
       val proc_vars_schematic = map (fn (v,T) => (Var((v,0),T))) proc_vars
