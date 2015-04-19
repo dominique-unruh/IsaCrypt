@@ -1,5 +1,5 @@
 theory TypedLambda
-imports Main
+imports Main "~~/src/HOL/Proofs/Lambda/ListOrder"
 begin
 
 declare [[syntax_ambiguity_warning = false]]
@@ -11,8 +11,8 @@ datatype dB =
     Var nat
   | App dB dB (infixl "\<degree>" 200)
   | Abs dB
-(*  | Pair dB dB
-  | Unpair bool dB*)
+  | Pair dB dB
+  | Unpair bool dB
 
 primrec
   lift :: "[dB, nat] => dB"
@@ -20,8 +20,8 @@ where
     "lift (Var i) k = (if i < k then Var i else Var (i + 1))"
   | "lift (s \<degree> t) k = lift s k \<degree> lift t k"
   | "lift (Abs s) k = Abs (lift s (k + 1))"
-(*  | "lift (Pair s t) k = Pair (lift s k) (lift t k)"
-  | "lift (Unpair b s) k = Unpair b (lift s k)" *)
+  | "lift (Pair s t) k = Pair (lift s k) (lift t k)"
+  | "lift (Unpair b s) k = Unpair b (lift s k)" 
 
 primrec
   subst :: "[dB, dB, nat] => dB"  ("_[_'/_]" [300, 0, 0] 300)
@@ -30,29 +30,10 @@ where (* FIXME base names *)
       (if k < i then Var (i - 1) else if i = k then s else Var i)"
   | subst_App: "(t \<degree> u)[s/k] = t[s/k] \<degree> u[s/k]"
   | subst_Abs: "(Abs t)[s/k] = Abs (t[lift s 0 / k+1])"
-(*  | subst_Pair: "(Pair t u)[s/k] = Pair (t[s/k]) (u[s/k])"
-  | subst_Unpair: "(Unpair b t)[s/k] = Unpair b (t[s/k])"*)
+  | subst_Pair: "(Pair t u)[s/k] = Pair (t[s/k]) (u[s/k])"
+  | subst_Unpair: "(Unpair b t)[s/k] = Unpair b (t[s/k])"
 
 declare subst_Var [simp del]
-
-(*
-text {* Optimized versions of @{term subst} and @{term lift}. *}
-
-primrec
-  liftn :: "[nat, dB, nat] => dB"
-where
-    "liftn n (Var i) k = (if i < k then Var i else Var (i + n))"
-  | "liftn n (s \<degree> t) k = liftn n s k \<degree> liftn n t k"
-  | "liftn n (Abs s) k = Abs (liftn n s (k + 1))"
-
-primrec
-  substn :: "[dB, dB, nat] => dB"
-where
-    "substn (Var i) s k =
-      (if k < i then Var (i - 1) else if i = k then liftn k s 0 else Var i)"
-  | "substn (t \<degree> u) s k = substn t s k \<degree> substn u s k"
-  | "substn (Abs t) s k = Abs (substn t s (k + 1))"
-*)
 
 subsection {* Beta-reduction *}
 
@@ -62,6 +43,11 @@ inductive beta :: "[dB, dB] => bool"  (infixl "\<rightarrow>\<^sub>\<beta>" 50)
   | appL [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> s \<degree> u \<rightarrow>\<^sub>\<beta> t \<degree> u"
   | appR [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> u \<degree> s \<rightarrow>\<^sub>\<beta> u \<degree> t"
   | abs [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> Abs s \<rightarrow>\<^sub>\<beta> Abs t"
+  | pairL [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> Pair s u \<rightarrow>\<^sub>\<beta> Pair t u"
+  | pairR [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> Pair u s \<rightarrow>\<^sub>\<beta> Pair u t"
+  | unpair [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> Unpair b s \<rightarrow>\<^sub>\<beta> Unpair b t"
+  | fst [simp, intro!]: "Unpair True (Pair s t) \<rightarrow>\<^sub>\<beta> s"
+  | snd [simp, intro!]: "Unpair False (Pair s t) \<rightarrow>\<^sub>\<beta> t"
 
 abbreviation
   beta_reds :: "[dB, dB] => bool"  (infixl "->>" 50) where
@@ -74,6 +60,8 @@ inductive_cases beta_cases [elim!]:
   "Var i \<rightarrow>\<^sub>\<beta> t"
   "Abs r \<rightarrow>\<^sub>\<beta> s"
   "s \<degree> t \<rightarrow>\<^sub>\<beta> u"
+  "Pair s t \<rightarrow>\<^sub>\<beta> u"
+  "Unpair b t \<rightarrow>\<^sub>\<beta> u"
 
 declare if_not_P [simp] not_less_eq [simp]
   -- {* don't add @{text "r_into_rtrancl[intro!]"} *}
@@ -97,6 +85,21 @@ lemma rtrancl_beta_App [intro]:
     "[| s \<rightarrow>\<^sub>\<beta>\<^sup>* s'; t \<rightarrow>\<^sub>\<beta>\<^sup>* t' |] ==> s \<degree> t \<rightarrow>\<^sub>\<beta>\<^sup>* s' \<degree> t'"
   by (blast intro!: rtrancl_beta_AppL rtrancl_beta_AppR intro: rtranclp_trans)
 
+lemma rtrancl_beta_PairL:
+    "s \<rightarrow>\<^sub>\<beta>\<^sup>* s' ==> Pair s t \<rightarrow>\<^sub>\<beta>\<^sup>* Pair s' t"
+  by (induct set: rtranclp) (blast intro: rtranclp.rtrancl_into_rtrancl)+
+
+lemma rtrancl_beta_PairR:
+    "t \<rightarrow>\<^sub>\<beta>\<^sup>* t' ==> Pair s t \<rightarrow>\<^sub>\<beta>\<^sup>* Pair s t'"
+  by (induct set: rtranclp) (blast intro: rtranclp.rtrancl_into_rtrancl)+
+
+lemma rtrancl_beta_Pair [intro]:
+    "[| s \<rightarrow>\<^sub>\<beta>\<^sup>* s'; t \<rightarrow>\<^sub>\<beta>\<^sup>* t' |] ==> Pair s t \<rightarrow>\<^sub>\<beta>\<^sup>* Pair s' t'"
+  by (blast intro!: rtrancl_beta_PairL rtrancl_beta_PairR intro: rtranclp_trans)
+
+lemma rtrancl_beta_Unpair [intro!]:
+    "s \<rightarrow>\<^sub>\<beta>\<^sup>* s' ==> Unpair b s \<rightarrow>\<^sub>\<beta>\<^sup>* Unpair b s'"
+  by (induct set: rtranclp) (blast intro: rtranclp.rtrancl_into_rtrancl)+
 
 subsection {* Substitution-lemmas *}
 
@@ -132,21 +135,6 @@ lemma subst_subst:
     (simp_all add: diff_Suc subst_Var lift_lift [symmetric] lift_subst_lt
       split: nat.split)
 
-(*
-subsection {* Equivalence proof for optimized substitution *}
-
-lemma liftn_0 [simp]: "liftn 0 t k = t"
-  by (induct t arbitrary: k) (simp_all add: subst_Var)
-
-lemma liftn_lift [simp]: "liftn (Suc n) t k = lift (liftn n t k) k"
-  by (induct t arbitrary: k) (simp_all add: subst_Var)
-
-lemma substn_subst_n [simp]: "substn t s n = t[liftn n s 0 / n]"
-  by (induct t arbitrary: n) (simp_all add: subst_Var)
-
-theorem substn_subst_0: "substn t s 0 = t[s/0]"
-  by simp
-*)
 
 subsection {* Preservation theorems *}
 
@@ -157,135 +145,18 @@ theorem subst_preserves_beta [simp]:
     "r \<rightarrow>\<^sub>\<beta> s ==> r[t/i] \<rightarrow>\<^sub>\<beta> s[t/i]"
   by (induct arbitrary: t i set: beta) (simp_all add: subst_subst [symmetric])
 
-theorem subst_preserves_beta': "r \<rightarrow>\<^sub>\<beta>\<^sup>* s ==> r[t/i] \<rightarrow>\<^sub>\<beta>\<^sup>* s[t/i]"
-  apply (induct set: rtranclp)
-   apply (rule rtranclp.rtrancl_refl)
-  apply (erule rtranclp.rtrancl_into_rtrancl)
-  apply (erule subst_preserves_beta)
-  done
-
 theorem lift_preserves_beta [simp]:
     "r \<rightarrow>\<^sub>\<beta> s ==> lift r i \<rightarrow>\<^sub>\<beta> lift s i"
   by (induct arbitrary: i set: beta) auto
 
-theorem lift_preserves_beta': "r \<rightarrow>\<^sub>\<beta>\<^sup>* s ==> lift r i \<rightarrow>\<^sub>\<beta>\<^sup>* lift s i"
-  apply (induct set: rtranclp)
-   apply (rule rtranclp.rtrancl_refl)
-  apply (erule rtranclp.rtrancl_into_rtrancl)
-  apply (erule lift_preserves_beta)
-  done
 
 theorem subst_preserves_beta2 [simp]: "r \<rightarrow>\<^sub>\<beta> s ==> t[r/i] \<rightarrow>\<^sub>\<beta>\<^sup>* t[s/i]"
   apply (induct t arbitrary: r s i)
-    apply (simp add: subst_Var r_into_rtranclp)
-   apply (simp add: rtrancl_beta_App)
-  apply (simp add: rtrancl_beta_Abs)
-  done
-
-theorem subst_preserves_beta2': "r \<rightarrow>\<^sub>\<beta>\<^sup>* s ==> t[r/i] \<rightarrow>\<^sub>\<beta>\<^sup>* t[s/i]"
-  apply (induct set: rtranclp)
-   apply (rule rtranclp.rtrancl_refl)
-  apply (erule rtranclp_trans)
-  apply (erule subst_preserves_beta2)
-  done
-
-declare [[syntax_ambiguity_warning = false]]
-
-
-text {*
-  Lifting an order to lists of elements, relating exactly one
-  element.
-*}
-
-definition
-  step1 :: "('a => 'a => bool) => 'a list => 'a list => bool" where
-  "step1 r =
-    (\<lambda>ys xs. \<exists>us z z' vs. xs = us @ z # vs \<and> r z' z \<and> ys =
-      us @ z' # vs)"
-
-
-lemma step1_converse [simp]: "step1 (r^--1) = (step1 r)^--1"
-  apply (unfold step1_def)
-  apply (blast intro!: order_antisym)
-  done
-
-lemma in_step1_converse [iff]: "(step1 (r^--1) x y) = ((step1 r)^--1 x y)"
-  apply auto
-  done
-
-lemma not_Nil_step1 [iff]: "\<not> step1 r [] xs"
-  apply (unfold step1_def)
-  apply blast
-  done
-
-lemma not_step1_Nil [iff]: "\<not> step1 r xs []"
-  apply (unfold step1_def)
-  apply blast
-  done
-
-lemma Cons_step1_Cons [iff]:
-    "(step1 r (y # ys) (x # xs)) =
-      (r y x \<and> xs = ys \<or> x = y \<and> step1 r ys xs)"
-  apply (unfold step1_def)
-  apply (rule iffI)
-   apply (erule exE)
-   apply (rename_tac ts)
-   apply (case_tac ts)
-    apply fastforce
-   apply force
-  apply (erule disjE)
-   apply blast
-  apply (blast intro: Cons_eq_appendI)
-  done
-
-lemma append_step1I:
-  "step1 r ys xs \<and> vs = us \<or> ys = xs \<and> step1 r vs us
-    ==> step1 r (ys @ vs) (xs @ us)"
-  apply (unfold step1_def)
-  apply auto
-   apply blast
-  apply (blast intro: append_eq_appendI)
-  done
-
-lemma Cons_step1E [elim!]:
-  assumes "step1 r ys (x # xs)"
-    and "!!y. ys = y # xs \<Longrightarrow> r y x \<Longrightarrow> R"
-    and "!!zs. ys = x # zs \<Longrightarrow> step1 r zs xs \<Longrightarrow> R"
-  shows R
-  using assms
-  apply (cases ys)
-   apply (simp add: step1_def)
-  apply blast
-  done
-
-lemma Snoc_step1_SnocD:
-  "step1 r (ys @ [y]) (xs @ [x])
-    ==> (step1 r ys xs \<and> y = x \<or> ys = xs \<and> r y x)"
-  apply (unfold step1_def)
-  apply (clarify del: disjCI)
-  apply (rename_tac vs)
-  apply (rule_tac xs = vs in rev_exhaust)
-   apply force
-  apply simp
-  apply blast
-  done
-
-lemma Cons_acc_step1I [intro!]:
-    "Wellfounded.accp r x ==> Wellfounded.accp (step1 r) xs \<Longrightarrow> Wellfounded.accp (step1 r) (x # xs)"
-  apply (induct arbitrary: xs set: Wellfounded.accp)
-  apply (erule thin_rl)
-  apply (erule accp_induct)
-  apply (rule accp.accI)
-  apply blast
-  done
-
-lemma lists_accD: "listsp (Wellfounded.accp r) xs ==> Wellfounded.accp (step1 r) xs"
-  apply (induct set: listsp)
-   apply (rule accp.accI)
-   apply simp
-  apply (rule accp.accI)
-  apply (fast dest: accp_downward)
-  done
+  close (simp add: subst_Var r_into_rtranclp)
+  close (simp add: rtrancl_beta_App)
+  close (simp add: rtrancl_beta_Abs)
+  close (simp add: rtrancl_beta_Pair)
+  by (simp add: rtrancl_beta_Unpair)
 
 
 abbreviation
@@ -305,6 +176,14 @@ lemma Abs_eq_apps_conv [iff]:
     "(Abs r = s \<degree>\<degree> ss) = (Abs r = s \<and> ss = [])"
   by (induct ss rule: rev_induct) auto
 
+lemma Pair_eq_apps_conv [iff]:
+    "(Pair p q = s \<degree>\<degree> ss) = (Pair p q = s \<and> ss = [])"
+  by (induct ss rule: rev_induct) auto
+
+lemma Unpair_eq_apps_conv [iff]:
+    "(Unpair b p = s \<degree>\<degree> ss) = (Unpair b p = s \<and> ss = [])"
+  by (induct ss rule: rev_induct) auto
+
 
 lemma Abs_apps_eq_Abs_apps_conv [iff]:
     "(Abs r \<degree>\<degree> rs = Abs s \<degree>\<degree> ss) = (r = s \<and> rs = ss)"
@@ -318,7 +197,6 @@ lemma Abs_apps_eq_Abs_apps_conv [iff]:
 lemma Abs_App_neq_Var_apps [iff]:
     "Abs s \<degree> t \<noteq> Var n \<degree>\<degree> ss"
   by (induct ss arbitrary: s t rule: rev_induct) auto
-
 
 
 lemma lift_map [simp]:
@@ -365,17 +243,23 @@ subsection {* Types and typing rules *}
 datatype type =
     Atom nat
   | Fun type type    (infixr "\<Rightarrow>" 200)
+  | Prod type type
 
 inductive typing :: "(nat \<Rightarrow> type) \<Rightarrow> dB \<Rightarrow> type \<Rightarrow> bool"  ("_ \<turnstile> _ : _" [50, 50, 50] 50)
   where
     Var [intro!]: "env x = T \<Longrightarrow> env \<turnstile> Var x : T"
   | Abs [intro!]: "env\<langle>0:T\<rangle> \<turnstile> t : U \<Longrightarrow> env \<turnstile> Abs t : (T \<Rightarrow> U)"
   | App [intro!]: "env \<turnstile> s : T \<Rightarrow> U \<Longrightarrow> env \<turnstile> t : T \<Longrightarrow> env \<turnstile> (s \<degree> t) : U"
+  | Pair [intro!]: "env \<turnstile> s : T \<Longrightarrow> env \<turnstile> t : U \<Longrightarrow> env \<turnstile> (Pair s t) : (Prod T U)"
+  | Fst [intro!]: "env \<turnstile> s : Prod T U \<Longrightarrow> env \<turnstile> Unpair True s : T"
+  | Snd [intro!]: "env \<turnstile> s : Prod T U \<Longrightarrow> env \<turnstile> Unpair False s : U"
 
 inductive_cases typing_elims [elim!]:
   "e \<turnstile> Var i : T"
   "e \<turnstile> t \<degree> u : T"
   "e \<turnstile> Abs t : T"
+  "e \<turnstile> Pair s t : T"
+  "e \<turnstile> Unpair b t : T"
 
 primrec
   typings :: "(nat \<Rightarrow> type) \<Rightarrow> dB list \<Rightarrow> type list \<Rightarrow> bool"
@@ -572,6 +456,9 @@ proof (induct T)
 next
   case Fun
   show ?case by (rule assms) (insert Fun, simp_all)
+next
+  case Prod
+  show ?case by (rule assms) (insert Prod, simp_all)
 qed
 
 
@@ -586,12 +473,12 @@ abbreviation
 lemma head_Var_reduction:
   "Var n \<degree>\<degree> rs \<rightarrow>\<^sub>\<beta> v \<Longrightarrow> \<exists>ss. rs => ss \<and> v = Var n \<degree>\<degree> ss"
   apply (induct u == "Var n \<degree>\<degree> rs" v arbitrary: rs set: beta)
-     apply simp
+     close simp
     apply (rule_tac xs = rs in rev_exhaust)
-     apply simp
-    apply (atomize, force intro: append_step1I)
+     close simp
+    close (atomize, force intro: append_step1I)
    apply (rule_tac xs = rs in rev_exhaust)
-    apply simp
+    close simp
     apply (auto 0 3 intro: disjI2 [THEN append_step1I])
   done
 
@@ -606,29 +493,53 @@ proof -
    "(\<exists>r'. r \<rightarrow>\<^sub>\<beta> r' \<and> s = r' \<degree>\<degree> rs) \<or>
     (\<exists>rs'. rs => rs' \<and> s = r \<degree>\<degree> rs') \<or>
     (\<exists>t u us. r = Abs t \<and> rs = u # us \<and> s = t[u/0] \<degree>\<degree> us)"
-    apply (induct u == "r \<degree>\<degree> rs" s arbitrary: r rs set: beta)
+  proof (induct u == "r \<degree>\<degree> rs" s arbitrary: r rs set: beta)
+  case beta thus ?case
        apply (case_tac r)
-         apply simp
+
+        close simp
+
         apply (simp add: App_eq_foldl_conv)
         apply (split split_if_asm)
          apply simp
-         apply blast
-        apply simp
+         close blast
+        close simp
+
        apply (simp add: App_eq_foldl_conv)
        apply (split split_if_asm)
-        apply simp
-       apply simp
+        close simp
+       close simp
+
+       apply (simp add: App_eq_foldl_conv)
+       apply (split split_if_asm)
+        close simp
+       close simp
+
+       apply (simp add: App_eq_foldl_conv)
+       apply (split split_if_asm)
+        close simp
+       by simp
+  next case appL thus ?case
+      apply auto
       apply (drule App_eq_foldl_conv [THEN iffD1])
       apply (split split_if_asm)
        apply simp
-       apply blast
-      apply (force intro!: disjI1 [THEN append_step1I])
+       close blast
+      by (force intro!: disjI1 [THEN append_step1I])
+  next case appR thus ?case
+     apply auto
      apply (drule App_eq_foldl_conv [THEN iffD1])
      apply (split split_if_asm)
       apply simp
-      apply blast
-     apply (clarify, auto 0 3 del: exI intro!: exI intro: append_step1I)
-    done
+      close blast
+     by (clarify, auto 0 3 del: exI intro!: exI intro: append_step1I)
+  next case abs thus ?case by auto
+  next case unpair thus ?case by auto
+  next case fst thus ?case by auto
+  next case snd thus ?case by auto
+  next case pairL thus ?case by auto
+  next case pairR thus ?case by auto
+  qed
   with cases show ?thesis by blast
 qed
 
