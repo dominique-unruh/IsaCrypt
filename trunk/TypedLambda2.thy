@@ -1,4 +1,4 @@
-theory TypedLambdaOrig
+theory TypedLambda2
 imports Main Tools "~~/src/HOL/Proofs/Lambda/ListOrder"
 begin
 
@@ -20,8 +20,6 @@ where
     "lift (Var i) k = (if i < k then Var i else Var (i + 1))"
   | "lift (s \<degree> t) k = lift s k \<degree> lift t k"
   | "lift (Abs s) k = Abs (lift s (k + 1))"
-(*  | "lift (Pair s t) k = Pair (lift s k) (lift t k)"
-  | "lift (Unpair b s) k = Unpair b (lift s k)" *)
 
 primrec
   subst :: "[dB, dB, nat] => dB"  ("_[_'/_]" [300, 0, 0] 300)
@@ -211,12 +209,15 @@ subsection {* Types and typing rules *}
 datatype type =
     Atom nat
   | Fun type type    (infixr "\<Rightarrow>" 200)
+  | Prod type type
 
 inductive typing :: "(nat \<Rightarrow> type) \<Rightarrow> dB \<Rightarrow> type \<Rightarrow> bool"  ("_ \<turnstile> _ : _" [50, 50, 50] 50)
   where
     Var [intro!]: "env x = T \<Longrightarrow> env \<turnstile> Var x : T"
   | Abs [intro!]: "env\<langle>0:T\<rangle> \<turnstile> t : U \<Longrightarrow> env \<turnstile> Abs t : (T \<Rightarrow> U)"
   | App [intro!]: "env \<turnstile> s : T \<Rightarrow> U \<Longrightarrow> env \<turnstile> t : T \<Longrightarrow> env \<turnstile> (s \<degree> t) : U"
+  | Pair [intro!]: "\<lbrakk> env \<turnstile> s : T; env \<turnstile> t : U \<rbrakk> \<Longrightarrow> 
+        env \<turnstile> Abs ((Var 0) \<degree> (lift s 0) \<degree> (lift t 0)) : Prod T U"
 
 inductive_cases typing_elims [elim!]:
   "e \<turnstile> Var i : T"
@@ -347,7 +348,9 @@ lemma list_app_typeI:
 subsection {* Lifting preserves well-typedness *}
 
 lemma lift_type [intro!]: "e \<turnstile> t : T \<Longrightarrow> e\<langle>i:U\<rangle> \<turnstile> lift t i : T"
-  by (induct arbitrary: i U set: typing) auto
+  apply (induct arbitrary: i U set: typing, auto) 
+  by (subst lift_lift, auto)+
+
 
 lemma lift_types:
   "e \<tturnstile> ts : Ts \<Longrightarrow> e\<langle>i:U\<rangle> \<tturnstile> (map (\<lambda>t. lift t i) ts) : Ts"
@@ -365,8 +368,9 @@ lemma subst_lemma:
   apply (induct arbitrary: e' i U u set: typing)
     apply (rule_tac x = x and y = i in linorder_cases)
       apply auto
-  apply blast
-  done
+  close blast
+  by (subst lift_subst_lt[simplified,symmetric], auto)+ 
+  
 
 lemma substs_lemma:
   "e \<turnstile> u : T \<Longrightarrow> e\<langle>i:T\<rangle> \<tturnstile> ts : Ts \<Longrightarrow>
@@ -387,6 +391,32 @@ lemma substs_lemma:
 
 subsection {* Subject reduction *}
 
+
+lemma reduce_below_lift:
+  assumes "lift s' 0 \<rightarrow>\<^sub>\<beta> t"
+  shows "\<exists>t'. t = lift t' 0 \<and> s' \<rightarrow>\<^sub>\<beta> t'"
+proof -
+def s == "lift s' 0"
+assume "lift s' 0 \<rightarrow>\<^sub>\<beta> t" hence st: "s \<rightarrow>\<^sub>\<beta> t" unfolding s_def by simp
+have "\<And>s'. s=lift s' k \<Longrightarrow> \<exists>t'. t = lift t' k \<and> s' \<rightarrow>\<^sub>\<beta> t'"
+  using st proof (induction arbitrary: k)
+  case (abs s t) 
+    obtain s0 where "s'=Abs s0" and "s = lift s0 (Suc k)"
+      apply (atomize_elim)
+      apply (cases s')
+      using `Abs s = lift s' k` apply auto
+      by (metis dB.distinct(3))
+    with abs.IH obtain t' where "t = lift t' (Suc k)" and "s0 \<rightarrow>\<^sub>\<beta> t'" by auto
+    show ?case apply (rule exI[of _ "Abs t'"], auto)
+      apply (metis `t = lift t' (Suc k)`)
+      by (metis `s' = Abs s0` `s0 \<rightarrow>\<^sub>\<beta> t'` beta.abs)
+  next case (appL s t u) thus ?case
+  next case (appR s t u)
+  next case (beta s t)
+
+
+
+
 lemma subject_reduction: "e \<turnstile> t : T \<Longrightarrow> t \<rightarrow>\<^sub>\<beta> t' \<Longrightarrow> e \<turnstile> t' : T"
   apply (induct arbitrary: t' set: typing)
     apply blast
@@ -400,8 +430,9 @@ lemma subject_reduction: "e \<turnstile> t : T \<Longrightarrow> t \<rightarrow>
      apply assumption
     apply (rule ext)
     apply (case_tac x)
-     apply auto
-  done
+    apply auto
+    apply (frule reduce_below_lift, auto)
+    by (frule reduce_below_lift, auto)
 
 
 
@@ -418,6 +449,9 @@ proof (induct T)
 next
   case Fun
   show ?case by (rule assms) (insert Fun, simp_all)
+next
+  case Prod
+  show ?case by (rule assms) (insert Prod, simp_all)
 qed
 
 
@@ -810,7 +844,7 @@ proof (induct U)
       assume "e\<langle>i:T\<rangle> \<turnstile> Abs r : T'"
         and "\<And>e T' u i. PROP ?Q r e T' u i T"
       with uIT uT show "IT (Abs r[u/i])"
-        by fastforce
+        by fastforcex
     next
       case (Beta r a as e1 T'1 u1 i1)
       assume T: "e\<langle>i:T\<rangle> \<turnstile> Abs r \<degree> a \<degree>\<degree> as : T'"
@@ -868,6 +902,12 @@ next
     show "e \<turnstile> s : T \<Rightarrow> U" by fact
   qed
   thus ?case by simp
+next
+  case (Pair env s T t U) 
+  have "IT (Abs (Var 0 \<degree>\<degree> [lift s 0, lift t 0]))"
+    apply (rule IT.intros)+
+    using Pair by auto
+  thus ?case by auto
 qed
 
 theorem type_implies_termi: "e \<turnstile> t : T \<Longrightarrow> termip beta t"
