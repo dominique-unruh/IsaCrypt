@@ -482,7 +482,7 @@ lemma head_Var_reduction:
     apply (auto 0 3 intro: disjI2 [THEN append_step1I])
   done
 
-lemma apps_betasE [elim!]:
+lemma apps_betasE [elim!, consumes 1, case_names head tail beta]:
   assumes major: "r \<degree>\<degree> rs \<rightarrow>\<^sub>\<beta> s"
     and cases: "!!r'. [| r \<rightarrow>\<^sub>\<beta> r'; s = r' \<degree>\<degree> rs |] ==> R"
       "!!rs'. [| rs => rs'; s = r \<degree>\<degree> rs' |] ==> R"
@@ -612,7 +612,9 @@ next case Lambda thus ?case
 next case Beta thus ?case
   by (blast intro: double_induction_lemma)
 next case (Pair r s rs) 
-  have "termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s)"
+  have term_rs: "termip op => rs"
+    by (metis (full_types) ListOrder.lists_accD Pair.hyps(5) listsp_conj_eq step1_converse)
+  have term_Pair: "termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s)"
     apply (insert `termip op \<rightarrow>\<^sub>\<beta> s`)
     using `termip op \<rightarrow>\<^sub>\<beta> r` proof (induction arbitrary: s, simp)
     fix r s
@@ -632,15 +634,34 @@ next case (Pair r s rs)
     qed
   qed
   show ?case
-    apply (rule accpI, simp)
-    apply (erule apps_betasE)
+    apply (insert term_Pair)
+    using term_rs apply (induction arbitrary: r s, simp) apply (rename_tac rs' r s)
+    proof -
+    fix rs r s
+    assume rs: "termip op => rs" 
+    assume Pair: "termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s)"
+    assume rsIH: "\<And>rs' r s. rs => rs' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s) \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s \<degree>\<degree> rs')"
+    show "termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s \<degree>\<degree> rs)"
+      using Pair apply (induction pair=="Pair r s" arbitrary: r s) proof -
+      fix r s assume Pair:"termip op \<rightarrow>\<^sub>\<beta> (Pair r s)"
+      assume "\<And>r' s'. op \<rightarrow>\<^sub>\<beta>\<inverse>\<inverse> (dB.Pair r' s') (dB.Pair r s) \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r' s' \<degree>\<degree> rs)"
+      hence pairIH: "\<And>r' s'. dB.Pair r s  \<rightarrow>\<^sub>\<beta>  dB.Pair r' s' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r' s' \<degree>\<degree> rs)" by simp
+      show "termip op \<rightarrow>\<^sub>\<beta> (Pair r s \<degree>\<degree> rs)"
+      proof (rule accpI, simp) fix y assume "dB.Pair r s \<degree>\<degree> rs \<rightarrow>\<^sub>\<beta> y" thus "termip op \<rightarrow>\<^sub>\<beta> y"  
+      proof (cases rule: apps_betasE)
+      case head thus "termip op \<rightarrow>\<^sub>\<beta> y" by (metis beta_cases(4) pairIH)
+      next case (tail rs') thus "termip op \<rightarrow>\<^sub>\<beta> y" by (metis Pair rsIH) 
+      next case beta thus "termip op \<rightarrow>\<^sub>\<beta> y" by auto
+      qed qed
+    qed
+  qed
 next case (Unpair r b) 
   from Unpair show ?case
    apply (erule_tac accp_induct)
    apply (rule accp.accI, simp)
    apply (erule beta_cases, auto)
    close (metixs (no_types) accp.cases fst not_accp_down pairL) 
-   by (metis (no_types) accp.cases snd not_accp_down pairR) 
+   by (mextis (no_types) accp.cases snd not_accp_down pairR) 
 qed
 
 
