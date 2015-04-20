@@ -569,17 +569,42 @@ lemma apps_preserves_betas [simp]:
 
 subsection {* Terminating lambda terms *}
 
+fun inPair where "inPair f True (Pair a b) = f a" | "inPair f False (Pair a b) = f b" | "inPair f b _ = False"
+
+lemma inPair_mono: "f\<le>g \<Longrightarrow> inPair f \<le> inPair g" 
+  apply rule apply (rename_tac b p)
+  apply (case_tac p, simp_all)
+  by (case_tac b, auto) 
+
 inductive IT :: "dB => bool"
   where
     Var [intro]: "listsp IT rs ==> IT (Var n \<degree>\<degree> rs)"
   | Lambda [intro]: "IT r ==> IT (Abs r)"
   | Beta [intro]: "IT ((r[s/0]) \<degree>\<degree> ss) ==> IT s ==> IT ((Abs r \<degree> s) \<degree>\<degree> ss)"
   | Pair [intro]: "IT r \<Longrightarrow> IT s \<Longrightarrow> listsp IT rs \<Longrightarrow> IT ((Pair r s) \<degree>\<degree> rs)"
-  | Unpair [intro]: "IT r \<Longrightarrow> listsp IT rs \<Longrightarrow> IT ((Unpair b r) \<degree>\<degree> rs)"
+  | Unpair [intro]: "IT r \<Longrightarrow> inPair IT b r \<Longrightarrow> listsp IT rs \<Longrightarrow> IT ((Unpair b r) \<degree>\<degree> rs)"
+monos inPair_mono
 
 subsection {* Every term in @{text "IT"} terminates *}
 
 lemma double_induction_lemma [rule_format]:
+  "termip beta s ==> \<forall>t. termip beta t -->
+    (\<forall>r ss. t = r[s/0] \<degree>\<degree> ss --> termip beta (Abs r \<degree> s \<degree>\<degree> ss))"
+  apply (erule accp_induct)
+  apply (rule allI)
+  apply (rule impI)
+  apply (erule thin_rl)
+  apply (erule accp_induct)
+  apply clarify
+  apply (rule accp.accI)
+  apply (safe del: apps_betasE elim!: apps_betasE)
+    apply (blast intro: subst_preserves_beta apps_preserves_beta)
+   apply (blast intro: apps_preserves_beta2 subst_preserves_beta2 rtranclp_converseI
+     dest: accp_downwards)  (* FIXME: acc_downwards can be replaced by acc(R ^* ) = acc(r) *)
+  apply (blast dest: apps_preserves_betas)
+  done
+
+lemma double_induction_lemma_Unpair [rule_format]:
   "termip beta s ==> \<forall>t. termip beta t -->
     (\<forall>r ss. t = r[s/0] \<degree>\<degree> ss --> termip beta (Abs r \<degree> s \<degree>\<degree> ss))"
   apply (erule accp_induct)
@@ -655,7 +680,7 @@ next case (Pair r s rs)
       qed qed
     qed
   qed
-next case (Unpair r b) 
+next case (Unpair r b rs) 
   from Unpair show ?case
    apply (erule_tac accp_induct)
    apply (rule accp.accI, simp)
