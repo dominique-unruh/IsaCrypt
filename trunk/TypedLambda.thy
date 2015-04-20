@@ -1,5 +1,5 @@
 theory TypedLambda
-imports Main "~~/src/HOL/Proofs/Lambda/ListOrder"
+imports Main Tools "~~/src/HOL/Proofs/Lambda/ListOrder"
 begin
 
 declare [[syntax_ambiguity_warning = false]]
@@ -574,8 +574,8 @@ inductive IT :: "dB => bool"
     Var [intro]: "listsp IT rs ==> IT (Var n \<degree>\<degree> rs)"
   | Lambda [intro]: "IT r ==> IT (Abs r)"
   | Beta [intro]: "IT ((r[s/0]) \<degree>\<degree> ss) ==> IT s ==> IT ((Abs r \<degree> s) \<degree>\<degree> ss)"
-  | Pair [intro]: "IT r \<Longrightarrow> IT s \<Longrightarrow> listsp IT rs \<Longrightarrow> IT (Pair r s \<degree>\<degree> rs)"
-  | Unpair [intro]: "IT r \<Longrightarrow> listsp IT rs \<Longrightarrow> IT (Unpair b r \<degree>\<degree> rs)"
+  | Pair [intro]: "IT r \<Longrightarrow> IT s \<Longrightarrow> listsp IT rs \<Longrightarrow> IT ((Pair r s) \<degree>\<degree> rs)"
+  | Unpair [intro]: "IT r \<Longrightarrow> listsp IT rs \<Longrightarrow> IT ((Unpair b r) \<degree>\<degree> rs)"
 
 subsection {* Every term in @{text "IT"} terminates *}
 
@@ -611,8 +611,9 @@ next case Lambda thus ?case
    by blast
 next case Beta thus ?case
   by (blast intro: double_induction_lemma)
-next case (Pair r s rs)
-  show "termip op \<rightarrow>\<^sub>\<beta> s \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s)"
+next case (Pair r s rs) 
+  have "termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s)"
+    apply (insert `termip op \<rightarrow>\<^sub>\<beta> s`)
     using `termip op \<rightarrow>\<^sub>\<beta> r` proof (induction arbitrary: s, simp)
     fix r s
     assume r:"termip op \<rightarrow>\<^sub>\<beta> r"
@@ -630,6 +631,9 @@ next case (Pair r s rs)
         by (simp, erule sIH)
     qed
   qed
+  show ?case
+    apply (rule accpI, simp)
+    apply (erule apps_betasE)
 next case (Unpair r b) 
   from Unpair show ?case
    apply (erule_tac accp_induct)
