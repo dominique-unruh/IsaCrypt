@@ -393,13 +393,13 @@ subsection {* Subject reduction *}
 
 
 lemma reduce_below_lift:
-  assumes "lift s' 0 \<rightarrow>\<^sub>\<beta> t"
-  shows "\<exists>t'. t = lift t' 0 \<and> s' \<rightarrow>\<^sub>\<beta> t'"
+  assumes "lift s' k \<rightarrow>\<^sub>\<beta> t"
+  shows "\<exists>t'. t = lift t' k \<and> s' \<rightarrow>\<^sub>\<beta> t'"
 proof -
-def s == "lift s' 0"
-assume "lift s' 0 \<rightarrow>\<^sub>\<beta> t" hence st: "s \<rightarrow>\<^sub>\<beta> t" unfolding s_def by simp
-have "\<And>s'. s=lift s' k \<Longrightarrow> \<exists>t'. t = lift t' k \<and> s' \<rightarrow>\<^sub>\<beta> t'"
-  using st proof (induction arbitrary: k)
+def s == "lift s' k"
+from assms have st: "s \<rightarrow>\<^sub>\<beta> t" unfolding s_def by simp
+have "\<And>s' k. s=lift s' k \<Longrightarrow> \<exists>t'. t = lift t' k \<and> s' \<rightarrow>\<^sub>\<beta> t'"
+  using st proof (induction)
   case (abs s t) 
     obtain s0 where "s'=Abs s0" and "s = lift s0 (Suc k)"
       apply (atomize_elim)
@@ -410,12 +410,38 @@ have "\<And>s'. s=lift s' k \<Longrightarrow> \<exists>t'. t = lift t' k \<and> 
     show ?case apply (rule exI[of _ "Abs t'"], auto)
       apply (metis `t = lift t' (Suc k)`)
       by (metis `s' = Abs s0` `s0 \<rightarrow>\<^sub>\<beta> t'` beta.abs)
-  next case (appL s t u) thus ?case
+  next case (appL s t u)
+    obtain s0 u0 where s':"s'=s0 \<degree> u0" 
+          and s:"s = lift s0 k" and u:"u = lift u0 k"
+      by (metis appL.prems dB.distinct(1) dB.distinct(5) dB.exhaust dB.inject(2) lift.simps(2) subst_App subst_lift)
+    with appL.IH obtain t' where t:"t = lift t' k" and s0: "s0 \<rightarrow>\<^sub>\<beta> t'" by auto
+    show ?case apply (rule exI[of _ "t' \<degree> u0"], auto) 
+      close (fact t) close (fact u)
+      by (metis (full_types) s' s0 beta.appL)
   next case (appR s t u)
+    obtain s0 u0 where s':"s'=u0 \<degree> s0" 
+          and s:"s = lift s0 k" and u:"u = lift u0 k"
+      by (metis appR.prems dB.distinct(1) dB.distinct(6) dB.exhaust dB.inject(2) lift.simps(2) subst_App subst_lift)
+    with appR.IH obtain t' where t:"t = lift t' k" and s0: "s0 \<rightarrow>\<^sub>\<beta> t'" by auto
+    show ?case apply (rule exI[of _ "u0 \<degree> t'"], auto) 
+      close (fact u) close (fact t) 
+      by (metis (full_types) s' s0 beta.appR)
   next case (beta s t)
-
-
-
+    then obtain s0 t0 where s':"s'=Abs s0 \<degree> t0" 
+        and s:"s=lift s0 (Suc k)" and t:"t=lift t0 k" 
+      apply (atomize_elim)
+      apply (cases s')
+      close (metis beta.beta beta_cases(1) subst_lift subst_preserves_beta) 
+      defer close auto
+      apply (rename_tac s0' t0', case_tac s0')
+      defer close auto close auto
+      by (metis dB.distinct(3) dB.inject(2) lift.simps(2) subst_Abs subst_lift)
+    show "\<exists>t'. s[t/0] = lift t' k \<and> s' \<rightarrow>\<^sub>\<beta> t'"
+      apply (rule exI[of _ "s0[t0/0]"])
+      by (auto simp: s t s')
+  qed
+  with s_def show ?thesis by auto
+qed
 
 lemma subject_reduction: "e \<turnstile> t : T \<Longrightarrow> t \<rightarrow>\<^sub>\<beta> t' \<Longrightarrow> e \<turnstile> t' : T"
   apply (induct arbitrary: t' set: typing)
