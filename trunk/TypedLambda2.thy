@@ -871,6 +871,11 @@ proof (induct U)
         and "\<And>e T' u i. PROP ?Q r e T' u i T"
       with uIT uT show "IT (Abs r[u/i])"
         by fastforcex
+(*
+    Var [intro]: "listsp IT rs ==> IT (Var n \<degree>\<degree> rs)"
+  | Lambda [intro]: "IT r ==> IT (Abs r)"
+  | Beta [intro]: "IT ((r[s/0]) \<degree>\<degree> ss) ==> IT s ==> IT ((Abs r \<degree> s) \<degree>\<degree> ss)"
+*)
     next
       case (Beta r a as e1 T'1 u1 i1)
       assume T: "e\<langle>i:T\<rangle> \<turnstile> Abs r \<degree> a \<degree>\<degree> as : T'"
