@@ -28,8 +28,6 @@ where (* FIXME base names *)
       (if k < i then Var (i - 1) else if i = k then s else Var i)"
   | subst_App: "(t \<degree> u)[s/k] = t[s/k] \<degree> u[s/k]"
   | subst_Abs: "(Abs t)[s/k] = Abs (t[lift s 0 / k+1])"
-(*  | subst_Pair: "(Pair t u)[s/k] = Pair (t[s/k]) (u[s/k])"
-  | subst_Unpair: "(Unpair b t)[s/k] = Unpair b (t[s/k])"*)
 
 declare subst_Var [simp del]
 
@@ -743,6 +741,14 @@ qed
 
 subsection {* Well-typed substitution preserves termination *}
 
+lemma remove_product_type:
+  assumes "e \<turnstile> Abs r : T'"
+  shows "\<exists>A B. e \<turnstile> Abs r : A \<Rightarrow> B"
+using assms apply (cases, auto)
+  apply (rename_tac x X y Y)
+  apply (rule_tac x="X \<Rightarrow> Y \<Rightarrow> Atom 0" in  exI)
+  by (rule_tac x="Atom 0" in  exI, auto)
+
 lemma subst_type_IT:
   "\<And>t e T u i. IT t \<Longrightarrow> e\<langle>i:U\<rangle> \<turnstile> t : T \<Longrightarrow>
     IT u \<Longrightarrow> e \<turnstile> u : U \<Longrightarrow> IT (t[u/i])"
@@ -867,15 +873,12 @@ proof (induct U)
       qed
     next
       case (Lambda r e1 T'1 u1 i1)
-      assume "e\<langle>i:T\<rangle> \<turnstile> Abs r : T'"
-        and "\<And>e T' u i. PROP ?Q r e T' u i T"
-      with uIT uT show "IT (Abs r[u/i])"
-        by fastforcex
-(*
-    Var [intro]: "listsp IT rs ==> IT (Var n \<degree>\<degree> rs)"
-  | Lambda [intro]: "IT r ==> IT (Abs r)"
-  | Beta [intro]: "IT ((r[s/0]) \<degree>\<degree> ss) ==> IT s ==> IT ((Abs r \<degree> s) \<degree>\<degree> ss)"
-*)
+        assume "e\<langle>i:T\<rangle> \<turnstile> Abs r : T'" 
+        then obtain A B where AB:"e\<langle>i:T\<rangle> \<turnstile> Abs r : A \<Rightarrow> B" 
+          by (atomize_elim, rule remove_product_type)
+        assume "\<And>e T' u i. PROP ?Q r e T' u i T"
+      with AB uIT uT show "IT (Abs r[u/i])"
+        by fastforce
     next
       case (Beta r a as e1 T'1 u1 i1)
       assume T: "e\<langle>i:T\<rangle> \<turnstile> Abs r \<degree> a \<degree>\<degree> as : T'"
