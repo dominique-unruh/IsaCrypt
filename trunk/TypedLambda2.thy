@@ -451,6 +451,8 @@ using assms apply (cases, auto)
 lemma remove_product_type_fst:
   assumes "e \<turnstile> r : Prod A B"
   shows "e \<turnstile> r : (A \<Rightarrow> B \<Rightarrow> A) \<Rightarrow> A"
+using assms apply (cases, auto)
+(* Wrong if e is a variable! ! ! *)
 by auto
 
 lemma subject_reduction: "e \<turnstile> t : T \<Longrightarrow> t \<rightarrow>\<^sub>\<beta> t' \<Longrightarrow> e \<turnstile> t' : T"
@@ -469,6 +471,7 @@ next case (App env s T U t) show ?case
     next case App thus ?thesis by (metis dB.distinct(6) local.beta(1))
     next case Abs thus ?thesis by (metis App.hyps(3) dB.inject(3) local.beta(1) local.beta(2) subst_lemma)
     next case Pair fix V assume s:"s = Abs (Var 0 \<degree> Abs (Abs (Var (Suc 0))))" and T:"T = Prod U V" 
+print_facts
       with App.hyps have "env \<turnstile> t : Prod U V" by auto
       hence t_typ:"env \<turnstile> t : (U\<Rightarrow>V\<Rightarrow>U) \<Rightarrow> U" by (rule remove_product_type_fst)
       from `s=Abs s0` and s have "s0 = Var 0 \<degree> Abs (Abs (Var (Suc 0)))" by simp
@@ -893,8 +896,8 @@ proof (induct U)
         then obtain A B where AB:"e\<langle>i:T\<rangle> \<turnstile> Abs r : A \<Rightarrow> B" 
           by (atomize_elim, rule remove_product_type)
         assume "\<And>e T' u i. PROP ?Q r e T' u i T"
-      with AB uIT uT show "IT (Abs r[u/i])"
-        by fastforce
+        with AB uIT uT show "IT (Abs r[u/i])"
+          by fastxforce
     next
       case (Beta r a as e1 T'1 u1 i1)
       assume T: "e\<langle>i:T\<rangle> \<turnstile> Abs r \<degree> a \<degree>\<degree> as : T'"
@@ -960,8 +963,11 @@ next
   thus ?case by auto
 next
   case (Fst) 
-    have "IT (Abs (Var 0 \<degree>\<degree> [Abs (Abs (Var (Suc 0)))]))"
-      apply auto
+    have "IT (Abs (Var 0 \<degree>\<degree> [Abs (Abs (Var (Suc 0) \<degree>\<degree> []))]))"
+      apply (rule IT.intros)+
+      apply (rule listsp.intros)
+      apply (rule IT.intros)+
+      by auto
     thus ?case by auto
 qed
 
