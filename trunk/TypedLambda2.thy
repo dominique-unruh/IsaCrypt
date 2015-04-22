@@ -216,7 +216,7 @@ inductive typing :: "(nat \<Rightarrow> type) \<Rightarrow> dB \<Rightarrow> typ
   | App [intro!]: "env \<turnstile> s : T \<Rightarrow> U \<Longrightarrow> env \<turnstile> t : T \<Longrightarrow> env \<turnstile> (s \<degree> t) : U"
   | Pair [intro!]: "\<lbrakk> env \<turnstile> s : T; env \<turnstile> t : U \<rbrakk> \<Longrightarrow> 
         env \<turnstile> Abs ((Var 0) \<degree> (lift s 0) \<degree> (lift t 0)) : Prod T U"
-  | Fst [intro!]: "env \<turnstile> Abs (Var 0 \<degree> Abs (Abs (Var 1))) : Prod T U \<Rightarrow> T"
+  | Fst [intro!]: "env \<turnstile> Abs (Var 0 \<degree> Abs (Abs (Var (Suc 0)))) : Prod T U \<Rightarrow> T"
 
 inductive_cases typing_elims [elim!]:
   "e \<turnstile> Var i : T"
@@ -350,7 +350,6 @@ lemma lift_type [intro!]: "e \<turnstile> t : T \<Longrightarrow> e\<langle>i:U\
   apply (induct arbitrary: i U set: typing, auto) 
   by (subst lift_lift, auto)+
 
-
 lemma lift_types:
   "e \<tturnstile> ts : Ts \<Longrightarrow> e\<langle>i:U\<rangle> \<tturnstile> (map (\<lambda>t. lift t i) ts) : Ts"
   apply (induct ts arbitrary: Ts)
@@ -443,21 +442,27 @@ have "\<And>s' k. s=lift s' k \<Longrightarrow> \<exists>t'. t = lift t' k \<and
 qed
 
 lemma subject_reduction: "e \<turnstile> t : T \<Longrightarrow> t \<rightarrow>\<^sub>\<beta> t' \<Longrightarrow> e \<turnstile> t' : T"
-  apply (induct arbitrary: t' set: typing)
-    apply blast
-   apply blast
+proof (induct arbitrary: t' set: typing)
+case Var thus ?case by blast
+next case Abs thus ?case by blast
+next case Pair thus ?case apply auto
+  apply (frule reduce_below_lift, auto)
+  by (frule reduce_below_lift, auto)
+next case Fst thus ?case  by auto
+next case (App env s T U t) thus ?case
+(*  using `s \<degree> t \<rightarrow>\<^sub>\<beta> t'` proof (induction)
+  case (beta s0 t0) with App show ?case  *)
   apply atomize
   apply (ind_cases "s \<degree> t \<rightarrow>\<^sub>\<beta> t'" for s t t')
     apply hypsubst
     apply (ind_cases "env \<turnstile> Abs t : T \<Rightarrow> U" for env t T U)
     apply (rule subst_lemma)
-      apply assumption
-     apply assumption
+      close assumption
+     close assumption
     apply (rule ext)
     apply (case_tac x)
-    apply auto
-    apply (frule reduce_below_lift, auto)
-    by (frule reduce_below_lift, auto)
+    apply auto[2] defer apply auto[2]
+        
 
 
 
@@ -749,6 +754,15 @@ using assms apply (cases, auto)
   apply (rename_tac x X y Y)
   apply (rule_tac x="X \<Rightarrow> Y \<Rightarrow> Atom 0" in  exI)
   by (rule_tac x="Atom 0" in  exI, auto)
+
+(*lemma remove_product_type_fst:
+  assumes "e \<turnstile> r : Prod A B"
+  shows "e \<turnstile> r : (A \<Rightarrow> B \<Rightarrow> A) \<Rightarrow> A"
+using assms apply (cases, auto)
+  apply (rename_tac x X y Y)
+  apply (rule_tac x="X \<Rightarrow> Y \<Rightarrow> Atom 0" in  exI)
+  by (rule_tac x="Atom 0" in  exI, auto)*)
+
 
 lemma subst_type_IT:
   "\<And>t e T u i. IT t \<Longrightarrow> e\<langle>i:U\<rangle> \<turnstile> t : T \<Longrightarrow>
