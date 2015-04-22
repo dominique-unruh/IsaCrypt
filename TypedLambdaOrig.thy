@@ -388,10 +388,25 @@ lemma substs_lemma:
 subsection {* Subject reduction *}
 
 lemma subject_reduction: "e \<turnstile> t : T \<Longrightarrow> t \<rightarrow>\<^sub>\<beta> t' \<Longrightarrow> e \<turnstile> t' : T"
-  apply (induct arbitrary: t' set: typing)
-    apply blast
-   apply blast
-  apply atomize
+proof (induct arbitrary: t' set: typing)
+case Var thus ?case by blast
+next case Abs thus ?case by blast
+next case (App env s T U t) thus ?case apply atomize 
+  using App.prems proof (cases)
+  case beta show ?thesis
+    using App unfolding beta apply simp
+    apply (ind_cases "env \<turnstile> Abs t : T \<Rightarrow> U" for env t T U)
+    apply (rule subst_lemma)
+      apply assumption
+     apply assumption
+    apply (rule ext)
+    apply (case_tac x)
+     by auto
+  next case appL with App show ?thesis by auto
+  next case appR with App show ?thesis by auto
+qed
+
+  from App have ?case  apply atomize
   apply (ind_cases "s \<degree> t \<rightarrow>\<^sub>\<beta> t'" for s t t')
     apply hypsubst
     apply (ind_cases "env \<turnstile> Abs t : T \<Rightarrow> U" for env t T U)
@@ -402,7 +417,7 @@ lemma subject_reduction: "e \<turnstile> t : T \<Longrightarrow> t \<rightarrow>
     apply (case_tac x)
      apply auto
   done
-
+qed
 
 
 subsection {* Alternative induction rule for types *}

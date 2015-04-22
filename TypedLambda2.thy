@@ -11,8 +11,6 @@ datatype dB =
     Var nat
   | App dB dB (infixl "\<degree>" 200)
   | Abs dB
-(*  | Pair dB dB
-  | Unpair bool dB*)
 
 primrec
   lift :: "[dB, nat] => dB"
@@ -441,6 +439,20 @@ have "\<And>s' k. s=lift s' k \<Longrightarrow> \<exists>t'. t = lift t' k \<and
   with s_def show ?thesis by auto
 qed
 
+
+lemma remove_product_type:
+  assumes "e \<turnstile> Abs r : T'"
+  shows "\<exists>A B. e \<turnstile> Abs r : A \<Rightarrow> B"
+using assms apply (cases, auto)
+  apply (rename_tac x X y Y)
+  apply (rule_tac x="X \<Rightarrow> Y \<Rightarrow> Atom 0" in  exI)
+  by (rule_tac x="Atom 0" in  exI, auto)
+
+lemma remove_product_type_fst:
+  assumes "e \<turnstile> r : Prod A B"
+  shows "e \<turnstile> r : (A \<Rightarrow> B \<Rightarrow> A) \<Rightarrow> A"
+by auto
+
 lemma subject_reduction: "e \<turnstile> t : T \<Longrightarrow> t \<rightarrow>\<^sub>\<beta> t' \<Longrightarrow> e \<turnstile> t' : T"
 proof (induct arbitrary: t' set: typing)
 case Var thus ?case by blast
@@ -449,20 +461,26 @@ next case Pair thus ?case apply auto
   apply (frule reduce_below_lift, auto)
   by (frule reduce_below_lift, auto)
 next case Fst thus ?case  by auto
-next case (App env s T U t) thus ?case
-(*  using `s \<degree> t \<rightarrow>\<^sub>\<beta> t'` proof (induction)
-  case (beta s0 t0) with App show ?case  *)
-  apply atomize
-  apply (ind_cases "s \<degree> t \<rightarrow>\<^sub>\<beta> t'" for s t t')
-    apply hypsubst
-    apply (ind_cases "env \<turnstile> Abs t : T \<Rightarrow> U" for env t T U)
-    apply (rule subst_lemma)
-      close assumption
-     close assumption
-    apply (rule ext)
-    apply (case_tac x)
-    apply auto[2] defer apply auto[2]
-        
+next case (App env s T U t) show ?case
+  using App.prems proof (cases)
+  case (beta s0) show ?thesis
+    using `env \<turnstile> s : T \<Rightarrow> U` proof (cases)
+    case Var thus ?thesis by (metis dB.distinct(3) local.beta(1))
+    next case App thus ?thesis by (metis dB.distinct(6) local.beta(1))
+    next case Abs thus ?thesis by (metis App.hyps(3) dB.inject(3) local.beta(1) local.beta(2) subst_lemma)
+    next case Pair fix V assume s:"s = Abs (Var 0 \<degree> Abs (Abs (Var (Suc 0))))" and T:"T = Prod U V" 
+      with App.hyps have "env \<turnstile> t : Prod U V" by auto
+      hence t_typ:"env \<turnstile> t : (U\<Rightarrow>V\<Rightarrow>U) \<Rightarrow> U" by (rule remove_product_type_fst)
+      from `s=Abs s0` and s have "s0 = Var 0 \<degree> Abs (Abs (Var (Suc 0)))" by simp
+      with beta have t':"t' = t \<degree> Abs (Abs (Var (Suc 0)))" by auto
+      show "env \<turnstile> t' : U"
+        unfolding t' apply (rule typing.intros)
+        close (rule t_typ) by auto
+    qed
+  next case appL with App show ?thesis by auto
+  next case appR with App show ?thesis by auto
+  qed
+qed   
 
 
 
@@ -747,23 +765,6 @@ qed
 
 subsection {* Well-typed substitution preserves termination *}
 
-lemma remove_product_type:
-  assumes "e \<turnstile> Abs r : T'"
-  shows "\<exists>A B. e \<turnstile> Abs r : A \<Rightarrow> B"
-using assms apply (cases, auto)
-  apply (rename_tac x X y Y)
-  apply (rule_tac x="X \<Rightarrow> Y \<Rightarrow> Atom 0" in  exI)
-  by (rule_tac x="Atom 0" in  exI, auto)
-
-(*lemma remove_product_type_fst:
-  assumes "e \<turnstile> r : Prod A B"
-  shows "e \<turnstile> r : (A \<Rightarrow> B \<Rightarrow> A) \<Rightarrow> A"
-using assms apply (cases, auto)
-  apply (rename_tac x X y Y)
-  apply (rule_tac x="X \<Rightarrow> Y \<Rightarrow> Atom 0" in  exI)
-  by (rule_tac x="Atom 0" in  exI, auto)*)
-
-
 lemma subst_type_IT:
   "\<And>t e T u i. IT t \<Longrightarrow> e\<langle>i:U\<rangle> \<turnstile> t : T \<Longrightarrow>
     IT u \<Longrightarrow> e \<turnstile> u : U \<Longrightarrow> IT (t[u/i])"
@@ -957,6 +958,11 @@ next
     apply (rule IT.intros)+
     using Pair by auto
   thus ?case by auto
+next
+  case (Fst) 
+    have "IT (Abs (Var 0 \<degree>\<degree> [Abs (Abs (Var (Suc 0)))]))"
+      apply auto
+    thus ?case by auto
 qed
 
 theorem type_implies_termi: "e \<turnstile> t : T \<Longrightarrow> termip beta t"
