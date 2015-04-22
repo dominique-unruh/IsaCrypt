@@ -393,15 +393,11 @@ case Var thus ?case by blast
 next case Abs thus ?case by blast
 next case (App env s T U t) thus ?case apply atomize 
   using App.prems proof (cases)
-  case beta show ?thesis
-    using App unfolding beta apply simp
-    apply (ind_cases "env \<turnstile> Abs t : T \<Rightarrow> U" for env t T U)
-    apply (rule subst_lemma)
-      apply assumption
-     apply assumption
-    apply (rule ext)
-    apply (case_tac x)
-     by auto
+  case (beta s0) 
+    have "env<0:T> \<turnstile> s0 : U"
+      by (smt2 App.hyps(1) local.beta(1) type.inject(2) typing_elims(3)) 
+    show ?thesis
+    by (metis App.hyps(1) App.hyps(3) dB.distinct(3) dB.distinct(5) dB.inject(3) local.beta(1) local.beta(2) subst_lemma type.inject(2) typing.cases) 
   next case appL with App show ?thesis by auto
   next case appR with App show ?thesis by auto
 qed
