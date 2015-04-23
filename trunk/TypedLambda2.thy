@@ -214,7 +214,7 @@ inductive typing :: "(nat \<Rightarrow> type) \<Rightarrow> dB \<Rightarrow> typ
   | App [intro!]: "env \<turnstile> s : T \<Rightarrow> U \<Longrightarrow> env \<turnstile> t : T \<Longrightarrow> env \<turnstile> (s \<degree> t) : U"
   | Pair [intro!]: "\<lbrakk> env \<turnstile> s : T; env \<turnstile> t : U \<rbrakk> \<Longrightarrow> 
         env \<turnstile> Abs ((Var 0) \<degree> (lift s 0) \<degree> (lift t 0)) : Prod T U"
-  | Fst [intro!]: "env \<turnstile> Abs (Var 0 \<degree> Abs (Abs (Var (Suc 0)))) : Prod T U \<Rightarrow> T"
+  | Fst [intro!]: "env \<turnstile> s : Prod T U \<Longrightarrow> env \<turnstile> s \<degree> Abs (Abs (Var (Suc 0))) : T"
 
 inductive_cases typing_elims [elim!]:
   "e \<turnstile> Var i : T"
