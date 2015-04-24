@@ -303,20 +303,20 @@ subsection {* n-ary function types *}
 
 lemma list_app_typeD:
     "e \<turnstile> t \<degree>\<degree> ts : T \<Longrightarrow> \<exists>Ts. e \<turnstile> t : Ts \<Rrightarrow> T \<and> e \<tturnstile> ts : Ts"
-  apply (induct ts arbitrary: t T)
-   apply simp
-  apply (rename_tac a b t T)
-  apply atomize
+proof (induction ts arbitrary: t T)
+case Nil thus ?case by simp
+next case (Cons a ts) thus ?case
   apply simp
+  apply atomize
   apply (erule_tac x = "t \<degree> a" in allE)
   apply (erule_tac x = T in allE)
   apply (erule impE)
-   apply assumption
+   close assumption
   apply (elim exE conjE)
   apply (ind_cases "e \<turnstile> t \<degree> u : T" for t u T)
-  apply (rule_tac x = "Ta # Ts" in exI)
-  apply simp
-  done
+  apply (rule_tac x = "T # Ts" in exI)
+  by simp
+qed
 
 lemma list_app_typeE:
   "e \<turnstile> t \<degree>\<degree> ts : T \<Longrightarrow> (\<And>Ts. e \<turnstile> t : Ts \<Rrightarrow> T \<Longrightarrow> e \<tturnstile> ts : Ts \<Longrightarrow> C) \<Longrightarrow> C"
