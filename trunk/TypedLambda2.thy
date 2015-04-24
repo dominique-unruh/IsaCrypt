@@ -214,12 +214,17 @@ inductive typing :: "(nat \<Rightarrow> type) \<Rightarrow> dB \<Rightarrow> typ
   | App [intro!]: "env \<turnstile> s : T \<Rightarrow> U \<Longrightarrow> env \<turnstile> t : T \<Longrightarrow> env \<turnstile> (s \<degree> t) : U"
   | Pair [intro!]: "\<lbrakk> env \<turnstile> s : T; env \<turnstile> t : U \<rbrakk> \<Longrightarrow> 
         env \<turnstile> Abs ((Var 0) \<degree> (lift s 0) \<degree> (lift t 0)) : Prod T U"
-  | Fst [intro!]: "env \<turnstile> s : Prod T U \<Longrightarrow> env \<turnstile> s \<degree> Abs (Abs (Var (Suc 0))) : T"
+  | Fst [intro!]: "env \<turnstile> s : Prod T U \<Longrightarrow> env \<turnstile> s : (T \<Rightarrow> U \<Rightarrow> T) \<Rightarrow> T"
 
 inductive_cases typing_elims [elim!]:
   "e \<turnstile> Var i : T"
   "e \<turnstile> t \<degree> u : T"
   "e \<turnstile> Abs t : T"
+print_theorems
+
+lemma typing_elim_app: assumes "e \<turnstile> t \<degree> u : T" shows "(\<And>T' U'. e \<turnstile> t : T' \<Rightarrow> U' \<Longrightarrow> e \<turnstile> u : T' \<Longrightarrow> P) \<Longrightarrow> P"
+  using assms apply cases close auto
+  apply (erule typing_elims(2)) by auto
 
 primrec
   typings :: "(nat \<Rightarrow> type) \<Rightarrow> dB list \<Rightarrow> type list \<Rightarrow> bool"
@@ -301,20 +306,21 @@ subsection {* n-ary function types *}
 
 lemma list_app_typeD:
     "e \<turnstile> t \<degree>\<degree> ts : T \<Longrightarrow> \<exists>Ts. e \<turnstile> t : Ts \<Rrightarrow> T \<and> e \<tturnstile> ts : Ts"
-  apply (induct ts arbitrary: t T)
-   apply simp
-  apply (rename_tac a b t T)
-  apply atomize
+proof (induction ts arbitrary: t T)
+case Nil thus ?case by simp
+next case (Cons a ts) thus ?case
   apply simp
+  apply atomize
   apply (erule_tac x = "t \<degree> a" in allE)
   apply (erule_tac x = T in allE)
   apply (erule impE)
-   apply assumption
+   close assumption
   apply (elim exE conjE)
-  apply (ind_cases "e \<turnstile> t \<degree> u : T" for t u T)
-  apply (rule_tac x = "Ta # Ts" in exI)
-  apply simp
-  done
+  apply (erule typing_elim_app)  
+  apply (rule_tac x = "U' # Ts" in exI, simp)
+  apply (frule Fst)
+  by simp
+qed
 
 lemma list_app_typeE:
   "e \<turnstile> t \<degree>\<degree> ts : T \<Longrightarrow> (\<And>Ts. e \<turnstile> t : Ts \<Rrightarrow> T \<Longrightarrow> e \<tturnstile> ts : Ts \<Longrightarrow> C) \<Longrightarrow> C"

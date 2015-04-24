@@ -11,7 +11,7 @@ datatype dB =
     Var nat
   | App dB dB (infixl "\<degree>" 200)
   | Abs dB
-  | Pair dB dB
+  | MkPair dB dB
   | Unpair bool dB
 
 primrec
@@ -20,7 +20,7 @@ where
     "lift (Var i) k = (if i < k then Var i else Var (i + 1))"
   | "lift (s \<degree> t) k = lift s k \<degree> lift t k"
   | "lift (Abs s) k = Abs (lift s (k + 1))"
-  | "lift (Pair s t) k = Pair (lift s k) (lift t k)"
+  | "lift (MkPair s t) k = MkPair (lift s k) (lift t k)"
   | "lift (Unpair b s) k = Unpair b (lift s k)" 
 
 primrec
@@ -30,7 +30,7 @@ where (* FIXME base names *)
       (if k < i then Var (i - 1) else if i = k then s else Var i)"
   | subst_App: "(t \<degree> u)[s/k] = t[s/k] \<degree> u[s/k]"
   | subst_Abs: "(Abs t)[s/k] = Abs (t[lift s 0 / k+1])"
-  | subst_Pair: "(Pair t u)[s/k] = Pair (t[s/k]) (u[s/k])"
+  | subst_MkPair: "(MkPair t u)[s/k] = MkPair (t[s/k]) (u[s/k])"
   | subst_Unpair: "(Unpair b t)[s/k] = Unpair b (t[s/k])"
 
 declare subst_Var [simp del]
@@ -43,11 +43,11 @@ inductive beta :: "[dB, dB] => bool"  (infixl "\<rightarrow>\<^sub>\<beta>" 50)
   | appL [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> s \<degree> u \<rightarrow>\<^sub>\<beta> t \<degree> u"
   | appR [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> u \<degree> s \<rightarrow>\<^sub>\<beta> u \<degree> t"
   | abs [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> Abs s \<rightarrow>\<^sub>\<beta> Abs t"
-  | pairL [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> Pair s u \<rightarrow>\<^sub>\<beta> Pair t u"
-  | pairR [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> Pair u s \<rightarrow>\<^sub>\<beta> Pair u t"
+  | pairL [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> MkPair s u \<rightarrow>\<^sub>\<beta> MkPair t u"
+  | pairR [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> MkPair u s \<rightarrow>\<^sub>\<beta> MkPair u t"
   | unpair [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> Unpair b s \<rightarrow>\<^sub>\<beta> Unpair b t"
-  | fst [simp, intro!]: "Unpair True (Pair s t) \<rightarrow>\<^sub>\<beta> s"
-  | snd [simp, intro!]: "Unpair False (Pair s t) \<rightarrow>\<^sub>\<beta> t"
+  | fst [simp, intro!]: "Unpair True (MkPair s t) \<rightarrow>\<^sub>\<beta> s"
+  | snd [simp, intro!]: "Unpair False (MkPair s t) \<rightarrow>\<^sub>\<beta> t"
 
 abbreviation
   beta_reds :: "[dB, dB] => bool"  (infixl "->>" 50) where
@@ -60,7 +60,7 @@ inductive_cases beta_cases [elim!]:
   "Var i \<rightarrow>\<^sub>\<beta> t"
   "Abs r \<rightarrow>\<^sub>\<beta> s"
   "s \<degree> t \<rightarrow>\<^sub>\<beta> u"
-  "Pair s t \<rightarrow>\<^sub>\<beta> u"
+  "MkPair s t \<rightarrow>\<^sub>\<beta> u"
   "Unpair b t \<rightarrow>\<^sub>\<beta> u"
 
 declare if_not_P [simp] not_less_eq [simp]
@@ -85,17 +85,17 @@ lemma rtrancl_beta_App [intro]:
     "[| s \<rightarrow>\<^sub>\<beta>\<^sup>* s'; t \<rightarrow>\<^sub>\<beta>\<^sup>* t' |] ==> s \<degree> t \<rightarrow>\<^sub>\<beta>\<^sup>* s' \<degree> t'"
   by (blast intro!: rtrancl_beta_AppL rtrancl_beta_AppR intro: rtranclp_trans)
 
-lemma rtrancl_beta_PairL:
-    "s \<rightarrow>\<^sub>\<beta>\<^sup>* s' ==> Pair s t \<rightarrow>\<^sub>\<beta>\<^sup>* Pair s' t"
+lemma rtrancl_beta_MkPairL:
+    "s \<rightarrow>\<^sub>\<beta>\<^sup>* s' ==> MkPair s t \<rightarrow>\<^sub>\<beta>\<^sup>* MkPair s' t"
   by (induct set: rtranclp) (blast intro: rtranclp.rtrancl_into_rtrancl)+
 
-lemma rtrancl_beta_PairR:
-    "t \<rightarrow>\<^sub>\<beta>\<^sup>* t' ==> Pair s t \<rightarrow>\<^sub>\<beta>\<^sup>* Pair s t'"
+lemma rtrancl_beta_MkPairR:
+    "t \<rightarrow>\<^sub>\<beta>\<^sup>* t' ==> MkPair s t \<rightarrow>\<^sub>\<beta>\<^sup>* MkPair s t'"
   by (induct set: rtranclp) (blast intro: rtranclp.rtrancl_into_rtrancl)+
 
-lemma rtrancl_beta_Pair [intro]:
-    "[| s \<rightarrow>\<^sub>\<beta>\<^sup>* s'; t \<rightarrow>\<^sub>\<beta>\<^sup>* t' |] ==> Pair s t \<rightarrow>\<^sub>\<beta>\<^sup>* Pair s' t'"
-  by (blast intro!: rtrancl_beta_PairL rtrancl_beta_PairR intro: rtranclp_trans)
+lemma rtrancl_beta_MkPair [intro]:
+    "[| s \<rightarrow>\<^sub>\<beta>\<^sup>* s'; t \<rightarrow>\<^sub>\<beta>\<^sup>* t' |] ==> MkPair s t \<rightarrow>\<^sub>\<beta>\<^sup>* MkPair s' t'"
+  by (blast intro!: rtrancl_beta_MkPairL rtrancl_beta_MkPairR intro: rtranclp_trans)
 
 lemma rtrancl_beta_Unpair [intro!]:
     "s \<rightarrow>\<^sub>\<beta>\<^sup>* s' ==> Unpair b s \<rightarrow>\<^sub>\<beta>\<^sup>* Unpair b s'"
@@ -155,7 +155,7 @@ theorem subst_preserves_beta2 [simp]: "r \<rightarrow>\<^sub>\<beta> s ==> t[r/i
   close (simp add: subst_Var r_into_rtranclp)
   close (simp add: rtrancl_beta_App)
   close (simp add: rtrancl_beta_Abs)
-  close (simp add: rtrancl_beta_Pair)
+  close (simp add: rtrancl_beta_MkPair)
   by (simp add: rtrancl_beta_Unpair)
 
 
@@ -176,8 +176,8 @@ lemma Abs_eq_apps_conv [iff]:
     "(Abs r = s \<degree>\<degree> ss) = (Abs r = s \<and> ss = [])"
   by (induct ss rule: rev_induct) auto
 
-lemma Pair_eq_apps_conv [iff]:
-    "(Pair p q = s \<degree>\<degree> ss) = (Pair p q = s \<and> ss = [])"
+lemma MkPair_eq_apps_conv [iff]:
+    "(MkPair p q = s \<degree>\<degree> ss) = (MkPair p q = s \<and> ss = [])"
   by (induct ss rule: rev_induct) auto
 
 lemma Unpair_eq_apps_conv [iff]:
@@ -250,7 +250,7 @@ inductive typing :: "(nat \<Rightarrow> type) \<Rightarrow> dB \<Rightarrow> typ
     Var [intro!]: "env x = T \<Longrightarrow> env \<turnstile> Var x : T"
   | Abs [intro!]: "env\<langle>0:T\<rangle> \<turnstile> t : U \<Longrightarrow> env \<turnstile> Abs t : (T \<Rightarrow> U)"
   | App [intro!]: "env \<turnstile> s : T \<Rightarrow> U \<Longrightarrow> env \<turnstile> t : T \<Longrightarrow> env \<turnstile> (s \<degree> t) : U"
-  | Pair [intro!]: "env \<turnstile> s : T \<Longrightarrow> env \<turnstile> t : U \<Longrightarrow> env \<turnstile> (Pair s t) : (Prod T U)"
+  | MkPair [intro!]: "env \<turnstile> s : T \<Longrightarrow> env \<turnstile> t : U \<Longrightarrow> env \<turnstile> (MkPair s t) : (Prod T U)"
   | Fst [intro!]: "env \<turnstile> s : Prod T U \<Longrightarrow> env \<turnstile> Unpair True s : T"
   | Snd [intro!]: "env \<turnstile> s : Prod T U \<Longrightarrow> env \<turnstile> Unpair False s : U"
 
@@ -258,7 +258,7 @@ inductive_cases typing_elims [elim!]:
   "e \<turnstile> Var i : T"
   "e \<turnstile> t \<degree> u : T"
   "e \<turnstile> Abs t : T"
-  "e \<turnstile> Pair s t : T"
+  "e \<turnstile> MkPair s t : T"
   "e \<turnstile> Unpair b t : T"
 
 primrec
@@ -569,9 +569,9 @@ lemma apps_preserves_betas [simp]:
 
 subsection {* Terminating lambda terms *}
 
-fun inPair where "inPair f True (Pair a b) = f a" | "inPair f False (Pair a b) = f b" | "inPair f b _ = False"
+fun inMkPair where "inMkPair f True (MkPair a b) = f a" | "inMkPair f False (MkPair a b) = f b" | "inMkPair f b _ = False"
 
-lemma inPair_mono: "f\<le>g \<Longrightarrow> inPair f \<le> inPair g" 
+lemma inMkPair_mono: "f\<le>g \<Longrightarrow> inMkPair f \<le> inMkPair g" 
   apply rule apply (rename_tac b p)
   apply (case_tac p, simp_all)
   by (case_tac b, auto) 
@@ -581,9 +581,9 @@ inductive IT :: "dB => bool"
     Var [intro]: "listsp IT rs ==> IT (Var n \<degree>\<degree> rs)"
   | Lambda [intro]: "IT r ==> IT (Abs r)"
   | Beta [intro]: "IT ((r[s/0]) \<degree>\<degree> ss) ==> IT s ==> IT ((Abs r \<degree> s) \<degree>\<degree> ss)"
-  | Pair [intro]: "IT r \<Longrightarrow> IT s \<Longrightarrow> listsp IT rs \<Longrightarrow> IT ((Pair r s) \<degree>\<degree> rs)"
-  | Unpair [intro]: "IT r \<Longrightarrow> inPair IT b r \<Longrightarrow> listsp IT rs \<Longrightarrow> IT ((Unpair b r) \<degree>\<degree> rs)"
-monos inPair_mono
+  | MkPair [intro]: "IT r \<Longrightarrow> IT s \<Longrightarrow> listsp IT rs \<Longrightarrow> IT ((MkPair r s) \<degree>\<degree> rs)"
+  | Unpair [intro]: "IT r \<Longrightarrow> inMkPair IT b r \<Longrightarrow> listsp IT rs \<Longrightarrow> IT ((Unpair b r) \<degree>\<degree> rs)"
+monos inMkPair_mono
 
 subsection {* Every term in @{text "IT"} terminates *}
 
@@ -622,7 +622,8 @@ lemma double_induction_lemma_Unpair [rule_format]:
   done
 
 lemma IT_implies_termi: "IT t ==> termip beta t"
-proof (induct set: IT)
+sorry
+(*proof (induct set: IT)
 case Var thus ?case 
     apply (drule_tac rev_predicate1D [OF _ listsp_mono [where B="termip beta"]])
     close (fast del: predicate1I intro!: predicate1I)
@@ -636,22 +637,22 @@ next case Lambda thus ?case
    by blast
 next case Beta thus ?case
   by (blast intro: double_induction_lemma)
-next case (Pair r s rs) 
+next case (MkPair r s rs) 
   have term_rs: "termip op => rs"
-    by (metis (full_types) ListOrder.lists_accD Pair.hyps(5) listsp_conj_eq step1_converse)
-  have term_Pair: "termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s)"
+    by (metis (full_types) ListOrder.lists_accD MkPair.hyps(5) listsp_conj_eq step1_converse)
+  have term_MkPair: "termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s)"
     apply (insert `termip op \<rightarrow>\<^sub>\<beta> s`)
     using `termip op \<rightarrow>\<^sub>\<beta> r` proof (induction arbitrary: s, simp)
     fix r s
     assume r:"termip op \<rightarrow>\<^sub>\<beta> r"
     assume s:"termip op \<rightarrow>\<^sub>\<beta> s"
-    assume rIH: "\<And>r' s. r \<rightarrow>\<^sub>\<beta> r' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> s \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r' s)"
-    show "termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s)"
+    assume rIH: "\<And>r' s. r \<rightarrow>\<^sub>\<beta> r' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> s \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r' s)"
+    show "termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s)"
       using s proof (induction)
       fix s assume s:"termip op \<rightarrow>\<^sub>\<beta> s" 
-      assume "\<And>s'. op \<rightarrow>\<^sub>\<beta>\<inverse>\<inverse> s' s \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s')"
-      hence sIH: "\<And>s'. s \<rightarrow>\<^sub>\<beta> s' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s')" by simp
-      show "termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s)"
+      assume "\<And>s'. op \<rightarrow>\<^sub>\<beta>\<inverse>\<inverse> s' s \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s')"
+      hence sIH: "\<And>s'. s \<rightarrow>\<^sub>\<beta> s' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s')" by simp
+      show "termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s)"
         apply (rule accpI, simp)
         apply (erule beta_cases, clarify)
         close (erule rIH, rule s) 
@@ -659,23 +660,23 @@ next case (Pair r s rs)
     qed
   qed
   show ?case
-    apply (insert term_Pair)
+    apply (insert term_MkPair)
     using term_rs apply (induction arbitrary: r s, simp) apply (rename_tac rs' r s)
     proof -
     fix rs r s
     assume rs: "termip op => rs" 
-    assume Pair: "termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s)"
-    assume rsIH: "\<And>rs' r s. rs => rs' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s) \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s \<degree>\<degree> rs')"
-    show "termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r s \<degree>\<degree> rs)"
-      using Pair apply (induction pair=="Pair r s" arbitrary: r s) proof -
-      fix r s assume Pair:"termip op \<rightarrow>\<^sub>\<beta> (Pair r s)"
-      assume "\<And>r' s'. op \<rightarrow>\<^sub>\<beta>\<inverse>\<inverse> (dB.Pair r' s') (dB.Pair r s) \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r' s' \<degree>\<degree> rs)"
-      hence pairIH: "\<And>r' s'. dB.Pair r s  \<rightarrow>\<^sub>\<beta>  dB.Pair r' s' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.Pair r' s' \<degree>\<degree> rs)" by simp
-      show "termip op \<rightarrow>\<^sub>\<beta> (Pair r s \<degree>\<degree> rs)"
-      proof (rule accpI, simp) fix y assume "dB.Pair r s \<degree>\<degree> rs \<rightarrow>\<^sub>\<beta> y" thus "termip op \<rightarrow>\<^sub>\<beta> y"  
+    assume MkPair: "termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s)"
+    assume rsIH: "\<And>rs' r s. rs => rs' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s) \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s \<degree>\<degree> rs')"
+    show "termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s \<degree>\<degree> rs)"
+      using MkPair apply (induction pair=="MkPair r s" arbitrary: r s) proof -
+      fix r s assume MkPair:"termip op \<rightarrow>\<^sub>\<beta> (MkPair r s)"
+      assume "\<And>r' s'. op \<rightarrow>\<^sub>\<beta>\<inverse>\<inverse> (dB.MkPair r' s') (dB.MkPair r s) \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r' s' \<degree>\<degree> rs)"
+      hence pairIH: "\<And>r' s'. dB.MkPair r s  \<rightarrow>\<^sub>\<beta>  dB.MkPair r' s' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r' s' \<degree>\<degree> rs)" by simp
+      show "termip op \<rightarrow>\<^sub>\<beta> (MkPair r s \<degree>\<degree> rs)"
+      proof (rule accpI, simp) fix y assume "dB.MkPair r s \<degree>\<degree> rs \<rightarrow>\<^sub>\<beta> y" thus "termip op \<rightarrow>\<^sub>\<beta> y"  
       proof (cases rule: apps_betasE)
       case head thus "termip op \<rightarrow>\<^sub>\<beta> y" by (metis beta_cases(4) pairIH)
-      next case (tail rs') thus "termip op \<rightarrow>\<^sub>\<beta> y" by (metis Pair rsIH) 
+      next case (tail rs') thus "termip op \<rightarrow>\<^sub>\<beta> y" by (metis MkPair rsIH) 
       next case beta thus "termip op \<rightarrow>\<^sub>\<beta> y" by auto
       qed qed
     qed
@@ -688,7 +689,7 @@ next case (Unpair r b rs)
    close (metixs (no_types) accp.cases fst not_accp_down pairL) 
    by (mextis (no_types) accp.cases snd not_accp_down pairR) 
 qed
-
+*)
 
 subsection {* Every terminating term is in @{text "IT"} *}
 
@@ -701,7 +702,7 @@ inductive_cases [elim!]:
   "IT (Var n \<degree>\<degree> ss)"
   "IT (Abs t)"
   "IT (Abs r \<degree> s \<degree>\<degree> ts)"
-  "IT (Pair t u)"
+  "IT (MkPair t u)"
   "IT (Unpair b t)"
 
 
@@ -713,6 +714,7 @@ Felix Joachimski and Ralph Matthes \cite{Matthes-Joachimski-AML}.
 
 subsection {* Properties of @{text IT} *}
 
+(*
 lemma lift_IT [intro!]: "IT t \<Longrightarrow> IT (lift t i)"
   apply (induct arbitrary: i set: IT)
     apply (simp (no_asm))
@@ -753,7 +755,7 @@ lemma subst_Var_IT: "IT r \<Longrightarrow> IT (r[Var i/j])"
   apply (rule IT.Beta)
    apply auto
   done
-
+*)
 lemma Var_IT: "IT (Var n)"
   apply (subgoal_tac "IT (Var n \<degree>\<degree> [])")
    apply simp
@@ -761,6 +763,7 @@ lemma Var_IT: "IT (Var n)"
   apply (rule listsp.Nil)
   done
 
+(*
 lemma app_Var_IT: "IT t \<Longrightarrow> IT (t \<degree> Var i)"
 proof (induct set: IT)
 case Var thus ?case
@@ -781,16 +784,17 @@ next case Beta thus ?case
    apply (subst app_last [symmetric])
    close assumption
   by assumption
-next case (Pair r s) thus ?case
-  apply (insert Pair)
+next case (MkPair r s) thus ?case
+  apply (insert MkPair)
   apply (rule IT.Beta [where ?ss = "[]", unfolded foldl_Nil [THEN eq_reflection]])
   close (erule subst_Var_IT)
   by (rule Var_IT)
 qed
-
+*)
 
 subsection {* Well-typed substitution preserves termination *}
 
+(*
 lemma subst_type_IT:
   "\<And>t e T u i. IT t \<Longrightarrow> e\<langle>i:U\<rangle> \<turnstile> t : T \<Longrightarrow>
     IT u \<Longrightarrow> e \<turnstile> u : U \<Longrightarrow> IT (t[u/i])"
@@ -943,13 +947,15 @@ proof (induct U)
     }
   qed
 qed
-
+*)
 
 subsection {* Well-typed terms are strongly normalizing *}
 
 lemma type_implies_IT:
   assumes "e \<turnstile> t : T"
   shows "IT t"
+sorry
+(*
   using assms
 proof induct
   case Var
@@ -977,6 +983,7 @@ next
   qed
   thus ?case by simp
 qed
+*)
 
 theorem type_implies_termi: "e \<turnstile> t : T \<Longrightarrow> termip beta t"
 proof -
