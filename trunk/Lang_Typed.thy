@@ -575,5 +575,62 @@ Const(@{const_name Lang_Typed.procedure.procedure_ext},dummyT) $
    Const(@{const_name Product_Type.Unity},dummyT)
 end)] *}
 
+subsection "Support for defining typed procedure functors"
 
+term "proc() { x:=1; return () }"
+
+term mk_procedure_typed
+
+definition "subst_prog1 p q = Abs_program (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) q)"
+
+lemma procfun_apply_ex:
+  fixes p body body0 retval args
+  assumes "subst_prog1 arg_proc body = PROGRAM[\<guillemotleft>body0\<guillemotright>]"
+  defines "p0==procedure_functor_mk_typed (Proc body (Rep_procargvars args) (mk_expression_untyped retval))"
+  shows "procfun_apply p0 arg_proc = \<lparr> p_body=body0, p_args=args, p_return=retval \<rparr>"
+sorry
+
+lemma subst_prog1_seq:
+  assumes "subst_prog1 p q1 = PROGRAM[\<guillemotleft>c1\<guillemotright>]"
+  assumes "subst_prog1 p q2 = PROGRAM[\<guillemotleft>c2\<guillemotright>]"
+  defines "q == Seq q1 q2"
+  shows "subst_prog1 p q = PROGRAM[\<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>]"
+sorry
+
+lemma subst_prog1_closed:
+  fixes q c p
+  defines "q == mk_program_untyped c"
+  shows "subst_prog1 p q = PROGRAM[\<guillemotleft>c\<guillemotright>]"
+sorry
+
+term callproc
+
+lemma subst_prog1_callproc:
+  fixes v args
+  defines "q==CallProc (mk_variable_untyped v) (ProcRef 0) (mk_procargs_untyped procargs_empty)"
+  shows "subst_prog1 p q = PROGRAM[v:=CALL p()]"
+sorry
+
+lemma aux: "a == b \<Longrightarrow> Q b \<Longrightarrow> Q a" by auto
+
+definition "x == Variable ''x'' :: int variable"
+definition "y == Variable ''y'' :: unit variable"
+schematic_lemma l1:
+  shows "\<And>p. my_proc == ?my_proc \<Longrightarrow> 
+  (procfun_apply my_proc p = proc() { x:=1; y:=CALL p(); return () })"
+apply (drule meta_eq_to_obj_eq, hypsubst, thin_tac "?a = ?b")
+apply (rule procfun_apply_ex)
+apply (rule subst_prog1_seq)
+apply (rule subst_prog1_closed)
+apply (rule subst_prog1_callproc)
+by (tactic all_tac)
+
+definition my_proc_def0: "my_proc \<equiv>
+ procedure_functor_mk_typed
+  (Proc (Seq (mk_program_untyped (assign x (const_expression 1)))
+          (CallProc (mk_variable_untyped y) (ProcRef 0) (mk_procargs_untyped procargs_empty)))
+    (mk_procargvars_untyped procargvars_empty)
+    (mk_expression_untyped (const_expression ())))"
+
+lemmas my_proc_def = my_proc_def0[THEN l1]
 end
