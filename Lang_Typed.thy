@@ -308,7 +308,7 @@ class procedure_functor =
     "procedure_functor_mk_typed (procedure_functor_mk_untyped p) = p"
 
 typedef ('a::procedure_functor,'b::procedure_functor) procfun = "{p::procedure_rep.
-  well_typed_proc'' [] p (ProcFun (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b)))
+  well_typed_proc'' [] p (ProcTFun (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b)))
   \<and> beta_reduced p}"
   apply (rule exI[of _ "ProcAbs (procedure_functor_mk_untyped (undefined::'b))"], auto)
   apply (rule wt_ProcAbs, rule well_typed_extend, rule procedure_functor_welltyped)
@@ -316,10 +316,9 @@ typedef ('a::procedure_functor,'b::procedure_functor) procfun = "{p::procedure_r
 
 type_notation "procfun" (infixr "=proc=>" 0)
 
-
 instantiation procfun :: (procedure_functor,procedure_functor) procedure_functor begin
 definition "procedure_functor_type (_::('a,'b)procfun itself)
-     == ProcFun (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b))"
+     == ProcTFun (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b))"
 definition "procedure_functor_mk_untyped == Rep_procfun"
 definition "procedure_functor_mk_typed == Abs_procfun"
 instance apply intro_classes 
@@ -331,6 +330,26 @@ instance apply intro_classes
   by (smt2 Abs_procfun_inverse mem_Collect_eq well_typed_extend(2))
 end
 
+instantiation prod :: (procedure_functor,procedure_functor) procedure_functor begin
+definition "procedure_functor_type (_::('a*'b) itself)
+     == ProcTPair (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b))"
+definition "procedure_functor_mk_untyped == (\<lambda>(x,y). ProcPair (procedure_functor_mk_untyped x) (procedure_functor_mk_untyped y))"
+definition "procedure_functor_mk_typed p == (case p of ProcPair x y \<Rightarrow> (procedure_functor_mk_typed x, procedure_functor_mk_typed y))"
+instance apply intro_classes 
+  unfolding procedure_functor_type_prod_def procedure_functor_mk_untyped_prod_def
+            procedure_functor_mk_typed_prod_def
+  close (auto, rule well_typed''_well_typed_proc''.intros, simp_all add: procedure_functor_welltyped)
+  apply (case_tac p, clarify)
+  apply (auto simp: beta_reduced_def, erule beta_reduce_proc.cases, auto)[]
+    using procedure_functor_beta_reduced unfolding beta_reduced_def close auto
+    using procedure_functor_beta_reduced unfolding beta_reduced_def close auto
+  defer
+  close (auto simp: procedure_functor_mk_untyped_inverse)[]
+  apply (ind_cases "well_typed_proc'' [] q (ProcTPair a b)" for q a b, auto)
+  by simp
+end
+
+
 (* TODO move *)
 lemma well_typed_well_typed'': 
   shows "well_typed p \<Longrightarrow> well_typed'' [] p"
@@ -341,7 +360,7 @@ lemma well_typed_well_typed'':
 
 (* TODO move *)
 lemma well_typed_proc_well_typed_proc'':
-  shows "well_typed_proc p \<Longrightarrow> well_typed_proc'' [] p (ProcSimple (proctype_of p))"
+  shows "well_typed_proc p \<Longrightarrow> well_typed_proc'' [] p (ProcTSimple (proctype_of p))"
 apply (cases p, auto) apply (rule wt_Proc, auto) by (rule well_typed_well_typed'', simp)
 
 
@@ -352,26 +371,29 @@ SORRY
 
 (* TODO move *)
 lemma well_typed_proc''_well_typed:
-  assumes "well_typed_proc'' [] p (ProcSimple (proctype_of p))"
+  assumes "well_typed_proc'' [] p (ProcTSimple (proctype_of p))"
   assumes "beta_reduced p"
   shows "well_typed_proc p"
 SORRY
 
 (* TODO move *)
-lemma well_typed_ProcSimple_Proc:
-  assumes "well_typed_proc'' [] p (ProcSimple T)"
+lemma well_typed_ProcTSimple_Proc:
+  assumes "well_typed_proc'' [] p (ProcTSimple T)"
   obtains body ret args where "p = Proc body ret args"
 SORRY
 
 instantiation procedure_ext :: (procargs,prog_type,type) procedure_functor begin
-definition "procedure_functor_type (_::('a,'b,'c)procedure_ext itself) == ProcSimple (procedure_type TYPE(('a,'b,'c)procedure_ext))"
+definition "procedure_functor_type (_::('a,'b,'c)procedure_ext itself) == ProcTSimple (procedure_type TYPE(('a,'b,'c)procedure_ext))"
 definition "procedure_functor_mk_untyped == mk_procedure_untyped"
 definition "procedure_functor_mk_typed == mk_procedure_typed"
 instance apply intro_classes unfolding procedure_functor_type_procedure_ext_def procedure_functor_mk_untyped_procedure_ext_def procedure_functor_mk_typed_procedure_ext_def 
   using well_typed_proc_well_typed_proc'' mk_procedure_untyped close metis
   using well_typed_proc_beta_reduced mk_procedure_untyped close auto
-  apply (rule_tac p=q in well_typed_ProcSimple_Proc) close simp
-    apply simp apply (subst mk_procedure_typed_inverse)
+  apply (rule_tac p=q in well_typed_ProcTSimple_Proc) close simp
+  apply (hypsubst, subst mk_procedure_typed_inverse)
+  apply (subgoal_tac "well_typed_proc (Proc body ret args)")
+  close simp
+  
   using well_typed_proc''_well_typed mk_procedure_typed_inverse close auto
   using mk_procedure_untyped_inverse by auto
 end

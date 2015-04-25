@@ -5,10 +5,25 @@ begin
 subsection {* Various facts and definitions *}
 
 definition "freshvar vs = (SOME vn. \<forall>v\<in>set vs. vn \<noteq> vu_name v)"
+lemma freshvar_def2: "\<forall>v\<in>set vs. (freshvar vs) \<noteq> vu_name v"
+proof -
+  have "\<exists>vn. vn \<notin> set (map vu_name vs)"
+    apply (rule ex_new_if_finite)
+    close (rule infinite_UNIV_listI)
+    by auto
+  hence "\<exists>vn. \<forall>v\<in>set vs. vn \<noteq> vu_name v"
+    by (metis image_eqI set_map)
+  thus ?thesis
+    unfolding freshvar_def
+    by (rule someI_ex)
+qed
+
+(*
 lemma freshvar_global: "mk_variable_untyped (Variable (freshvar vs)) \<notin> set vs"
   sorry
 lemma freshvar_local: "mk_variable_untyped (LVariable (freshvar vs)) \<notin> set vs"
   sorry
+*)
 
 fun fresh_variables_local :: "variable_untyped list \<Rightarrow> type list \<Rightarrow> variable_untyped list" where
   "fresh_variables_local used [] = []"
@@ -17,7 +32,9 @@ fun fresh_variables_local :: "variable_untyped list \<Rightarrow> type list \<Ri
      let v=\<lparr> vu_name=vn, vu_type=t, vu_global=False \<rparr> in
      v#fresh_variables_local (v#used) ts)"
 lemma fresh_variables_local_distinct: "distinct (fresh_variables_local used ts)"
-  sorry
+apply (induction ts, auto simp: Let_def)
+sorry
+
 lemma fresh_variables_local_local: "\<forall>v\<in>set (fresh_variables_local used ts). \<not> vu_global v"
   apply (induction ts arbitrary: used, auto)
   by (metis (poly_guards_query) set_ConsD variable_untyped.select_convs(3)) 
@@ -724,7 +741,6 @@ proof -
   have "y' \<rightarrow>> x' \<Longrightarrow> \<forall>z'. y' \<rightarrow>> z' \<longrightarrow> (\<exists>u'. x' \<rightarrow>> u' \<and> z' \<rightarrow>> u')"
   and  "y \<Rightarrow>> x \<Longrightarrow> \<forall>z. y \<Rightarrow>> z \<longrightarrow> (\<exists>u. x \<Rightarrow>> u \<and> z \<Rightarrow>> u)"
     proof (induction y' x' and y x rule:par_beta'_par_beta.inducts)
-    print_cases
     case pb_Assign thus ?case by (blast intro!: par_beta_subst)
     next case pb_Sample thus ?case by (blast intro!: par_beta_subst)
     next case pb_Seq thus ?case by (blast intro!: par_beta_subst)
@@ -748,12 +764,30 @@ proof -
       next
         fix z sa ta assume saz:"sa \<Rightarrow>> z" assume b assume s:"s = ProcPair sa ta" 
         thm pb_ProcUnpair.IH
-        obtain u where "t \<Rightarrow>> u" and "ProcPair z ta \<Rightarrow>> u"
+        obtain u where tu:"t \<Rightarrow>> u" and ztau:"ProcPair z ta \<Rightarrow>> u"
           by (metis saz beta_reduce_proofs.par_beta_refl(2) beta_reduce_proofs.pb_ProcPair pb_ProcUnpair.IH s)
-        obtain sa0 ta0 where "t = ProcPair sa0 ta0" and "sa \<Rightarrow>> sa0" and "ta \<Rightarrow>> ta0"
+        obtain u1 u2 where u:"u=ProcPair u1 u2" and zu1:"z\<Rightarrow>>u1"
+          by (metis ztau beta_reduce_proofs.par_beta_cases(14))
+        obtain sa0 ta0 where t:"t = ProcPair sa0 ta0"
           by (metis s beta_reduce_proofs.par_beta_cases(14) pb_ProcUnpair.hyps)
+        from tu have sa0u1: "sa0 \<Rightarrow>> u1" unfolding t u by (cases, auto)
         show "\<exists>u. ProcUnpair True t \<Rightarrow>> u \<and> z \<Rightarrow>> u"
-by auto
+          apply (rule exI[of _ u1])
+          unfolding t using sa0u1 zu1 by auto
+      next
+        fix z sa ta assume taz:"ta \<Rightarrow>> z" assume "\<not>b" assume s:"s = ProcPair sa ta" 
+        thm pb_ProcUnpair.IH
+        obtain u where tu:"t \<Rightarrow>> u" and ztau:"ProcPair sa z \<Rightarrow>> u"
+          by (metis taz beta_reduce_proofs.par_beta_refl(2) beta_reduce_proofs.pb_ProcPair pb_ProcUnpair.IH s)
+        obtain u1 u2 where u:"u=ProcPair u1 u2" and zu2:"z\<Rightarrow>>u2"
+          by (metis ztau beta_reduce_proofs.par_beta_cases(14))
+        obtain sa0 ta0 where t:"t = ProcPair sa0 ta0"
+          by (metis s beta_reduce_proofs.par_beta_cases(14) pb_ProcUnpair.hyps)
+        from tu have ta0u2: "ta0 \<Rightarrow>> u2" unfolding t u by (cases, auto)
+        show "\<exists>u. ProcUnpair False t \<Rightarrow>> u \<and> z \<Rightarrow>> u"
+          apply (rule exI[of _ u2])
+          unfolding t using ta0u2 zu2 by auto
+      qed
     qed}
   thus ?thesis 
     unfolding diamond_def commute_def square_def by auto
