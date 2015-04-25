@@ -100,7 +100,12 @@ proof (rule ccontr)
     unfolding count_space_def restrict_space_def apply auto *)
   have geq\<epsilon>: "\<And>x. max 0 (f x) \<ge> \<epsilon> * indicator ?A\<epsilon> x" 
     apply (case_tac "f x \<ge> \<epsilon>", auto)
-    by (smt2 ereal_mult_zero indicator_def le_max_iff_disj max.cobounded1 monoid_mult_class.mult.right_neutral mult.commute)
+    proof - (* sledgehammer proof *)
+      fix x :: 'a
+      assume "\<epsilon> \<le> f x"
+      hence "\<epsilon> \<le> max 0 (f x)" by (metis (no_types) max.bounded_iff max_def)
+      thus "\<epsilon> * indicator {x \<in> A. \<epsilon> \<le> f x} x \<le> max 0 (f x)" by (simp add: indicator_def)
+    qed
   have "(\<integral>\<^sup>+x. f x \<partial>count_space A) = (\<integral>\<^sup>+x. max 0 (f x) \<partial>count_space A)"
     by (metis nn_integral_max_0)  
   also from geq\<epsilon> have "\<dots> \<ge> (\<integral>\<^sup>+x. \<epsilon> * indicator ?A\<epsilon> x \<partial>count_space A)" (is "_ \<ge> ...")
