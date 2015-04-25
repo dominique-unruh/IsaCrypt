@@ -352,31 +352,7 @@ case (wt_ProcAbs T E p U) show ?case apply auto
   by (auto simp: shift_def)
 qed auto
 
-(*
-inductive subterm :: "dB \<Rightarrow> dB \<Rightarrow> bool" where
-  srefl [simp]: "subterm t t"
-| sapp1: "subterm t t' \<Longrightarrow> subterm t (t'\<degree>u)"
-| sapp2: "subterm t t' \<Longrightarrow> subterm t (u\<degree>t')"
-| sabs: "subterm t t' \<Longrightarrow> subterm t (Abs t')"
 
-(*
-a\<longrightarrow>b := \<exists>C. a \<rightarrow>\<beta> C[b] \<or> a=C[b]  (but not a=b)
-*)
-inductive BETA :: "dB \<Rightarrow> dB \<Rightarrow> bool" (infixl "\<leadsto>" 50) where
-  step: "subterm a a' \<Longrightarrow> a' \<rightarrow>\<^sub>\<beta> b \<Longrightarrow> a\<leadsto>b"
-| sub: "subterm b a \<Longrightarrow> a\<noteq>b \<Longrightarrow> a\<leadsto>b"
-
-abbreviation "beta_rel == beta_reduce_prog_beta_reduce_proc_rel"
-abbreviation "beta_dom == beta_reduce_prog_beta_reduce_proc_dom"
-abbreviation "beta_reduce_prog_dom x == beta_reduce_prog_beta_reduce_proc_dom(Inl x)"
-abbreviation "beta_reduce_proc_dom x == beta_reduce_prog_beta_reduce_proc_dom(Inr x)"
-abbreviation "beta_reduce == beta_reduce_prog_beta_reduce_proc_sumC"
-
-thm beta_reduce_prog_beta_reduce_proc_rel.induct
-
-thm_deps IT_implies_termi
-unused_thms
-*)
 
 
 lemma accp_map: 
@@ -645,38 +621,51 @@ lemma par_beta_lift [simp]:
 proof (induct t and p arbitrary: t' n and p' n) 
 case (ProcAppl p1 p2) thus ?case by fastforce
 next case (ProcPair p1 p2) thus ?case by fastforce
-(*  fix s s' t t'
-  assume "\<And>p' n. ProcAbs s \<Rightarrow>> p' \<Longrightarrow> ProcAbs (lift_proc s (Suc n)) \<Rightarrow>> lift_proc p' n"
-  also assume "s \<Rightarrow>> s'"
-  hence "ProcAbs s \<Rightarrow>> ProcAbs s'" by auto
-  ultimately have "ProcAbs (lift_proc s (Suc n)) \<Rightarrow>> lift_proc (ProcAbs s') n" by metis 
-  hence "ProcAbs (lift_proc s (Suc n)) \<Rightarrow>> ProcAbs (lift_proc s' (Suc n))" by auto
-  hence "lift_proc s (Suc n) \<Rightarrow>> lift_proc s' (Suc n)"
-    by (metis open_proc_termination.par_beta_cases(5))
-  assume "p2 \<Rightarrow>> t'" and "\<And>p' n. p2 \<Rightarrow>> p' \<Longrightarrow> lift_proc p2 n \<Rightarrow>> lift_proc p' n"
-  hence "lift_proc p2 n \<Rightarrow>> lift_proc t' n" by auto
-  have "ProcAppl (ProcAbs (lift_proc s (Suc n))) (lift_proc p2 n) \<Rightarrow>> subst_proc 0 (lift_proc t' n) (lift_proc s' (Suc n))"
-    by (metis `lift_proc p2 n \<Rightarrow>> lift_proc t' n` `lift_proc s (Suc n) \<Rightarrow>> lift_proc s' (Suc n)` open_proc_termination.pb_beta)
-  have "subst_proc 0 (lift_proc t' n) (lift_proc s' (Suc n)) = lift_proc (subst_proc 0 t' s') n"
-    by (metis Procedures.lift_subst zero_less_Suc)
-  show "ProcAppl (ProcAbs (lift_proc s (Suc n))) (lift_proc p2 n) \<Rightarrow>> lift_proc (subst_proc 0 t' s') n" *)
-(*next case (ProcPair p1 p2) 
-  fix s s' t t'
-  assume "\<And>p' n. ProcAbs s \<Rightarrow>> p' \<Longrightarrow> ProcAbs (lift_proc s (Suc n)) \<Rightarrow>> lift_proc p' n"
-  also assume "s \<Rightarrow>> s'"
-  hence "ProcAbs s \<Rightarrow>> ProcAbs s'" by auto
-  ultimately have "ProcAbs (lift_proc s (Suc n)) \<Rightarrow>> lift_proc (ProcAbs s') n" by metis 
-  hence "ProcAbs (lift_proc s (Suc n)) \<Rightarrow>> ProcAbs (lift_proc s' (Suc n))" by auto
-  hence "lift_proc s (Suc n) \<Rightarrow>> lift_proc s' (Suc n)"
-    by (metis open_proc_termination.par_beta_cases(5))
-  assume "p2 \<Rightarrow>> t'" and "\<And>p' n. p2 \<Rightarrow>> p' \<Longrightarrow> lift_proc p2 n \<Rightarrow>> lift_proc p' n"
-  hence "lift_proc p2 n \<Rightarrow>> lift_proc t' n" by auto
-  have "ProcAppl (ProcAbs (lift_proc s (Suc n))) (lift_proc p2 n) \<Rightarrow>> subst_proc 0 (lift_proc t' n) (lift_proc s' (Suc n))"
-    by (metis `lift_proc p2 n \<Rightarrow>> lift_proc t' n` `lift_proc s (Suc n) \<Rightarrow>> lift_proc s' (Suc n)` open_proc_termination.pb_beta)
-  have "subst_proc 0 (lift_proc t' n) (lift_proc s' (Suc n)) = lift_proc (subst_proc 0 t' s') n"
-    by (metis Procedures.lift_subst zero_less_Suc)
-  show "ProcAppl (ProcAbs (lift_proc s (Suc n))) (lift_proc p2 n) \<Rightarrow>> lift_proc (subst_proc 0 t' s') n" *)
-next case (ProcUnpair b p) thus ?case apply auto 
+    (*  fix s s' t t'
+      assume "\<And>p' n. ProcAbs s \<Rightarrow>> p' \<Longrightarrow> ProcAbs (lift_proc s (Suc n)) \<Rightarrow>> lift_proc p' n"
+      also assume "s \<Rightarrow>> s'"
+      hence "ProcAbs s \<Rightarrow>> ProcAbs s'" by auto
+      ultimately have "ProcAbs (lift_proc s (Suc n)) \<Rightarrow>> lift_proc (ProcAbs s') n" by metis 
+      hence "ProcAbs (lift_proc s (Suc n)) \<Rightarrow>> ProcAbs (lift_proc s' (Suc n))" by auto
+      hence "lift_proc s (Suc n) \<Rightarrow>> lift_proc s' (Suc n)"
+        by (metis open_proc_termination.par_beta_cases(5))
+      assume "p2 \<Rightarrow>> t'" and "\<And>p' n. p2 \<Rightarrow>> p' \<Longrightarrow> lift_proc p2 n \<Rightarrow>> lift_proc p' n"
+      hence "lift_proc p2 n \<Rightarrow>> lift_proc t' n" by auto
+      have "ProcAppl (ProcAbs (lift_proc s (Suc n))) (lift_proc p2 n) \<Rightarrow>> subst_proc 0 (lift_proc t' n) (lift_proc s' (Suc n))"
+        by (metis `lift_proc p2 n \<Rightarrow>> lift_proc t' n` `lift_proc s (Suc n) \<Rightarrow>> lift_proc s' (Suc n)` open_proc_termination.pb_beta)
+      have "subst_proc 0 (lift_proc t' n) (lift_proc s' (Suc n)) = lift_proc (subst_proc 0 t' s') n"
+        by (metis Procedures.lift_subst zero_less_Suc)
+      show "ProcAppl (ProcAbs (lift_proc s (Suc n))) (lift_proc p2 n) \<Rightarrow>> lift_proc (subst_proc 0 t' s') n" *)
+next case (ProcUnpair b p)
+(*     p \<Rightarrow>> ?p' \<Longrightarrow> lift_proc p ?n \<Rightarrow>> lift_proc ?p' ?n
+     *) 
+  from ProcUnpair.prems show ?case
+  proof (erule_tac par_beta_cases)
+    fix t assume p':"p' = ProcUnpair b t" and "p \<Rightarrow>> t" 
+    with ProcUnpair.hyps show "lift_proc (ProcUnpair b p) n \<Rightarrow>> lift_proc p' n" by auto
+  next
+    fix s t assume b:"b" assume sp':"s \<Rightarrow>> p'" assume p:"p = ProcPair s t"
+    have "p \<Rightarrow>> ProcPair p' t"  unfolding p
+      using sp' by auto
+    with ProcUnpair.hyps
+    have "lift_proc p n \<Rightarrow>> lift_proc (ProcPair p' t) n" by metis
+    also have "lift_proc p n = ProcPair (lift_proc s n) (lift_proc t n)"
+      by (metis lift_proc.simps(4) p)
+    finally have "lift_proc s n \<Rightarrow>> lift_proc p' n" by auto
+    thus "lift_proc (ProcUnpair b p) n \<Rightarrow>> lift_proc p' n" 
+      unfolding p using b by auto
+  next
+    fix s t assume b:"\<not>b" assume sp':"t \<Rightarrow>> p'" assume p:"p = ProcPair s t"
+    have "p \<Rightarrow>> ProcPair s p'"  unfolding p
+      using sp' by auto
+    with ProcUnpair.hyps
+    have "lift_proc p n \<Rightarrow>> lift_proc (ProcPair s p') n" by metis
+    also have "lift_proc p n = ProcPair (lift_proc s n) (lift_proc t n)"
+      by (metis lift_proc.simps(4) p)
+    finally have "lift_proc t n \<Rightarrow>> lift_proc p' n" by auto
+    thus "lift_proc (ProcUnpair b p) n \<Rightarrow>> lift_proc p' n" 
+      unfolding p using b by auto
+  qed
 qed auto
 
 
@@ -697,7 +686,31 @@ next case ProcAbs thus ?case by auto
 next case (ProcAppl p q) thus ?case
    apply (auto simp: subst_subst [symmetric])
    by (fastforce intro!: par_beta_lift)
-next case ProcUnpair thus ?case by auto
+next case (ProcUnpair b t) 
+  from ProcUnpair.prems show ?case
+  proof (erule_tac par_beta_cases)
+    fix t0 assume "s \<Rightarrow>> s'" and "t' = ProcUnpair b t0" and "t \<Rightarrow>> t0"
+    thus "subst_proc n s (ProcUnpair b t) \<Rightarrow>> subst_proc n s' t'"
+      by (metis (poly_guards_query) ProcUnpair.hyps Procedures.subst_proc_ProcUnpair beta_reduce_proofs.pb_ProcUnpair)
+  next
+    fix s0 t0 assume ss': "s \<Rightarrow>> s'" assume s0t': "s0 \<Rightarrow>> t'"
+    assume b:"b" assume t:"t = ProcPair s0 t0"
+    from t s0t' have "t \<Rightarrow>> ProcPair t' t0" by auto
+    with ss' have "subst_proc n s (ProcPair s0 t0) \<Rightarrow>> subst_proc n s' (ProcPair t' t0)" 
+      unfolding t[symmetric] by (rule_tac ProcUnpair.hyps, auto)
+    hence "subst_proc n s s0 \<Rightarrow>> subst_proc n s' t'" by auto
+    thus "subst_proc n s (ProcUnpair b t) \<Rightarrow>> subst_proc n s' t'"
+      by (auto simp: t b)
+  next
+    fix s0 t0 assume ss': "s \<Rightarrow>> s'" assume s0t': "t0 \<Rightarrow>> t'"
+    assume b:"\<not>b" assume t:"t = ProcPair s0 t0"
+    from t s0t' have "t \<Rightarrow>> ProcPair s0 t'" by auto
+    with ss' have "subst_proc n s (ProcPair s0 t0) \<Rightarrow>> subst_proc n s' (ProcPair s0 t')" 
+      unfolding t[symmetric] by (rule_tac ProcUnpair.hyps, auto)
+    hence "subst_proc n s t0 \<Rightarrow>> subst_proc n s' t'" by auto
+    thus "subst_proc n s (ProcUnpair b t) \<Rightarrow>> subst_proc n s' t'"
+      by (auto simp: t b)
+  qed
 next case (ProcPair p q) thus ?case
    by (auto simp: subst_subst [symmetric])
 qed
@@ -710,8 +723,38 @@ proof -
   {fix x y x' y' 
   have "y' \<rightarrow>> x' \<Longrightarrow> \<forall>z'. y' \<rightarrow>> z' \<longrightarrow> (\<exists>u'. x' \<rightarrow>> u' \<and> z' \<rightarrow>> u')"
   and  "y \<Rightarrow>> x \<Longrightarrow> \<forall>z. y \<Rightarrow>> z \<longrightarrow> (\<exists>u. x \<Rightarrow>> u \<and> z \<Rightarrow>> u)"
-    apply (induction y' x' and y x rule:par_beta'_par_beta.inducts)
-    by (blast intro!: par_beta_subst)+}
+    proof (induction y' x' and y x rule:par_beta'_par_beta.inducts)
+    print_cases
+    case pb_Assign thus ?case by (blast intro!: par_beta_subst)
+    next case pb_Sample thus ?case by (blast intro!: par_beta_subst)
+    next case pb_Seq thus ?case by (blast intro!: par_beta_subst)
+    next case pb_Skip thus ?case by (blast intro!: par_beta_subst)
+    next case pb_IfTE thus ?case by (blast intro!: par_beta_subst)
+    next case pb_While thus ?case by (blast intro!: par_beta_subst)
+    next case pb_CallProc thus ?case by (blast intro!: par_beta_subst)
+    next case pb_Proc thus ?case by (blast intro!: par_beta_subst)
+    next case pb_ProcRef thus ?case by (blast intro!: par_beta_subst)
+    next case pb_ProcAbs thus ?case by (blast intro!: par_beta_subst)
+    next case pb_ProcAppl thus ?case by (blast intro!: par_beta_subst)
+    next case pb_ProcPair thus ?case by (blast intro!: par_beta_subst)
+    next case pb_beta thus ?case by (blast intro!: par_beta_subst)
+    next case pb_ProcUnpair1 thus ?case by (blast intro!: par_beta_subst)
+    next case pb_ProcUnpair2 thus ?case by (blast intro!: par_beta_subst)
+    next case (pb_ProcUnpair s t b) show ?case 
+      proof auto
+        fix ta assume "s \<Rightarrow>> ta" 
+        thus "\<exists>u. ProcUnpair b t \<Rightarrow>> u \<and> ProcUnpair b ta \<Rightarrow>> u"
+          by (metis (full_types) beta_reduce_proofs.pb_ProcUnpair pb_ProcUnpair.IH)
+      next
+        fix z sa ta assume saz:"sa \<Rightarrow>> z" assume b assume s:"s = ProcPair sa ta" 
+        thm pb_ProcUnpair.IH
+        obtain u where "t \<Rightarrow>> u" and "ProcPair z ta \<Rightarrow>> u"
+          by (metis saz beta_reduce_proofs.par_beta_refl(2) beta_reduce_proofs.pb_ProcPair pb_ProcUnpair.IH s)
+        obtain sa0 ta0 where "t = ProcPair sa0 ta0" and "sa \<Rightarrow>> sa0" and "ta \<Rightarrow>> ta0"
+          by (metis s beta_reduce_proofs.par_beta_cases(14) pb_ProcUnpair.hyps)
+        show "\<exists>u. ProcUnpair True t \<Rightarrow>> u \<and> z \<Rightarrow>> u"
+by auto
+    qed}
   thus ?thesis 
     unfolding diamond_def commute_def square_def by auto
 qed
@@ -733,32 +776,29 @@ and cd :: "procedure_rep \<Rightarrow> procedure_rep" where
 | "cd (ProcAppl (ProcAppl s1 s2) t) = ProcAppl (cd (ProcAppl s1 s2)) (cd t)"
 | "cd (ProcAppl (ProcAbs u) t) = subst_proc 0 (cd t) (cd u)"
 | "cd (ProcAppl t u) = ProcAppl (cd t) (cd u)"
-(*| "cd (ProcAppl (ProcRef n) t) = ProcAppl (ProcRef n) (cd t)"
-| "cd (ProcAppl (Proc body ret args) t) = ProcAppl (Proc (cd' body) ret args) (cd t)" *)
 | "cd (ProcAbs s) = ProcAbs (cd s)"
 | "cd (ProcPair s t) = ProcPair (cd s) (cd t)"
 | "cd (ProcUnpair b (ProcPair p1 p2)) = (if b then cd p1 else cd p2)"
-(* TODO: nested ProcUnpair? Combined Unpair/Appl? *)
 | "cd (ProcUnpair b t) = ProcUnpair b (cd t)"
 
+(*
 lemma par_beta_cd:
   shows "s' \<rightarrow>> t' \<Longrightarrow> t' \<rightarrow>> cd' s'"
   and   "s \<Rightarrow>> t \<Longrightarrow> t \<Rightarrow>> cd s"
   apply (induct s' and s arbitrary: t' and t rule: cd'_cd.induct)
       apply auto
   close (fast intro!: par_beta_subst)
-
-  
-
   close (fast intro!: par_beta_subst)
   by (fast intro!: par_beta_subst)
+*)
 
 subsection {* Confluence (via complete developments) *}
 
-(*lemma diamond_par_beta2: "diamond par_beta"
+(*
+lemma diamond_par_beta2: "diamond par_beta"
   apply (unfold diamond_def commute_def square_def)
-  by (blast intro: par_beta_cd)*)
-
+  by (blast intro: par_beta_cd)
+*)
 
 theorem beta_confluent: "confluent beta_reduce_proc"
   apply (rule diamond_to_confluence)
