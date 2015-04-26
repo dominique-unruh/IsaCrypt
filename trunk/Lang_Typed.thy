@@ -583,6 +583,15 @@ term mk_procedure_typed
 
 definition "subst_prog1 p q = Abs_program (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) q)"
 
+term curry
+consts curry_proc :: "('a \<times> 'b =proc=> 'c) \<Rightarrow> ('a =proc=> 'b =proc=> 'c)"
+lemma red_procfun_apply_curry:
+  fixes p
+  assumes "procfun_apply p (arg_proc1,arg_proc2) = q"
+  defines "p0 == curry_proc p"
+  shows "procfun_apply (procfun_apply p0 arg_proc1) arg_proc2 = q"
+sorry
+
 lemma procfun_apply_ex:
   fixes p body body0 retval args
   assumes "subst_prog1 arg_proc body = PROGRAM[\<guillemotleft>body0\<guillemotright>]"
@@ -611,17 +620,17 @@ lemma subst_prog1_callproc:
   shows "subst_prog1 p q = PROGRAM[v:=CALL p()]"
 sorry
 
-lemma aux: "a == b \<Longrightarrow> Q b \<Longrightarrow> Q a" by auto
-
 definition "x == Variable ''x'' :: int variable"
 definition "y == Variable ''y'' :: unit variable"
 schematic_lemma l1:
-  shows "\<And>p. my_proc == ?my_proc \<Longrightarrow> 
-  (procfun_apply my_proc p = proc() { x:=1; y:=CALL p(); return () })"
+  shows "\<And>p q r. my_proc == ?my_proc \<Longrightarrow> 
+  (procfun_apply my_proc (p,q,r) = proc() { x:=1; y:=CALL p(); y:=CALL q(); return () })"
 apply (drule meta_eq_to_obj_eq, hypsubst, thin_tac "?a = ?b")
 apply (rule procfun_apply_ex)
 apply (rule subst_prog1_seq)
+apply (rule subst_prog1_seq)
 apply (rule subst_prog1_closed)
+apply (rule subst_prog1_callproc)
 apply (rule subst_prog1_callproc)
 by (tactic all_tac)
 
