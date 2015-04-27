@@ -144,12 +144,12 @@ fun well_typed :: "program_rep \<Rightarrow> bool" where
 | "well_typed (CallProc v (Proc body pargs ret) args) =
     (vu_type v = eu_type ret \<and> 
     map eu_type args = map vu_type pargs \<and>
-    well_typed body \<and> list_all (\<lambda>v. \<not> vu_global v) pargs \<and> distinct pargs)"
+    well_typed body \<and> (\<forall>v\<in>set pargs. \<not> vu_global v) \<and> distinct pargs)"
 | "well_typed (CallProc v _ args) = False"
 
 fun well_typed_proc :: "procedure_rep \<Rightarrow> bool" where
   "well_typed_proc (Proc body pargs ret) = 
-    (well_typed body \<and> list_all (\<lambda>v. \<not> vu_global v) pargs \<and> distinct pargs)"
+    (well_typed body \<and> (\<forall>v\<in>set pargs. \<not> vu_global v) \<and> distinct pargs)"
 | "well_typed_proc _ = False"
 
 typedef program = "{prog. well_typed prog}"
