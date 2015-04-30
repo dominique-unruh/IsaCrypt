@@ -9,8 +9,12 @@ heap $(HEAP) : ROOT *.thy
 	/opt/Isabelle/bin/isabelle build -b -d . -v EasyCrypt 
 	ls -lh $(BROWSER_INFO)/document.pdf
 
-$(HEAPS)/HOL-Lambda HOL-Lambda : ROOT
-	/opt/Isabelle/bin/isabelle build -b -d . -v HOL-Lambda 
+HOL-EC-Prereqs : ROOT
+	/opt/Isabelle/bin/isabelle build -b -d . -v HOL-EC-Prereqs
+
+
+HOL-EC-Core : ROOT
+	/opt/Isabelle/bin/isabelle build -b -d . -v HOL-EC-Core
 
 theories.pdf session.graph: ROOT *.thy *.tex
 	/opt/Isabelle/bin/isabelle build -d . -v EasyCrypt

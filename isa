@@ -1,3 +1,10 @@
 #!/bin/bash
 
-/opt/Isabelle/bin/isabelle jedit -l HOL-EC-Prereqs -d . "$@" &
+HEAP=HOL-EC-Core
+
+if [ "$1" = "x" ]; then
+    HEAP-HOL-EC-Prereqs
+    shift
+fi
+
+/opt/Isabelle/bin/isabelle jedit -l "$HEAP" -d . "$@" &
