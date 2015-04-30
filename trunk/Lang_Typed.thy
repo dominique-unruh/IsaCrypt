@@ -100,7 +100,7 @@ proof (rule trans[OF _ Rep_expression_untyped_inverse], cases "Rep_expression_un
     apply (subst Abs_expression_untyped_inject)
     unfolding e_fun_def e_vars_def
     apply (auto simp: embedding_Type)
-    close (smt2 Rep_expression mem_Collect_eq)
+    close (metis expression_rep.select_convs(1) expression_rep.select_convs(2) f_touches rep_abs)
     close (fact f_t)
     close (metis f_touches)
     unfolding rep_abs apply (auto simp: t)

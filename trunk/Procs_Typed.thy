@@ -135,20 +135,23 @@ definition procfun_apply :: "('a::procedure_functor,'b::procedure_functor)procfu
 
 subsection {* Support for defining typed procedure functors *}
 
-definition "subst_prog1 E p q pr ==
-  well_typed'' [E] q \<and> Abs_program (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) q) = pr"
-definition "subst_proc1 p q = procedure_functor_mk_typed (subst_proc 0 (procedure_functor_mk_untyped p) q)"
+definition "subst_prog1 (p::'a::procedure_functor) q pr ==
+  well_typed'' [procedure_functor_type TYPE('a)] q \<and> Abs_program (beta_reduce' 
+                  (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' q))) = pr"
+definition "subst_proc1 (p::'a::procedure_functor) q (pr::('b::procargs,'c::prog_type)procedure) == 
+  well_typed_proc'' [procedure_functor_type TYPE('a)] q (ProcTSimple (procedure_type TYPE(('b,'c)procedure)))
+  \<and> procedure_functor_mk_typed (subst_proc 0 (procedure_functor_mk_untyped p) (beta_reduce q)) = pr"
 
 locale reduce_procfun begin
 
 
 lemma apply1:
   fixes p body body0 retval args and arg_proc::"'a::procedure_functor"
-  assumes subst: "subst_prog1 (procedure_functor_type TYPE('a)) arg_proc body PROGRAM[\<guillemotleft>body0\<guillemotright>]"
+  assumes subst: "subst_prog1 arg_proc body PROGRAM[\<guillemotleft>body0\<guillemotright>]"
   defines "p0==procedure_functor_mk_typed (ProcAbs (Proc body (Rep_procargvars args) (mk_expression_untyped retval)))"
   shows "procfun_apply p0 arg_proc = \<lparr> p_body=body0, p_args=args, p_return=retval \<rparr>"
 proof -
-  have wt1: " well_typed_proc'' [procedure_functor_type TYPE('a)]
+  have wt1: "well_typed_proc'' [procedure_functor_type TYPE('a)]
      (Proc body (mk_procargvars_untyped args) (mk_expression_untyped retval))
      (ProcTSimple (procedure_type TYPE(('b, 'c) procedure)))"
     apply (subst wt_Proc_iff, auto simp: procedure_type_def)
@@ -161,12 +164,26 @@ proof -
         (procedure_functor_type TYPE('a =proc=> ('b, 'c) procedure))" 
     apply simp apply (rule wt_ProcAbs) by (fact wt1)
 
-  have "subst_proc_in_prog 0 (procedure_functor_mk_untyped arg_proc) (beta_reduce' body) = mk_program_untyped body0"
-    
-    using subst
-    by simp
+  have wt_body: "well_typed'' [procedure_functor_type TYPE('a)] body"
+    using subst unfolding subst_prog1_def by simp
 
+  have wt_subst: "well_typed'' [] (subst_proc_in_prog 0 (procedure_functor_mk_untyped arg_proc) (beta_reduce' body))"
+    apply (rule well_typed_subst_proc[where F="[]", simplified])
+    close (rule procedure_functor_welltyped)
+    apply (rule beta_reduce_preserves_well_typed)
+    by (rule wt_body)
 
+  have aux: "Rep_program (Abs_program (beta_reduce' (subst_proc_in_prog 0 
+             (procedure_functor_mk_untyped arg_proc) (beta_reduce' body)))) = Rep_program body0"
+    using subst unfolding subst_prog1_def program_def by auto
+  have subst': "beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped arg_proc)
+                    (beta_reduce' body)) = mk_program_untyped body0"
+    apply (subst Abs_program_inverse[symmetric], auto)
+    apply (rule well_typed''_well_typed)
+    close (metis beta_reduce_preserves_well_typed(1) wt_subst)
+    apply (rule beta_reduce'_def2)
+    close (metis beta_reduce_proofs.well_typed_beta_reduce(1) wt_subst)
+    by (rule aux)
 
   show ?thesis
     unfolding p0_def procfun_apply_def apply_procedure_def
@@ -182,57 +199,56 @@ proof -
       apply (rule beta_reduce_preserves_well_typed)
       apply (rule well_typed_subst_proc(2)[where F="[]", simplified])
         close (fact procedure_functor_welltyped)  
-      apply (rule beta_reduce_preserves_well_typed[where T="procedure_functor_type TYPE(('b,'c)procedure)"])
+      apply (rule beta_reduce_preserves_well_typed(2)[where T="procedure_functor_type TYPE(('b,'c)procedure)"])
       apply (simp add: procedure_type_def)
       close (metis procedure_type_def wt1)
     apply (subst beta_reduce_Proc)
-    (* TODO: make sure inconsistent assumption go away *)
-    close (metxis beta_reduce_ProcAbs procedure_functor_mk_typed_inverse procedure_functor_type_prod_def
-            procedure_functor_welltyped procedure_type_open.distinct(5) wt2 wt_ProcAbs_iff)
+      close (fact wt_body)
     unfolding procedure_functor_mk_untyped_procedure_ext_def mk_procedure_untyped_def
     apply simp
-    using subst unfolding subst_prog1_def
-     apply simp
-sorry
+    apply (subst beta_reduce_Proc)
+      close (fact wt_subst)
+    apply simp      
+    by (fact subst')
 qed
 
-print_sorry apply1
+(*print_sorry apply1*)
 
 lemma seq:
-  assumes "subst_prog1 p q1 = PROGRAM[\<guillemotleft>c1\<guillemotright>]"
-  assumes "subst_prog1 p q2 = PROGRAM[\<guillemotleft>c2\<guillemotright>]"
+  assumes "subst_prog1 p q1 PROGRAM[\<guillemotleft>c1\<guillemotright>]"
+  assumes "subst_prog1 p q2 PROGRAM[\<guillemotleft>c2\<guillemotright>]"
   defines "q == Seq q1 q2"
-  shows "subst_prog1 p q = PROGRAM[\<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>]"
+  shows "subst_prog1 p q PROGRAM[\<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>]"
 sorry
 
 lemma closed:
   fixes q c p
   defines "q == mk_program_untyped c"
-  shows "subst_prog1 p q = PROGRAM[\<guillemotleft>c\<guillemotright>]"
-sorry
-
-lemma left: 
-  assumes "subst_proc1 l q = p"
-  defines "q0 == ProcAppl (ProcAbs q) (ProcUnpair True (ProcRef 0))"
-  shows "subst_proc1 (l, r) q0 = p"
-sorry
-
-lemma procref: 
-  defines "q0 == ProcRef 0"
-  shows "subst_proc1 p q0 = p"
-sorry
-
-lemma right: 
-  assumes "subst_proc1 r q = p"
-  defines "q0 == ProcAppl (ProcAbs q) (ProcUnpair False (ProcRef 0))"
-  shows "subst_proc1 (l, r) q0 = p"
+  shows "subst_prog1 p q PROGRAM[\<guillemotleft>c\<guillemotright>]"
 sorry
 
 lemma callproc:
   fixes v args q
-  assumes "subst_proc1 p q = r"
+  assumes "subst_proc1 p q r"
   defines "q0==CallProc (mk_variable_untyped v) q (mk_procargs_untyped procargs_empty)"
-  shows "subst_prog1 p q0 = PROGRAM[v:=call r()]"
+  shows "subst_prog1 p q0  PROGRAM[v:=call r()]"
+sorry
+
+lemma left: 
+  assumes "subst_proc1 l q p"
+  defines "q0 == ProcAppl (ProcAbs q) (ProcUnpair True (ProcRef 0))"
+  shows "subst_proc1 (l, r) q0 p"
+sorry
+
+lemma procref: 
+  defines "q0 == ProcRef 0"
+  shows "subst_proc1 p q0 p"
+sorry
+
+lemma right: 
+  assumes "subst_proc1 r q p"
+  defines "q0 == ProcAppl (ProcAbs q) (ProcUnpair False (ProcRef 0))"
+  shows "subst_proc1 (l, r) q0 p"
 sorry
 
 lemmas safe = apply1 closed seq procref callproc
@@ -251,15 +267,16 @@ apply (drule meta_eq_to_obj_eq, hypsubst, thin_tac "?a = ?b")
 by (rule reduce)+
 
 definition my_proc_def0: "my_proc \<equiv>
-procedure_functor_mk_typed
-  (Proc (Seq (Seq (mk_program_untyped (assign x (const_expression 1)))
-               (CallProc (mk_variable_untyped y)
-                 (ProcAppl (ProcAbs (ProcRef 0)) (ProcUnpair True (ProcRef 0)))
-                 (mk_procargs_untyped procargs_empty)))
-          (CallProc (mk_variable_untyped y)
-            (ProcAppl (ProcAbs (ProcAppl (ProcAbs (ProcRef 0)) (ProcUnpair True (ProcRef 0))))
-              (ProcUnpair False (ProcRef 0)))
-            (mk_procargs_untyped procargs_empty)))
-    (mk_procargvars_untyped procargvars_empty) (mk_expression_untyped (const_expression ())))"
+ procedure_functor_mk_typed
+  (ProcAbs
+    (Proc (Seq (Seq (mk_program_untyped (assign x (const_expression 1)))
+                 (CallProc (mk_variable_untyped y)
+                   (ProcAppl (ProcAbs (ProcRef 0)) (ProcUnpair True (ProcRef 0)))
+                   (mk_procargs_untyped procargs_empty)))
+            (CallProc (mk_variable_untyped y)
+              (ProcAppl (ProcAbs (ProcAppl (ProcAbs (ProcRef 0)) (ProcUnpair True (ProcRef 0))))
+                (ProcUnpair False (ProcRef 0)))
+              (mk_procargs_untyped procargs_empty)))
+      (mk_procargvars_untyped procargvars_empty) (mk_expression_untyped (const_expression ()))))"
 
-lemmas my_proc_def = my_proc_def0[THEN l1]
+lemmas my_proc_def = my_proc_def0[THEN reduce_procfun.l1]

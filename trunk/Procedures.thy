@@ -1127,16 +1127,26 @@ by (metis (mono_tags, lifting) beta_unique' theI')
 lemmas well_typed_beta_reduce = beta_reduce_proofs.well_typed_beta_reduce
 
 lemma beta_reduce_preserves_well_typed:
-  assumes "well_typed_proc'' E p T"
-  shows "well_typed_proc'' E (beta_reduce p) T"
+  shows "well_typed'' E p' \<Longrightarrow> well_typed'' E (beta_reduce' p')" (is "?assm' \<Longrightarrow> ?goal'")
+    and "well_typed_proc'' E p T \<Longrightarrow> well_typed_proc'' E (beta_reduce p) T" (is "?assm \<Longrightarrow> ?goal")
 proof -
+  assume ?assm
   have "beta_reduce_proc\<^sup>*\<^sup>* p (beta_reduce p)"
-    by (metis assms beta_reduce_def2(2) well_typed_beta_reduce(2))
+    by (metis `?assm` beta_reduce_def2(2) well_typed_beta_reduce(2))
   moreover {fix q have "beta_reduce_proc\<^sup>*\<^sup>* p q \<Longrightarrow> well_typed_proc'' E q T"
     apply (induction rule:rtranclp_induct)
     close (fact assms)
     by (rule subject_reduction, simp_all)}
-  ultimately show ?thesis by simp
+  ultimately show ?goal by simp
+next
+  assume ?assm'
+  have "beta_reduce_prog\<^sup>*\<^sup>* p' (beta_reduce' p')"
+    by (metis `?assm'` beta_reduce'_def2(2) well_typed_beta_reduce(1))
+  moreover {fix q have "beta_reduce_prog\<^sup>*\<^sup>* p' q \<Longrightarrow> well_typed'' E q"
+    apply (induction rule:rtranclp_induct)
+    close (fact assms)
+    by (rule subject_reduction, simp_all)}
+  ultimately show ?goal' by simp
 qed
 
 lemma beta_reduce_rewrite:
@@ -1214,6 +1224,12 @@ lemma well_typed_proc''_well_typed:
   shows "well_typed_proc p" and "proctype_of p = T"
 SORRY
 
+lemma well_typed''_well_typed:
+  assumes "well_typed'' [] p"
+  assumes "beta_reduced' p"
+  shows "well_typed p"
+SORRY
+
 lemma well_typed_not_ProcAppl_ProcUnpair:
   fixes p1 p2 T
   assumes p: "p = ProcAppl p1 p2 \<or> p = ProcUnpair b p1"
@@ -1276,7 +1292,7 @@ using wt apply (cases, auto)
 using red close (metis well_typed_not_ProcAppl_ProcUnpair) 
 using red by (metis well_typed_not_ProcAppl_ProcUnpair)
 
-lemma beta_reduce_idem [simp]: "beta_reduce (beta_reduce x) = x"
+lemma beta_reduce_idem [simp]: "beta_reduce (beta_reduce x) = beta_reduce x"
   sorry
 
 
