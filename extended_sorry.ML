@@ -39,7 +39,18 @@ fun ora_of seen (PBody {oracles, thms, ...}) found path =
   (found,seen)
   end
 in
-fun all_oracles_of thm = ora_of Inttab.empty (Thm.proof_body_of thm) [] [] |> fst |> rev
+fun all_oracles_of thy thms = 
+  let val (found,seen) = fold (fn thm => fn (found,seen) => ora_of seen (Thm.proof_body_of thm) found []) 
+                         thms ([], Inttab.empty)
+      val arities = thy |> Sign.tsig_of |> Type.rep_tsig |> #classes |> snd |> Sorts.arities_of |> Symtab.dest_list
+      val arity_proofs = map (fn (tyco,(cls,Ss)) => Proofterm.arity_proof thy (tyco,Ss,cls)
+                              handle ERROR msg => (writeln msg; MinProof)) arities
+      val (found,_) = fold (fn proof => fn (found,seen) => 
+                            case proof of 
+                              PThm (_,(_,body)) => (ora_of seen (Future.join body) found ["[instantiation]"])
+                            | _ => (found,seen))
+                         arity_proofs (found,seen)
+  in rev found end
 end
 
 fun markup_thm_name ctx name =
@@ -87,7 +98,7 @@ fun print_annotated_oracles (conf:print_annotated_conf) ctx thm =
       fun thm_to_str (path,oras) =
         (path_to_str path)::(map ora_to_str oras)
   in
-  thm |> all_oracles_of |> map thm_to_str |> List.concat |> String.concatWith "\n" |> writeln
+  [thm] |> all_oracles_of (Proof_Context.theory_of ctx) |> map thm_to_str |> List.concat |> String.concatWith "\n" |> writeln
   end;
 
 val _ = let

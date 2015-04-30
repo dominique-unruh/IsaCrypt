@@ -262,6 +262,10 @@ unfolding mk_procedure_untyped_def
 apply (cases p)
 by (auto simp: Rep_program_inverse Rep_procargvars_inverse mk_expression_untyped_inverse)
 
+ML {*
+Axclass.thynames_of_arity @{theory} (@{type_name bool},"Universe.prog_type")  
+
+*}
 
 lemma mk_procedure_typed_inverse:
   fixes body args return
