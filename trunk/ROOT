@@ -1,7 +1,7 @@
 session "EasyCrypt" = "HOL-EC-Prereqs" +
   options [document = pdf, quick_and_dirty = true, z3_non_commercial = yes, document_output = "output", browser_info = true]
   theories [document = false]
-  theories (*EC_THYS*) ElGamal Ell1 Extended_Sorry Hoare_Tactics Hoare_Typed Hoare_Untyped Lang_Typed Lang_Untyped Modules Procedures RHL_Typed RHL_Untyped Setsum_Infinite TermX_Antiquot Tools Universe
+  theories (*EC_THYS*) Distr ElGamal Extended_Sorry Hoare_Tactics Hoare_Typed Hoare_Untyped Lang_Typed Lang_Untyped Modules Procedures Procs_Typed RHL_Typed RHL_Untyped TermX_Antiquot Tools TypedLambda TypedLambda2 TypedLambdaOrig Universe
   document_files (in ".")
     "root.tex"
 
@@ -15,3 +15,11 @@ session "HOL-EC-Prereqs" in "~~/src/HOL" = "HOL-Multivariate_Analysis" +
     "Proofs/Lambda/StrongNorm"
     "Proofs/Lambda/Commutation"
     "Probability/Binary_Product_Measure"
+
+
+session "HOL-EC-Core" = "HOL-EC-Prereqs" +
+  description {*
+    Partial IsaCrypt heap
+  *}
+  options [quick_and_dirty = true, z3_non_commercial = yes]
+  theories Universe Tools Distr Lang_Untyped TypedLambda
