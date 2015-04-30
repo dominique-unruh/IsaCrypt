@@ -3,7 +3,7 @@
 HEAP=HOL-EC-Core
 
 if [ "$1" = "x" ]; then
-    HEAP-HOL-EC-Prereqs
+    HEAP=HOL-EC-Prereqs
     shift
 fi
 

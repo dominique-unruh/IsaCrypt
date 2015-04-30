@@ -162,6 +162,11 @@ proof -
     apply simp apply (rule wt_ProcAbs) by (fact wt1)
 
   have "subst_proc_in_prog 0 (procedure_functor_mk_untyped arg_proc) (beta_reduce' body) = mk_program_untyped body0"
+    
+    using subst
+    by simp
+
+
 
   show ?thesis
     unfolding p0_def procfun_apply_def apply_procedure_def
@@ -182,14 +187,16 @@ proof -
       close (metis procedure_type_def wt1)
     apply (subst beta_reduce_Proc)
     (* TODO: make sure inconsistent assumption go away *)
-    close (metis beta_reduce_ProcAbs procedure_functor_mk_typed_inverse procedure_functor_type_prod_def
+    close (metxis beta_reduce_ProcAbs procedure_functor_mk_typed_inverse procedure_functor_type_prod_def
             procedure_functor_welltyped procedure_type_open.distinct(5) wt2 wt_ProcAbs_iff)
     unfolding procedure_functor_mk_untyped_procedure_ext_def mk_procedure_untyped_def
     apply simp
     using subst unfolding subst_prog1_def
      apply simp
-find_theorems "beta_reduce (subst_proc _ _ _)"
-find_theorems "well_typed_proc'' _ (subst_proc _ _ _) _"
+sorry
+qed
+
+print_sorry apply1
 
 lemma seq:
   assumes "subst_prog1 p q1 = PROGRAM[\<guillemotleft>c1\<guillemotright>]"
