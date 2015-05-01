@@ -104,7 +104,7 @@ instance proof intro_classes
         close (rule betaq)
         by metis
     have wtq0: "well_typed_proc q" 
-      apply (rule well_typed_proc''_well_typed)
+      apply (rule well_typed''_well_typed)
         close (rule wtq[unfolded procedure_functor_type_procedure_ext_def])
         by (rule betaq)  
     hence "well_typed body" unfolding q by simp
@@ -114,7 +114,7 @@ instance proof intro_classes
       by (metis wtq0 q well_typed_proc.simps(1))
     moreover
     have pt_q: "proctype_of q = procedure_type TYPE(('a, 'b, 'c) procedure_scheme)"
-      apply (rule well_typed_proc''_well_typed)
+      apply (rule well_typed_proc''_proctype_of)
         close (rule wtq[unfolded procedure_functor_type_procedure_ext_def])
         by (rule betaq)  
     have "args \<in> procargvars TYPE('a)" 

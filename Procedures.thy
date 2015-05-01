@@ -713,7 +713,7 @@ qed
 subsection {* Confluence (directly) *}
 
 (* If this lemma breaks, can use diamond_par_beta2 below instead. *)
-lemma diamond_par_beta: "diamond par_beta"
+lemma diamond_par_beta: shows "diamond par_beta'" and "diamond par_beta" 
 proof -
   {fix x y x' y' 
   have "y' \<rightarrow>> x' \<Longrightarrow> \<forall>z'. y' \<rightarrow>> z' \<longrightarrow> (\<exists>u'. x' \<rightarrow>> u' \<and> z' \<rightarrow>> u')"
@@ -767,7 +767,7 @@ proof -
           unfolding t using ta0u2 zu2 by auto
       qed
     qed}
-  thus ?thesis 
+  thus "diamond par_beta'" and "diamond par_beta"
     unfolding diamond_def commute_def square_def by auto
 qed
 
@@ -819,10 +819,10 @@ theorem beta_confluent: "confluent beta_reduce_proc"
   by (rule par_beta_subset_beta)
 
 theorem beta_prog_confluent: "confluent beta_reduce_prog"
-  SORRY "by reduction to beta_confluent?"
-
-print_sorry classes
-print_sorry beta_prog_confluent
+  apply (rule diamond_to_confluence)
+  close (rule diamond_par_beta)
+  close (rule beta_subset_par_beta)
+  by (rule par_beta_subset_beta)
 
 (*
 theorem newman:
@@ -1185,6 +1185,20 @@ proof -
     by (rule beta_reduceI[rotated])
 qed
 
+lemma beta_reduced_CallProc [simp]:
+  "beta_reduced' (CallProc x p e) = beta_reduced p"
+unfolding beta_reduced'_def beta_reduced_def
+apply auto
+close (metis (full_types) br_CallProc)
+by (metis (full_types) brc_CallProc)
+
+lemma beta_reduced_Proc [simp]:
+  "beta_reduced (Proc body x y) = beta_reduced' body"
+unfolding beta_reduced'_def beta_reduced_def
+apply auto
+close (metis (full_types) br_Proc)
+by (metis (full_types) brc_Proc)
+
 lemma beta_reduce_beta:
   assumes "well_typed_proc'' (T#E) p U"
   assumes "well_typed_proc'' E q T"
@@ -1218,28 +1232,13 @@ lemma well_typed_proc_beta_reduced:
   shows "well_typed_proc p \<Longrightarrow> beta_reduced p"
 SORRY
 
+(*
 lemma well_typed_proc''_well_typed:
   assumes "well_typed_proc'' [] p (ProcTSimple T)"
   assumes "beta_reduced p"
   shows "well_typed_proc p" and "proctype_of p = T"
 SORRY
-
-lemma well_typed''_well_typed:
-  assumes wt'': "well_typed'' [] p"
-  assumes red: "beta_reduced' p"
-  shows "well_typed p"
-(* Not clear how best to do the induction. Induction over well_typed'' will extend the environment
-   Probably need to generalize that p is well_typed after substituting in things
- *)
-(*
-apply (insert red) using wt'' apply (induction) apply auto
-close (metis beta_reduced'_def br_Seq1)
-close (metis beta_reduced'_def br_Seq1)
-close (metis beta_reduced'_def br_Seq1)
-close (metis beta_reduced'_def br_Seq2)
-close (metis beta_reduced'_def br_While)
-apply (metis beta_reduced'_def br_IfTE1) *)
-SORRY
+*)
 
 lemma well_typed_not_ProcAppl_ProcUnpair:
   fixes p1 p2 T
@@ -1289,10 +1288,14 @@ proof -
 qed
 
 lemma well_typed_ProcTSimple_Proc:
-  assumes "well_typed_proc'' [] p (ProcTSimple T)"
-  assumes "beta_reduced p"
+  assumes wt: "well_typed_proc'' [] p (ProcTSimple T)"
+  assumes red: "beta_reduced p"
   obtains body args ret where "p = Proc body args ret"
-SORRY
+apply atomize_elim
+using wt apply (cases, auto) 
+using red close (metis well_typed_not_ProcAppl_ProcUnpair) 
+using red by (metis well_typed_not_ProcAppl_ProcUnpair)
+
 
 lemma well_typed_ProcTPair_ProcPair:
   assumes wt: "well_typed_proc'' [] p (ProcTPair T U)"
@@ -1302,6 +1305,55 @@ apply atomize_elim
 using wt apply (cases, auto) 
 using red close (metis well_typed_not_ProcAppl_ProcUnpair) 
 using red by (metis well_typed_not_ProcAppl_ProcUnpair)
+
+
+lemma well_typed''_well_typed:
+  shows "well_typed'' [] p' \<Longrightarrow> beta_reduced' p' \<Longrightarrow> well_typed p'"
+    and "well_typed_proc'' [] p (ProcTSimple T) \<Longrightarrow> beta_reduced p \<Longrightarrow> well_typed_proc p"
+proof -
+  def E == "[]::procedure_type_open list"
+  def T' == "ProcTSimple T"
+  have "well_typed'' E p' \<Longrightarrow> E=[] \<Longrightarrow> beta_reduced' p' \<Longrightarrow> well_typed p'"
+   and "well_typed_proc'' E p T' \<Longrightarrow> E=[] \<Longrightarrow> T'=ProcTSimple T \<Longrightarrow> beta_reduced p \<Longrightarrow> well_typed_proc p"
+  proof (induction arbitrary: and T rule:well_typed''_well_typed_proc''.inducts)
+  case wt_Seq thus ?case by (metis beta_reduced'_def br_Seq1 br_Seq2 well_typed.simps(1))
+  next case wt_Assign thus ?case by auto
+  next case wt_Sample thus ?case by auto
+  next case wt_Skip thus ?case by auto
+  next case wt_While thus ?case by (metis beta_reduced'_def br_While well_typed.simps(5))
+  next case wt_IfTE thus ?case by (metis beta_reduced'_def br_IfTE1 br_IfTE2 well_typed.simps(6))
+  next case (wt_CallProc E prc args v)
+    obtain body a r where prc: "prc = Proc body a r" 
+      apply (rule well_typed_ProcTSimple_Proc) 
+      using wt_CallProc.hyps unfolding wt_CallProc.prems close auto
+      using wt_CallProc.prems close simp 
+      by simp
+    show ?case 
+      unfolding prc apply simp
+      by (metis beta_reduced_CallProc prc procedure_type.ext_inject procedure_type_open.inject(1) well_typed_proc.simps(1) wt_CallProc.IH wt_CallProc.hyps wt_CallProc.prems(1) wt_CallProc.prems(2) wt_Proc_iff)
+  next case (wt_Proc E body pargs ret) thus ?case by auto
+  next case wt_ProcRef thus ?case by auto
+  next case wt_ProcAppl thus ?case by (metis well_typed''_well_typed_proc''.wt_ProcAppl well_typed_not_ProcAppl_ProcUnpair)
+  next case wt_ProcAbs thus ?case by auto
+  next case wt_ProcPair thus ?case by auto
+  next case wt_ProcUnpair thus ?case by (metis well_typed_not_ProcAppl_ProcUnpair wt_ProcUnpair_iff)
+  qed
+  thus "well_typed'' [] p' \<Longrightarrow> beta_reduced' p' \<Longrightarrow> well_typed p'"
+    and "well_typed_proc'' [] p (ProcTSimple T) \<Longrightarrow> beta_reduced p \<Longrightarrow> well_typed_proc p"
+    unfolding E_def T'_def by auto
+qed
+
+lemma well_typed_proc''_proctype_of:
+  assumes wt: "well_typed_proc'' [] p (ProcTSimple T)"
+  assumes "beta_reduced p"
+  shows "proctype_of p = T"
+proof -
+  obtain body args ret where p: "p = Proc body args ret"
+    using assms by (rule well_typed_ProcTSimple_Proc, auto)
+  show ?thesis
+    using wt unfolding p apply simp
+    by (ind_cases "well_typed_proc'' [] (Proc body args ret) (ProcTSimple T)", auto)
+qed
 
 lemma beta_reduced_beta_reduce_id: 
   "beta_reduced p \<Longrightarrow> beta_reduce p = p"
