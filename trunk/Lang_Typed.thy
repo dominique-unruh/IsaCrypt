@@ -40,6 +40,8 @@ lemma var_eq_notsame_gl [simp]: "\<not> var_eq (Variable v) (LVariable w)"
 lemma var_eq_notsame_lg [simp]: "\<not> var_eq (LVariable v) (Variable w)"
   unfolding var_eq_def mk_variable_untyped_def by simp
 
+
+
 subsection {* Memories *}
 
 definition "memory_lookup m (v::'a variable) :: ('a::prog_type) == inv embedding (memory_lookup_untyped m (mk_variable_untyped v))"
@@ -203,7 +205,10 @@ definition procargvars :: "'a::procargs itself \<Rightarrow> variable_untyped li
                     (\<forall>v\<in>set vs. \<not> vu_global v)}"
 lemma procargvars_inhabited: "procargvars TYPE('a::procargs) \<noteq> {}" 
   unfolding procargvars_def apply auto
-  SORRY
+  apply (rule exI[of _ "fresh_variables_local [] (procargtypes TYPE('a)) :: variable_untyped list"])
+  using fresh_variables_local_distinct fresh_variables_local_local fresh_variables_local_type 
+  by auto
+
 lemma procargvars_local: "\<forall>l\<in>procargvars TYPE('a::procargs). \<forall>v\<in>set l. \<not> vu_global v"
   unfolding procargvars_def by auto
 lemma procargvars_distinct: "\<forall>vs\<in>procargvars TYPE('a::procargs). distinct vs"
