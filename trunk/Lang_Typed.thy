@@ -203,7 +203,7 @@ definition procargvars :: "'a::procargs itself \<Rightarrow> variable_untyped li
                     (\<forall>v\<in>set vs. \<not> vu_global v)}"
 lemma procargvars_inhabited: "procargvars TYPE('a::procargs) \<noteq> {}" 
   unfolding procargvars_def apply auto
-  sorry
+  SORRY
 lemma procargvars_local: "\<forall>l\<in>procargvars TYPE('a::procargs). \<forall>v\<in>set l. \<not> vu_global v"
   unfolding procargvars_def by auto
 lemma procargvars_distinct: "\<forall>vs\<in>procargvars TYPE('a::procargs). distinct vs"

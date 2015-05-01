@@ -39,17 +39,19 @@ fun ora_of seen (PBody {oracles, thms, ...}) found path =
   (found,seen)
   end
 in
-fun all_oracles_of thy thms = 
-  let val (found,seen) = fold (fn thm => fn (found,seen) => ora_of seen (Thm.proof_body_of thm) found []) 
+fun all_oracles_of thms = 
+  let val (found,_) = fold (fn thm => fn (found,seen) => ora_of seen (Thm.proof_body_of thm) found []) 
                          thms ([], Inttab.empty)
-      val arities = thy |> Sign.tsig_of |> Type.rep_tsig |> #classes |> snd |> Sorts.arities_of |> Symtab.dest_list
+  in rev found end
+fun all_oracles_of_classes thy = 
+  let val arities = thy |> Sign.tsig_of |> Type.rep_tsig |> #classes |> snd |> Sorts.arities_of |> Symtab.dest_list
       val arity_proofs = map (fn (tyco,(cls,Ss)) => Proofterm.arity_proof thy (tyco,Ss,cls)
                               handle ERROR msg => (writeln msg; MinProof)) arities
       val (found,_) = fold (fn proof => fn (found,seen) => 
                             case proof of 
                               PThm (_,(_,body)) => (ora_of seen (Future.join body) found ["[instantiation]"])
                             | _ => (found,seen))
-                         arity_proofs (found,seen)
+                         arity_proofs ([],Inttab.empty)
   in rev found end
 end
 
@@ -61,14 +63,19 @@ fun markup_thm_name ctx name =
   end;
 
 type print_annotated_conf = {
-  show_empty: bool
+  show_empty: bool,
+  show_oracles: bool
 };
 
 val print_annotated_conf_default = {
-  show_empty=false
+  show_empty=false,
+  show_oracles=false
 };
 
-fun print_annotated_oracles (conf:print_annotated_conf) ctx thm =
+fun set_show_oracles ({show_empty, ...}:print_annotated_conf) b
+   = {show_empty=show_empty, show_oracles=b};
+
+fun print_annotated_oracles (conf:print_annotated_conf) ctx thms =
   let fun render_annot prop msg pos = 
          let val prop_str = Syntax.pretty_term ctx prop |> Pretty.str_of
              val msg_str = (case msg of Const(@{const_name None},_) => ""
@@ -83,7 +90,7 @@ fun print_annotated_oracles (conf:print_annotated_conf) ctx thm =
         Logic.dest_implies trm |> fst
         |> HOLogic.dest_Trueprop
         |> (fn (Const(@{const_name ANNOTATION},_)$prop$msg$pos) => render_annot prop msg pos | t => raise (TERM("parsing annotation",[t])))
-        handle TERM _ => "[--unknown data--]"
+        handle TERM _ => "[use ML {* proofs := 1 *} to get data]"
       fun ora_to_str (name,term) = 
         if name="Extended_Sorry.skip_proof" then "  sorry: "^(term |> extract_annot)
         else if name="Pure.skip_proof" then "  sorry"
@@ -97,27 +104,34 @@ fun print_annotated_oracles (conf:print_annotated_conf) ctx thm =
         in String.concatWith " > " path end
       fun thm_to_str (path,oras) =
         (path_to_str path)::(map ora_to_str oras)
+      val oracles = all_oracles_of thms
+      val oracles = if #show_oracles conf
+                    then oracles @ all_oracles_of_classes (Proof_Context.theory_of ctx)
+                    else oracles
   in
-  [thm] |> all_oracles_of (Proof_Context.theory_of ctx) |> map thm_to_str |> List.concat |> String.concatWith "\n" |> writeln
+  oracles |> map thm_to_str |> List.concat |> String.concatWith "\n" |> writeln
   end;
 
 val _ = let
 fun print thms ctxt =
-  (Attrib.eval_thms ctxt thms |> map (print_annotated_oracles print_annotated_conf_default ctxt); ctxt)
+  (Attrib.eval_thms ctxt thms |> (print_annotated_oracles print_annotated_conf_default ctxt); ctxt)
+fun print_ora _ ctxt =
+  (print_annotated_oracles (set_show_oracles print_annotated_conf_default true) ctxt []; ctxt)
 in
 Outer_Syntax.local_theory @{command_spec "print_sorry"}
 "show all occurrences of sorry (and other oracles)"
-(Parse_Spec.xthms1 >> print)
+((Parse.reserved "classes" >> print_ora)
+  || (Parse_Spec.xthms1 >> print))
 end;
 
 
 (** Method sorry **)
 
 fun cheating msg pos ctxt int = METHOD (fn _ => fn st =>
-  if int orelse Config.get ctxt quick_and_dirty then
-    ALLGOALS (cheat_tac_annot msg pos) st
-  else error "Cheating requires quick_and_dirty mode!");
-
+  (if int orelse Config.get ctxt quick_and_dirty then ()
+  else warning "Cheating outside quick_and_dirty mode!";
+  ALLGOALS (cheat_tac_annot msg pos) st))
+  
 fun sorry_text msg pos int = Method.Basic (fn ctxt => cheating msg pos ctxt int);
 
 fun proof_global_skip_proof msg pos int state =

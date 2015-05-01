@@ -859,6 +859,9 @@ theorem beta_confluent: "confluent beta_reduce_proc"
 theorem beta_prog_confluent: "confluent beta_reduce_prog"
   SORRY "by reduction to beta_confluent?"
 
+print_sorry classes
+print_sorry beta_prog_confluent
+
 (*
 theorem newman:
   assumes lc: "\<And>a b c. 
@@ -1124,6 +1127,41 @@ lemma beta_reduceI':
 unfolding beta_reduce'_def using assms apply auto
 by (metis (mono_tags, lifting) beta_unique' theI')
 
+
+lemma beta_reduced_beta_reduce: "beta_reduced (beta_reduce p)"
+proof (cases "\<exists>q. beta_reduced q \<and> beta_reduce_proc\<^sup>*\<^sup>* p q")
+  assume "\<exists>q. beta_reduced q \<and> beta_reduce_proc\<^sup>*\<^sup>* p q"
+  then obtain q where red_q: "beta_reduced q" and "beta_reduce_proc\<^sup>*\<^sup>* p q" by auto
+  hence "beta_reduce p = q" by (rule beta_reduceI)
+  with red_q show ?thesis by auto
+next
+  assume "\<not> (\<exists>q. beta_reduced q \<and> beta_reduce_proc\<^sup>*\<^sup>* p q)"
+  hence "beta_reduce p = Proc Skip [] undefined"
+    unfolding beta_reduce_def by auto
+  moreover have "beta_reduced (Proc Skip [] undefined)"
+    unfolding beta_reduced_def apply auto
+    apply (ind_cases "beta_reduce_proc (Proc Skip [] undefined) x" for x)
+    by (ind_cases "beta_reduce_prog Skip t" for t)
+  ultimately show ?thesis by auto
+qed
+
+
+lemma beta_reduced_beta_reduce': "beta_reduced' (beta_reduce' p)"
+proof (cases "\<exists>q. beta_reduced' q \<and> beta_reduce_prog\<^sup>*\<^sup>* p q")
+  assume "\<exists>q. beta_reduced' q \<and> beta_reduce_prog\<^sup>*\<^sup>* p q"
+  then obtain q where red_q: "beta_reduced' q" and "beta_reduce_prog\<^sup>*\<^sup>* p q" by auto
+  hence "beta_reduce' p = q" by (rule beta_reduceI')
+  with red_q show ?thesis by auto
+next
+  assume "\<not> (\<exists>q. beta_reduced' q \<and> beta_reduce_prog\<^sup>*\<^sup>* p q)"
+  hence "beta_reduce' p = Skip"
+    unfolding beta_reduce'_def by auto
+  moreover have "beta_reduced' Skip"
+    unfolding beta_reduced'_def apply auto
+    by (ind_cases "beta_reduce_prog Skip t" for t)
+  ultimately show ?thesis by auto
+qed
+
 lemmas well_typed_beta_reduce = beta_reduce_proofs.well_typed_beta_reduce
 
 lemma beta_reduce_preserves_well_typed:
@@ -1292,9 +1330,19 @@ using wt apply (cases, auto)
 using red close (metis well_typed_not_ProcAppl_ProcUnpair) 
 using red by (metis well_typed_not_ProcAppl_ProcUnpair)
 
-lemma beta_reduce_idem [simp]: "beta_reduce (beta_reduce x) = beta_reduce x"
-  sorry
+lemma beta_reduced_beta_reduce_id: 
+  "beta_reduced p \<Longrightarrow> beta_reduce p = p"
+by (metis beta_reduceI rtranclp.rtrancl_refl)
 
+lemma beta_reduced_beta_reduce_id': 
+  "beta_reduced' p \<Longrightarrow> beta_reduce' p = p"
+by (metis beta_reduceI' rtranclp.rtrancl_refl)
+
+lemma beta_reduce_idem [simp]: "beta_reduce (beta_reduce x) = beta_reduce x"
+  using beta_reduced_beta_reduce_id beta_reduced_beta_reduce by auto
+
+lemma beta_reduce_idem' [simp]: "beta_reduce' (beta_reduce' x) = beta_reduce' x"
+  using beta_reduced_beta_reduce_id' beta_reduced_beta_reduce' by auto
 
 (* Undoing syntax changes introduced by Lambda and LambdaType *)
 declare [[syntax_ambiguity_warning = true]]

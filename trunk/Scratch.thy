@@ -1,5 +1,8 @@
 theory Scratch
-imports Tools Main
+imports Tools Main Extended_Sorry
 begin
 
-term "x::'a::finite"
+datatype bla = Bla | Blu
+print_theorems
+print_sorry bla.distinct
+
