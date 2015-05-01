@@ -47,7 +47,7 @@ fun fresh_variables_local :: "variable_untyped list \<Rightarrow> type list \<Ri
      v#fresh_variables_local (v#used) ts)"
 lemma fresh_variables_local_distinct: "distinct (fresh_variables_local used ts)"
 apply (induction ts, auto simp: Let_def)
-sorry
+SORRY
 
 lemma fresh_variables_local_local: "\<forall>v\<in>set (fresh_variables_local used ts). \<not> vu_global v"
   apply (induction ts arbitrary: used, auto)
