@@ -622,7 +622,7 @@ lemma double_induction_lemma_Unpair [rule_format]:
   done
 
 lemma IT_implies_termi: "IT t ==> termip beta t"
-SORRY "termination of beta reduction"
+apply (insert assms) SORRY "termination of beta reduction"
 (*proof (induct set: IT)
 case Var thus ?case 
     apply (drule_tac rev_predicate1D [OF _ listsp_mono [where B="termip beta"]])
@@ -954,7 +954,7 @@ subsection {* Well-typed terms are strongly normalizing *}
 lemma type_implies_IT:
   assumes "e \<turnstile> t : T"
   shows "IT t"
-SORRY "termination of beta reduction"
+apply (insert assms) SORRY "termination of beta reduction"
 (*
   using assms
 proof induct

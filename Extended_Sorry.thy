@@ -5,7 +5,7 @@ keywords
 and "print_sorry" :: thy_decl
 begin
 
-ML " proofs := 1 "
+ML " proofs := 0 "
 
 (* TODO: print_sorry should also print oracles in subclass-proofs *)
 
@@ -14,5 +14,15 @@ definition "ANNOTATION (prop::prop) (msg::string option) (pos::string) == True"
 lemma ANNOTATION: "ANNOTATION prop msg pos" unfolding ANNOTATION_def ..
 
 ML_file "extended_sorry.ML"
+
+
+class pro_fun = fixes huhuhisd assumes "huhuhisd \<noteq> huhuhisd"
+typedecl ('a,'b) prd
+instantiation prd :: (type,type) pro_fun begin
+instance SORRY
+end
+
+print_sorry classes
+
 
 end

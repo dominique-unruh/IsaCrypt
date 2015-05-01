@@ -45,12 +45,13 @@ fun all_oracles_of thms =
   in rev found end
 fun all_oracles_of_classes thy = 
   let val arities = thy |> Sign.tsig_of |> Type.rep_tsig |> #classes |> snd |> Sorts.arities_of |> Symtab.dest_list
-      val arity_proofs = map (fn (tyco,(cls,Ss)) => Proofterm.arity_proof thy (tyco,Ss,cls)
-                              handle ERROR msg => (writeln msg; MinProof)) arities
-      val (found,_) = fold (fn proof => fn (found,seen) => 
+      val arity_proofs = map (fn (tyco,(cls,Ss)) => (@{make_string} (tyco,Ss,cls), Proofterm.arity_proof thy (tyco,Ss,cls))
+                              handle ERROR msg => (writeln msg; (msg,MinProof))) arities
+      val (found,_) = fold (fn (msg,proof) => fn (found,seen) => 
                             case proof of 
                               PThm (_,(_,body)) => (ora_of seen (Future.join body) found ["[instantiation]"])
-                            | _ => (found,seen))
+                            | MinProof => (found,seen)
+                            | _ => error ("nyi " ^ @{make_string} proof ^ "  " ^ msg))
                          arity_proofs ([],Inttab.empty)
   in rev found end
 end
@@ -92,7 +93,7 @@ fun print_annotated_oracles (conf:print_annotated_conf) ctx thms =
         |> (fn (Const(@{const_name ANNOTATION},_)$prop$msg$pos) => render_annot prop msg pos | t => raise (TERM("parsing annotation",[t])))
         handle TERM _ => "[use ML {* proofs := 1 *} to get data]"
       fun ora_to_str (name,term) = 
-        if name="Extended_Sorry.skip_proof" then "  sorry: "^(term |> extract_annot)
+        if name="Extended_Sorry.skip_proof" then "  SORRY: "^(term |> extract_annot)
         else if name="Pure.skip_proof" then "  sorry"
         else "  "^name^": "^(Syntax.pretty_term ctx term |> Pretty.string_of)
       fun path_to_str path = 
