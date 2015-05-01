@@ -46,8 +46,27 @@ fun fresh_variables_local :: "variable_untyped list \<Rightarrow> type list \<Ri
      let v=\<lparr> vu_name=vn, vu_type=t, vu_global=False \<rparr> in
      v#fresh_variables_local (v#used) ts)"
 lemma fresh_variables_local_distinct: "distinct (fresh_variables_local used ts)"
-apply (induction ts, auto simp: Let_def)
-SORRY
+proof -
+  have "distinct (fresh_variables_local used ts) \<and> (\<forall>x\<in>set used. x\<notin>set (fresh_variables_local used ts))"
+  proof (induction ts arbitrary: used)
+  case Nil show ?case by simp
+  case (Cons t ts) 
+    def vn == "freshvar used"
+    def v == "\<lparr> vu_name=vn, vu_type=t, vu_global=False \<rparr>"
+    def vs == "fresh_variables_local (v#used) ts"
+    have v_vs: "fresh_variables_local used (t#ts) = v#vs"
+      unfolding vs_def v_def vn_def by (auto simp: Let_def)
+    from Cons.IH vs_def have vs_dist: "distinct vs" by auto
+    from Cons.IH vs_def have unused: "\<forall>x\<in>set (v#used). x\<notin>set vs" by auto
+    hence vfresh: "v\<notin>set vs" by auto
+    from vfresh vs_dist have vvs_dist: "distinct (v#vs)" by auto
+    have vunused: "v \<notin> set used"
+      unfolding v_def vn_def using freshvar_def2[where vs=used] by auto
+    have "\<forall>x\<in>set used. x \<notin> set (v#vs)" using unused vunused by auto
+    with vvs_dist show ?case unfolding v_vs by simp
+  qed
+  thus ?thesis by simp
+qed
 
 lemma fresh_variables_local_local: "\<forall>v\<in>set (fresh_variables_local used ts). \<not> vu_global v"
   apply (induction ts arbitrary: used, auto)

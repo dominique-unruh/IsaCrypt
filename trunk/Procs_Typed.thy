@@ -62,6 +62,7 @@ instance apply intro_classes
   by (smt2 Abs_procfun_inverse mem_Collect_eq well_typed_extend(2))
 end
 
+
 instantiation prod :: (procedure_functor,procedure_functor) procedure_functor begin
 definition [simp]: "procedure_functor_type (_::('a*'b) itself)
      == ProcTPair (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b))"
@@ -78,7 +79,7 @@ instance apply intro_classes
   defer
   close (auto simp: procedure_functor_mk_untyped_inverse')[]
   apply (ind_cases "well_typed_proc'' [] q (ProcTPair a b)" for q a b, auto)
-  sorry
+  SORRY
 end
 
 instantiation procedure_ext :: (procargs,prog_type,singleton) procedure_functor begin
@@ -217,8 +218,7 @@ proof -
     by (fact subst')
 qed
 
-print_sorry apply1
-
+print_sorry classes
 
 lemma seq:
   assumes "subst_prog1 p q1 PROGRAM[\<guillemotleft>c1\<guillemotright>]"
