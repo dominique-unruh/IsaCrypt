@@ -189,9 +189,9 @@ case True hence "?right < \<infinity>" by auto
   proof (cases "y\<in>?Y")
   case True thus ?thesis by auto next
   case False hence "\<And>x. x\<in>?X \<Longrightarrow> f x y = 0"
-      by (smt2 `y \<in> Y` domY mem_Collect_eq)
+      using `y \<in> Y` domY by blast
     with domX have f0: "\<And>x. x\<in>X \<Longrightarrow> f x y = 0"
-      by (smt2 `y \<in> Y`)
+      using `y \<in> Y` by blast
     show ?thesis apply (subst indicator_simps(2)) using False close simp
     apply auto using f0 by (subst nn_integral_0_iff_AE, auto)
   qed}
@@ -412,8 +412,8 @@ lemma markov_chain:
               and "apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu> = \<mu>2"
 proof
   def \<mu> == "undefined::('a*'b*'c) distr"
-  show "apply_to_distr (\<lambda>(x,y,z). (x,y)) \<mu> = \<mu>1" sorry
-  show "apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu> = \<mu>2" sorry
+  show "apply_to_distr (\<lambda>(x,y,z). (x,y)) \<mu> = \<mu>1" SORRY "distribution laws"
+  show "apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu> = \<mu>2" SORRY "distribution laws"
 qed
 
 
@@ -427,9 +427,9 @@ definition "distr_to_ell1 \<mu> = Abs_ell1 (Rep_distr \<mu>)"
 definition "ell1_to_distr \<mu> = Abs_distr (Rep_ell1 \<mu>)"
 
 lemma distr_to_ell1_apply_comm [simp]: "distr_to_ell1 (apply_to_distr f \<mu>) = apply_to_ell1 f (distr_to_ell1 \<mu>)"
-  sorry
+  SORRY
 lemma support_distr_to_ell1 [simp]: "support_ell1 (distr_to_ell1 \<mu>) = support_distr \<mu>"
-  sorry
+  SORRY
 *)
 
 

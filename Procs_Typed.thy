@@ -29,7 +29,12 @@ lemma procedure_functor_mk_typed_inverse:
 
 lemma procedure_functor_mk_untyped_inverse:
     "procedure_functor_mk_typed (procedure_functor_mk_untyped p) = p"
-sorry
+  unfolding procedure_functor_mk_typed_def
+  apply (subst beta_reduced_beta_reduce_id)
+  close (fact procedure_functor_beta_reduced)
+  by (fact procedure_functor_mk_untyped_inverse')
+
+
 lemma procedure_functor_mk_untyped_injective:
     "procedure_functor_mk_untyped p = procedure_functor_mk_untyped q \<Longrightarrow> p = q"
 using procedure_functor_mk_untyped_inverse by metis
@@ -212,7 +217,7 @@ proof -
     by (fact subst')
 qed
 
-(*print_sorry apply1*)
+print_sorry apply1
 
 lemma seq:
   assumes "subst_prog1 p q1 PROGRAM[\<guillemotleft>c1\<guillemotright>]"

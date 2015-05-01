@@ -1,7 +1,7 @@
 session "EasyCrypt" = "HOL-EC-Prereqs" +
   options [document = pdf, quick_and_dirty = true, z3_non_commercial = yes, document_output = "output", browser_info = true]
   theories [document = false]
-  theories (*EC_THYS*) Distr ElGamal Extended_Sorry Hoare_Tactics Hoare_Typed Hoare_Untyped Lang_Typed Lang_Untyped Modules Procedures Procs_Typed RHL_Typed RHL_Untyped TermX_Antiquot Tools TypedLambda TypedLambda2 TypedLambdaOrig Universe
+  theories (*EC_THYS*) Distr ElGamal Extended_Sorry Hoare_Tactics Hoare_Typed Hoare_Untyped Lang_Typed Lang_Untyped Modules Procedures Procs_Typed RHL_Typed RHL_Untyped TermX_Antiquot Tools TypedLambda Universe
   document_files (in ".")
     "root.tex"
 
@@ -21,5 +21,5 @@ session "HOL-EC-Core" = "HOL-EC-Prereqs" +
   description {*
     Partial IsaCrypt heap
   *}
-  options [quick_and_dirty = true, z3_non_commercial = yes]
+  options [z3_non_commercial = yes]
   theories Universe Tools Distr Lang_Untyped TypedLambda

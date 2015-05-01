@@ -62,7 +62,7 @@ lemma memory_lookup_update_same_untyped: "a \<in> t_domain (vu_type v) \<Longrig
   by (subst Abs_memory_inverse, auto)
 lemma memory_lookup_update_notsame_untyped: 
   "v \<noteq> w \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) w = memory_lookup_untyped m w"
-  sorry
+  SORRY
 
 record expression_untyped_rep =
   eur_fun :: "memory \<Rightarrow> val"
