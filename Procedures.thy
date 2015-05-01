@@ -4,44 +4,6 @@ begin
 
 subsection {* Various facts and definitions *}
 
-definition "freshvar vs = (SOME vn. \<forall>v\<in>set vs. vn \<noteq> vu_name v)"
-lemma freshvar_def2: "\<forall>v\<in>set vs. (freshvar vs) \<noteq> vu_name v"
-proof -
-  have "\<exists>vn. vn \<notin> set (map vu_name vs)"
-    apply (rule ex_new_if_finite)
-    close (rule infinite_UNIV_listI)
-    by auto
-  hence "\<exists>vn. \<forall>v\<in>set vs. vn \<noteq> vu_name v"
-    by (metis image_eqI set_map)
-  thus ?thesis
-    unfolding freshvar_def
-    by (rule someI_ex)
-qed
-
-(*
-lemma freshvar_global: "mk_variable_untyped (Variable (freshvar vs)) \<notin> set vs"
-  sorry
-lemma freshvar_local: "mk_variable_untyped (LVariable (freshvar vs)) \<notin> set vs"
-  sorry
-*)
-
-fun fresh_variables_local :: "variable_untyped list \<Rightarrow> type list \<Rightarrow> variable_untyped list" where
-  "fresh_variables_local used [] = []"
-| "fresh_variables_local used (t#ts) =
-    (let vn=freshvar used in 
-     let v=\<lparr> vu_name=vn, vu_type=t, vu_global=False \<rparr> in
-     v#fresh_variables_local (v#used) ts)"
-lemma fresh_variables_local_distinct: "distinct (fresh_variables_local used ts)"
-apply (induction ts, auto simp: Let_def)
-sorry
-
-lemma fresh_variables_local_local: "\<forall>v\<in>set (fresh_variables_local used ts). \<not> vu_global v"
-  apply (induction ts arbitrary: used, auto)
-  by (metis (poly_guards_query) set_ConsD variable_untyped.select_convs(3)) 
-lemma fresh_variables_local_type: "map vu_type (fresh_variables_local used ts) = ts"
-  apply (induction ts arbitrary: used, auto)
-  by (metis list.simps(9) variable_untyped.select_convs(2))
-  
 
 lemma proctype_inhabited: "\<exists>p. well_typed_proc p \<and> proctype_of p = pT"
 proof (rule,rule)
@@ -1263,9 +1225,20 @@ lemma well_typed_proc''_well_typed:
 SORRY
 
 lemma well_typed''_well_typed:
-  assumes "well_typed'' [] p"
-  assumes "beta_reduced' p"
+  assumes wt'': "well_typed'' [] p"
+  assumes red: "beta_reduced' p"
   shows "well_typed p"
+(* Not clear how best to do the induction. Induction over well_typed'' will extend the environment
+   Probably need to generalize that p is well_typed after substituting in things
+ *)
+(*
+apply (insert red) using wt'' apply (induction) apply auto
+close (metis beta_reduced'_def br_Seq1)
+close (metis beta_reduced'_def br_Seq1)
+close (metis beta_reduced'_def br_Seq1)
+close (metis beta_reduced'_def br_Seq2)
+close (metis beta_reduced'_def br_While)
+apply (metis beta_reduced'_def br_IfTE1) *)
 SORRY
 
 lemma well_typed_not_ProcAppl_ProcUnpair:

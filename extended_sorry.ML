@@ -79,12 +79,12 @@ fun print_annotated_oracles (conf:print_annotated_conf) ctx thms =
   let fun render_annot prop msg pos = 
          let val prop_str = Syntax.pretty_term ctx prop |> Pretty.str_of
              val msg_str = (case msg of Const(@{const_name None},_) => ""
-                                      | Const(@{const_name Some},_)$str => " ("^HOLogic.dest_string str^")"
+                                      | Const(@{const_name Some},_)$str => "\<open>"^HOLogic.dest_string str^"\<close> "
                                       | t => raise (TERM("parsing annotation, message",[t])))
              val pos = pos |> HOLogic.dest_string |> Term_Position.decode |> the
              val pos_str = Markup.markup (Markup.properties (Position.properties_of pos) Markup.position) "[here]"
          in
-          prop_str ^ msg_str ^ " " ^ pos_str
+          msg_str ^ prop_str ^ " " ^ pos_str
          end
       fun extract_annot trm = 
         Logic.dest_implies trm |> fst

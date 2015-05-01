@@ -219,6 +219,7 @@ qed
 
 print_sorry apply1
 
+
 lemma seq:
   assumes "subst_prog1 p q1 PROGRAM[\<guillemotleft>c1\<guillemotright>]"
   assumes "subst_prog1 p q2 PROGRAM[\<guillemotleft>c2\<guillemotright>]"
