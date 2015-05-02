@@ -1199,6 +1199,15 @@ apply auto
 close (metis (full_types) br_Proc)
 by (metis (full_types) brc_Proc)
 
+
+lemma beta_reduced_ProcPair [simp]:
+  "beta_reduced (ProcPair x y) = (beta_reduced x \<and> beta_reduced y)"
+unfolding beta_reduced_def
+apply auto
+apply (metis br_ProcPair1)
+apply (metis br_ProcPair2)
+by (metis brc_ProcPair)
+
 lemma beta_reduce_beta:
   assumes "well_typed_proc'' (T#E) p U"
   assumes "well_typed_proc'' E q T"

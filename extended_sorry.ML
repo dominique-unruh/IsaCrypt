@@ -28,19 +28,97 @@ fun cheat_tac_annot msg pos i st =
   SUBGOAL (fn (goal,i) =>
     rtac (make_thm_annot {thy=Thm.theory_of_thm st, prop=goal, position=pos, message=msg}) i) i st;
 
+fun direct_oracles_of_proof _ _ _ MinProof = ()
+  | direct_oracles_of_proof found thy Hs (AbsP(_,t,prf)) =
+        direct_oracles_of_proof found thy (t::Hs) prf
+  | direct_oracles_of_proof found thy Hs (Abst(_,_,prf)) =
+        direct_oracles_of_proof found thy Hs prf
+  | direct_oracles_of_proof (_,found_ora) _ _ (Oracle(name,trm,_)) =
+        found_ora := (name,trm) :: !found_ora
+  | direct_oracles_of_proof (found_thm,_) _ _ (PThm (ser,((name,term,_),body))) =
+        found_thm := (ser,name,term,body) :: !found_thm
+  | direct_oracles_of_proof found thy Hs (prf%_) = 
+        direct_oracles_of_proof found thy Hs prf
+  | direct_oracles_of_proof found thy Hs (prf%%prf') = 
+        (direct_oracles_of_proof found thy Hs prf; direct_oracles_of_proof found thy Hs prf')
+  | direct_oracles_of_proof _ _ _ (PAxm _) = ()
+  | direct_oracles_of_proof _ _ _ (PBound _) = ()
+  | direct_oracles_of_proof _ _ _ (Hyp _) = ()
+  | direct_oracles_of_proof _ _ _ (Promise _) = ()
+  | direct_oracles_of_proof found thy Hs (OfClass (T,c)) =
+      let val proofs = ProofRewriteRules.mk_of_sort_proof thy Hs (T,[c]) in
+      map (direct_oracles_of_proof found thy Hs) proofs; () end
+
+fun direct_oracles_of_pbody (found_thm,found_ora) thy prop (PBody {oracles, thms, proof}) =
+  let val _ = found_thm := map (fn (ser,(name,term,body)) => (ser,name,term,body)) thms @ !found_thm
+      val _ = found_ora := oracles @ !found_ora
+      val proof = Reconstruct.reconstruct_proof thy prop proof
+                  handle ERROR _ => proof
+      val _ = direct_oracles_of_proof (found_thm,found_ora) thy [] proof
+  in () end
+
+fun direct_oracles_of_thm thy (_,_,prop,body) =
+  let val found_thm = Unsynchronized.ref []
+      val found_ora = Unsynchronized.ref []
+      val _ = direct_oracles_of_pbody (found_thm,found_ora) thy prop (Future.join body)
+  in
+    (!found_thm,!found_ora)
+  end
+
+fun get_thm thm : int * string * term * proof_body future = 
+  let fun g (PThm (ser,((name,prop,_),body))) = (ser,name,prop,body)
+        | g (p%%_) = g p
+        | g (p%_) = g p
+        | g prf = (@{print} prf; error "unsup2")
+  in
+  case Thm.proof_body_of thm of
+    PBody {proof, ...} => g proof
+  end
+
+fun oracles_of' (thy:theory) seen found path (ser,name,prop,body) =
+  if Inttab.defined (!seen) ser then ()
+  else let val _ = seen := Inttab.update (ser,()) (!seen)
+           val path = name::path
+           val (thms,oras) = direct_oracles_of_thm thy (ser,name,prop,body)
+           val _ = if null oras then () else found := (path, Ord_List.make Proofterm.oracle_ord oras) :: !found
+           val _ = map (oracles_of' thy seen found path) thms
+       in () end
+
+fun oracles_of thms =
+  let val found = Unsynchronized.ref []
+      val seen = Unsynchronized.ref Inttab.empty
+      val _ = map (fn thm => oracles_of' (Thm.theory_of_thm thm) seen found [] (get_thm thm)) thms
+  in rev (!found) end
+
+(*
 local
-fun ora_of seen (PBody {oracles, thms, ...}) found path = 
+fun ora_of thy seen (PBody {oracles, thms, proof}) found path = 
   let val found = if null oracles then found else (path,oracles)::found
-      val (found,seen) = fold (fn (i, (name,_,body)) => fn (found,seen) =>
-                               if Inttab.defined seen i then (found,seen)
-                               else (ora_of (Inttab.update (i,()) seen) (Future.join body) found (name::path)))
-                         thms (found,seen)
+      val (found,seen) = fold (ora_of'' thy path) thms (found,seen)
+      val (found,seen) = ora_of' thy seen proof found path
   in
   (found,seen)
   end
+and ora_of'' (thy:theory) path (i,(name,_,body)) (found,seen) =
+                               if Inttab.defined seen i then (found,seen)
+                               else (ora_of thy (Inttab.update (i,()) seen) (Future.join body) found (name::path))
+and ora_of' (_:theory) seen (MinProof) found _ = (found,seen)
+  | ora_of' thy seen (AbsP(_,_,proof)) found path = ora_of' thy seen proof found path
+  | ora_of' thy seen (Abst(_,_,proof)) found path = ora_of' thy seen proof found path
+  | ora_of' _ seen (PAxm _) found _ = (found,seen)
+  | ora_of' thy seen (PThm (ser,((name,_,_),body))) found path = ora_of'' thy path (ser,(name,Bound 0,body)) (found,seen)
+  | ora_of' thy seen (p1 %% p2) found path = let val (found,seen) = ora_of' thy seen p1 found path in
+                                         ora_of' thy seen p2 found path end
+  | ora_of' thy seen (proof % _) found path = ora_of' thy seen proof found path
+  | ora_of' thy seen (OfClass (T,c)) found path =
+    let val proofs = ProofRewriteRules.mk_of_sort_proof thy [] (T,[c]) in
+      fold (fn prf => fn (found,seen) => ora_of' thy seen prf found path) proofs (found,seen) end
+  | ora_of' _ seen (PBound _) found _ = (found,seen)
+  | ora_of' _ seen (Oracle (name,trm,_)) found path = (("???"::path,[(name,trm)])::found,seen)
+  | ora_of' _ _ proof _ _ = (@{print} proof; error "unsup")
 in
 fun all_oracles_of thms = 
-  let val (found,_) = fold (fn thm => fn (found,seen) => ora_of seen (Thm.proof_body_of thm) found []) 
+  let val (found,_) = fold (fn thm => fn (found,seen) => ora_of (Thm.theory_of_thm thm) seen (Thm.proof_body_of thm) found []) 
                          thms ([], Inttab.empty)
   in rev found end
 fun all_oracles_of_classes thy = 
@@ -49,12 +127,13 @@ fun all_oracles_of_classes thy =
                               handle ERROR msg => (writeln msg; (msg,MinProof))) arities
       val (found,_) = fold (fn (msg,proof) => fn (found,seen) => 
                             case proof of 
-                              PThm (_,(_,body)) => (ora_of seen (Future.join body) found ["[instantiation]"])
+                              PThm (_,(_,body)) => (ora_of thy seen (Future.join body) found ["[instantiation]"])
                             | MinProof => (found,seen)
                             | _ => error ("nyi " ^ @{make_string} proof ^ "  " ^ msg))
                          arity_proofs ([],Inttab.empty)
   in rev found end
 end
+*)
 
 fun markup_thm_name ctx name =
   let val namespace = Global_Theory.facts_of (Proof_Context.theory_of ctx) |> Facts.space_of
@@ -105,10 +184,10 @@ fun print_annotated_oracles (conf:print_annotated_conf) ctx thms =
         in String.concatWith " > " path end
       fun thm_to_str (path,oras) =
         (path_to_str path)::(map ora_to_str oras)
-      val oracles = all_oracles_of thms
-      val oracles = if #show_oracles conf
+      val oracles = oracles_of thms
+      (*val oracles = if #show_oracles conf
                     then oracles @ all_oracles_of_classes (Proof_Context.theory_of ctx)
-                    else oracles
+                    else oracles*)
   in
   oracles |> map thm_to_str |> List.concat |> String.concatWith "\n" |> writeln
   end;

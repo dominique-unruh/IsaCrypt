@@ -986,10 +986,11 @@ qed
 *)
 
 theorem type_implies_termi: "e \<turnstile> t : T \<Longrightarrow> termip beta t"
-proof -
+apply (insert assms) SORRY "termination of beta reduction"
+(*proof -
   assume "e \<turnstile> t : T"
   hence "IT t" by (rule type_implies_IT)
   thus ?thesis by (rule IT_implies_termi)
-qed
+qed*)
 
 end

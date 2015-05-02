@@ -1,11 +1,12 @@
 theory Scratch
-imports Tools Main Extended_Sorry
+imports Main 
 begin
 
-print_sorry classes
+instantiation nat::finite begin
+instance sorry
+end
+
+lemma test: "finite (UNIV::nat set)" by (rule finite_UNIV)
 
 
-datatype bla = Bla | Blu
-print_theorems
-print_sorry bla.distinct
-
+end

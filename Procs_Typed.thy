@@ -68,18 +68,37 @@ definition [simp]: "procedure_functor_type (_::('a*'b) itself)
      == ProcTPair (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b))"
 definition "procedure_functor_mk_untyped == (\<lambda>(x,y). ProcPair (procedure_functor_mk_untyped x) (procedure_functor_mk_untyped y))"
 definition "procedure_functor_mk_typed' p == (case p of ProcPair x y \<Rightarrow> (procedure_functor_mk_typed' x, procedure_functor_mk_typed' y))"
-instance apply intro_classes 
-  unfolding procedure_functor_type_prod_def procedure_functor_mk_untyped_prod_def
-            procedure_functor_mk_typed'_prod_def
-  close (auto, rule well_typed''_well_typed_proc''.intros, simp_all add: procedure_functor_welltyped)
-  apply (case_tac p, clarify)
-  apply (auto simp: beta_reduced_def, erule beta_reduce_proc.cases, auto)[]
-    using procedure_functor_beta_reduced unfolding beta_reduced_def close auto
-    using procedure_functor_beta_reduced unfolding beta_reduced_def close auto
-  defer
-  close (auto simp: procedure_functor_mk_untyped_inverse')[]
-  apply (ind_cases "well_typed_proc'' [] q (ProcTPair a b)" for q a b, auto)
-  SORRY
+instance proof intro_classes 
+  show "\<And>p::'a\<times>'b. well_typed_proc'' [] (procedure_functor_mk_untyped p) (procedure_functor_type TYPE('a \<times> 'b))"
+  unfolding  procedure_functor_mk_untyped_prod_def 
+    by (auto, rule well_typed''_well_typed_proc''.intros, simp_all add: procedure_functor_welltyped)
+  fix p::"'a\<times>'b"
+  show "beta_reduced (procedure_functor_mk_untyped p)"
+    unfolding procedure_functor_mk_untyped_prod_def
+    apply (case_tac p, simp)
+    using procedure_functor_beta_reduced procedure_functor_beta_reduced
+    by auto
+next
+  fix q assume wt_q: "well_typed_proc'' [] q (procedure_functor_type TYPE('a\<times>'b))" and br_q: "beta_reduced q"
+  then obtain q1 q2 where q: "q = ProcPair q1 q2"
+    by (rule_tac well_typed_ProcTPair_ProcPair, auto)
+  from br_q have br_q1: "beta_reduced q1" and br_q2: "beta_reduced q2" 
+    unfolding q by auto
+  from wt_q have wt_q1: "well_typed_proc'' [] q1 (procedure_functor_type TYPE('a))"
+             and wt_q2: "well_typed_proc'' [] q2 (procedure_functor_type TYPE('b))"
+    unfolding q unfolding wt_ProcPair_iff procedure_functor_type_prod_def by auto
+  show "procedure_functor_mk_untyped (procedure_functor_mk_typed' q :: 'a\<times>'b) = q"
+    unfolding procedure_functor_mk_typed'_prod_def procedure_functor_mk_untyped_prod_def q
+    apply auto 
+    close (rule procedure_functor_mk_typed_inverse', fact wt_q1, fact br_q1)
+    by (rule procedure_functor_mk_typed_inverse', fact wt_q2, fact br_q2)
+next
+  fix p::"'a\<times>'b"
+  show "procedure_functor_mk_typed' (procedure_functor_mk_untyped p) = p"
+    unfolding procedure_functor_mk_typed'_prod_def procedure_functor_mk_untyped_prod_def
+    using procedure_functor_mk_untyped_inverse' by (cases p, auto)
+qed
+
 end
 
 instantiation procedure_ext :: (procargs,prog_type,singleton) procedure_functor begin
@@ -218,44 +237,42 @@ proof -
     by (fact subst')
 qed
 
-print_sorry classes
-
 lemma seq:
   assumes "subst_prog1 p q1 PROGRAM[\<guillemotleft>c1\<guillemotright>]"
   assumes "subst_prog1 p q2 PROGRAM[\<guillemotleft>c2\<guillemotright>]"
   defines "q == Seq q1 q2"
   shows "subst_prog1 p q PROGRAM[\<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>]"
-sorry
+SORRY
 
 lemma closed:
   fixes q c p
   defines "q == mk_program_untyped c"
   shows "subst_prog1 p q PROGRAM[\<guillemotleft>c\<guillemotright>]"
-sorry
+SORRY
 
 lemma callproc:
   fixes v args q
   assumes "subst_proc1 p q r"
   defines "q0==CallProc (mk_variable_untyped v) q (mk_procargs_untyped procargs_empty)"
   shows "subst_prog1 p q0  PROGRAM[v:=call r()]"
-sorry
+SORRY
 
 lemma left: 
   assumes "subst_proc1 l q p"
   defines "q0 == ProcAppl (ProcAbs q) (ProcUnpair True (ProcRef 0))"
   shows "subst_proc1 (l, r) q0 p"
-sorry
+SORRY
 
 lemma procref: 
   defines "q0 == ProcRef 0"
   shows "subst_proc1 p q0 p"
-sorry
+SORRY
 
 lemma right: 
   assumes "subst_proc1 r q p"
   defines "q0 == ProcAppl (ProcAbs q) (ProcUnpair False (ProcRef 0))"
   shows "subst_proc1 (l, r) q0 p"
-sorry
+SORRY
 
 lemmas safe = apply1 closed seq procref callproc
 lemmas unsafe = left right
@@ -286,3 +303,5 @@ definition my_proc_def0: "my_proc \<equiv>
       (mk_procargvars_untyped procargvars_empty) (mk_expression_untyped (const_expression ()))))"
 
 lemmas my_proc_def = my_proc_def0[THEN reduce_procfun.l1]
+
+end
