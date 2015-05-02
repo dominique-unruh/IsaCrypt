@@ -1,12 +1,11 @@
 theory Scratch
-imports Main 
+imports Main Extended_Sorry
 begin
 
 instantiation nat::finite begin
-instance sorry
+instance SORRY
 end
 
 lemma test: "finite (UNIV::nat set)" by (rule finite_UNIV)
-
 
 end
