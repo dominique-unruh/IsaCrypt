@@ -8,7 +8,7 @@ def print_sorry(thms):
         f.write('''theory Tmp_Print_Sorry
         imports "~~/src/HOL/Proofs" Extended_Sorry {thys}
 begin
-'''.format(thys=thys)
+'''.format(thys=thys))
         for thm in thms:
             f.write("""print_sorry {thm}
 
