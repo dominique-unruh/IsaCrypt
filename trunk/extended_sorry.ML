@@ -78,7 +78,7 @@ fun get_thm thm : int * string * term * proof_body future =
 fun oracles_of' (thy:theory) seen found path (ser,name,prop,body) =
   if Inttab.defined (!seen) ser then ()
   else let val _ = seen := Inttab.update (ser,()) (!seen)
-	   val _ = @{print} ("new",ser,name,path)
+(*	   val _ = @{print} ("new",ser,name,path) *)
            val path = name::path
            val (thms,oras) = direct_oracles_of_thm thy (ser,name,prop,body)
            val _ = if null oras then () else found := (path, Ord_List.make Proofterm.oracle_ord oras) :: !found
