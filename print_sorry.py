@@ -19,11 +19,14 @@ print_sorry {thm}
 
     #subprocess.check_call("/opt/Isabelle/bin/isabelle build -d . -v HOL-EC-Print-Sorry",shell=True)
 
-    with gzip.open("/home/unruh/.isabelle/Isabelle2014/heaps/polyml-5.5.2_x86-linux/log/HOL-EC-Print-Sorry.gz",'rt') as f:
-        for line in f:
+    with gzip.open("/home/unruh/.isabelle/Isabelle2014/heaps/polyml-5.5.2_x86-linux/log/HOL-EC-Print-Sorry.gz",'rt') as log:
+      with open("y_report.txt","wt") as out:
+        show = False
+        for line in log:
             line = str(line)
             if line[0]=='\x0c': continue
             line = line.rstrip("\r\n")
-            print(line)
+            if show: out.writeln(line)
+            if line == "======== STARTING PRINT_SORRY ========": show = True
 
 print_sorry(["Procs_Typed.reduce_procfun.seq","Procs_Typed.reduce_procfun.apply1"])
