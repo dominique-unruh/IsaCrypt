@@ -242,13 +242,78 @@ lemma seq:
   assumes "subst_prog1 p q2 PROGRAM[\<guillemotleft>c2\<guillemotright>]"
   defines "q == Seq q1 q2"
   shows "subst_prog1 p q PROGRAM[\<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>]"
-SORRY
+proof - 
+  have wt_q1: "well_typed'' [procedure_functor_type TYPE('a)] q1" 
+   and wt_q2: "well_typed'' [procedure_functor_type TYPE('a)] q2"
+    using assms unfolding subst_prog1_def by auto 
+  hence wt_seq: "well_typed'' [procedure_functor_type TYPE('a)] (Seq q1 q2)"
+    by (rule_tac wt_Seq, simp)
+  have wt_subst_q1:  "well_typed'' [] (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' q1))"
+      apply (rule well_typed_subst_proc[where F="[]", simplified])
+      close (rule procedure_functor_welltyped)
+      apply (rule beta_reduce_preserves_well_typed)
+      by (fact wt_q1)
+  have wt_subst_q2:  "well_typed'' [] (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' q2))"
+      apply (rule well_typed_subst_proc[where F="[]", simplified])
+      close (rule procedure_functor_welltyped)
+      apply (rule beta_reduce_preserves_well_typed)
+      by (fact wt_q2)
+  have q1_c1: "beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' q1)) =
+    mk_program_untyped c1"
+    apply (subst Abs_program_inject[symmetric], auto)
+      apply (rule well_typed''_well_typed)
+      apply (rule beta_reduce_preserves_well_typed)
+        close (fact wt_subst_q1)
+      apply (rule beta_reduced_beta_reduce')
+      apply (subst Rep_program_inverse)
+      using assms(1) unfolding subst_prog1_def program_def by auto
+  have q2_c2: "beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' q2)) =
+    mk_program_untyped c2"
+    apply (subst Abs_program_inject[symmetric], auto)
+      apply (rule well_typed''_well_typed)
+      apply (rule beta_reduce_preserves_well_typed)
+        close (fact wt_subst_q2)
+      apply (rule beta_reduced_beta_reduce')
+      apply (subst Rep_program_inverse)
+      using assms(2) unfolding subst_prog1_def program_def by auto
+  have eq: "Abs_program
+     (beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' (Seq q1 q2)))) =
+    Abs_program (Seq (mk_program_untyped c1) (mk_program_untyped c2))"
+    apply (tactic "cong_tac 1", fact refl)
+    apply (subst beta_reduce_Seq)
+      close (fact wt_q1) close (fact wt_q2)
+    apply simp
+    apply (subst beta_reduce_Seq)
+      close (fact wt_subst_q1) close (fact wt_subst_q2)
+    by (auto simp: q1_c1 q2_c2)
+  from wt_seq eq show ?thesis
+    unfolding subst_prog1_def q_def program_def seq_def by auto
+qed
+
+(* TODO: move *)
+lemma subst_well_typed_id:
+  shows "well_typed p' \<Longrightarrow> subst_proc_in_prog n q p' = p'"
+    and "well_typed_proc p \<Longrightarrow> subst_proc n q p = p"
+apply (induction p' and p)
+apply auto apply (rename_tac x p a)
+by (case_tac p, auto)
+
 
 lemma closed:
   fixes q c p
   defines "q == mk_program_untyped c"
   shows "subst_prog1 p q PROGRAM[\<guillemotleft>c\<guillemotright>]"
-SORRY
+unfolding q_def subst_prog1_def program_def apply auto
+apply (metis Rep_program mem_Collect_eq well_typed_extend(1) well_typed_well_typed'')
+apply (subst beta_reduced_beta_reduce_id')
+apply (subst subst_well_typed_id)
+close (metis beta_reduce_preserves_well_typed(1) beta_reduced_beta_reduce' well_typed''_well_typed(1) well_typed_mk_program_untyped well_typed_well_typed'')
+close (rule beta_reduced_beta_reduce')
+apply (subst subst_well_typed_id)
+apply (metis beta_reduce_preserves_well_typed(1) beta_reduced_beta_reduce' well_typed''_well_typed(1) well_typed_mk_program_untyped well_typed_well_typed'')
+apply (subst beta_reduced_beta_reduce_id')
+apply (rule well_typed_proc_beta_reduced)
+by auto
 
 lemma callproc:
   fixes v args q

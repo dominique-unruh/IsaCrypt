@@ -1168,7 +1168,7 @@ proof -
   ultimately show ?thesis
     by (rule beta_reduceI[rotated])
 qed
-  
+
 lemma beta_reduce_Proc:
   assumes "well_typed'' E body"
   shows "beta_reduce (Proc body args ret) = Proc (beta_reduce' body) args ret"
@@ -1184,6 +1184,25 @@ proof -
   ultimately show ?thesis
     by (rule beta_reduceI[rotated])
 qed
+
+lemma beta_reduce_Seq:
+  assumes "well_typed'' E p1" and "well_typed'' E p2"
+  shows "beta_reduce' (Seq p1 p2) = Seq (beta_reduce' p1) (beta_reduce' p2)"
+proof -
+  have "beta_reduce_prog\<^sup>*\<^sup>* p1 (beta_reduce' p1)" and "beta_reduce_prog\<^sup>*\<^sup>* p2 (beta_reduce' p2)" 
+    apply (rule beta_reduce'_def2) apply (rule well_typed_beta_reduce) using assms apply auto
+    apply (rule beta_reduce'_def2) apply (rule well_typed_beta_reduce) using assms by auto
+  hence "beta_reduce_prog\<^sup>*\<^sup>* (Seq p1 p2) (Seq (beta_reduce' p1) (beta_reduce' p2))"
+    by (metis beta_reduce_proofs.rtrancl_beta_Seq1 beta_reduce_proofs.rtrancl_beta_Seq2 rtranclp_trans)
+  moreover have redp1: "beta_reduced' (beta_reduce' p1)" and redp2: "beta_reduced' (beta_reduce' p2)" 
+    apply (rule beta_reduce'_def2) apply (rule well_typed_beta_reduce) using assms apply auto
+    apply (rule beta_reduce'_def2) apply (rule well_typed_beta_reduce) using assms by auto
+  have "beta_reduced' (Seq (beta_reduce' p1) (beta_reduce' p2))"
+    by (metis redp1 redp2 beta_reduced'_def brc_Seq)
+  ultimately show ?thesis
+    by (rule beta_reduceI'[rotated])
+qed
+
 
 lemma beta_reduced_CallProc [simp]:
   "beta_reduced' (CallProc x p e) = beta_reduced p"
@@ -1238,8 +1257,19 @@ lemma well_typed_proc_well_typed_proc'':
 apply (cases p, auto) apply (rule wt_Proc, auto) by (rule well_typed_well_typed'', simp)
 
 lemma well_typed_proc_beta_reduced: 
-  shows "well_typed_proc p \<Longrightarrow> beta_reduced p"
-SORRY
+  shows "well_typed p' \<Longrightarrow> beta_reduced' p'"
+    and "well_typed_proc p \<Longrightarrow> beta_reduced p"
+apply (induction p' and p, auto simp: beta_reduced'_def beta_reduced_def)
+close (ind_cases "beta_reduce_prog (Assign x y) u" for x y u)
+close (ind_cases "beta_reduce_prog (Sample x y) u" for x y u)
+close (ind_cases "beta_reduce_prog (Seq x y) u" for x y u, auto)
+close (ind_cases "beta_reduce_prog (Skip) u" for u)
+close (ind_cases "beta_reduce_prog (IfTE b x y) u" for b x y u, auto)
+close (ind_cases "beta_reduce_prog (While b x) u" for b x u, auto)
+apply (ind_cases "beta_reduce_prog (CallProc x p e) u" for x p e u, auto)
+  close (rename_tac x p e q, case_tac p, auto)
+by (ind_cases "beta_reduce_proc (Proc x y z) u" for x y z u, auto)
+
 
 (*
 lemma well_typed_proc''_well_typed:

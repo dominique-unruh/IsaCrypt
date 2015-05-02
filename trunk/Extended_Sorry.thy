@@ -13,13 +13,6 @@ lemma ANNOTATION: "ANNOTATION prop msg pos" unfolding ANNOTATION_def ..
 
 ML_file "extended_sorry.ML"
 
-instantiation nat::finite begin
-instance sorry
-end
-lemma test: "finite (UNIV::nat set)" by (rule finite_UNIV)
-
-print_sorry test
-
 (*
 class pro_fun = fixes huhuhisd assumes "huhuhisd \<noteq> huhuhisd"
 typedecl ('a,'b) prd
