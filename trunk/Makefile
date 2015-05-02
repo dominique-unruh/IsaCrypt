@@ -6,18 +6,18 @@ def :
 	error
 
 heap $(HEAP) : ROOT *.thy 
-	/opt/Isabelle/bin/isabelle build -b -d . EasyCrypt 
+	/opt/Isabelle/bin/isabelle build -b -d . -v EasyCrypt 
 	ls -lh $(BROWSER_INFO)/document.pdf
 
 HOL-EC-Prereqs : ROOT
-	/opt/Isabelle/bin/isabelle build -b -d . HOL-EC-Prereqs
+	/opt/Isabelle/bin/isabelle build -b -d . -v HOL-EC-Prereqs
 
 
 HOL-EC-Core : ROOT
-	/opt/Isabelle/bin/isabelle build -b -d . HOL-EC-Core
+	/opt/Isabelle/bin/isabelle build -b -d . -v HOL-EC-Core
 
 theories.pdf session.graph: ROOT *.thy *.tex
-	/opt/Isabelle/bin/isabelle build -d . EasyCrypt
+	/opt/Isabelle/bin/isabelle build -d . -v EasyCrypt
 	ls -lh $(BROWSER_INFO)/document.pdf
 	cp $(BROWSER_INFO)/document.pdf theories.pdf
 	cp $(BROWSER_INFO)/session.graph .
