@@ -123,11 +123,11 @@ lemma mk_expression_untyped_fun [simp]: "eu_fun (mk_expression_untyped (e::'a::p
 lemma mk_expression_untyped_type [simp]: "eu_type (mk_expression_untyped (e::'a::prog_type expression)) = Type TYPE('a)"
   unfolding mk_expression_untyped_def eu_type_def
   apply (subst Abs_expression_untyped_inverse, auto simp: embedding_Type)
-  by (smt2 Rep_expression e_fun_def e_vars_def mem_Collect_eq)  
+  unfolding e_fun_def e_vars_def using Rep_expression by blast
 lemma mk_expression_untyped_vars [simp]: "eu_vars (mk_expression_untyped (e::'a::prog_type expression)) = e_vars e"
   unfolding mk_expression_untyped_def eu_vars_def
   apply (subst Abs_expression_untyped_inverse, auto simp: embedding_Type)
-  by (smt2 Rep_expression e_fun_def e_vars_def mem_Collect_eq)  
+  unfolding e_fun_def e_vars_def using Rep_expression by blast
 lemma e_fun_bool_untyped: "e_fun (e::bool expression) m = (eu_fun (mk_expression_untyped e) m = embedding True)"
   by (metis (poly_guards_query) embedding_inv mk_expression_untyped_fun)
 
