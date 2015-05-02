@@ -107,7 +107,7 @@ using assms by (rule well_typed_subst')
 
 definition "module_type_rep_set envT proctypes \<equiv> {procs. list_all2 (\<lambda>T p. well_typed_proc'' [] p (foldr ProcFun envT (ProcSimple T))) proctypes procs}"
 lemma module_type_rep_set_inhabited: "\<exists>x. x \<in> module_type_rep_set env procT"
-  sorry
+  SORRY
 
 class module_type =
   fixes "module_type_procs" :: "'a \<Rightarrow> procedure_rep list"

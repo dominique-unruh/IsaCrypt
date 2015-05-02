@@ -27,5 +27,5 @@ session "HOL-EC-Prereqs-Proofs" = "HOL-EC-Prereqs" +
   theories "~~/src/HOL/Proofs"
 
 session "HOL-EC-Print-Sorry" = "HOL-EC-Prereqs-Proofs" +
-  options [z3_non_commercial = yes, quick_and_dirty = true]
+  options [z3_non_commercial = yes, quick_and_dirty = false]
   theories Tmp_Print_Sorry
