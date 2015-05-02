@@ -6,24 +6,24 @@ def :
 	error
 
 heap $(HEAP) : ROOT *.thy 
-	/opt/Isabelle/bin/isabelle build -b -d . -v EasyCrypt 
+	/opt/Isabelle/bin/isabelle build -b -d . EasyCrypt 
 	ls -lh $(BROWSER_INFO)/document.pdf
 
 HOL-EC-Prereqs : ROOT
-	/opt/Isabelle/bin/isabelle build -b -d . -v HOL-EC-Prereqs
+	/opt/Isabelle/bin/isabelle build -b -d . HOL-EC-Prereqs
 
 
 HOL-EC-Core : ROOT
-	/opt/Isabelle/bin/isabelle build -b -d . -v HOL-EC-Core
+	/opt/Isabelle/bin/isabelle build -b -d . HOL-EC-Core
 
 theories.pdf session.graph: ROOT *.thy *.tex
-	/opt/Isabelle/bin/isabelle build -d . -v EasyCrypt
+	/opt/Isabelle/bin/isabelle build -d . EasyCrypt
 	ls -lh $(BROWSER_INFO)/document.pdf
 	cp $(BROWSER_INFO)/document.pdf theories.pdf
 	cp $(BROWSER_INFO)/session.graph .
 
 ROOT: *.thy Makefile
-	perl -i~ -p -e 'if (/theories\s*\(\*EC_THYS\*\)/) { $$_ = "  theories (*EC_THYS*) ".join(" ",grep { $$_ ne "Example" && $$_ ne "Scratch" } map { s/\.thy$$//; $$_ } <*.thy>)."\n" }' ROOT
+	perl -i~ -p -e 'if (/theories\s*\(\*EC_THYS\*\)/) { $$_ = "  theories (*EC_THYS*) ".join(" ",grep { $$_ ne "Example" && $$_ ne "Tmp_Print_Sorry" && $$_ ne "Scratch" } map { s/\.thy$$//; $$_ } <*.thy>)."\n" }' ROOT
 
 graph: session.graph
 	/opt/Isabelle/bin/isabelle browser session.graph 
