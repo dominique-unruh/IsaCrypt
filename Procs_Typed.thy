@@ -313,7 +313,9 @@ apply (subst subst_well_typed_id)
 apply (metis beta_reduce_preserves_well_typed(1) beta_reduced_beta_reduce' well_typed''_well_typed(1) well_typed_mk_program_untyped well_typed_well_typed'')
 apply (subst beta_reduced_beta_reduce_id')
 apply (rule well_typed_proc_beta_reduced)
-by auto
+close (fact well_typed_mk_program_untyped)
+by (fact Rep_program_inverse)
+
 
 lemma callproc:
   fixes v args q
@@ -370,3 +372,4 @@ definition my_proc_def0: "my_proc \<equiv>
 lemmas my_proc_def = my_proc_def0[THEN reduce_procfun.l1]
 
 end
+
