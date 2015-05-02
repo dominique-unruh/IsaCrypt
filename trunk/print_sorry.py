@@ -6,7 +6,7 @@ def print_sorry(thms):
     thys = " ".join(thm[:thm.find('.')] for thm in thms)
     with open("Tmp_Print_Sorry.thy","w") as f:
         f.write('''theory Tmp_Print_Sorry
-        imports "~~/src/HOL/Proofs" Extended_Sorry {thys}
+        imports Extended_Sorry {thys}
 begin
 '''.format(thys=thys))
         for thm in thms:

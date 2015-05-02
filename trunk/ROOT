@@ -22,3 +22,10 @@ session "HOL-EC-Core" = "HOL-EC-Prereqs" +
   *}
   options [z3_non_commercial = yes]
   theories Universe Tools Distr Lang_Untyped TypedLambda
+
+session "HOL-EC-Prereqs-Proofs" = "HOL-EC-Prereqs" +
+  theories "~~/src/HOL/Proofs"
+
+session "HOL-EC-Print-Sorry" = "HOL-EC-Prereqs-Proofs" +
+  options [z3_non_commercial = yes, quick_and_dirty = true]
+  theories Tmp_Print_Sorry
