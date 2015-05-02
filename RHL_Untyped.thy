@@ -180,7 +180,7 @@ lemma rseq_rule1:
       and "rhoare_untyped P c1 Skip Q"
       and "rhoare_untyped Q' Skip c2 R"
   shows "rhoare_untyped P c1 c2 R"
-sorry
+SORRY
 
 
 lemma rif_rule:
@@ -188,7 +188,7 @@ lemma rif_rule:
       and "rhoare_untyped (\<lambda>m1 m2. P m1 m2 \<and> eu_fun e1 m1 = embedding True) then1 then2 Q"
       and "rhoare_untyped (\<lambda>m1 m2. P m1 m2 \<and> eu_fun e1 m1 \<noteq> embedding True) else1 else2 Q"
   shows "rhoare_untyped P (IfTE e1 then1 else1) (IfTE e2 then2 else2) Q"
-sorry
+SORRY
 *)
 
 (*

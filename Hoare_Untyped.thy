@@ -25,7 +25,7 @@ lemma while_rule:
           "\<forall>m. P m \<longrightarrow> I m"
           "\<forall>m. eu_fun e m \<noteq> embedding True \<longrightarrow> I m \<longrightarrow> Q m"
   shows "hoare_untyped P (While e p) Q"
-  sorry
+  SORRY
 
 lemma iftrue_rule:
   fixes P Q I c p1 p2
