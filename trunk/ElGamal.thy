@@ -1,8 +1,53 @@
 theory ElGamal
-imports Hoare_Tactics Modules
+imports Hoare_Tactics Procs_Typed
 begin
 
-default_sort prog_type
+definition "module_type_type (Rep::'a::type\<Rightarrow>'b::procedure_functor) = 
+    (\<lambda>x::'a itself. procedure_functor_type TYPE('b))"
+definition "module_type_mk_untyped (Rep::'a::type\<Rightarrow>'b::procedure_functor) = 
+    (\<lambda>x::'a. procedure_functor_mk_untyped (Rep x))"
+definition "module_type_mk_typed' (Rep::'a::type\<Rightarrow>'b::procedure_functor) = 
+  (\<lambda>x. inv Rep (procedure_functor_mk_typed x))"
+
+record 'G DDH_Adv =
+  "guess" :: "('G*'G*'G*unit,bool) procedure"
+term Rep_DDH_Adv_ext
+
+class singleton_procedure_functor = singleton + procedure_functor
+instantiation unit :: procedure_functor begin
+  definition "procedure_functor_type (_::unit itself) == undefined::procedure_type_open"
+  definition "procedure_functor_mk_untyped (_::unit) == undefined::procedure_rep"
+  definition "procedure_functor_mk_typed' (_::procedure_rep) == ()"
+  instance SORRY "this is wrong, currently"
+end
+
+(*
+lemma module_type_OFCLASS:
+  fixes Rep :: "'a::type \<Rightarrow> 'b::procedure_functor"
+  assumes "procedure_functor_type = module_type_type Rep"
+  assumes "procedure_functor_mk_untyped = module_type_mk_untyped Rep"
+  assumes "procedure_functor_mk_typed' = module_type_mk_typed' Rep"
+  shows "OFCLASS('a::type, procedure_functor_class)"
+apply intro_classes
+*)
+
+instantiation DDH_Adv_ext :: (prog_type,singleton_procedure_functor)procedure_functor begin
+  abbreviation "Rep == Rep_DDH_Adv_ext :: ('a,'b) DDH_Adv_ext \<Rightarrow> _"
+  lemma inv_Rep: "inv Rep == Abs_DDH_Adv_ext"
+    by (smt2 Abs_DDH_Adv_ext_inverse Rep_DDH_Adv_ext_inverse UNIV_I inv_equality)
+  definition "procedure_functor_type = module_type_type Rep"
+  definition "procedure_functor_mk_untyped = module_type_mk_untyped Rep"
+  definition "procedure_functor_mk_typed' = module_type_mk_typed' Rep"
+  instance apply intro_classes
+    apply (metis (mono_tags) module_type_mk_untyped_def module_type_type_def procedure_functor_mk_untyped_DDH_Adv_ext_def procedure_functor_type_DDH_Adv_ext_def procedure_functor_welltyped)
+    apply (metis (mono_tags) Abs_DDH_Adv_ext_cases Abs_DDH_Adv_ext_inverse UNIV_I module_type_mk_untyped_def procedure_functor_beta_reduced procedure_functor_mk_untyped_DDH_Adv_ext_def)
+    unfolding procedure_functor_mk_untyped_DDH_Adv_ext_def procedure_functor_mk_typed'_DDH_Adv_ext_def
+      module_type_mk_untyped_def module_type_mk_typed'_def inv_Rep
+    apply (metis (mono_tags) Abs_DDH_Adv_ext_inverse UNIV_I beta_reduced_beta_reduce_id module_type_type_def procedure_functor_mk_typed_inverse procedure_functor_type_DDH_Adv_ext_def)
+    by (metis Rep_DDH_Adv_ext_inverse procedure_functor_mk_untyped_inverse)
+end 
+
+type_synonym 'G DDH_Game = "('G*'G*'G*unit,bool) procedure"
 
 locale group =
   (* fixes 'G *)
@@ -10,10 +55,6 @@ locale group =
   and q::nat (* group order *)
 begin
 
-moduletype DDH_Adv attach g where
-  "guess" :: "('G*'G*'G*unit,bool) procedure"
-moduletype DDH_Game attach g where
-  "main" :: "('G*'G*'G*unit,bool) procedure"
 end
 
 abbreviation "x == LVariable ''x'' :: nat variable"

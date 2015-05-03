@@ -376,12 +376,8 @@ locale test = fixes v::"(unit, unit) procedure" begin
 definition_by_specification my_proc where
   "procfun_apply my_proc (p,q,r::(unit,unit)procedure) = 
      proc() { x:=1; y:=call p(); y:=call r(); return () }"
-print_state
-apply (tactic "dtac meta_eq_to_obj_eq 1")
-apply (hypsubst)
-apply (tactic "hyp_subst_tac_thin true @{context} 1")
 
-apply (hypsubst)
+end
 
 schematic_lemma (in reduce_procfun) l1:
   shows "\<And>p q r. my_proc == ?my_proc \<Longrightarrow> 
