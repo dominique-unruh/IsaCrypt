@@ -1,5 +1,5 @@
 theory Procs_Typed
-imports Lang_Typed Procedures
+imports TermX_Antiquot Lang_Typed Procedures
 begin
 
 subsection {* Procedure functors *}
@@ -347,14 +347,66 @@ lemmas reduce = safe unsafe
 
 end
 
+ML_file "procs_typed.ML"
+
 definition "x == Variable ''x'' :: int variable"
 definition "y == Variable ''y'' :: unit variable"
 
+
+locale test = fixes v::"(unit, unit) procedure" begin
+
+ML {* val prop = @{prop "procfun_apply my_proc (p,q,r) = proc() { x:=1; y:=call p(); y:=call r(); return () }"} *}
+
+(* TODO: what happens if we replace r \<rightarrow> v in the rhs? *)
+local_setup {*
+  Procs_Typed.definition_via_specification 
+    [@{term "my_proc::(unit, unit) procedure \<times>
+   'a::procedure_functor \<times> (unit, unit) procedure =proc=>
+   (unit, unit) procedure"}]
+(*    [@{term "p::(unit, unit) procedure"},@{term "q::'a::procedure_functor"},@{term "r::'b::procedure_functor"}] *)
+    prop
+*}
+
+print_theorems
+
+
+ML "hyp_subst_tac"
+
+ML {*
+  val goal = Goal.init @{cprop "a = b \<Longrightarrow> undefined a == undefined b"}
+  val ctx = @{context}
+  val goal = goal |> SINGLE (hyp_subst_tac ctx 1)
+*}
+
 schematic_lemma (in reduce_procfun) l1:
   shows "\<And>p q r. my_proc == ?my_proc \<Longrightarrow> 
-  (procfun_apply my_proc (p,q,r) = proc() { x:=1; y:=call p(); y:=call q(); return () })"
-apply (drule meta_eq_to_obj_eq, hypsubst, thin_tac "?a = ?b")
-by (rule reduce)+
+  (procfun_apply my_proc (p,q,r) = proc() { x:=1; y:=call p(); y:=call r(); return () })"
+apply (tactic {*
+EqSubst.eqsubst_tac @{context} [0] 
+[Ctr_Sugar_Util.cterm_instantiate_pos [SOME (cterm_of @{theory} @{term my_proc})] meta_eq_to_obj_eq] 1
+THEN assume_tac 1
+*})
+apply assumption
+apply (tactic "dtac meta_eq_to_obj_eq 1")
+apply (tactic "asm_lr_simp_tac @{context} 1")
+apply (tactic "hyp_subst_tac @{context} 1")
+apply (tactic {*
+  SUBGOAL (fn (prop, i) =>
+  let val eq = prop |> Logic.strip_assums_hyp |> hd
+      val concl = prop |> Logic.strip_assums_concl
+      val _ = @{print} (eq, concl)
+      val concl' = concl |> Term.subst_free [Logic.dest_equals eq]
+      
+  in
+  all_tac
+  end) 1
+*})
+
+apply (tactic "Procs_Typed.definition_via_specification_tac @{context} Procs_Typed.procedure_existence_tac")
+apply (tactic "dtac meta_eq_to_obj_eq 1")
+apply (tactic "hyp_subst_tac_thin true @{context} 1")
+apply (tactic "Procs_Typed.procedure_existence_tac @{context} 1")
+
 
 definition my_proc_def0: "my_proc \<equiv>
  procedure_functor_mk_typed
