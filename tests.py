@@ -7,12 +7,14 @@ import glob, sys, os, random, re, subprocess, time
 import unittest
 import Pyro4
 
+isabelle_dir = "/opt/Isabelle2015-RC3"
+
 run_theory_ml = r"""
 datatype thyexn = Theory | Exception of exn;;
 
 fun run_theory thy_name thy_name_nopath stop =
   let (* val _ = writeln("Theory "^thy_name) *)
-      val _ = Thy_Info.kill_thy thy_name_nopath
+      val _ = Thy_Info.remove_thy thy_name_nopath
       val res = (Thy_Info.use_thy (thy_name,Position.none); Theory)
                      handle e => Exception e
   in
@@ -28,9 +30,10 @@ val _ = writeln "\n*** INITIALIZATION FINISHED ***";;
 
 log_file = os.environ['HOME']+"/tmp/isabelle-tests.log"
 class IsabelleProcess(object):
-    def __init__(self):
+    def __init__(self,daemon):
         self.log_file_handle = open(log_file,"w")
         self.isabelle_proc = None
+        self.daemon = daemon
         
     def log(self,msg):
         self.log_file_handle.write(msg+"\n")
@@ -39,7 +42,7 @@ class IsabelleProcess(object):
     def start_isabelle_proc(self):
         if self.isabelle_proc!=None: return
         logic = "HOL-EC-Prereqs"
-        cmd = ['/opt/Isabelle/bin/isabelle_process', '-o', 'quick_and_dirty=true', logic, '-q']
+        cmd = [isabelle_dir+'/bin/isabelle_process', '-o', 'quick_and_dirty=true', logic, '-q']
         self.isabelle_proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
         self.communicate_until(run_theory_ml,"*** INITIALIZATION FINISHED ***");
 
@@ -70,7 +73,7 @@ class IsabelleProcess(object):
             self.isabelle_proc.terminate()
             time.sleep(1)
             self.isabelle_proc.kill()
-        exit(0)
+        self.daemon.shutdown()
 
 
 def run_theory(thy):
@@ -174,7 +177,7 @@ def start_server():
     try: os.remove(".isabelle-test-server-socket")
     except: pass
     daemon = Pyro4.Daemon(unixsocket=".isabelle-test-server-socket")
-    server = IsabelleProcess()
+    server = IsabelleProcess(daemon)
     server.uri=daemon.register(server)
     with open(".isabelle-test-server","w") as f: f.write(str(server.uri))
     daemon.requestLoop()

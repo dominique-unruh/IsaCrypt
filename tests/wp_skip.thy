@@ -4,7 +4,7 @@ theory wp_skip
 imports "../Hoare_Tactics"
 begin
 
-abbreviation "z == Variable ''z'' :: int variable";
+abbreviation "z == Variable ''z'' :: int variable"
 
 lemma 
   assumes "hoare {P &m} z<-undefined {z=99}"

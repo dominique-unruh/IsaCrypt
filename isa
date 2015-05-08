@@ -1,10 +1,11 @@
 #!/bin/bash
 
 HEAP=HOL-EC-Core
+ISADIR=/opt/Isabelle2015-RC3
 
 if [ "$1" = "x" ]; then
     HEAP=HOL-EC-Prereqs
     shift
 fi
 
-/opt/Isabelle/bin/isabelle jedit -l "$HEAP" -d . "$@" &
+"$ISADIR"/bin/isabelle jedit -l "$HEAP" -d . "$@" &

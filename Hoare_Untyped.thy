@@ -5,7 +5,7 @@ begin
 definition hoare_untyped :: "(memory \<Rightarrow> bool) \<Rightarrow> program_rep \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> bool" where
   "hoare_untyped pre prog post =
   (\<forall>m. pre m \<longrightarrow> (\<forall>m'. m' \<in> support_distr (denotation_untyped prog m) 
-                  \<longrightarrow> post m'))";
+                  \<longrightarrow> post m'))"
 
 lemma seq_rule:
   fixes P Q R c d

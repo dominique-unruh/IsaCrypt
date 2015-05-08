@@ -15,7 +15,7 @@ fun annotate_prop (annot:annotation) : cterm =
       val generalized_prop = Var (("A", 0), propT)
   in
   Logic.implies $ (HOLogic.mk_Trueprop (@{term ANNOTATION} $ annot_prop $ annot_msg $ annot_pos)) $ generalized_prop |>
-  cterm_of (#thy annot)
+  Thm.global_cterm_of (#thy annot)
   end;
 
 val (_, make_thm_cterm_annot) =
@@ -199,10 +199,10 @@ fun print thms ctxt =
 fun print_ora _ ctxt =
   (print_annotated_oracles (set_show_oracles print_annotated_conf_default true) ctxt []; ctxt)
 in
-Outer_Syntax.local_theory @{command_spec "print_sorry"}
+Outer_Syntax.local_theory @{command_keyword print_sorry}
 "show all occurrences of sorry (and other oracles)"
 ((Parse.reserved "classes" >> print_ora)
-  || (Parse_Spec.xthms1 >> print))
+  || (Parse.xthms1 >> print))
 end;
 
 
@@ -228,7 +228,7 @@ fun skip_proof msg pos = (local_skip_proof msg pos) o (global_skip_proof msg pos
 
 fun parse_position toks = (Token.pos_of (hd toks), toks);
 
-val _ = Outer_Syntax.command @{command_spec "SORRY"} "skip proof (quick-and-dirty mode only!)"
+val _ = Outer_Syntax.command @{command_keyword SORRY} "skip proof (quick-and-dirty mode only!)"
     (parse_position -- Scan.option Parse.string >> (fn (pos,msg) => skip_proof msg pos));
 
 end

@@ -6,12 +6,12 @@ begin
 record type_rep = 
   tr_domain :: "val set"
   tr_default :: "val"
-typedef type = "{(t::type_rep). tr_default t \<in> tr_domain t}";
+typedef type = "{(t::type_rep). tr_default t \<in> tr_domain t}"
   by (metis CollectI UNIV_I select_convs(1))
 definition t_domain :: "type \<Rightarrow> val set" where
-  "t_domain t = tr_domain (Rep_type t)";
+  "t_domain t = tr_domain (Rep_type t)"
 definition t_default :: "type \<Rightarrow> val" where
-  "t_default t = tr_default (Rep_type t)";
+  "t_default t = tr_default (Rep_type t)"
 lemma [simp]: "t_default t \<in> t_domain t"
   unfolding t_domain_def t_default_def using Rep_type ..
 type_synonym variable_name = string
@@ -19,7 +19,7 @@ type_synonym variable_name = string
 record variable_untyped = 
   vu_name::variable_name
   vu_type::type
-  vu_global::bool;
+  vu_global::bool
 
 definition "bool_type =
       Abs_type \<lparr> tr_domain=range (embedding::bool\<Rightarrow>val),
@@ -104,7 +104,7 @@ definition "memory_update_untyped m v x =
    if vu_global v then
     Abs_memory (m\<lparr>mem_globals := (mem_globals m)(v:=varval)\<rparr>)
    else
-    Abs_memory (m\<lparr>mem_locals := (mem_locals m)(v:=varval)\<rparr>))";
+    Abs_memory (m\<lparr>mem_locals := (mem_locals m)(v:=varval)\<rparr>))"
 lemma memory_lookup_update_same_untyped: "a \<in> t_domain (vu_type v) \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) v = a"
   unfolding memory_lookup_untyped_def memory_update_untyped_def Let_def
   apply auto
@@ -121,10 +121,10 @@ record expression_untyped_rep =
   eur_vars :: "variable_untyped list"
 typedef expression_untyped = "{(e::expression_untyped_rep).
   (\<forall>m. eur_fun e m \<in> t_domain (eur_type e)) \<and>
-  (\<forall>m1 m2. (\<forall>v\<in>set (eur_vars e). memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<longrightarrow> eur_fun e m1 = eur_fun e m2)}";
+  (\<forall>m1 m2. (\<forall>v\<in>set (eur_vars e). memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<longrightarrow> eur_fun e m1 = eur_fun e m2)}"
   by (rule exI[of _ "\<lparr> eur_fun=(\<lambda>m. t_default undefined),
                           eur_type=undefined,
-                          eur_vars=[] \<rparr>"], simp);
+                          eur_vars=[] \<rparr>"], simp)
 definition "eu_fun e == eur_fun (Rep_expression_untyped e)"
 definition "eu_type e == eur_type (Rep_expression_untyped e)"
 definition "eu_vars e == eur_vars (Rep_expression_untyped e)"
@@ -139,10 +139,10 @@ record expression_distr_rep =
   edr_vars :: "variable_untyped list"
 typedef expression_distr = "{(e::expression_distr_rep).
   (\<forall>m. support_distr (edr_fun e m) \<subseteq> t_domain (edr_type e)) \<and>
-  (\<forall>m1 m2. (\<forall>v\<in>set (edr_vars e). memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<longrightarrow> edr_fun e m1 = edr_fun e m2)}";
+  (\<forall>m1 m2. (\<forall>v\<in>set (edr_vars e). memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<longrightarrow> edr_fun e m1 = edr_fun e m2)}"
   apply (rule exI[of _ "\<lparr> edr_fun=\<lambda>m. 0,
                           edr_type=undefined,
-                          edr_vars=[] \<rparr>"], simp);
+                          edr_vars=[] \<rparr>"], simp)
   unfolding support_distr_def zero_distr_def
   apply (subst Abs_distr_inverse, auto)
   by (metis ereal_eq_0(2) ereal_less_eq(6) ereal_zero_mult zero_le_one)

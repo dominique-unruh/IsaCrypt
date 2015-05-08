@@ -320,6 +320,7 @@ abbreviation "ProcT == Fun (Atom 0) (Atom 0)"
 
 fun typ_conv :: "procedure_type_open \<Rightarrow> TypedLambda.type" where
   "typ_conv (ProcTSimple _) = ProcT"
+| "typ_conv ProcTUnit = ProcT"
 | "typ_conv (ProcTFun T U) = Fun (typ_conv T) (typ_conv U)"
 | "typ_conv (ProcTPair T U) = Prod (typ_conv T) (typ_conv U)"
 
@@ -329,7 +330,7 @@ lemma typ_pres:
 proof (induction E pg and E p T rule:well_typed''_well_typed_proc''.inducts)
 case (wt_ProcAbs T E p U) show ?case apply auto 
   apply (rule rev_iffD1[OF wt_ProcAbs.IH])
-  apply (tactic "cong_tac 1")+
+  apply (tactic "cong_tac @{context} 1")+
   by (auto simp: shift_def)
 qed auto
 
@@ -1000,8 +1001,7 @@ next case br_ProcAppl2 thus ?case by (metis wt_ProcAppl_iff)
 next case br_ProcPair1 thus ?case by (metis wt_ProcPair_iff)
 next case br_ProcPair2 thus ?case by (metis wt_ProcPair_iff)
 next case br_ProcUnpair thus ?case by (metis wt_ProcUnpair_iff)
-next case br_ProcUnpairPair thus ?case
-by (smt2 procedure_type_open.inject(3) program_rep_procedure_rep.simps(12) wt_ProcPair_iff wt_ProcUnpair_iff)
+next case br_ProcUnpairPair thus ?case using wt_ProcPair_iff wt_ProcUnpair_iff by auto
 next case (br_beta s t) 
   then obtain U where abs_s: "well_typed_proc'' E (ProcAbs s) (ProcTFun U T)"
                   and t: "well_typed_proc'' E t U"

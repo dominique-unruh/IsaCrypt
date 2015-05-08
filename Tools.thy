@@ -9,8 +9,8 @@ fun method_error kind pos state =
 
 fun close_subgoal (text, (pos, _)) =
   let val nogoals = (ALLGOALS(K no_tac)) |> SIMPLE_METHOD |> K |> Method.Basic
-      val text = Method.Then (Method.no_combinator_info,[text,nogoals])
-      val text = Method.Select_Goals (Method.no_combinator_info,1,text)
+      val text = Method.Combinator (Method.no_combinator_info,Method.Then,[text,nogoals])
+      val text = Method.Combinator (Method.no_combinator_info,Method.Select_Goals 1,[text])
   in
   Seq.APPEND (Proof.apply text #> Seq.make_results, method_error "" pos)
   end
@@ -18,7 +18,7 @@ fun close_subgoal (text, (pos, _)) =
 
 ML {*
 val _ =
-  Outer_Syntax.command @{command_spec "close"} "initial refinement step (unstructured)"
+  Outer_Syntax.command @{command_keyword close} "initial refinement step (unstructured)"
     (Method.parse >> (fn m => (Method.report m; Toplevel.proofs (close_subgoal m))));
 *}
 

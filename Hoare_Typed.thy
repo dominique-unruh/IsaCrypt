@@ -6,7 +6,7 @@ subsection {* Definition of Hoare triples *}
 
 definition hoare :: "(memory \<Rightarrow> bool) \<Rightarrow> program \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> bool" where
   "hoare pre prog post =
-  (\<forall>m. pre m \<longrightarrow> (\<forall>m'. m' \<in> support_distr (denotation prog m) \<longrightarrow> post m'))";
+  (\<forall>m. pre m \<longrightarrow> (\<forall>m'. m' \<in> support_distr (denotation prog m) \<longrightarrow> post m'))"
 
 lemma hoare_untyped: "hoare P c Q = hoare_untyped P (mk_program_untyped c) Q"
   unfolding denotation_def hoare_def hoare_untyped_def by simp

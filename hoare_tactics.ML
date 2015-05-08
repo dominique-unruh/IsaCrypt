@@ -2,9 +2,9 @@ structure Hoare_Tactics =
 struct
 
 fun NGOALS n tac i st =
-  tac i st |> Seq.filter (fn st' => nprems_of st' = nprems_of st - 1 + n);
+  tac i st |> Seq.filter (fn st' => Thm.nprems_of st' = Thm.nprems_of st - 1 + n);
 fun NGOALS_ERROR n tac i st =
-  tac i st |> Seq.map (fn st' => if nprems_of st' = nprems_of st - 1 + n then st
+  tac i st |> Seq.map (fn st' => if Thm.nprems_of st' = Thm.nprems_of st - 1 + n then st
                                  else raise (ERROR ("NGOALS_ERROR")));
 
 (*
@@ -128,11 +128,10 @@ fun seq_deno_tac ctx n =
   else
   SUBGOAL (fn (goal,i) => 
   let
-      val thy = Proof_Context.theory_of ctx
       val concl = Logic.strip_assums_concl goal
       val lhsprog = dest_denotation (fst (HOLogic.dest_eq (HOLogic.dest_Trueprop concl)))
       val proglen = program_length lhsprog
-      val n' = cterm_of thy (mk_suc_nat (proglen - n))
+      val n' = Thm.cterm_of ctx (mk_suc_nat (proglen - n))
       val insert_split_n = Ctr_Sugar_Util.cterm_instantiate_pos [SOME n'] @{thm insert_split}
   in
     rtac insert_split_n i  
@@ -142,9 +141,8 @@ fun seq_deno_tac ctx n =
 
 fun seq_tac ctx n I i =
   let
-      val thy = Proof_Context.theory_of ctx
       val seq_rule_Q = (case I of NONE => @{thm seq_rule}
-                        | SOME I => Ctr_Sugar_Util.cterm_instantiate_pos [NONE,NONE,SOME (cterm_of thy I)] 
+                        | SOME I => Ctr_Sugar_Util.cterm_instantiate_pos [NONE,NONE,SOME (Thm.cterm_of ctx I)] 
                                     @{thm seq_rule})
   in
   rtac @{thm denotation_eq_rule} i  

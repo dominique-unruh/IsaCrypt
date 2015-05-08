@@ -23,7 +23,7 @@ val _ = writeln t
 
 
 
-ML {* let val x = @{term "xx::int"} val a = @{typ "int"} in cterm_of @{theory} @{termx "x==?x::?'a"} end *}
+ML {* let val x = @{term "xx::int"} val a = @{typ "int"} in Thm.cterm_of @{context} @{termx "x==?x::?'a"} end *}
 
 ML {* 
 val x = @{typ "int list"};
@@ -32,6 +32,7 @@ val x = @{typ "int list"};
 
 declare[[show_types]]
 
+(*
 ML {*
 local
 val src = "@{termx \"hd (?l::?'l.1)\" where \"?'l.1\<Rightarrow>?'a list\"}"
@@ -41,7 +42,7 @@ in
 val _ = writeln (ML_Lex.flatten body)
 end
 *}
-
+*)
 
 
 end
