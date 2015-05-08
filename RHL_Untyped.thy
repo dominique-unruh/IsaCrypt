@@ -7,7 +7,7 @@ definition rhoare_untyped :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \
   (\<forall>m1 m2. pre m1 m2 \<longrightarrow> 
      (\<exists>\<mu>. apply_to_distr fst \<mu> = denotation_untyped c1 m1
         \<and> apply_to_distr snd \<mu> = denotation_untyped c2 m2
-        \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> post m1' m2')))";
+        \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> post m1' m2')))"
 
 lemma rskip_rule:
   assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q m1 m2"
@@ -133,11 +133,11 @@ proof (unfold rhoare_untyped_def, auto (*, rule exI, auto*))
   then obtain m where "P1 m1 m" and "P2 m m2" using p by metis
   obtain \<mu>1 where \<mu>1fst: "apply_to_distr fst \<mu>1 = denotation_untyped c1 m1"
               and \<mu>1snd: "apply_to_distr snd \<mu>1 = denotation_untyped c m"
-              and \<mu>1supp: "\<And>m1' m'. (m1',m') \<in> support_distr \<mu>1 \<Longrightarrow> Q1 m1' m'";
+              and \<mu>1supp: "\<And>m1' m'. (m1',m') \<in> support_distr \<mu>1 \<Longrightarrow> Q1 m1' m'"
     using `P1 m1 m` rhl1 unfolding rhoare_untyped_def by metis
   obtain \<mu>2 where \<mu>2fst: "apply_to_distr fst \<mu>2 = denotation_untyped c m"
               and \<mu>2snd: "apply_to_distr snd \<mu>2 = denotation_untyped c2 m2"
-              and \<mu>2supp: "\<And>m' m2'. (m',m2') \<in> support_distr \<mu>2 \<Longrightarrow> Q2 m' m2'";
+              and \<mu>2supp: "\<And>m' m2'. (m',m2') \<in> support_distr \<mu>2 \<Longrightarrow> Q2 m' m2'"
     using `P2 m m2` rhl2 unfolding rhoare_untyped_def by metis
   obtain \<mu>3 where \<mu>31: "apply_to_distr (\<lambda>(x,y,z). (x,y)) \<mu>3 = \<mu>1" 
               and \<mu>32: "apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu>3 = \<mu>2"
