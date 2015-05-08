@@ -1,11 +1,10 @@
 theory Scratch
-imports Main Extended_Sorry
+imports Lang_Typed
 begin
 
-instantiation nat::finite begin
-instance SORRY
-end
+syntax "_xxx" :: "('a \<Rightarrow> 'b) \<Rightarrow> 'c" (binder "XXX" 3)
+print_syntax
 
-lemma test: "finite (UNIV::nat set)" by (rule finite_UNIV)
+term "PROGRAM[ local x; x := x ]"
 
 end

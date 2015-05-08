@@ -453,7 +453,7 @@ syntax "_while_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightar
 syntax "_ifte_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_) else _" [0,20] 20)
 syntax "_ifthen_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_)" [0,20] 20)
 syntax "_callproc" :: "idt \<Rightarrow> ('a,'b) procedure \<Rightarrow> procedure_call_args_syntax \<Rightarrow> program_syntax" ("_ := call _ _" 30)
-(*syntax "_local_var" :: "idt \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("local _;/ _" [10,11] 10)*)
+syntax "_local_vars" :: "idt \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("local _;/ _" [10,11] 10)
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ }")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_')")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_;')")
