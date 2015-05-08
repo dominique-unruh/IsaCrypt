@@ -6,7 +6,7 @@ subsection {* Types *}
   
 definition "Type (_::('a::prog_type) itself) 
     = Abs_type \<lparr> tr_domain=range (embedding::'a\<Rightarrow>val),
-                 tr_default=embedding (default::'a) \<rparr>";
+                 tr_default=embedding (default::'a) \<rparr>"
 
 lemma bool_type: "bool_type = Type TYPE(bool)"
   unfolding bool_type_def Type_def ..
@@ -53,8 +53,7 @@ lemma memory_lookup_update_same [simp]: "memory_lookup (memory_update m v a) v =
   close (metis embedding_Type mk_variable_untyped_type)
   by (metis embedding_inv f_inv_into_f rangeI)
 lemma memory_lookup_update_same': "var_eq v w \<Longrightarrow> (memory_lookup (memory_update m v a) w == a)"
-  unfolding memory_lookup_def memory_update_def
-  by (smt2 memory_lookup_def memory_lookup_update_same memory_update_def var_eq_def)
+  by (smt memory_lookup_def memory_lookup_update_same memory_update_def var_eq_def)
 lemma memory_lookup_update_notsame [simp]: 
   "\<not>var_eq v w \<Longrightarrow> memory_lookup (memory_update m v a) w == memory_lookup m w"
   unfolding var_eq_def memory_lookup_def memory_update_def
@@ -66,9 +65,9 @@ record 'a expression_rep =
   er_fun :: "memory \<Rightarrow> 'a"
   er_vars :: "variable_untyped list"
 typedef 'a expression = "{(e::'a expression_rep).
-  (\<forall>m1 m2. (\<forall>v\<in>set (er_vars e). memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<longrightarrow> er_fun e m1 = er_fun e m2)}";
+  (\<forall>m1 m2. (\<forall>v\<in>set (er_vars e). memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<longrightarrow> er_fun e m1 = er_fun e m2)}"
   by (rule exI[of _ "\<lparr> er_fun=(\<lambda>m. undefined),
-                       er_vars=[] \<rparr>"], simp);
+                       er_vars=[] \<rparr>"], simp)
 definition "e_fun e == er_fun (Rep_expression e)"
 definition "e_vars e == er_vars (Rep_expression e)"
 definition "mk_expression_untyped (e::('a::prog_type)expression) =
@@ -119,7 +118,7 @@ qed
 lemma mk_expression_untyped_fun [simp]: "eu_fun (mk_expression_untyped (e::'a::prog_type expression)) m = embedding (e_fun e m)"
   unfolding mk_expression_untyped_def eu_fun_def
   apply (subst Abs_expression_untyped_inverse, auto simp: embedding_Type)
-  by (smt2 Rep_expression e_fun_def e_vars_def mem_Collect_eq)
+  by (smt Rep_expression e_fun_def e_vars_def mem_Collect_eq)
 lemma mk_expression_untyped_type [simp]: "eu_type (mk_expression_untyped (e::'a::prog_type expression)) = Type TYPE('a)"
   unfolding mk_expression_untyped_def eu_type_def
   apply (subst Abs_expression_untyped_inverse, auto simp: embedding_Type)
@@ -154,7 +153,7 @@ lemma mk_expression_distr_type [simp]: "ed_type (mk_expression_distr (e::'a::pro
 
 
 definition const_expression :: "'a \<Rightarrow> 'a expression" where
-  "const_expression x = Abs_expression \<lparr> er_fun=\<lambda>m. x, er_vars=[] \<rparr>";
+  "const_expression x = Abs_expression \<lparr> er_fun=\<lambda>m. x, er_vars=[] \<rparr>"
 lemma e_fun_const_expression [simp]: "e_fun (const_expression a) = (\<lambda>m. a)"
   unfolding const_expression_def e_fun_def
   by (subst Abs_expression_inverse, auto)
@@ -162,7 +161,7 @@ lemma e_fun_const_expression [simp]: "e_fun (const_expression a) = (\<lambda>m. 
 definition apply_expression :: "('a\<Rightarrow>'b)expression \<Rightarrow> ('a::prog_type) variable \<Rightarrow> 'b expression" where
 "apply_expression e v = Abs_expression
   \<lparr> er_fun=\<lambda>m. (e_fun e m) (memory_lookup m v),
-    er_vars=mk_variable_untyped v#e_vars e \<rparr>";
+    er_vars=mk_variable_untyped v#e_vars e \<rparr>"
 lemma e_fun_apply_expression [simp]: "e_fun (apply_expression e v) = (\<lambda>m. (e_fun e m) (memory_lookup m v))"
   unfolding apply_expression_def e_fun_def e_vars_def memory_lookup_def
   apply (subst Abs_expression_inverse, auto)
@@ -177,7 +176,7 @@ lemma e_fun_apply_expression [simp]: "e_fun (apply_expression e v) = (\<lambda>m
 definition var_expression :: "('a::prog_type) variable \<Rightarrow> 'a expression" where
 "var_expression v = Abs_expression
   \<lparr> er_fun=\<lambda>m. memory_lookup m v,
-    er_vars=[mk_variable_untyped v] \<rparr>";
+    er_vars=[mk_variable_untyped v] \<rparr>"
 lemma e_fun_var_expression [simp]: "e_fun (var_expression v) = (\<lambda>m. memory_lookup m v)"
   unfolding e_fun_def var_expression_def memory_lookup_def
   by (subst Abs_expression_inverse, auto)
@@ -468,9 +467,9 @@ ML_file "lang_syntax.ML"
 
 parse_translation {* [("_program", fn ctx => fn p => 
     Const(@{const_syntax program},dummyT) $ 
-      Lang_Syntax.translate_program ctx (Unsynchronized.ref[]) (hd p))] *};
+      Lang_Syntax.translate_program ctx (Unsynchronized.ref[]) (hd p))] *}
 
-print_translation {* [(@{const_syntax program}, fn ctx => fn p => Const("_program",dummyT) $ Lang_Syntax.translate_program_back ctx (hd p))] *};
+print_translation {* [(@{const_syntax program}, fn ctx => fn p => Const("_program",dummyT) $ Lang_Syntax.translate_program_back ctx (hd p))] *}
 
 subsection {* Concrete grammar for procedures *}
 

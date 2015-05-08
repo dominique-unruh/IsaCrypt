@@ -16,7 +16,7 @@ definition support_distr :: "'a distr \<Rightarrow> 'a set" where
   "support_distr \<mu> = {x. Rep_distr \<mu> x > 0}"
 
 instantiation distr :: (type) zero begin
-definition zero_distr :: "'a distr" where "zero_distr = Abs_distr (\<lambda>x. 0)";
+definition zero_distr :: "'a distr" where "zero_distr = Abs_distr (\<lambda>x. 0)"
 instance ..
 end
 
@@ -33,7 +33,7 @@ definition "weight_distr \<mu> = real (\<integral>\<^sup>+x. Rep_distr \<mu> x \
 lemma ereal_indicator: "\<And>x. ereal (indicator {a} x) = indicator {a} x" unfolding indicator_def by auto
 
 
-definition point_distr :: "'a \<Rightarrow> 'a distr" where "point_distr a = Abs_distr (indicator {a})";
+definition point_distr :: "'a \<Rightarrow> 'a distr" where "point_distr a = Abs_distr (indicator {a})"
 lemma weight_point_distr [simp]: "weight_distr (point_distr a) = 1"
 proof - 
   note[[show_consts]]
@@ -200,7 +200,7 @@ case True hence "?right < \<infinity>" by auto
   also have "... = (\<integral>\<^sup>+ y. (\<integral>\<^sup>+ x. f x y \<partial>count_space X) \<partial>count_space ?Y)"
       apply (subst nn_integral_restrict_space[symmetric]) close auto
       unfolding restrict_count_space 
-      by (tactic "cong_tac 1", auto)+
+      by (tactic "cong_tac @{context} 1", auto)+
   also have "\<dots> = (\<integral>\<^sup>+ y. (\<integral>\<^sup>+ x. f x y * indicator ?X x \<partial>count_space X) \<partial>count_space ?Y)"
   proof (rule nn_integral_cong, rule nn_integral_cong)
     fix x y
@@ -218,7 +218,7 @@ case True hence "?right < \<infinity>" by auto
     apply (rule nn_integral_cong, simp)
     apply (subst nn_integral_restrict_space[symmetric]) close auto
     unfolding restrict_count_space 
-    by (tactic "cong_tac 1", auto)+
+    by (tactic "cong_tac @{context} 1", auto)+
   also have "\<dots> = (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. f x y \<partial>count_space ?Y) \<partial>count_space ?X)"
     apply (rule pair_sigma_finite.Fubini')
     unfolding pair_sigma_finite_def apply rule 
@@ -230,7 +230,7 @@ case True hence "?right < \<infinity>" by auto
     apply (rule nn_integral_cong, simp)
     apply (subst nn_integral_restrict_space[symmetric]) close auto
     unfolding restrict_count_space 
-    by (tactic "cong_tac 1", auto)+
+    by (tactic "cong_tac @{context} 1", auto)+
   also have "\<dots> = (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. f x y \<partial>count_space Y) \<partial>count_space ?X)" 
   proof (rule nn_integral_cong, rule nn_integral_cong)
     fix x y
@@ -246,11 +246,11 @@ case True hence "?right < \<infinity>" by auto
   qed
   also have "\<dots> = (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. f x y \<partial>count_space Y) * indicator ?X x \<partial>count_space X)" 
     apply (subst nn_integral_restrict_space[symmetric]) close auto
-    unfolding restrict_count_space 
-    by (tactic "cong_tac 1", auto)+
+    unfolding restrict_count_space
+    by (tactic "cong_tac @{context} 1", auto)+
   also have "\<dots> = (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. f x y \<partial>count_space Y) \<partial>count_space X)" 
     apply (rule_tac nn_integral_cong, auto)
-    by (metis (erased, lifting) ereal_left_mult_cong indicator_def mem_Collect_eq monoid_mult_class.mult.right_neutral neq_iff nn_integral_nonneg not_less)
+    by (simp add: aux indicator_def nn_integral_nonneg)
   finally show "?left \<le> ?right" by simp
 qed
   

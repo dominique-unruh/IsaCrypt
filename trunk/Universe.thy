@@ -11,7 +11,7 @@ begin
                                        
 definition "powertower t == \<forall>n. \<exists>i. inj_on i (Pow (t n)) \<and> i ` (Pow (t n)) \<subseteq> t (Suc n)"
 
-typedecl val;
+typedecl val
 axiomatization where
   powertower_nat: "\<exists>t n (i::nat\<Rightarrow>val). powertower t \<and> inj i \<and> range i \<subseteq> t n" 
 
@@ -169,7 +169,7 @@ instance apply (rule prog_type_classI)
 end
 
 
-instantiation "fun" :: (prog_type,prog_type)prog_type begin;
+instantiation "fun" :: (prog_type,prog_type)prog_type begin
 instance
   apply (rule prog_type_classI)
   apply (rule exI[where x="\<lambda>f. {(x,f x)| x. True}"])
@@ -201,7 +201,6 @@ instance by (fact OFCLASS_prog_type_typedef[OF Rep_real_inject]) end
 
 subsection {* Automatically instantiate new types (defined via typedef) *}
 
-
 ML {*
 fun instantiate_prog_type tycon thy =
 let val arity = Sign.arity_number thy tycon
@@ -228,7 +227,7 @@ fun try_instantiate_prog_type tycon thy =
 *}
 
 
-setup {* Typedef.interpretation try_instantiate_prog_type *}
+setup {* Typedef.interpretation (Local_Theory.background_theory o try_instantiate_prog_type) *}
 
 subsection {* Instantiation for types not handled by automated mechanism *}
 

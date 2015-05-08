@@ -3,11 +3,11 @@ struct
 
 
 fun procedure_existence_solve_tac ctx i =
-  (resolve_tac @{thms reduce_procfun.reduce} THEN_ALL_NEW procedure_existence_solve_tac ctx) i
+  (resolve_tac ctx @{thms reduce_procfun.reduce} THEN_ALL_NEW procedure_existence_solve_tac ctx) i
 
 fun procedure_existence_tac ctx i = 
-  (resolve_tac @{thms reduce_procfun.safe} THEN_ALL_NEW procedure_existence_tac ctx) i
-  ORELSE (resolve_tac @{thms reduce_procfun.unsafe} THEN_ALL_NEW procedure_existence_solve_tac ctx) i
+  (resolve_tac ctx @{thms reduce_procfun.safe} THEN_ALL_NEW procedure_existence_tac ctx) i
+  ORELSE (resolve_tac ctx @{thms reduce_procfun.unsafe} THEN_ALL_NEW procedure_existence_solve_tac ctx) i
   ORELSE all_tac;;
 
 fun definition_via_specification_tac tac ctx =
@@ -32,7 +32,7 @@ let val schema_eqs = consts |> map (fn ((b,T),_) =>
     
     fun after_qed thms lthy = 
     let val def_thm = thms |> hd |> hd
-      val rhs = def_thm |> Thm.legacy_freezeT |> prop_of |> Logic.strip_assums_hyp |> take (length consts)
+      val rhs = def_thm |> Thm.legacy_freezeT |> Thm.prop_of |> Logic.strip_assums_hyp |> take (length consts)
                 |> map (snd o Logic.dest_equals)
       val (raw_thms,lthy) = fold2 (fn const => fn rhs => fn (raw_thms,lthy) =>
           let val ((bind,_),syn) = const
@@ -67,13 +67,13 @@ fun definition_via_specification_cmd dvs (consts,props) ctx =
   let val ((consts,props),_) = Specification.read_free_spec consts props ctx
   in dvs consts props ctx end;
 
-val _ = Outer_Syntax.local_theory @{command_spec "definition_by_specification"}
+val _ = Outer_Syntax.local_theory @{command_keyword definition_by_specification}
 "definition of simple inductive predicates"
 (definition_via_specification_parser >>
    definition_via_specification_cmd (definition_via_specification_solve 
       (definition_via_specification_tac procedure_existence_tac)))
 
-val _ = Outer_Syntax.local_theory_to_proof @{command_spec "definition_by_specification'"}
+val _ = Outer_Syntax.local_theory_to_proof @{command_keyword definition_by_specification'}
 "definition of simple inductive predicates (with proof obligation)"
 (definition_via_specification_parser >>
    definition_via_specification_cmd (definition_via_specification 

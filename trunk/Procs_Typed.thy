@@ -1,7 +1,7 @@
 theory Procs_Typed
 imports TermX_Antiquot Lang_Typed Procedures
 keywords "definition_by_specification" :: thy_decl
-     and "definition_by_specification'" :: thy_decl
+     and "definition_by_specification'" :: thy_goal
 begin
 
 subsection {* Procedure functors *}
@@ -61,7 +61,7 @@ instance apply intro_classes
   using Rep_procfun close auto
   close (metis Rep_procfun mem_Collect_eq)
   using Rep_procfun_inverse apply auto
-  by (smt2 Abs_procfun_inverse mem_Collect_eq well_typed_extend(2))
+  using Abs_procfun_inverse by blast
 end
 
 
@@ -100,7 +100,6 @@ next
     unfolding procedure_functor_mk_typed'_prod_def procedure_functor_mk_untyped_prod_def
     using procedure_functor_mk_untyped_inverse' by (cases p, auto)
 qed
-
 end
 
 instantiation procedure_ext :: (procargs,prog_type,singleton) procedure_functor begin
@@ -281,7 +280,7 @@ proof -
   have eq: "Abs_program
      (beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' (Seq q1 q2)))) =
     Abs_program (Seq (mk_program_untyped c1) (mk_program_untyped c2))"
-    apply (tactic "cong_tac 1", fact refl)
+    apply (tactic "cong_tac @{context} 1", fact refl)
     apply (subst beta_reduce_Seq)
       close (fact wt_q1) close (fact wt_q2)
     apply simp
@@ -320,10 +319,10 @@ by (fact Rep_program_inverse)
 
 
 lemma callproc:
-  fixes v args q
+  fixes v args q a
   assumes "subst_proc1 p q r"
-  defines "q0==CallProc (mk_variable_untyped v) q (mk_procargs_untyped procargs_empty)"
-  shows "subst_prog1 p q0  PROGRAM[v:=call r()]"
+  defines "q0==CallProc (mk_variable_untyped v) q (mk_procargs_untyped a)"
+  shows "subst_prog1 p q0  PROGRAM[ \<guillemotleft>callproc v r a\<guillemotright> ]"
 SORRY
 
 lemma left: 
@@ -351,6 +350,7 @@ end
 
 ML_file "procs_typed.ML"
 
+(*
 definition "x == Variable ''x'' :: int variable"
 definition "y == Variable ''y'' :: unit variable"
 
@@ -403,6 +403,8 @@ definition my_proc_def0: "my_proc \<equiv>
 *)
 
 lemmas my_proc_def = my_proc_def0[THEN reduce_procfun.l1]
+
+*)
 
 end
 
