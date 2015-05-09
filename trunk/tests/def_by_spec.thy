@@ -1,4 +1,4 @@
-(* @SUITE wp *)
+(* @SUITE procs *)
 
 theory def_by_spec
 imports "../Procs_Typed"
