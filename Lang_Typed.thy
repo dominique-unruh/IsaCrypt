@@ -460,9 +460,8 @@ syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _; }")
 syntax "_var_access" :: "'a variable \<Rightarrow> 'a" ("$_" [1000] 999)
 definition program :: "program \<Rightarrow> program" where "program p = p"
 
-syntax "_local_vars" :: "idts \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("local _;/ _" [0,9] 9)
-(*syntax "_local_vars" :: "('a variable \<Rightarrow> program_syntax) \<Rightarrow> program_syntax" (binder "locals" 10)*)
-
+(*syntax "_local_vars" :: "idts \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("local _;/ _" [0,9] 9) *)
+syntax "_local_vars_global" :: "idts \<Rightarrow> 'b \<Rightarrow> 'b" ("(3LOCAL _./ _)" 100)
 
 subsubsection {* Translation functions *}
 
@@ -473,6 +472,10 @@ parse_translation {* [("_program", fn ctx => fn p =>
       Lang_Syntax.translate_program ctx (Unsynchronized.ref[]) (hd p))] *}
 
 print_translation {* [(@{const_syntax program}, fn ctx => fn p => Const("_program",dummyT) $ Lang_Syntax.translate_program_back ctx (hd p))] *}
+
+parse_translation {* [("_local_vars_global", fn ctx => fn p =>
+  case p of [vs,body] =>
+  Lang_Syntax.translate_local_vars_global ctx vs body)] *}
 
 subsection {* Concrete grammar for procedures *}
 
