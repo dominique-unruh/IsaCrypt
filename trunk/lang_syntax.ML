@@ -96,13 +96,22 @@ struct
           | trans (Const("_skip",_)) = Const(@{const_syntax skip},dummyT)
           | trans (Const("_callproc",_) $ x $ f $ args) = (add_var known x;
                 Const(@{const_syntax callproc},dummyT) $ x $ f $ trargs args)
-(*          | trans (Const("_local_var",_) $ v $ body) = (add_var v;
-                Const(@{const_name HOL.Let},dummyT) $
-                (Const(@{const_name LVariable},dummyT) $ get_var_name v)
-                --- Abs(abstract body over v) --- *)
+(*          | trans (Const("_local_var",_) $ (body as Const("_constrainAbs",_) $ Abs(vn,_,_) $ _)) = 
+              let val _ = add_var known v
+                  val vn = HOLogic.mk_string (get_var_name v)
+              in @{termx "?body (LVariable ?vn)"} end*)
+          | trans (Const("_local_vars",_) $ (Const("_idts",_) $ v $ vs) $ body) =
+              Const("_local_vars",dummyT) $ v $ (Const("_local_vars",dummyT) $ vs $ body)  |>  trans
+          | trans (Const("_local_vars",_) $ v $ body) =
+              let val _ = add_var known v
+                  val abs = Syntax_Trans.abs_tr [v, trans body]
+                  val vn = HOLogic.mk_string (get_var_name v)
+                  val t = @{termx "?abs (LVariable ?vn :: ?'dummyT::prog_type variable)"}
+              in t end
           | trans p = raise ERROR ("Invalid program fragment "^(@{make_string} p))
     in trans p end
   end
+
 
 (* Printer for programs *)
 

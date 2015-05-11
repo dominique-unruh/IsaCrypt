@@ -4,19 +4,6 @@ begin
 
 default_sort prog_type
 
-(* TODO: get ride of these *)
-abbreviation "x == LVariable ''x'' :: nat variable"
-abbreviation "y == LVariable ''y'' :: nat variable "
-abbreviation "z == LVariable ''z'' :: nat variable"
-abbreviation "b == LVariable ''b'' :: bool variable"
-abbreviation "pk == LVariable ''pk'' :: 'pk variable"
-abbreviation "sk == LVariable ''sk'' :: 'sk variable"
-abbreviation "m0 == LVariable ''m0'' :: 'm variable"
-abbreviation "m1 == LVariable ''m1'' :: 'm variable"
-abbreviation "b' == LVariable ''b_'' :: bool variable"
-abbreviation "tmp == LVariable ''tmp''"
-abbreviation "c == LVariable ''c'' :: 'c variable"
-
 locale group =
   (* fixes 'G *)
   fixes g::"'G::{prog_type,power,prog_type}" (* generator *)
@@ -29,7 +16,8 @@ type_synonym 'g DDH_Game = "(unit,bool) procedure"
 
 definition_by_specification DDH0 :: "'G DDH_Adv =proc=> 'G DDH_Game" where
   "procfun_apply DDH0 A = 
-    proc () {
+    proc () { 
+      local x y b;
       x <- uniform {0..<q};
       y <- uniform {0..<q};
       b := call A (g^x, g^y, g^(x*y));
@@ -39,6 +27,7 @@ definition_by_specification DDH0 :: "'G DDH_Adv =proc=> 'G DDH_Game" where
 definition_by_specification DDH1 :: "'G DDH_Adv =proc=> 'G DDH_Game" where
   "procfun_apply DDH1 A = 
     proc () {
+      local x y z b;
       x <- uniform {0..<q};
       y <- uniform {0..<q};
       z <- uniform {0..<q};
@@ -61,19 +50,27 @@ type_synonym ('pk,'sk,'m,'c) CPA_Adv =
 
 type_synonym CPA_Game = "(unit,bool)procedure"
 
+declare[[eta_contract=false]]
+
+(* TODO: get rid of those *)
+abbreviation "b == LVariable ''b'' :: bool variable"
+abbreviation "b' == LVariable ''b_'' :: bool variable"
+
+
 definition_by_specification CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) CPA_Adv =proc=> CPA_Game" where
  "procfun_apply CPA_main ((kg,enc,dec),(Achoose,Aguess)) = 
   proc () { 
-    tmp := call kg();
-    pk := fst (tmp::'pk*'sk);
-    sk := snd (tmp::'pk*'sk);
-    tmp := call Achoose(pk);
-    m0 := fst (tmp::'m*'m);
-    m1 := snd (tmp::'m*'m);
+    local pk sk m0 m1 b c b' tmp1 tmp2;
+    tmp1 := call kg();
+    pk := fst (tmp1::'pk*'sk);
+    sk := snd (tmp1::'pk*'sk);
+    tmp2 := call Achoose(pk);
+    m0 := fst (tmp2::'m*'m);
+    m1 := snd (tmp2::'m*'m);
     b <- uniform UNIV;
     c := call enc(pk, if b then m1 else m0);
     b' := call Aguess(c);
-    return (b'=b)
+    return (b'=b) (* WARNING: return statement is not included in "local" *)
   }"
 
 end

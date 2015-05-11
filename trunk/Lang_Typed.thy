@@ -1,5 +1,5 @@
 theory Lang_Typed
-imports Lang_Untyped
+imports Lang_Untyped TermX_Antiquot
 begin
 
 subsection {* Types *}
@@ -453,13 +453,16 @@ syntax "_while_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightar
 syntax "_ifte_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_) else _" [0,20] 20)
 syntax "_ifthen_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_)" [0,20] 20)
 syntax "_callproc" :: "idt \<Rightarrow> ('a,'b) procedure \<Rightarrow> procedure_call_args_syntax \<Rightarrow> program_syntax" ("_ := call _ _" 30)
-syntax "_local_vars" :: "idt \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("local _;/ _" [10,11] 10)
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ }")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_')")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_;')")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _; }")
 syntax "_var_access" :: "'a variable \<Rightarrow> 'a" ("$_" [1000] 999)
 definition program :: "program \<Rightarrow> program" where "program p = p"
+
+syntax "_local_vars" :: "idts \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("local _;/ _" [0,9] 9)
+(*syntax "_local_vars" :: "('a variable \<Rightarrow> program_syntax) \<Rightarrow> program_syntax" (binder "locals" 10)*)
+
 
 subsubsection {* Translation functions *}
 
