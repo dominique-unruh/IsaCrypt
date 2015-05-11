@@ -2,6 +2,6 @@ theory Scratch
 imports Lang_Typed
 begin
 
-term "PROGRAM[ local x y; x := x; y := y ]"
+term "LOCAL x y. proc() { x := x; y := y; return x=y }"
 
 end

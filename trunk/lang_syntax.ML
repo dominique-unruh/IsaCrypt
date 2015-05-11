@@ -112,6 +112,15 @@ struct
     in trans p end
   end
 
+fun translate_local_vars_global ctx vs body =
+  case vs of
+    (Const("_idts",_) $ v $ vs) => translate_local_vars_global ctx v (translate_local_vars_global ctx vs body)
+  | v => 
+  let val abs = Syntax_Trans.abs_tr [v, body]
+      val vn = HOLogic.mk_string (get_var_name v)
+      val t = @{termx "?abs (LVariable ?vn :: ?'dummyT::prog_type variable)"}
+  in t end;            
+ 
 
 (* Printer for programs *)
 
