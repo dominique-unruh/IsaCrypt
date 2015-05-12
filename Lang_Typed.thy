@@ -185,7 +185,7 @@ subsection {* Procedures *}
 
 class procargs =
   fixes procargs_len :: "'a itself \<Rightarrow> nat"
-  fixes procargtypes :: "'a itself \<Rightarrow> type list"
+  fixes procargtypes :: "'a itself \<Rightarrow> type list" 
   assumes procargtypes_len: "length (procargtypes TYPE('a)) = procargs_len TYPE('a)"
 
 definition "procargs (_::'a::procargs itself) == {vs. map eu_type vs = procargtypes TYPE('a)}"
@@ -238,7 +238,7 @@ typedef ('a::procargs) procargs = "procargs TYPE('a)" using procargs_not_empty b
 abbreviation "mk_procargs_untyped == Rep_procargs"
 typedef ('a::procargs) procargvars = "procargvars TYPE('a)" using procargvars_inhabited by auto
 abbreviation "mk_procargvars_untyped == Rep_procargvars"
-(* TODO: procargvars should be all disjoint *)
+
 
 record ('a::procargs,'b) procedure = 
   p_body :: program

@@ -44,6 +44,25 @@ term "hoare {(x)\<^sub>1 = undefined} skip ~ skip {undefined}"
 
 subsection {* Rules *}
 
+(*
+definition "blockassign (xs::'a::procargs procargvars) (es::'a procargs) == 
+  Abs_program
+  (fold 
+  (\<lambda>(x,e) p. Seq p (Assign x e))
+  (zip (mk_procargvars_untyped xs) (mk_procargs_untyped es))
+  Skip)"
+
+
+lemma callproc_equiv:
+  fixes x p e
+  defines "V_e == set [v. e \<leftarrow> mk_procargs_untyped e, v \<leftarrow> eu_vars e]"
+  defines "V_p == set (vars (p_body p)) \<union> set (mk_procargvars_untyped (p_args p)) \<union> set (e_vars (p_return p))"
+  assumes "V_p \<inter> V = {}" and "V_p \<inter> V_e = {}"
+  shows "hoare {\<forall>x\<in>V. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x} 
+                  \<guillemotleft>callproc x p e\<guillemotright> ~ \<guillemotleft>blockassign (p_args p) e\<guillemotright>; \<guillemotleft>p_body p\<guillemotright>; x := \<guillemotleft>p_return p\<guillemotright>
+               {\<forall>x\<in>V. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x}"
+*)
+
 (* TODO *)
 
 end
