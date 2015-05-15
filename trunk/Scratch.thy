@@ -4,6 +4,7 @@ begin
 
 definition "testpt (x::_::prog_type) = True"
 
+
 codatatype 'a test = A "'a set" | B "'a test fset"
 print_theorems!
 term Rep_test

@@ -193,9 +193,39 @@ lemma obs_eqI:
 SORRY
 
 
-definition "assign_local_vars (locals::variable_untyped list) pargs args = undefined"
+(* TODO: move \<rightarrow> Lang_Untyped *)
+definition const_expression_untyped :: "type \<Rightarrow> val \<Rightarrow> expression_untyped" where
+  "const_expression_untyped T x = Abs_expression_untyped \<lparr> eur_fun=\<lambda>m. x, eur_type=T, eur_vars=[] \<rparr>"
+lemma eu_fun_const_expression_untyped: "a \<in> t_domain T \<Longrightarrow> eu_fun (const_expression_untyped T a) = (\<lambda>m. a)"
+  unfolding const_expression_untyped_def eu_fun_def
+  by (subst Abs_expression_untyped_inverse, auto)
+
+definition "assign_local_vars (locals::variable_untyped list) vs es = 
+  fold (\<lambda>(x,e) p. Seq p (Assign x e)) (zip vs es)
+  (fold (\<lambda>x p. Seq p (Assign x (const_expression_untyped (vu_type x) (t_default (vu_type x))))) 
+  locals Skip)"
+
 (* TODO: Should behave like init_locals, but as a program,
          and initializing only variables in locals *)
+
+lemma fold_commute: 
+  assumes "\<And>x y. f (g x y) = g' x (f y)"
+  shows "f (fold g l a) = fold g' l (f a)"
+    apply (induction l arbitrary: a)
+    using assms by auto
+
+lemma fold_o: 
+  shows "(fold (\<lambda>x. op o (f x)) l a) m = fold f l (a m)"
+  by (induction l arbitrary: a, auto)
+  
+lemma zip_hd: 
+  assumes "(a, b) # x = zip as bs"
+  shows "as = a#tl as" and "bs = b#tl bs"
+apply (insert assms)
+apply (induction bs, auto)
+apply (metis list.exhaust list.sel(1) list.sel(3) prod.sel(1) zip_Cons_Cons zip_Nil)
+apply (induction bs arbitrary: as, auto)
+by (metis Pair_inject list.distinct(2) list.exhaust list.inject zip_Cons_Cons zip_Nil)
 
 
 lemma inline_rule:
@@ -212,13 +242,52 @@ proof (rule obs_eqI)
   def untouched == "\<lambda>V \<mu>. \<forall>m\<in>support_distr \<mu>. \<forall>x\<in>V. memory_lookup_untyped m x = memory_lookup_untyped m2 x"
   assume "\<forall>x\<in>V. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   def G == "{x. vu_global x} :: variable_untyped set"
-  def co_locals == "{x. \<not>vu_global x \<and> x\<notin>set locals}"
+  def co_locals == "{x. \<not>vu_global x \<and> x\<notin>set locals \<and> x\<notin>set pargs}"
 
-  def uf1 == "point_distr (init_locals pargs args m1)" 
-  def cp1 == "denotation_untyped (assign_local_vars locals pargs args) m2"
-  have "eq (G\<union>set locals) uf1 cp1"
+  def cp1 == "point_distr (init_locals pargs args m1)" 
+  def uf1 == "denotation_untyped (assign_local_vars locals pargs args) m2"
+  
+  have aux: "(\<lambda>x. if x \<in> G \<or> x \<in> set locals then memory_lookup_untyped (init_locals pargs args m1) x else undefined) =
+             (\<lambda>x. if x \<in> G \<or> x \<in> set locals then memory_lookup_untyped
+                  (fold (\<lambda>(e,x) y. memory_update_untyped y e (eu_fun x y)) (zip pargs args)
+                  (fold (\<lambda>x y. memory_update_untyped y x (t_default (vu_type x))) locals m2))
+                  x else undefined)"
     by simp
+
+  have uf1: "uf1 = point_distr
+     (fold (\<lambda>(e,x) y. memory_update_untyped y e (eu_fun x y)) (zip pargs args)
+       (fold (\<lambda>x y. memory_update_untyped y x (t_default (vu_type x))) locals m2))"
+    unfolding eq_def uf1_def cp1_def assign_local_vars_def
+    apply (subst fold_commute[where f=denotation_untyped 
+                and g'="\<lambda>xe d. apply_to_distr (\<lambda>m::memory. memory_update_untyped m (fst xe) (eu_fun (snd xe) m)) o d"])
+    close (case_tac x, simp add: denotation_untyped_Seq[THEN ext] denotation_untyped_Assign[THEN ext], auto)
+    apply (subst fold_commute[where f=denotation_untyped 
+                and g'="\<lambda>x d. apply_to_distr (\<lambda>m::memory. memory_update_untyped m x (t_default (vu_type x))) o d"])
+    apply (simp add: denotation_untyped_Seq[THEN ext] denotation_untyped_Assign[THEN ext] o_def eu_fun_const_expression_untyped)
+    apply (subst fold_o, subst fold_o, auto)
+    apply (subst fold_commute[symmetric, where f=point_distr], simp)
+    apply (subst fold_commute[symmetric, where f=point_distr], simp)
+    unfolding apply_to_point_distr by (simp add: split_beta') 
+
+  have "eq (G\<union>set locals) uf1 cp1"
+    unfolding eq_def cp1_def uf1
+    unfolding apply_to_point_distr
+    using aux by auto
+  have "\<forall>(x,e)\<in>set(zip pargs args). x'\<noteq>x" by auto
   have "untouched co_locals uf1"
+    unfolding uf1 untouched_def co_locals_def proof auto
+    fix x assume "x\<notin>set pargs" assume "x\<notin>set locals"
+    show "memory_lookup_untyped
+          (fold (\<lambda>(e, x) y. memory_update_untyped y e (eu_fun x y)) (zip pargs args)
+            (fold (\<lambda>x y. memory_update_untyped y x (t_default (vu_type x))) locals m2))
+          x = memory_lookup_untyped m2 x"
+    apply (insert `x\<notin>set pargs` `x\<notin>set locals`)
+    apply (induction "zip pargs args" arbitrary: pargs args m2)
+    apply (induction locals)
+      close auto 
+      close (simp, subst memory_lookup_update_notsame_untyped, auto)
+      apply auto
+      apply (frule zip_hd(1), frule zip_hd(2))
     by simp
 
   def uf2 == "compose_distr (denotation_untyped body) uf1"

@@ -405,10 +405,11 @@ lemma denotation_while: "denotation (while e p) m = Abs_distr (\<lambda>m'. \<Su
   unfolding denotation_def mk_untyped_while by simp 
 
 lemma denotation_callproc: "denotation (callproc v proc args) m =
-  apply_to_distr (restore_locals m)
-     (denotation_untyped (mk_program_untyped (p_body proc))
-       (init_locals (mk_procargvars_untyped (p_args proc)) (mk_procargs_untyped args) m))"
-  unfolding denotation_def mk_untyped_callproc mk_procedure_untyped_def by simp
+  apply_to_distr (restore_locals (mk_variable_untyped v) m)
+     (apply_to_distr (\<lambda>m. memory_update m v (e_fun (p_return proc) m))
+       (denotation_untyped (mk_program_untyped (p_body proc))
+         (init_locals (mk_procargvars_untyped (p_args proc)) (mk_procargs_untyped args) m)))"
+  unfolding denotation_def mk_untyped_callproc mk_procedure_untyped_def memory_update_def by simp
 
 lemma denotation_seq_skip [simp]: "denotation (seq Lang_Typed.skip c) = denotation c"
   unfolding denotation_seq[THEN ext] mk_untyped_skip denotation_def by simp 
