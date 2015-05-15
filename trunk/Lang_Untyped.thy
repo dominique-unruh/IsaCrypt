@@ -223,21 +223,26 @@ definition "init_locals pargs args m =
        m = Abs_memory (Rep_memory m\<lparr> mem_locals := (\<lambda>v. t_default (vu_type v)) \<rparr>) in
        fold (\<lambda>(v,x) m. memory_update_untyped m v x) (zip pargs args) m)"
 
-definition "restore_locals oldmem newmem =
-  Abs_memory (Rep_memory newmem \<lparr> mem_locals := mem_locals (Rep_memory oldmem) \<rparr>)"
+definition 
+ "restore_locals x oldmem newmem =
+  memory_update_untyped
+  (Abs_memory (Rep_memory newmem \<lparr> mem_locals := mem_locals (Rep_memory oldmem) \<rparr>))
+  x (memory_lookup_untyped newmem x)"
 
 fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
   denotation_untyped_Seq: "denotation_untyped (Seq p1 p2) m = compose_distr (denotation_untyped p2) (denotation_untyped p1 m)"
-| "denotation_untyped (Assign v e) m = point_distr (memory_update_untyped m v (eu_fun e m))"
-| "denotation_untyped (Sample v e) m = apply_to_distr (memory_update_untyped m v) (ed_fun e m)"
+| denotation_untyped_Assign: "denotation_untyped (Assign v e) m = point_distr (memory_update_untyped m v (eu_fun e m))"
+| denotation_untyped_Sample: "denotation_untyped (Sample v e) m = apply_to_distr (memory_update_untyped m v) (ed_fun e m)"
 | denotation_untyped_Skip: "denotation_untyped (Skip) m = point_distr m"
-| "denotation_untyped (IfTE e thn els) m = (if (eu_fun e m = embedding True) then denotation_untyped thn m else denotation_untyped els m)"
-| "denotation_untyped (While e p) m = 
+| denotation_untyped_IfTE: "denotation_untyped (IfTE e thn els) m = (if (eu_fun e m = embedding True) then denotation_untyped thn m else denotation_untyped els m)"
+| denotation_untyped_While: "denotation_untyped (While e p) m = 
     Abs_distr (\<lambda>m'. \<Sum>n. Rep_distr (compose_distr (\<lambda>m. if eu_fun e m = embedding True then 0 else point_distr m)
                                             (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)) m')"
-| "denotation_untyped (CallProc v (Proc body pargs return) args) m = 
-  apply_to_distr (restore_locals m) (denotation_untyped body (init_locals pargs args m))"
-| "denotation_untyped (CallProc v _ args) m = 0" (* Cannot happen for well-typed programs *)
+| denotation_untyped_CallProc: "denotation_untyped (CallProc v (Proc body pargs return) args) m = 
+  apply_to_distr (restore_locals v m)
+  (apply_to_distr (\<lambda>m. memory_update_untyped m v (eu_fun return m))
+  (denotation_untyped body (init_locals pargs args m)))"
+| denotation_untyped_CallProc_bad: "denotation_untyped (CallProc v _ args) m = 0" (* Cannot happen for well-typed programs *)
 definition "denotation prog = denotation_untyped (mk_program_untyped prog)"
 
 fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 

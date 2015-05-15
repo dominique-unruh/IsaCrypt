@@ -174,6 +174,86 @@ lemma rcase_rule:
   shows "rhoare_untyped P c1 c2 Q"
 using assms unfolding rhoare_untyped_def by metis
 
+
+definition "blockassign (xs::variable_untyped list) (es::expression_untyped list) == 
+  fold (\<lambda>(x,e) p. Seq p (Assign x e)) (zip xs es) Skip"
+
+definition "obs_eq X c1 c2 ==
+  rhoare_untyped (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)
+                 c1 c2
+                 (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)"
+
+lemma obs_eqI: 
+  fixes X c1 c2
+  defines "project == (\<lambda>m x. if x\<in>X then memory_lookup_untyped m x else undefined)"
+  assumes "\<And>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x
+            \<Longrightarrow> apply_to_distr project (denotation_untyped c1 m1)
+              = apply_to_distr project (denotation_untyped c2 m2)"
+  shows "obs_eq X c1 c2"
+SORRY
+
+
+definition "assign_local_vars (locals::variable_untyped list) pargs args = undefined"
+(* TODO: Should behave like init_locals, but as a program,
+         and initializing only variables in locals *)
+
+
+lemma inline_rule:
+  fixes body pargs ret x args V
+  defines "p == Proc body pargs ret"
+  defines "locals == [x. x<-vars_untyped body @ pargs @ eu_vars ret, \<not> vu_global x]"
+  assumes "V \<inter> set locals \<subseteq> {x}"
+  defines "unfolded == Seq (Seq (assign_local_vars locals pargs args) body) (Assign x ret)"
+  shows "obs_eq V (CallProc x p args) unfolded"
+proof (rule obs_eqI)
+  fix m1 m2
+  def eq == "\<lambda>V \<mu> \<nu>. apply_to_distr (\<lambda>m x. if x \<in> V then memory_lookup_untyped m x else undefined) \<mu>
+                   = apply_to_distr (\<lambda>m x. if x \<in> V then memory_lookup_untyped m x else undefined) \<nu>"
+  def untouched == "\<lambda>V \<mu>. \<forall>m\<in>support_distr \<mu>. \<forall>x\<in>V. memory_lookup_untyped m x = memory_lookup_untyped m2 x"
+  assume "\<forall>x\<in>V. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  def G == "{x. vu_global x} :: variable_untyped set"
+  def co_locals == "{x. \<not>vu_global x \<and> x\<notin>set locals}"
+
+  def uf1 == "point_distr (init_locals pargs args m1)" 
+  def cp1 == "denotation_untyped (assign_local_vars locals pargs args) m2"
+  have "eq (G\<union>set locals) uf1 cp1"
+    by simp
+  have "untouched co_locals uf1"
+    by simp
+
+  def uf2 == "compose_distr (denotation_untyped body) uf1"
+  def cp2 == "compose_distr (denotation_untyped body) cp1"
+  have "eq (G\<union>set locals) uf2 cp2"
+    by simp
+  have "untouched co_locals uf2"
+    by simp
+
+  def uf3 == "compose_distr (denotation_untyped (Assign x ret)) uf2"
+  def cp3 == "compose_distr (denotation_untyped (Assign x ret)) cp2"
+  have "eq (G\<union>set locals\<union>{x}) uf3 cp3"
+    by simp
+  have "untouched (co_locals-{x}) uf3"
+    by simp
+  
+  def cp4 == "apply_to_distr (restore_locals x m1) cp3"
+  have eq_uf3_cp4: "eq (G\<union>{x}\<union>(co_locals-{x})) uf3 cp4"
+    by simp
+
+  have eq_uf3_cp4_V: "eq V uf3 cp4"
+    by simp
+
+  have uf3_unfolded: "uf3 = denotation_untyped unfolded m2"
+    by simp
+  have cp4_callproc: "cp4 = denotation_untyped (CallProc x p args) m1"
+    by simp
+
+  def project == "(\<lambda>m x. if x \<in> V then memory_lookup_untyped m x else undefined)"
+  show "apply_to_distr project (denotation_untyped (CallProc x p args) m1) =
+        apply_to_distr project (denotation_untyped unfolded m2)"
+    unfolding uf3_unfolded[symmetric] cp4_callproc[symmetric]
+    using eq_uf3_cp4_V unfolding eq_def project_def by simp
+qed
+
 (*
 lemma rseq_rule1:
   assumes "\<And>m1 m2. Q m1 m2 \<Longrightarrow> Q' m1 m2"
