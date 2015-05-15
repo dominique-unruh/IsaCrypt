@@ -1,7 +1,12 @@
 theory Scratch
-imports Lang_Typed
+imports Main "~~/src/HOL/Library/FSet" Lazy_Sequence Universe
 begin
 
-term "LOCAL x y. proc() { x := x; y := y; return x=y }"
+definition "testpt (x::_::prog_type) = True"
+
+codatatype 'a test = A "'a set" | B "'a test fset"
+print_theorems!
+term Rep_test
+typ "int lazy_sequence"
 
 end

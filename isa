@@ -1,7 +1,7 @@
 #!/bin/bash
 
 HEAP=HOL-EC-Core
-ISADIR=/opt/Isabelle2015-RC3
+ISADIR=/opt/Isabelle2015-RC4
 
 if [ "$1" = "x" ]; then
     HEAP=HOL-EC-Prereqs
