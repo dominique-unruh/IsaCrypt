@@ -174,9 +174,67 @@ lemma rcase_rule:
   shows "rhoare_untyped P c1 c2 Q"
 using assms unfolding rhoare_untyped_def by metis
 
+(* TODO: move *)
+lemma compose_distr_cong: 
+  fixes f1 f2 \<mu>
+  assumes "\<And>x. x\<in>support_distr \<mu> \<Longrightarrow> f1 x = f2 x"
+  shows "compose_distr f1 \<mu> = compose_distr f2 \<mu>"
+SORRY
 
-definition "blockassign (xs::variable_untyped list) (es::expression_untyped list) == 
-  fold (\<lambda>(x,e) p. Seq p (Assign x e)) (zip xs es) Skip"
+(* TODO move *)
+lemma compose_distr_apply_to_distr: 
+  shows "compose_distr f (apply_to_distr g \<mu>) = compose_distr (f o g) \<mu>"
+by (smt comp_apply compose_distr_assoc compose_distr_cong compose_point_distr_l compose_point_distr_r)
+
+
+lemma rseq_rule: 
+  assumes PcQ: "rhoare_untyped P c1 c2 Q"
+  assumes QcR: "rhoare_untyped Q c1' c2' R"
+  shows "rhoare_untyped P (Seq c1 c1') (Seq c2 c2') R"
+proof (unfold rhoare_untyped_def, rule, rule, rule)
+  fix m1 m2 assume "P m1 m2"
+  with PcQ obtain \<mu> 
+    where fst\<mu>: "apply_to_distr fst \<mu> = denotation_untyped c1 m1"
+    and   snd\<mu>: "apply_to_distr snd \<mu> = denotation_untyped c2 m2"
+    and   \<mu>supp: "(\<forall>(m1', m2') \<in> support_distr \<mu>. Q m1' m2')" 
+      unfolding rhoare_untyped_def apply atomize_elim by blast
+  obtain \<mu>0 where \<mu>0: "\<forall>m1 m2. (m1,m2)\<in>support_distr \<mu> \<longrightarrow>
+          (apply_to_distr fst (\<mu>0 m1 m2) = denotation_untyped c1' m1 \<and>
+           apply_to_distr snd (\<mu>0 m1 m2) = denotation_untyped c2' m2 \<and> 
+          (\<forall>m1' m2'. (m1', m2') \<in> support_distr (\<mu>0 m1 m2) \<longrightarrow> R m1' m2'))"
+    apply (atomize_elim) apply (rule choice, rule allI, rule choice, rule allI, simp)
+    using QcR unfolding rhoare_untyped_def using \<mu>supp by auto
+  def \<mu>' == "\<lambda>(m1,m2). \<mu>0 m1 m2"
+  def \<mu>'' == "compose_distr \<mu>' \<mu>"
+  have "\<forall>m1' m2'. (m1', m2') \<in> support_distr \<mu>'' \<longrightarrow> R m1' m2'"
+    apply auto unfolding \<mu>''_def Distr.support_compose_distr
+    using \<mu>'_def \<mu>0 by auto
+  moreover have "apply_to_distr fst \<mu>'' = denotation_untyped (Seq c1 c1') m1"
+    unfolding \<mu>''_def apply simp 
+    unfolding Distr.compose_point_distr_l[symmetric] Distr.compose_distr_assoc[symmetric]
+    unfolding Distr.compose_point_distr_l
+    apply (subst compose_distr_cong[of \<mu> _ "\<lambda>(m1,m2). denotation_untyped c1' m1"])
+    close (simp add: \<mu>'_def \<mu>0 case_prod_unfold)  
+    unfolding fst\<mu>[symmetric] compose_distr_apply_to_distr o_def
+    by (meson case_prod_unfold)
+  moreover have "apply_to_distr snd \<mu>'' = denotation_untyped (Seq c2 c2') m2"
+    unfolding \<mu>''_def apply simp 
+    unfolding Distr.compose_point_distr_l[symmetric] Distr.compose_distr_assoc[symmetric]
+    unfolding Distr.compose_point_distr_l
+    apply (subst compose_distr_cong[of \<mu> _ "\<lambda>(m1,m2). denotation_untyped c2' m2"])
+    close (simp add: \<mu>'_def \<mu>0 case_prod_unfold)  
+    unfolding snd\<mu>[symmetric] compose_distr_apply_to_distr o_def
+    by (meson case_prod_unfold)
+  ultimately
+  show "\<exists>\<mu>''. apply_to_distr fst \<mu>'' = denotation_untyped (Seq c1 c1') m1 \<and>
+              apply_to_distr snd \<mu>'' = denotation_untyped (Seq c2 c2') m2 \<and>
+              (\<forall>m1' m2'. (m1', m2') \<in> support_distr \<mu>'' \<longrightarrow> R m1' m2')"
+    by auto
+qed
+
+
+(*definition "blockassign (xs::variable_untyped list) (es::expression_untyped list) == 
+  fold (\<lambda>(x,e) p. Seq p (Assign x e)) (zip xs es) Skip"*)
 
 definition "obs_eq X c1 c2 ==
   rhoare_untyped (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)
@@ -192,6 +250,10 @@ lemma obs_eqI:
   shows "obs_eq X c1 c2"
 SORRY
 
+lemma obseq_vars:
+  assumes "set(vars c) \<subseteq> X"
+  shows "obs_eqI X c c"
+SORRY
 
 (* TODO: move \<rightarrow> Lang_Untyped *)
 definition const_expression_untyped :: "type \<Rightarrow> val \<Rightarrow> expression_untyped" where
@@ -279,20 +341,22 @@ proof (rule obs_eqI)
     fix x assume "x\<notin>set pargs" assume "x\<notin>set locals"
     show "memory_lookup_untyped
           (fold (\<lambda>(e, x) y. memory_update_untyped y e (eu_fun x y)) (zip pargs args)
-            (fold (\<lambda>x y. memory_update_untyped y x (t_default (vu_type x))) locals m2))
+          (fold (\<lambda>x y. memory_update_untyped y x (t_default (vu_type x))) locals m2))
           x = memory_lookup_untyped m2 x"
-    apply (insert `x\<notin>set pargs` `x\<notin>set locals`)
-    apply (induction "zip pargs args" arbitrary: pargs args m2)
-    apply (induction locals)
-      close auto 
-      close (simp, subst memory_lookup_update_notsame_untyped, auto)
+    proof (insert `x\<notin>set locals`, induction locals arbitrary: m2)
+    case Nil thus ?case
+      apply simp
+      apply (insert `x\<notin>set pargs`, induction "zip pargs args" arbitrary: pargs args m2)
       apply auto
-      apply (frule zip_hd(1), frule zip_hd(2))
-    by simp
+      by (smt fold_simps(2) insertCI list.sel(3) list.simps(15) memory_lookup_update_notsame_untyped prod.sel(1) split_beta' zip_Cons_Cons zip_hd(1) zip_hd(2))
+    next case (Cons l locals) thus ?case
+      using memory_lookup_update_notsame_untyped by auto
+    qed
 
   def uf2 == "compose_distr (denotation_untyped body) uf1"
   def cp2 == "compose_distr (denotation_untyped body) cp1"
   have "eq (G\<union>set locals) uf2 cp2"
+    unfolding eq_def uf2_def cp2_def
     by simp
   have "untouched co_locals uf2"
     by simp
