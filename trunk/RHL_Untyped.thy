@@ -352,6 +352,7 @@ proof (rule obs_eqI)
     next case (Cons l locals) thus ?case
       using memory_lookup_update_notsame_untyped by auto
     qed
+  qed
 
   def uf2 == "compose_distr (denotation_untyped body) uf1"
   def cp2 == "compose_distr (denotation_untyped body) cp1"
