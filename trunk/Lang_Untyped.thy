@@ -80,15 +80,14 @@ lemma fresh_variables_local_type: "map vu_type (fresh_variables_local used ts) =
 record memory_rep = 
   mem_globals :: "variable_untyped \<Rightarrow> val"
   mem_locals :: "variable_untyped \<Rightarrow> val"
-  mem_stack :: "(variable_untyped \<Rightarrow> val) list"
+(*  mem_stack :: "(variable_untyped \<Rightarrow> val) list" *)
 
 typedef memory = "{m::memory_rep. 
      (\<forall>v. mem_globals m v \<in> t_domain (vu_type v))
    \<and> (\<forall>v. mem_locals m v \<in> t_domain (vu_type v))
-   \<and> (\<forall>s\<in>set (mem_stack m). \<forall>v. s v \<in> t_domain (vu_type v))}"
+(*   \<and> (\<forall>s\<in>set (mem_stack m). \<forall>v. s v \<in> t_domain (vu_type v))*)}"
 apply (rule exI[where x="\<lparr> mem_globals = (\<lambda>v. t_default (vu_type v)),
-                           mem_locals = (\<lambda>v. t_default (vu_type v)),
-                           mem_stack = [] \<rparr>"])
+                           mem_locals = (\<lambda>v. t_default (vu_type v)) \<rparr>"])
   by auto
 
 (*
