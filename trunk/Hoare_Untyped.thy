@@ -7,6 +7,14 @@ definition hoare_untyped :: "(memory \<Rightarrow> bool) \<Rightarrow> program_r
   (\<forall>m. pre m \<longrightarrow> (\<forall>m'. m' \<in> support_distr (denotation_untyped prog m) 
                   \<longrightarrow> post m'))"
 
+definition hoare_denotation :: "(memory \<Rightarrow> bool) \<Rightarrow> _ \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> bool" where
+  "hoare_denotation pre prog post = (\<forall>m. pre m \<longrightarrow> (\<forall>m'. m' \<in> support_distr (prog m) \<longrightarrow> post m'))"
+
+lemma hoare_untyped_hoare_denotation: "hoare_untyped pre c post = hoare_denotation pre (denotation_untyped c) post"
+  unfolding hoare_untyped_def hoare_denotation_def ..
+
+
+
 lemma seq_rule:
   fixes P Q R c d
   assumes "hoare_untyped P c Q" and "hoare_untyped Q d R"
@@ -60,6 +68,20 @@ lemma case_rule:
   assumes "\<And>x. hoare_untyped (\<lambda>m. P m \<and> f m = x) c Q"
   shows "hoare_untyped P c Q"
 using assms unfolding hoare_untyped_def by metis
+
+(* TODO move *)
+lemma readonly_notin_vars: 
+  fixes x::variable_untyped and a::val and c::program_rep
+  assumes "x\<notin>set(vars_untyped c)"
+  shows "hoare_untyped (\<lambda>m. memory_lookup_untyped m x = a) c (\<lambda>m. memory_lookup_untyped m x = a)"
+SORRY
+
+(* TODO move *)
+lemma readonly_assign: 
+  fixes x y::variable_untyped and e::expression_untyped and a::val
+  assumes "x\<noteq>y"
+  shows "hoare_untyped (\<lambda>m. memory_lookup_untyped m y = a) (Assign x e) (\<lambda>m. memory_lookup_untyped m y = a)"
+SORRY
 
 
 end

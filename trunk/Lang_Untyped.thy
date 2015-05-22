@@ -2,6 +2,7 @@ theory Lang_Untyped
 imports Main Orderings Series Distr Universe
 begin
 
+subsection {* Types *}
 
 record type_rep = 
   tr_domain :: "val set"
@@ -15,6 +16,8 @@ definition t_default :: "type \<Rightarrow> val" where
 lemma [simp]: "t_default t \<in> t_domain t"
   unfolding t_domain_def t_default_def using Rep_type ..
 type_synonym variable_name = string
+
+subsection {* Variables *}
 
 record variable_untyped = 
   vu_name::variable_name
@@ -76,6 +79,8 @@ lemma fresh_variables_local_type: "map vu_type (fresh_variables_local used ts) =
   by (metis list.simps(9) variable_untyped.select_convs(2))
   
 
+subsection {* Memories *}
+
 
 record memory_rep = 
   mem_globals :: "variable_untyped \<Rightarrow> val"
@@ -110,9 +115,12 @@ lemma memory_lookup_update_same_untyped: "a \<in> t_domain (vu_type v) \<Longrig
   apply (subst Abs_memory_inverse, auto)
   using Rep_memory apply auto
   by (subst Abs_memory_inverse, auto)
+
 lemma memory_lookup_update_notsame_untyped: 
   "v \<noteq> w \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) w = memory_lookup_untyped m w"
   SORRY
+
+subsection {* Expressions *}
 
 record expression_untyped_rep =
   eur_fun :: "memory \<Rightarrow> val"
@@ -150,9 +158,18 @@ definition "ed_fun e == edr_fun (Rep_expression_distr e)"
 definition "ed_type e == edr_type (Rep_expression_distr e)"
 definition "ed_vars e == edr_vars (Rep_expression_distr e)"
 
+definition const_expression_untyped :: "type \<Rightarrow> val \<Rightarrow> expression_untyped" where
+  "const_expression_untyped T x = Abs_expression_untyped \<lparr> eur_fun=\<lambda>m. x, eur_type=T, eur_vars=[] \<rparr>"
+
+lemma eu_fun_const_expression_untyped: "a \<in> t_domain T \<Longrightarrow> eu_fun (const_expression_untyped T a) = (\<lambda>m. a)"
+  unfolding const_expression_untyped_def eu_fun_def
+  by (subst Abs_expression_untyped_inverse, auto)
+
+
 type_synonym id0 = string
 type_synonym id = "id0 list"
 
+subsection {* Procedures *}
 
 record procedure_type =
   pt_argtypes :: "type list"
@@ -184,6 +201,8 @@ fun proctype_of :: "procedure_rep \<Rightarrow> procedure_type" where
   "proctype_of (Proc body args return) = \<lparr> pt_argtypes=map vu_type args, pt_returntype=eu_type return \<rparr>"
 | "proctype_of _ = undefined" (* Cannot happen for well-typed programs *)
 
+subsection {* Well-typed programs *}
+
 fun well_typed :: "program_rep \<Rightarrow> bool" where
   "well_typed (Seq p1 p2) = (well_typed p1 \<and> well_typed p2)"
 | "well_typed (Assign v e) = (eu_type e = vu_type v)"
@@ -208,6 +227,8 @@ abbreviation "mk_program_untyped == Rep_program"
 
 lemma well_typed_mk_program_untyped [simp]: "well_typed (mk_program_untyped x)" 
   using Rep_program by simp
+
+subsection {* Denotational semantics *}
 
 type_synonym denotation = "memory \<Rightarrow> memory distr"
 
@@ -244,6 +265,12 @@ fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
 | denotation_untyped_CallProc_bad: "denotation_untyped (CallProc v _ args) m = 0" (* Cannot happen for well-typed programs *)
 definition "denotation prog = denotation_untyped (mk_program_untyped prog)"
 
+lemma denotation_untyped_assoc: "denotation_untyped (Seq (Seq x y) z) = denotation_untyped (Seq x (Seq y z))"
+  unfolding denotation_untyped_Seq[THEN ext] 
+  unfolding compose_distr_assoc ..
+
+subsection {* Misc (free vars, lossless) *}
+
 fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
 and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" where
   "vars_untyped Skip = []"
@@ -269,8 +296,5 @@ definition "vars prog = vars_untyped (mk_program_untyped prog)"
 definition "lossless_untyped p = (\<forall>m. weight_distr (denotation_untyped p m) = 1)"
 definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"
 
-lemma denotation_untyped_assoc: "denotation_untyped (Seq (Seq x y) z) = denotation_untyped (Seq x (Seq y z))"
-  unfolding denotation_untyped_Seq[THEN ext] 
-  unfolding compose_distr_assoc ..
 
 end

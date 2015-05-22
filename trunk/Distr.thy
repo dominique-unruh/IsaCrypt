@@ -2,8 +2,6 @@ theory Distr
 imports Main Tools Extended_Sorry "~~/src/HOL/Probability/Binary_Product_Measure"
 begin
 
-subsection {* Distributions (with weight <= 1) *}
-
 typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. (\<mu> x)\<ge>0) \<and> (\<integral>\<^sup>+x. \<mu> x \<partial>count_space UNIV) \<le> 1}"
   apply (rule exI[where x="\<lambda>x. 0"], auto)
   by (metis ereal_eq_0(2) ereal_less_eq(6) ereal_zero_mult zero_le_one)
@@ -431,6 +429,17 @@ lemma distr_to_ell1_apply_comm [simp]: "distr_to_ell1 (apply_to_distr f \<mu>) =
 lemma support_distr_to_ell1 [simp]: "support_ell1 (distr_to_ell1 \<mu>) = support_distr \<mu>"
   SORRY
 *)
+
+lemma compose_distr_cong: 
+  fixes f1 f2 \<mu>
+  assumes "\<And>x. x\<in>support_distr \<mu> \<Longrightarrow> f1 x = f2 x"
+  shows "compose_distr f1 \<mu> = compose_distr f2 \<mu>"
+SORRY
+
+
+lemma compose_distr_apply_to_distr: 
+  shows "compose_distr f (apply_to_distr g \<mu>) = compose_distr (f o g) \<mu>"
+by (smt comp_apply compose_distr_assoc compose_distr_cong compose_point_distr_l compose_point_distr_r)
 
 
 end
