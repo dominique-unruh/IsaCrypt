@@ -120,6 +120,26 @@ lemma memory_lookup_update_notsame_untyped:
   "v \<noteq> w \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) w = memory_lookup_untyped m w"
   SORRY
 
+(*
+lemma memory_lookup_update_same_untyped_bad: "a \<notin> t_domain (vu_type v) \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) v = t_default (vu_type v)"
+  unfolding memory_lookup_untyped_def memory_update_untyped_def Let_def
+  apply auto
+  apply (subst Abs_memory_inverse, auto)
+  using Rep_memory apply auto
+  by (subst Abs_memory_inverse, auto)
+*)
+
+lemma memory_lookup_update_untyped: "memory_lookup_untyped (memory_update_untyped m v a) w = 
+  (if v=w then (if a \<in> t_domain (vu_type v) then a else t_default (vu_type v)) else memory_lookup_untyped m w)"
+  apply (cases "v=w")
+  apply (cases "a \<in> t_domain (vu_type v)")
+  using memory_lookup_update_same_untyped close auto
+  defer
+  using memory_lookup_update_notsame_untyped close auto
+  unfolding memory_lookup_untyped_def memory_update_untyped_def Let_def
+  using Abs_memory_inverse Rep_memory Rep_type t_default_def t_domain_def by auto
+
+
 subsection {* Expressions *}
 
 record expression_untyped_rep =
@@ -164,6 +184,11 @@ definition const_expression_untyped :: "type \<Rightarrow> val \<Rightarrow> exp
 lemma eu_fun_const_expression_untyped: "a \<in> t_domain T \<Longrightarrow> eu_fun (const_expression_untyped T a) = (\<lambda>m. a)"
   unfolding const_expression_untyped_def eu_fun_def
   by (subst Abs_expression_untyped_inverse, auto)
+
+lemma eu_fun_footprint: 
+  assumes "\<And>v. v\<in>set (eu_vars e) \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
+  shows "eu_fun e m1 = eu_fun e m2"
+using Rep_expression_untyped assms eu_fun_def eu_vars_def by auto
 
 
 type_synonym id0 = string

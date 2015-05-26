@@ -14,6 +14,8 @@ session "HOL-EC-Prereqs" in "~~/src/HOL" = "HOL-Multivariate_Analysis" +
     "Proofs/Lambda/StrongNorm"
     "Proofs/Lambda/Commutation"
     "Probability/Binary_Product_Measure"
+    "Library/Rewrite"
+    "Eisbach/Eisbach"
 
 session "HOL-EC-Core" = "HOL-EC-Prereqs" +
   description {*
