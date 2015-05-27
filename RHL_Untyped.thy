@@ -308,7 +308,7 @@ lemma rhoare_denotation_post_eq2:
 SORRY
 
 (*
-lemma obs_eqI:  (* TODO needed? *)
+lemma obs_eqI: 
   fixes X c1 c2
   defines "project == (\<lambda>m x. if x\<in>X then memory_lookup_untyped m x else undefined)"
   assumes "\<And>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x
@@ -370,21 +370,6 @@ apply (metis list.exhaust list.sel(1) list.sel(3) prod.sel(1) zip_Cons_Cons zip_
 apply (induction bs arbitrary: as, auto)
 by (metis Pair_inject list.distinct(2) list.exhaust list.inject zip_Cons_Cons zip_Nil)
 
-(* TODO move *)
-lemma apply_to_distr_cong: 
-  fixes f1 f2 \<mu>
-  assumes "\<And>x. x\<in>support_distr \<mu> \<Longrightarrow> f1 x = f2 x"
-  shows "apply_to_distr f1 \<mu> = apply_to_distr f2 \<mu>"
-SORRY
-
-(* TODO move *)
-lemma restore_locals_lookup:  
- "memory_lookup_untyped (restore_locals x oldmem newmem) y =
-  (if y=x then memory_lookup_untyped newmem y
-   else if vu_global y then memory_lookup_untyped newmem y
-   else memory_lookup_untyped oldmem y)"
-by (smt Abs_memory_inverse Rep_memory fun_upd_triv mem_Collect_eq memory_lookup_untyped_def memory_lookup_update_same_untyped memory_lookup_update_untyped memory_rep.select_convs(1)
-        memory_rep.select_convs(2) memory_rep.surjective memory_rep.update_convs(2) restore_locals_def)
 
 lemma inline_rule:
   fixes body pargs ret x args V
@@ -585,91 +570,6 @@ proof -
         using goal by auto
     qed
 
-(*
-(*    apply (rule ext, rule_tac x=x in aux0) close simp apply simp_all *)
-    proof (rule ext, auto)
-      fix x assume "x \<in> G" 
-      have "vu_global x" using G_def `x \<in> G` by blast
-      hence "x\<notin>set locals" unfolding locals_def by auto
-
-      have inner_eq:
-        "memory_lookup_untyped inner_right x =
-         memory_lookup_untyped inner_left x"
-         apply (rule inner_eq) by (simp add: `x\<in>G`)
-  
-      have "x\<notin>set pargs" using local_pargs `vu_global x` by auto
-  
-      have aux: "fold (\<lambda>(v, x) m. memory_update_untyped m v x) (zip pargs (map (\<lambda>e. eu_fun e m1) args))
-               = fold (\<lambda>(e, x) y. memory_update_untyped y e (eu_fun x m1)) (zip pargs args)"
-        unfolding zip_map2 fold_map o_def apply (tactic "cong_tac @{context} 1")+ by auto
-  
-      show "memory_lookup_untyped (init_locals pargs args m1) x =
-         memory_lookup_untyped
-          (fold (\<lambda>(e, x) y. memory_update_untyped y e (eu_fun x y)) (zip pargs args)
-          (fold (\<lambda>x y. memory_update_untyped y x (t_default (vu_type x))) locals m2)) x"
-        unfolding init_locals_def Let_def aux 
-        apply (insert `x\<in>G`, insert `x\<notin>set pargs`)
-        apply (induction "zip pargs args" arbitrary: pargs args rule:rev_induct)
-          close (auto simp: inner_eq[unfolded inner_right_def inner_left_def])
-        apply (drule sym[of _ "zip _ _"]) apply auto 
-        apply (subst memory_lookup_update_notsame_untyped)
-          close (metis in_set_conv_decomp set_zip_leftD)
-        apply (subst memory_lookup_update_notsame_untyped)
-          close (metis in_set_conv_decomp set_zip_leftD)
-        by (erule zip_end, auto)
-    next
-      fix x assume "x \<in> set locals"
-      have "\<not>vu_global x" using locals_def `x \<in> set locals` by auto
-
-      have aux: "fold (\<lambda>(v, x) m. memory_update_untyped m v x) (zip pargs (map (\<lambda>e. eu_fun e m1) args))
-               = fold (\<lambda>(e, x) y. memory_update_untyped y e (eu_fun x m1)) (zip pargs args)"
-        unfolding zip_map2 fold_map o_def apply (tactic "cong_tac @{context} 1")+ by auto
-
-      def upd == "(\<lambda>(e, x) y. memory_update_untyped y e (eu_fun x y))"
-      def upd' == "(\<lambda>(e, x) y. memory_update_untyped y e (eu_fun x m1))"
-
-      {def zipargs == "zip pargs args"
-       have argvars: "\<forall>pa\<in>set zipargs. set(eu_vars(snd pa))\<subseteq>argvars" 
-        unfolding zipargs_def argvars_def by (auto, meson in_set_zipE)
-       have inner_eq_argvars: "\<forall>x\<in>argvars. memory_lookup_untyped inner_right x = memory_lookup_untyped inner_left x"
-        using inner_eq (* TODO inner_eq should include argvars *) by auto
-       have "\<And>parg arg m m'. 
-              memory_lookup_untyped m' x = memory_lookup_untyped m x
-              memory_lookup_untyped (upd' (parg, arg) m') x = memory_lookup_untyped (upd (parg, arg) m) x"
-         by later
-       have "memory_lookup_untyped (fold upd' zipargs inner_left) x
-           = memory_lookup_untyped (fold upd zipargs inner_right) x"
-        apply (insert inner_eq_argvars, insert argvars)
-        apply (induction zipargs rule:rev_induct)
-          close (simp add: inner_eq `x \<in> set locals`)
-        apply (rename_tac arg' zipargs)
-        apply (case_tac arg', rename_tac parg arg)
-        apply auto 
-(* Add to induction: inner_right = m1 on XXXX
-                     vars of all args \<subseteq> XXXX *)
-      }
-
-      have "memory_lookup_untyped (fold (\<lambda>(e, x) y. memory_update_untyped y e (eu_fun x m1)) (zip pargs args) inner_left) x
-          = memory_lookup_untyped (fold upd (zip pargs args) inner_left) x"
-          by later
-      also 
-      have "\<dots> = memory_lookup_untyped (fold upd (zip pargs args) inner_right) x"
-        apply (insert inner_eq) 
-        apply (induction "zip pargs args" arbitrary: pargs args inner_right inner_left)
-          close simp
-        apply (drule sym[of _ "zip _ _"]) apply simp apply (auto, erule zip_end, auto)
-        (* We need the invariant that eu_fun x is the same on inner_left and m1 *)
-        by later
-        by later
-      finally show "memory_lookup_untyped (init_locals pargs args m1) x =
-         memory_lookup_untyped
-          (fold (\<lambda>(e, x) y. memory_update_untyped y e (eu_fun x y)) (zip pargs args)
-          inner_right) x"
-        unfolding init_locals_def Let_def upd_def
-        unfolding init_locals_def Let_def inner_right_def[symmetric] inner_left_def[symmetric] aux .
-        
-    qed
-*)
 
     show "apply_to_distr (\<lambda>m x. if x \<in> G \<union> set locals then memory_lookup_untyped m x else undefined) (cp1 m1) =
           apply_to_distr (\<lambda>m x. if x \<in> G \<union> set locals then memory_lookup_untyped m x else undefined) (uf1 m2)"
@@ -798,65 +698,6 @@ proof -
   qed
 
 
-(*
-  have eq_uf3_cp4: "eq (G\<union>{x}\<union>(co_locals-{x})) cp4 uf3"
-  proof (unfold eq_def, rule rhoare_denotation_post_eq)
-    fix m1 m2 assume m1m2: "\<forall>x\<in>V. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
-    hence m1m2': "\<And>x. x\<in>V \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m2 x" by simp
-    def m1' == "memory_lookup_untyped m1"
-    def restore == "\<lambda>newmem (y::variable_untyped). 
-      if x=y then newmem y else
-      if vu_global y then newmem y else
-      m1' y :: val"
-    have "restore o memory_lookup_untyped = memory_lookup_untyped o (restore_locals x m)"
-      by later
-      
-    def proj1 == "\<lambda>m y. if y \<in> G\<union>set locals\<union>{x} then m y else (undefined::val)"
-    def proj2 == "\<lambda>m y. if y \<in> G\<union>{x}\<union>(co_locals-{x}) then m y else (undefined::val)"
-    have memfuns: "(\<lambda>m y. if y \<in> G\<union>{x}\<union>(co_locals-{x}) then memory_lookup_untyped m y else undefined) o (restore_locals x m1)
-                   = proj2 o restore o memory_lookup_untyped"
-      by later
-    have add_proj1: "proj2 o restore = proj2 o restore o proj1"
-      by later
-    have eq_cp_uf: "apply_to_distr (proj1 o memory_lookup_untyped) (cp3 m1) = apply_to_distr (proj1 o memory_lookup_untyped) (uf3 m2)"
-      using eq3 m1m2 unfolding proj1_def eq_def o_def by (rule rhoare_denotation_post_eq2)
-    have rm_restore: "\<And>m. (\<forall>y\<in>(co_locals-{x})\<inter>V. m y = m1' y) \<Longrightarrow> (proj2 o restore o proj1) m = proj2 m"
-      unfolding proj2_def restore_def proj1_def apply (rule ext) apply auto
-           using G_def close blast
-          using G_def close blast
-         using G_def close blast
-        using co_locals_def close blast
-       using co_locals_def close blast
-      
-(*    have supp: "\<And>m. m \<in> support_distr (uf3 m2) \<Longrightarrow> \<forall>x\<in>V. memory_lookup_untyped m x = memory_lookup_untyped m1 x"
-      apply (rule ballI)
-      apply (subst m1m2') close auto
-       using untouched3 unfolding untouched_def 
-       unfolding co_locals_def *)
-
-    show "apply_to_distr (\<lambda>m y. if y \<in> G\<union>{x}\<union>(co_locals-{x}) then memory_lookup_untyped m y else undefined) (cp4 m1)
-        = apply_to_distr (\<lambda>m y. if y \<in> G\<union>{x}\<union>(co_locals-{x}) then memory_lookup_untyped m y else undefined) (uf3 m2)"
-      unfolding cp4_def
-      apply (subst apply_to_distr_twice)
-      apply (subst memfuns[unfolded o_def])
-      apply (subst add_proj1[unfolded o_def, THEN cong, OF refl])
-      apply (subst apply_to_distr_twice[symmetric, where f="\<lambda>m. proj2(restore m)"])
-      apply (subst eq_cp_uf[unfolded o_def])
-      apply (subst apply_to_distr_twice)
-      apply (subst apply_to_distr_cong)
-       apply (rule rm_restore[unfolded o_def]) using supp close (simp add: m1'_def)
-      unfolding proj2_def by simp
-  qed
-*)
-
-(*
-  have covers_V: "V \<subseteq> G\<union>{x}\<union>(co_locals-{x})"
-    unfolding co_locals_def' G_def
-    using localsV by auto
-    
-  have eq_uf3_cp4_V: "eq V cp4 uf3"
-    using covers_V eq_uf3_cp4 by (rule eq_mono)
-*)
 
   have uf3_unfolded: "uf3 = denotation_untyped unfolded"
     unfolding uf3_def unfolded_def uf2_def uf1_def by auto
