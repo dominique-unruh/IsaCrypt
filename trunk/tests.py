@@ -7,7 +7,7 @@ import glob, sys, os, random, re, subprocess, time
 import unittest
 import Pyro4
 
-isabelle_dir = "/opt/Isabelle2015-RC3"
+isabelle_dir = "/opt/Isabelle2015"
 
 run_theory_ml = r"""
 datatype thyexn = Theory | Exception of exn;;

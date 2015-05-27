@@ -274,6 +274,14 @@ definition
   (Abs_memory (Rep_memory newmem \<lparr> mem_locals := mem_locals (Rep_memory oldmem) \<rparr>))
   x (memory_lookup_untyped newmem x)"
 
+lemma restore_locals_lookup:  
+ "memory_lookup_untyped (restore_locals x oldmem newmem) y =
+  (if y=x then memory_lookup_untyped newmem y
+   else if vu_global y then memory_lookup_untyped newmem y
+   else memory_lookup_untyped oldmem y)"
+by (smt Abs_memory_inverse Rep_memory fun_upd_triv mem_Collect_eq memory_lookup_untyped_def memory_lookup_update_same_untyped memory_lookup_update_untyped memory_rep.select_convs(1)
+        memory_rep.select_convs(2) memory_rep.surjective memory_rep.update_convs(2) restore_locals_def)
+
 fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
   denotation_untyped_Seq: "denotation_untyped (Seq p1 p2) m = compose_distr (denotation_untyped p2) (denotation_untyped p1 m)"
 | denotation_untyped_Assign: "denotation_untyped (Assign v e) m = point_distr (memory_update_untyped m v (eu_fun e m))"

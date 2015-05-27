@@ -106,5 +106,7 @@ SORRY (* TODO: prove. First step: inline *)
 
 lemma (in group) correctness:
   shows "hoare {True} succ := call (procfun_apply Correctness ElGamal)(m) {succ}"
+unfolding ElGamal_def Correctness_def
+SORRY (* TODO: prove. First step: inline *)
 
 end

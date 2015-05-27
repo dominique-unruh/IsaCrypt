@@ -436,6 +436,11 @@ lemma compose_distr_cong:
   shows "compose_distr f1 \<mu> = compose_distr f2 \<mu>"
 SORRY
 
+lemma apply_to_distr_cong: 
+  fixes f1 f2 \<mu>
+  assumes "\<And>x. x\<in>support_distr \<mu> \<Longrightarrow> f1 x = f2 x"
+  shows "apply_to_distr f1 \<mu> = apply_to_distr f2 \<mu>"
+SORRY
 
 lemma compose_distr_apply_to_distr: 
   shows "compose_distr f (apply_to_distr g \<mu>) = compose_distr (f o g) \<mu>"
