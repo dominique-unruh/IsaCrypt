@@ -370,13 +370,21 @@ apply (metis list.exhaust list.sel(1) list.sel(3) prod.sel(1) zip_Cons_Cons zip_
 apply (induction bs arbitrary: as, auto)
 by (metis Pair_inject list.distinct(2) list.exhaust list.inject zip_Cons_Cons zip_Nil)
 
+(* TODO move *)
 lemma apply_to_distr_cong: 
   fixes f1 f2 \<mu>
   assumes "\<And>x. x\<in>support_distr \<mu> \<Longrightarrow> f1 x = f2 x"
   shows "apply_to_distr f1 \<mu> = apply_to_distr f2 \<mu>"
 SORRY
 
-
+(* TODO move *)
+lemma restore_locals_lookup:  
+ "memory_lookup_untyped (restore_locals x oldmem newmem) y =
+  (if y=x then memory_lookup_untyped newmem y
+   else if vu_global y then memory_lookup_untyped newmem y
+   else memory_lookup_untyped oldmem y)"
+by (smt Abs_memory_inverse Rep_memory fun_upd_triv mem_Collect_eq memory_lookup_untyped_def memory_lookup_update_same_untyped memory_lookup_update_untyped memory_rep.select_convs(1)
+        memory_rep.select_convs(2) memory_rep.surjective memory_rep.update_convs(2) restore_locals_def)
 
 lemma inline_rule:
   fixes body pargs ret x args V
@@ -743,25 +751,112 @@ proof -
   (*have uf3_restore: "uf3 = (\<lambda>m. apply_to_distr (restore_locals x m) (uf3 m))"
     by later*)
 
+
+  have eq_uf3_cp4: "eq V cp4 uf3"
+  proof (unfold eq_def, rule rhoare_denotation_post_eq)
+    fix m1 m2 assume m1m2: "\<forall>x\<in>V. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+    hence m1m2': "\<And>x. x\<in>V \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m2 x" by simp
+    def m1' == "memory_lookup_untyped m1"
+    def restore == "\<lambda>newmem (y::variable_untyped). 
+      if x=y then newmem y else
+      if vu_global y then newmem y else
+      m1' y :: val"
+      
+    def proj1 == "\<lambda>m y. if y \<in> G\<union>set locals\<union>{x} then m y else (undefined::val)"
+    def proj2 == "\<lambda>m y. if y \<in> V then m y else (undefined::val)"
+    have memfuns: "(\<lambda>m y. if y \<in> V then memory_lookup_untyped m y else undefined) o (restore_locals x m1)
+                   = proj2 o restore o memory_lookup_untyped"
+      unfolding proj2_def restore_def o_def restore_locals_lookup m1'_def by force
+    have add_proj1: "proj2 o restore = proj2 o restore o proj1"
+      unfolding proj2_def proj1_def restore_def o_def 
+      apply (rule ext, rule ext) using G_def by auto
+    have eq_cp_uf: "apply_to_distr (proj1 o memory_lookup_untyped) (cp3 m1) = apply_to_distr (proj1 o memory_lookup_untyped) (uf3 m2)"
+      using eq3 m1m2 unfolding proj1_def eq_def o_def by (rule rhoare_denotation_post_eq2)
+    have rm_restore: "\<And>m. (\<forall>y\<in>(co_locals-{x})\<inter>V. m y = m1' y) \<Longrightarrow> (proj2 o restore o proj1) m = proj2 m"
+      unfolding proj2_def restore_def proj1_def apply (rule ext) apply auto
+      using G_def close blast
+      using localsV close auto
+      using G_def close blast
+      by (simp add: co_locals_def')
+    have supp: "\<And>m. m \<in> support_distr (uf3 m2) \<Longrightarrow> \<forall>x\<in>(co_locals-{x})\<inter>V. memory_lookup_untyped m x = memory_lookup_untyped m1 x"
+      apply (rule ballI)
+      apply (subst m1m2') close auto
+      using untouched3 untouched_def by blast
+
+    show "apply_to_distr (\<lambda>m y. if y\<in>V then memory_lookup_untyped m y else undefined) (cp4 m1)
+        = apply_to_distr (\<lambda>m y. if y\<in>V then memory_lookup_untyped m y else undefined) (uf3 m2)"
+      unfolding cp4_def
+      apply (subst apply_to_distr_twice)
+      apply (subst memfuns[unfolded o_def])
+      apply (subst add_proj1[unfolded o_def, THEN cong, OF refl])
+      apply (subst apply_to_distr_twice[symmetric, where f="\<lambda>m. proj2(restore m)"])
+      apply (subst eq_cp_uf[unfolded o_def])
+      apply (subst apply_to_distr_twice)
+      apply (subst apply_to_distr_cong)
+       apply (rule rm_restore[unfolded o_def]) using supp close (simp add: m1'_def)
+      unfolding proj2_def by simp
+  qed
+
+
+(*
   have eq_uf3_cp4: "eq (G\<union>{x}\<union>(co_locals-{x})) cp4 uf3"
   proof (unfold eq_def, rule rhoare_denotation_post_eq)
     fix m1 m2 assume m1m2: "\<forall>x\<in>V. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
-    have "apply_to_distr (\<lambda>m y. if y \<in> G\<union>set locals\<union>{x} then memory_lookup_untyped m y else undefined) (cp3 m1)
-        = apply_to_distr (\<lambda>m y. if y \<in> G\<union>set locals\<union>{x} then memory_lookup_untyped m y else undefined) (uf3 m2)"
-      using eq3 m1m2 unfolding eq_def by (rule rhoare_denotation_post_eq2)
+    hence m1m2': "\<And>x. x\<in>V \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m2 x" by simp
+    def m1' == "memory_lookup_untyped m1"
+    def restore == "\<lambda>newmem (y::variable_untyped). 
+      if x=y then newmem y else
+      if vu_global y then newmem y else
+      m1' y :: val"
+    have "restore o memory_lookup_untyped = memory_lookup_untyped o (restore_locals x m)"
+      by later
+      
+    def proj1 == "\<lambda>m y. if y \<in> G\<union>set locals\<union>{x} then m y else (undefined::val)"
+    def proj2 == "\<lambda>m y. if y \<in> G\<union>{x}\<union>(co_locals-{x}) then m y else (undefined::val)"
+    have memfuns: "(\<lambda>m y. if y \<in> G\<union>{x}\<union>(co_locals-{x}) then memory_lookup_untyped m y else undefined) o (restore_locals x m1)
+                   = proj2 o restore o memory_lookup_untyped"
+      by later
+    have add_proj1: "proj2 o restore = proj2 o restore o proj1"
+      by later
+    have eq_cp_uf: "apply_to_distr (proj1 o memory_lookup_untyped) (cp3 m1) = apply_to_distr (proj1 o memory_lookup_untyped) (uf3 m2)"
+      using eq3 m1m2 unfolding proj1_def eq_def o_def by (rule rhoare_denotation_post_eq2)
+    have rm_restore: "\<And>m. (\<forall>y\<in>(co_locals-{x})\<inter>V. m y = m1' y) \<Longrightarrow> (proj2 o restore o proj1) m = proj2 m"
+      unfolding proj2_def restore_def proj1_def apply (rule ext) apply auto
+           using G_def close blast
+          using G_def close blast
+         using G_def close blast
+        using co_locals_def close blast
+       using co_locals_def close blast
+      
+(*    have supp: "\<And>m. m \<in> support_distr (uf3 m2) \<Longrightarrow> \<forall>x\<in>V. memory_lookup_untyped m x = memory_lookup_untyped m1 x"
+      apply (rule ballI)
+      apply (subst m1m2') close auto
+       using untouched3 unfolding untouched_def 
+       unfolding co_locals_def *)
+
     show "apply_to_distr (\<lambda>m y. if y \<in> G\<union>{x}\<union>(co_locals-{x}) then memory_lookup_untyped m y else undefined) (cp4 m1)
         = apply_to_distr (\<lambda>m y. if y \<in> G\<union>{x}\<union>(co_locals-{x}) then memory_lookup_untyped m y else undefined) (uf3 m2)"
       unfolding cp4_def
-    (* Use untouched3 *)
-    by later
+      apply (subst apply_to_distr_twice)
+      apply (subst memfuns[unfolded o_def])
+      apply (subst add_proj1[unfolded o_def, THEN cong, OF refl])
+      apply (subst apply_to_distr_twice[symmetric, where f="\<lambda>m. proj2(restore m)"])
+      apply (subst eq_cp_uf[unfolded o_def])
+      apply (subst apply_to_distr_twice)
+      apply (subst apply_to_distr_cong)
+       apply (rule rm_restore[unfolded o_def]) using supp close (simp add: m1'_def)
+      unfolding proj2_def by simp
   qed
+*)
 
+(*
   have covers_V: "V \<subseteq> G\<union>{x}\<union>(co_locals-{x})"
     unfolding co_locals_def' G_def
     using localsV by auto
     
   have eq_uf3_cp4_V: "eq V cp4 uf3"
     using covers_V eq_uf3_cp4 by (rule eq_mono)
+*)
 
   have uf3_unfolded: "uf3 = denotation_untyped unfolded"
     unfolding uf3_def unfolded_def uf2_def uf1_def by auto
@@ -774,7 +869,7 @@ proof -
   show "obs_eq V V (CallProc x p args) unfolded"
     unfolding obs_eq_def rhoare_untyped_rhoare_denotation
     unfolding uf3_unfolded[symmetric] cp4_callproc[symmetric]
-    using eq_uf3_cp4_V unfolding eq_def by simp
+    using eq_uf3_cp4 unfolding eq_def by simp
 qed 
 
 (*
