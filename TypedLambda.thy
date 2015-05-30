@@ -4,6 +4,11 @@ begin
 
 declare [[syntax_ambiguity_warning = false]]
 
+(* 
+The following contains a proof sketch for the conjectures below:
+
+http://math.cmu.edu/~wgunther/SN.pdf 
+*)
 
 subsection {* Lambda-terms in de Bruijn notation and substitution *}
 
