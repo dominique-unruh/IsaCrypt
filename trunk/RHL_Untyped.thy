@@ -288,7 +288,7 @@ qed
 (*definition "blockassign (xs::variable_untyped list) (es::expression_untyped list) == 
   fold (\<lambda>(x,e) p. Seq p (Assign x e)) (zip xs es) Skip"*)
 
-definition "obs_eq X Y c1 c2 ==
+definition "obs_eq_untyped X Y c1 c2 ==
   rhoare_untyped (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)
                  c1 c2
                  (\<lambda>m1 m2. \<forall>x\<in>Y. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)"
@@ -308,34 +308,34 @@ lemma rhoare_denotation_post_eq2:
 SORRY
 
 (*
-lemma obs_eqI: 
+lemma obs_eq_untypedI: 
   fixes X c1 c2
   defines "project == (\<lambda>m x. if x\<in>X then memory_lookup_untyped m x else undefined)"
   assumes "\<And>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x
             \<Longrightarrow> apply_to_distr project (denotation_untyped c1 m1)
               = apply_to_distr project (denotation_untyped c2 m2)"
-  shows "obs_eq X c1 c2"
-unfolding obs_eq_def rhoare_untyped_rhoare_denotation
+  shows "obs_eq_untyped X c1 c2"
+unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation
 apply (rule rhoare_denotation_post_eq)
 using assms by auto
 *)
 
-lemma obs_eq_sym: 
-  assumes "obs_eq X Y c d"
-  shows "obs_eq X Y d c"
+lemma obs_eq_untyped_sym: 
+  assumes "obs_eq_untyped X Y c d"
+  shows "obs_eq_untyped X Y d c"
 SORRY
 
 
 lemma self_obseq_vars:
   assumes "set(vars_untyped c) \<subseteq> X"
   assumes "Y \<subseteq> X"
-  shows "obs_eq X Y c c"
+  shows "obs_eq_untyped X Y c c"
 SORRY
 
 lemma self_obseq_assign:
   assumes "set (eu_vars e) \<subseteq> X"
   assumes "Y \<subseteq> X\<union>{x}"
-  shows "obs_eq X Y (Assign x e) (Assign x e)"
+  shows "obs_eq_untyped X Y (Assign x e) (Assign x e)"
 SORRY
 
 
@@ -372,19 +372,19 @@ by (metis Pair_inject list.distinct(2) list.exhaust list.inject zip_Cons_Cons zi
 
 
 lemma inline_rule:
-  fixes body pargs ret x args V
+  fixes body pargs ret x args V locals
   defines "p == Proc body pargs ret"
-  defines "variables == [x. x<-vars_untyped body @ pargs @ eu_vars ret]"
-  defines "locals == [x. x<-variables, \<not> vu_global x]"
-  defines "globals == [x. x<-variables, vu_global x]"
-  defines "argvars == set [x. e<-args, x<-eu_vars e]"
-  assumes argvars_locals: "argvars \<inter> set locals = {}"
+  assumes body_locals: "\<And>x. \<lbrakk> x\<in>set(vars_untyped body); \<not> vu_global x \<rbrakk> \<Longrightarrow> x\<in>set locals"
+  assumes pargs_locals: "\<And>x. x\<in>set pargs \<Longrightarrow> x\<in>set locals"
+  assumes ret_locals: "\<And>x. \<lbrakk> x\<in>set(eu_vars ret); \<not> vu_global x \<rbrakk> \<Longrightarrow> x\<in>set locals"
+  assumes locals_local: "\<And>x. x\<in>set locals \<Longrightarrow> \<not> vu_global x"
+  assumes argvars_locals: "\<And>e x. e\<in>set args \<Longrightarrow> x\<in>set(eu_vars e) \<Longrightarrow> x\<notin>set locals"
   assumes localsV: "V \<inter> set locals \<subseteq> {x}"
-  assumes globalsV: "set globals \<subseteq> V"
-  assumes argvarsV: "argvars \<subseteq> V"
-  assumes local_pargs: "\<forall>x\<in>set pargs. \<not> vu_global x"
+  assumes globalsVbody: "\<And>x. x\<in>set(vars_untyped body) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
+  assumes globalsVret: "\<And>x. x\<in>set(eu_vars ret) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
+  assumes argvarsV: "\<And>e x. e\<in>set args \<Longrightarrow> set(eu_vars e) \<subseteq> V"
   defines "unfolded == Seq (Seq (assign_local_vars locals pargs args) body) (Assign x ret)"
-  shows "obs_eq V V (CallProc x p args) unfolded"
+  shows "obs_eq_untyped V V (CallProc x p args) unfolded"
 proof -
   def eq == "\<lambda>V \<mu> \<nu>. apply_to_distr (\<lambda>m x. if x \<in> V then memory_lookup_untyped m x else undefined) \<mu>
                    = apply_to_distr (\<lambda>m x. if x \<in> V then memory_lookup_untyped m x else undefined) \<nu>"
@@ -394,10 +394,12 @@ proof -
   have eq_mono: "\<And>A B c1 c2. A \<subseteq> B \<Longrightarrow> eq B c1 c2 \<Longrightarrow> eq A c1 c2"
     unfolding eq_def rhoare_denotation_def by blast
 
+  def argvars == "set [x. e<-args, x<-eu_vars e]"
+
   def untouched == "\<lambda>V \<mu>. \<forall>m0. \<forall>m\<in>support_distr (\<mu> m0). \<forall>x\<in>V. memory_lookup_untyped m x = memory_lookup_untyped m0 x"
   def G == "{x\<in>V. vu_global x} :: variable_untyped set"
   have pargs_locals: "set pargs \<subseteq> set locals" 
-    unfolding locals_def variables_def using local_pargs by auto
+    using pargs_locals by auto
   def co_locals == "{x. \<not>vu_global x \<and> x\<notin>set locals \<and> x\<notin>set pargs}"
   with pargs_locals have co_locals_def': "co_locals = {x. \<not>vu_global x \<and> x\<notin>set locals}"
     by auto
@@ -433,7 +435,7 @@ proof -
     have inner_eq: "\<And>x. x\<in>G\<union>set locals \<Longrightarrow> memory_lookup_untyped inner_right x = memory_lookup_untyped inner_left x"
     proof (case_tac "x\<in>set locals")
       fix x assume "x\<in>set locals"
-      hence "\<not>vu_global x" using locals_def by auto
+      hence "\<not>vu_global x" using locals_local by auto
       have "memory_lookup_untyped inner_right x
           = (if x\<in>set locals then t_default (vu_type x) else memory_lookup_untyped m2 x)"
         unfolding inner_right_def apply (induction locals arbitrary: m2) close auto
@@ -466,30 +468,6 @@ proof -
         apply (subst Abs_memory_inverse, auto)
         using Rep_memory by blast
       finally show "?thesis x".
-(*    next
-      fix x assume "x \<in> G \<union> set locals \<union> argvars" and "x \<notin> G \<union> set locals"
-      hence "x \<in> argvars" by simp
-      with argvars_locals have "x\<notin>set locals" by auto
-      have "memory_lookup_untyped inner_right x
-          = memory_lookup_untyped m2 x"
-        unfolding inner_right_def
-        apply (insert `x\<notin>set locals`)
-        apply (induction locals arbitrary: m2, auto)
-        by (subst memory_lookup_update_notsame_untyped, auto)
-      also have "\<dots> = memory_lookup_untyped m1 x"
-        using init_eqV argvarsV `x\<in>argvars` by auto 
-      also have "\<dots> = memory_lookup_untyped inner_left x"
-        unfolding inner_left_def
-        unfolding memory_lookup_untyped_def
-        apply auto
-        using G_def `x \<in> argvars` `x \<notin> G \<union> set locals` argvarsV close auto
-        apply (subst Abs_memory_inverse, auto)
-         using Rep_memory close blast
-        using Rep_memory close blast
-        
-      finally show "?thesis x".
-      show "?thesis x"
-        by later*)
     qed
 
     have init_equal: "(\<lambda>x. if x \<in> G \<or> x \<in> set locals then memory_lookup_untyped (init_locals pargs args m1) x else undefined) =
@@ -507,14 +485,14 @@ proof -
         apply (drule set_zip_leftD) 
         apply (rule conjI)
          close (auto simp: argvars_def)
-        using argvars_locals pargs_locals by auto
+        using argvars_locals argvars_def pargs_locals by auto
       have right_m1: "\<And>x. x\<in>argvars \<Longrightarrow> memory_lookup_untyped inner_right x = memory_lookup_untyped m1 x"
       proof - 
         fix x assume "x\<in>argvars"
         hence m1m2: "memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
-          using argvarsV init_eqV by blast
+          using argvarsV argvars_def init_eqV by auto
         have x_nin_locals: "x\<notin>set locals"
-          using `x \<in> argvars` argvars_locals by fastforce
+          using `x \<in> argvars` argvars_def argvars_locals by fastforce
         show "memory_lookup_untyped inner_right x = memory_lookup_untyped m1 x"
         proof (unfold inner_right_def, insert m1m2, insert x_nin_locals, induction locals arbitrary: m1 m2 rule:rev_induct)
         case Nil thus ?case by auto
@@ -597,15 +575,15 @@ proof -
   def uf2 == "\<lambda>m. compose_distr (denotation_untyped body) (uf1 m)"
   def cp2 == "\<lambda>m. compose_distr (denotation_untyped body) (cp1 m)"
 
-  have eq_body: "obs_eq (G\<union>set locals) (G\<union>set locals) body body"
+  have eq_body: "obs_eq_untyped (G\<union>set locals) (G\<union>set locals) body body"
     apply (rule self_obseq_vars, rule, case_tac "x\<in>G", simp)
-    apply auto using globalsV unfolding locals_def G_def variables_def globals_def by auto
+    apply auto using globalsVbody body_locals unfolding  G_def by auto
 
   have eq2: "eq (G\<union>set locals) cp2 uf2"
     unfolding eq_def uf2_def cp2_def
     apply (rule rseq_rule_denotation)
       close (fact eq1[unfolded eq_def])
-      using eq_body unfolding obs_eq_def rhoare_untyped_rhoare_denotation .
+      using eq_body unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation .
   have untouched2: "untouched co_locals uf2"
   proof (unfold untouched_def uf2_def, auto)
     fix m0 m' m x
@@ -614,7 +592,7 @@ proof -
       using untouched1 unfolding untouched_def by auto
     assume m: "m \<in> support_distr (denotation_untyped body m')"
     have x: "x \<notin> set(vars_untyped body)"
-      using x_co unfolding co_locals_def locals_def variables_def by auto
+      using x_co body_locals unfolding co_locals_def by auto
     have m_m': "memory_lookup_untyped m x = memory_lookup_untyped m' x"
       apply (rule readonly_notin_vars[unfolded hoare_untyped_def, rule_format, where c=body and m=m'])
       using m x by auto
@@ -624,15 +602,14 @@ proof -
   def uf3 == "\<lambda>m. compose_distr (denotation_untyped (Assign x ret)) (uf2 m)"
   def cp3 == "\<lambda>m. compose_distr (denotation_untyped (Assign x ret)) (cp2 m)"
 
-  have eq_assign: "obs_eq (G\<union>set locals) (G\<union>set locals\<union>{x}) (Assign x ret) (Assign x ret)"
+  have eq_assign: "obs_eq_untyped (G\<union>set locals) (G\<union>set locals\<union>{x}) (Assign x ret) (Assign x ret)"
     apply (rule self_obseq_assign)
-    using globalsV unfolding locals_def variables_def G_def globals_def by auto
-
+    using globalsVret ret_locals unfolding G_def by auto
   have eq3: "eq (G\<union>set locals\<union>{x}) cp3 uf3"
     unfolding eq_def uf3_def cp3_def
     apply (rule rseq_rule_denotation)
       close (fact eq2[unfolded eq_def])
-      using eq_assign unfolding obs_eq_def rhoare_untyped_rhoare_denotation .
+      using eq_assign unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation .
   have untouched3: "untouched (co_locals-{x}) uf3"
   proof (unfold untouched_def uf3_def, rule+, auto)
     fix m0 m y
@@ -647,10 +624,6 @@ proof -
   qed
   
   def cp4 == "\<lambda>m. apply_to_distr (restore_locals x m) (cp3 m)"
-  (* TODO: not true. restore_locals restores {\<not>vu_global}-{x}, but uf3 may have changed on locals *)
-  (*have uf3_restore: "uf3 = (\<lambda>m. apply_to_distr (restore_locals x m) (uf3 m))"
-    by later*)
-
 
   have eq_uf3_cp4: "eq V cp4 uf3"
   proof (unfold eq_def, rule rhoare_denotation_post_eq)
@@ -707,8 +680,8 @@ proof -
               denotation_untyped_Assign[THEN ext]
     by auto
 
-  show "obs_eq V V (CallProc x p args) unfolded"
-    unfolding obs_eq_def rhoare_untyped_rhoare_denotation
+  show "obs_eq_untyped V V (CallProc x p args) unfolded"
+    unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation
     unfolding uf3_unfolded[symmetric] cp4_callproc[symmetric]
     using eq_uf3_cp4 unfolding eq_def by simp
 qed 

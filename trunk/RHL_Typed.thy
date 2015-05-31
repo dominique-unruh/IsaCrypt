@@ -14,6 +14,16 @@ definition rhoare :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightar
 lemma rhoare_untyped: "rhoare P c1 c2 Q = rhoare_untyped P (mk_program_untyped c1) (mk_program_untyped c2) Q"
   unfolding rhoare_def rhoare_untyped_def denotation_def ..
 
+
+definition "obs_eq X Y c1 c2 ==
+  rhoare (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)
+         c1 c2
+         (\<lambda>m1 m2. \<forall>x\<in>Y. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)"
+
+lemma obs_eq_obs_eq_untyped: "obs_eq X Y c1 c2 = obs_eq_untyped X Y (Rep_program c1) (Rep_program c2)"
+  unfolding obs_eq_def obs_eq_untyped_def rhoare_def
+  unfolding rhoare_untyped_def denotation_def by auto
+
 subsection {* Concrete syntax *}
 
 syntax "_rhoare" :: "(memory \<Rightarrow> bool) \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> term"
@@ -43,6 +53,44 @@ term "hoare {(x)\<^sub>1 = undefined} skip ~ skip {undefined}"
 *)
 
 subsection {* Rules *}
+
+definition "assign_local_vars_typed locals pargs args
+  = Abs_program (assign_local_vars locals (mk_procargvars_untyped pargs) (mk_procargs_untyped args))"
+
+lemma inline_rule:
+  fixes p::"('a::procargs,'b::prog_type) procedure" and x::"'b variable" and args::"'a procargs"
+    and locals::"variable_untyped list"
+  defines "body == p_body p"
+  defines "ret == p_return p"
+  defines "pargs == p_args p"
+  defines "unfolded == PROGRAM[\<guillemotleft>assign_local_vars_typed locals pargs args\<guillemotright>; 
+                               \<guillemotleft>body\<guillemotright>;
+                               x := \<guillemotleft>ret\<guillemotright>]"
+  shows "obs_eq V V (callproc x p args) unfolded"
+proof -
+  def body' \<equiv> "mk_program_untyped (p_body p)"
+  def pargs' \<equiv> "mk_procargvars_untyped (p_args p)"
+  def ret' \<equiv> "mk_expression_untyped (p_return p)"
+  def p' \<equiv>  "Proc body' pargs' ret'"
+  have p': "mk_procedure_untyped p = p'"
+    unfolding mk_procedure_untyped_def p'_def body'_def pargs'_def ret'_def ..
+  def x' \<equiv> "mk_variable_untyped x"
+  def args' \<equiv> "mk_procargs_untyped args"
+  have callproc: "mk_program_untyped (callproc x p args) == CallProc x' p' args'"
+    unfolding mk_untyped_callproc x'_def[symmetric] p' args'_def[symmetric] .
+  def unfolded' \<equiv> "Seq (Seq (assign_local_vars locals pargs' args') body') (Assign x' ret')"
+  have assign: "mk_program_untyped (assign_local_vars_typed locals pargs args)
+      == assign_local_vars locals pargs' args'"
+      by later
+  have unfolded: "Rep_program unfolded = unfolded'"
+    unfolding unfolded'_def unfolded_def program_def
+    mk_untyped_seq assign body'_def body_def mk_untyped_assign ret_def
+    x'_def[symmetric] ret'_def[symmetric] ..
+  show "obs_eq V V (callproc x p args) unfolded"
+    unfolding obs_eq_obs_eq_untyped callproc unfolded unfolded'_def p'_def 
+    apply (rule inline_rule)
+    by later
+qed
 
 (*
 definition "blockassign (xs::'a::procargs procargvars) (es::'a procargs) == 
