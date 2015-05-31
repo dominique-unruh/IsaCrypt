@@ -22,7 +22,7 @@ session "HOL-EC-Core" = "HOL-EC-Prereqs" +
     Partial IsaCrypt heap
   *}
 (*  options [z3_non_commercial = yes] *)
-  theories Universe Tools Distr Lang_Untyped TypedLambda
+  theories Universe Tools Distr Lang_Untyped TypedLambda TermX_Antiquot
 
 session "HOL-EC-Prereqs-Proofs" = "HOL-EC-Prereqs" +
   theories "~~/src/HOL/Proofs"
