@@ -350,7 +350,9 @@ lemma eu_type_const_expression_untyped: "a \<in> t_domain T \<Longrightarrow> eu
   by (subst Abs_expression_untyped_inverse, auto)
 
 
-lemma 
+lemma well_typed_assign_local_vars:
+  (*assumes   *)
+  assumes "map vu_type vs = map eu_type es"
   shows "well_typed (assign_local_vars locals vs es)"
 proof -
   have wt_nil: "well_typed (assign_local_vars locals [] [])"
@@ -360,11 +362,14 @@ proof -
         fold (\<lambda>(x, e) p. Seq p (Assign x e)) (zip vs es) (assign_local_vars locals [] [])"
     unfolding assign_local_vars_def by auto
   def zip_vs_es == "zip vs es"
-  have "well_typed (assign_local_vars locals vs es)"
+  have vs_es_type: "\<forall>(v,e)\<in>set zip_vs_es. eu_type e = vu_type v"
+    using assms[unfolded list_eq_iff_zip_eq] unfolding zip_vs_es_def zip_map_map by auto
+  show "well_typed (assign_local_vars locals vs es)"
     unfolding nest zip_vs_es_def[symmetric]
+    apply (insert vs_es_type)
     apply (induction zip_vs_es rule:rev_induct) 
-    using wt_nil close auto
-    apply auto
+    using wt_nil by auto
+qed
 
 (* TODO used? *)
 lemma fold_commute: 

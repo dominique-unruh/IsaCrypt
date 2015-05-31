@@ -63,9 +63,18 @@ lemma inline_rule:
   defines "body == p_body p"
   defines "ret == p_return p"
   defines "pargs == p_args p"
+  assumes body_local: "\<And>x. x \<in> set (vars body) \<Longrightarrow> \<not> vu_global x \<Longrightarrow> x \<in> set locals"
+  assumes pargs_local: "set (mk_procargvars_untyped pargs) \<subseteq> set locals"
+  assumes ret_local: "set (e_vars ret) \<subseteq> set locals"
+  assumes locals_local: "\<And>x. x\<in>set locals \<Longrightarrow> \<not>vu_global x"
+  assumes argvars_locals: "\<And>x. x\<in>set(vars_procargs args) \<Longrightarrow> x\<notin>set locals"
+  assumes localsV: "V \<inter> set locals \<subseteq> {mk_variable_untyped x}"
+  assumes globalsVbody: "\<And>x. x\<in>set(vars body) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
+  assumes globalsVret: "\<And>x. x\<in>set(e_vars ret) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
+  assumes argvarsV: "set(vars_procargs args) \<subseteq> V"
   defines "unfolded == PROGRAM[\<guillemotleft>assign_local_vars_typed locals pargs args\<guillemotright>; 
                                \<guillemotleft>body\<guillemotright>;
-                               x := \<guillemotleft>ret\<guillemotright>]"
+                               x := \<guillemotleft>ret\<guillemotright>]"                     
   shows "obs_eq V V (callproc x p args) unfolded"
 proof -
   def body' \<equiv> "mk_program_untyped (p_body p)"
@@ -83,8 +92,8 @@ proof -
       == assign_local_vars locals pargs' args'"
       unfolding assign_local_vars_typed_def pargs'_def args'_def pargs_def 
       apply (subst Abs_program_inverse, auto)
-      
-      by later
+      apply (rule well_typed_assign_local_vars)
+      using Rep_procargs Rep_procargvars procargs_typematch by blast
   have unfolded: "Rep_program unfolded = unfolded'"
     unfolding unfolded'_def unfolded_def program_def
     mk_untyped_seq assign body'_def body_def mk_untyped_assign ret_def
@@ -92,7 +101,16 @@ proof -
   show "obs_eq V V (callproc x p args) unfolded"
     unfolding obs_eq_obs_eq_untyped callproc unfolded unfolded'_def p'_def 
     apply (rule inline_rule)
-    by later
+    unfolding body'_def vars_def[symmetric] pargs'_def ret'_def args'_def
+    using body_local body_def close auto
+    using pargs_local pargs_def close auto
+    using ret_local ret_def close auto
+    using locals_local close auto
+    using argvars_locals unfolding vars_procargs_def close auto
+    using localsV x'_def  close auto
+    using globalsVbody body_def close auto
+    using globalsVret ret_def close auto
+    using argvarsV unfolding vars_procargs_def by auto
 qed
 
 (*
