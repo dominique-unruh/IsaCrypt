@@ -239,6 +239,8 @@ abbreviation "mk_procargs_untyped == Rep_procargs"
 typedef ('a::procargs) procargvars = "procargvars TYPE('a)" using procargvars_inhabited by auto
 abbreviation "mk_procargvars_untyped == Rep_procargvars"
 
+definition "vars_procargs p = [x. e<-mk_procargs_untyped p, x<-eu_vars e]"
+
 
 record ('a::procargs,'b) procedure = 
   p_body :: program
