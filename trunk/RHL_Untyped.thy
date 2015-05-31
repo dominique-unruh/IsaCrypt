@@ -344,7 +344,29 @@ definition "assign_local_vars (locals::variable_untyped list) vs es =
   (fold (\<lambda>x p. Seq p (Assign x (const_expression_untyped (vu_type x) (t_default (vu_type x))))) 
   locals Skip)"
 
+(* TODO move *)
+lemma eu_type_const_expression_untyped: "a \<in> t_domain T \<Longrightarrow> eu_type (const_expression_untyped T a) = T"
+  unfolding const_expression_untyped_def eu_type_def
+  by (subst Abs_expression_untyped_inverse, auto)
 
+
+lemma 
+  shows "well_typed (assign_local_vars locals vs es)"
+proof -
+  have wt_nil: "well_typed (assign_local_vars locals [] [])"
+    apply (induction locals rule:rev_induct)
+    by (auto simp: assign_local_vars_def eu_type_const_expression_untyped)
+  have nest: "assign_local_vars locals vs es = 
+        fold (\<lambda>(x, e) p. Seq p (Assign x e)) (zip vs es) (assign_local_vars locals [] [])"
+    unfolding assign_local_vars_def by auto
+  def zip_vs_es == "zip vs es"
+  have "well_typed (assign_local_vars locals vs es)"
+    unfolding nest zip_vs_es_def[symmetric]
+    apply (induction zip_vs_es rule:rev_induct) 
+    using wt_nil close auto
+    apply auto
+
+(* TODO used? *)
 lemma fold_commute: 
   assumes "\<And>x y. f (g x y) = g' x (f y)"
   shows "f (fold g l a) = fold g' l (f a)"

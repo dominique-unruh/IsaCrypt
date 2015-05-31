@@ -81,6 +81,9 @@ proof -
   def unfolded' \<equiv> "Seq (Seq (assign_local_vars locals pargs' args') body') (Assign x' ret')"
   have assign: "mk_program_untyped (assign_local_vars_typed locals pargs args)
       == assign_local_vars locals pargs' args'"
+      unfolding assign_local_vars_typed_def pargs'_def args'_def pargs_def 
+      apply (subst Abs_program_inverse, auto)
+      
       by later
   have unfolded: "Rep_program unfolded = unfolded'"
     unfolding unfolded'_def unfolded_def program_def
