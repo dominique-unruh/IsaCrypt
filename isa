@@ -1,10 +1,10 @@
 #!/bin/bash
 
-HEAP=HOL-EC-Core
+HEAP=IsaCrypt-Core
 ISADIR=/opt/Isabelle2015
 
 if [ "$1" = "x" ]; then
-    HEAP=HOL-EC-Prereqs
+    HEAP=IsaCrypt-Prereqs
     shift
 fi
 

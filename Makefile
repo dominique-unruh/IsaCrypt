@@ -1,6 +1,6 @@
 HEAPS = /home/unruh/.isabelle/Isabelle2014/heaps/polyml-5.5.2_x86-linux
 BROWSER_INFO = /home/unruh/.isabelle/Isabelle2014/browser_info/Unsorted/EasyCrypt
-HEAP = $(HEAPS)/EasyCrypt
+HEAP = $(HEAPS)/IsaCrypt
 
 def :
 	error
@@ -9,12 +9,12 @@ heap $(HEAP) : ROOT *.thy
 	/opt/Isabelle/bin/isabelle build -b -d . -v EasyCrypt 
 	ls -lh $(BROWSER_INFO)/document.pdf
 
-HOL-EC-Prereqs : ROOT
-	/opt/Isabelle/bin/isabelle build -b -d . -v HOL-EC-Prereqs
+IsaCrypt-Prereqs : ROOT
+	/opt/Isabelle/bin/isabelle build -b -d . -v IsaCrypt-Prereqs
 
 
-HOL-EC-Core : ROOT
-	/opt/Isabelle/bin/isabelle build -b -d . -v HOL-EC-Core
+IsaCrypt-Core : ROOT
+	/opt/Isabelle/bin/isabelle build -b -d . -v IsaCrypt-Core
 
 theories.pdf session.graph: ROOT *.thy *.tex
 	/opt/Isabelle/bin/isabelle build -d . -v EasyCrypt
@@ -23,7 +23,7 @@ theories.pdf session.graph: ROOT *.thy *.tex
 	cp $(BROWSER_INFO)/session.graph .
 
 ROOT: *.thy Makefile
-	perl -i~ -p -e 'if (/theories\s*\(\*EC_THYS\*\)/) { $$_ = "  theories (*EC_THYS*) ".join(" ",grep { $$_ ne "Example" && $$_ ne "Tmp_Print_Sorry" && $$_ ne "Scratch" } map { s/\.thy$$//; $$_ } <*.thy>)."\n" }' ROOT
+	perl -i~ -p -e 'if (/theories\s*\(\*ISACRYPT_THYS\*\)/) { $$_ = "  theories (*ISACRYPT_THYS*) ".join(" ",grep { $$_ ne "Example" && $$_ ne "Tmp_Print_Sorry" && $$_ ne "Scratch" } map { s/\.thy$$//; $$_ } <*.thy>)."\n" }' ROOT
 
 graph: session.graph
 	/opt/Isabelle/bin/isabelle browser session.graph 
