@@ -1,5 +1,5 @@
 theory RHL_Typed
-imports RHL_Untyped Lang_Typed
+imports RHL_Untyped Hoare_Typed
 begin
 
 subsection {* Definition *}
@@ -54,8 +54,28 @@ term "hoare {(x)\<^sub>1 = undefined} skip ~ skip {undefined}"
 
 subsection {* Rules *}
 
+
+(* TODO move *)
+lemma vars_seq [simp]: "vars (seq a b) = vars a @ vars b" SORRY
+lemma vars_assign [simp]: "vars (assign x e) = mk_variable_untyped x # e_vars e" SORRY
+lemma procargvars_add_untyped [simp]: "mk_procargvars_untyped (procargvars_add x a) = mk_variable_untyped x # mk_procargvars_untyped a" SORRY
+lemma procargvars_empty_untyped [simp]: "mk_procargvars_untyped procargvars_empty = []" SORRY
+lemma procargs_add_untyped [simp]: "mk_procargs_untyped (procargs_add x a) = mk_expression_untyped x # mk_procargs_untyped a" SORRY
+lemma procargs_empty_untyped [simp]: "mk_procargs_untyped procargs_empty = []" SORRY
+lemma LVariable_local [simp]: "\<not> vu_global (mk_variable_untyped (LVariable x))"
+  by (simp add: mk_variable_untyped_def)
+lemma vars_procargs_add [simp]: "vars_procargs (procargs_add e a) = e_vars e @ vars_procargs a" SORRY
+lemma vars_procargs_empty [simp]: "vars_procargs procargs_empty = []" SORRY
+lemma mk_variable_untyped_distinct [simp]: "a \<noteq> b \<Longrightarrow> mk_variable_untyped (LVariable a) \<noteq> mk_variable_untyped (LVariable b)"
+  by (simp add: mk_variable_untyped_def)
+
+
 definition "assign_local_vars_typed locals pargs args
   = Abs_program (assign_local_vars locals (mk_procargvars_untyped pargs) (mk_procargs_untyped args))"
+(* TODO: we should use foldr or similar in assign_local_vars for better simplifying *)
+lemma assign_local_vars_typed_simp1 [simp]: 
+  "assign_local_vars_typed locals (procargvars_add p pargs) (procargs_add e args) = undefined"
+oops
 
 lemma inline_rule:
   fixes p::"('a::procargs,'b::prog_type) procedure" and x::"'b variable" and args::"'a procargs"
@@ -132,6 +152,50 @@ lemma callproc_equiv:
                {\<forall>x\<in>V. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x}"
 *)
 
-(* TODO *)
+
+definition "obseq_context X C == (\<forall>c d. obs_eq X X c d \<longrightarrow> obs_eq X X (C c) (C d))"
+definition "local_assertion X P == (\<forall>m1 m2. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) \<longrightarrow> P m1 = P m2)"
+
+lemma obseq_context_seq: 
+  assumes "obseq_context X C1"
+  assumes "obseq_context X C2"
+  shows "obseq_context X (\<lambda>c. seq (C1 c) (C2 c))"
+SORRY
+
+lemma obseq_context_empty: 
+  shows "obseq_context X (\<lambda>c. c)"
+SORRY
+
+
+lemma obseq_context_assign: 
+  assumes "mk_variable_untyped x \<in> X"
+  assumes "set (e_vars e) \<subseteq> X"
+  shows "obseq_context X (\<lambda>c. assign x e)"
+SORRY
+
+lemma hoare_obseq_replace: 
+  assumes "obseq_context X C"
+  assumes "obs_eq X X c d"
+  assumes "local_assertion X Q"
+  assumes "hoare {P &m} \<guillemotleft>C d\<guillemotright> {Q &m}"
+  shows "hoare {P &m} \<guillemotleft>C c\<guillemotright> {Q &m}"
+SORRY "check assumptions carefully!"
+
+
+experiment begin
+
+definition "testproc = LOCAL x y a. proc(a) {x:=a; y:=(1::int); return x+y;}"
+lemma "LOCAL b c. hoare {b=3} b:=b+2; c:=call testproc(b+1) {b=10}"
+  apply (rule hoare_obseq_replace[where c="callproc _ _ _" 
+      and X="mk_variable_untyped ` {LVariable ''b''::int variable, LVariable ''c''::int variable}"])
+  close (auto intro!: obseq_context_seq obseq_context_assign obseq_context_empty)
+  apply (unfold testproc_def, rule inline_rule[where locals="[mk_variable_untyped (LVariable ''x''::int variable), mk_variable_untyped (LVariable ''y''::int variable), mk_variable_untyped (LVariable ''a''::int variable)]"]; simp)
+  close auto
+  close auto
+  close auto
+  close auto
+  unfolding local_assertion_def memory_lookup_def close auto
+
+ unfolding program_def testproc_def apply simp
 
 end
