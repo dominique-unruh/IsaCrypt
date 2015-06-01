@@ -41,8 +41,9 @@ class IsabelleProcess(object):
 
     def start_isabelle_proc(self):
         if self.isabelle_proc!=None: return
-        logic = "HOL-EC-Prereqs"
+        logic = "IsaCrypt-Prereqs"
         cmd = [isabelle_dir+'/bin/isabelle_process', '-o', 'quick_and_dirty=true', logic, '-q']
+        self.log("Running "+" ".join(cmd))
         self.isabelle_proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
         self.communicate_until(run_theory_ml,"*** INITIALIZATION FINISHED ***");
 

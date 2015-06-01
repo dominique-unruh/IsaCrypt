@@ -31,7 +31,7 @@ lemma embedding_inv [simp]: "(embedding x = embedding y) = (x = y)"
   apply (rule someI_ex[of "\<lambda>f. inj f"]) using small_cardinal
   by auto
 
-lemma embedding_inv': "inv embedding (embedding x) = x"
+lemma embedding_inv' [simp]: "inv embedding (embedding x) = x"
   by (metis embedding_inv f_inv_into_f range_eqI)
   
 

@@ -269,7 +269,7 @@ fun while_iter :: "nat \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> d
 definition "init_locals pargs args m = 
   (let args = map (\<lambda>e. eu_fun e m) args;
        m = Abs_memory (Rep_memory m\<lparr> mem_locals := (\<lambda>v. t_default (vu_type v)) \<rparr>) in
-       fold (\<lambda>(v,x) m. memory_update_untyped m v x) (zip pargs args) m)"
+       foldr (\<lambda>(v,x) m. memory_update_untyped m v x) (zip pargs args) m)"
 
 definition 
  "restore_locals x oldmem newmem =

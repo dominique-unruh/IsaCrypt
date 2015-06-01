@@ -213,9 +213,9 @@ lemma procargvars_local: "\<forall>l\<in>procargvars TYPE('a::procargs). \<foral
   unfolding procargvars_def by auto
 lemma procargvars_distinct: "\<forall>vs\<in>procargvars TYPE('a::procargs). distinct vs"
   unfolding procargvars_def by auto
-lemma procargs_typematch: "\<forall>es\<in>procargs TYPE('a::procargs). \<forall>vs\<in>procargvars TYPE('a). 
+(*lemma procargs_typematch: "\<forall>es\<in>procargs TYPE('a::procargs). \<forall>vs\<in>procargvars TYPE('a). 
      map vu_type vs = map eu_type es"
-   unfolding procargvars_def procargs_def by auto
+   unfolding procargvars_def procargs_def by auto*)
 
 instantiation unit :: procargs begin
 definition "procargtypes (_::unit itself) = []"
@@ -237,8 +237,12 @@ end
 
 typedef ('a::procargs) procargs = "procargs TYPE('a)" using procargs_not_empty by auto
 abbreviation "mk_procargs_untyped == Rep_procargs"
+lemma vu_type_procargs [simp]: "map eu_type (mk_procargs_untyped (pargs::'a procargs)) = procargtypes TYPE('a::procargs)"
+  using Rep_procargs unfolding procargs_def by auto
 typedef ('a::procargs) procargvars = "procargvars TYPE('a)" using procargvars_inhabited by auto
 abbreviation "mk_procargvars_untyped == Rep_procargvars"
+lemma vu_type_procargvars [simp]: "map vu_type (mk_procargvars_untyped (pargs::'a procargvars)) = procargtypes TYPE('a::procargs)"
+  using Rep_procargvars unfolding procargvars_def by auto
 
 definition "vars_procargs p = [x. e<-mk_procargs_untyped p, x<-eu_vars e]"
 
@@ -382,8 +386,7 @@ proof -
   show ?thesis
   unfolding callproc_def denotation_def mk_procedure_untyped_def 
   apply (subst Abs_program_inverse, auto)
-  close (metis Rep_procargs Rep_procargvars procargs_typematch)
-  unfolding list_all_iff using Rep_procargvars procargvars_local close auto
+  using Rep_procargvars procargvars_local close blast
   using Rep_procargvars procargvars_distinct by auto
 qed
 

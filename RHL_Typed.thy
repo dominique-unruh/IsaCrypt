@@ -70,12 +70,34 @@ lemma mk_variable_untyped_distinct [simp]: "a \<noteq> b \<Longrightarrow> mk_va
   by (simp add: mk_variable_untyped_def)
 
 
-definition "assign_local_vars_typed locals pargs args
+definition "assign_local_vars_typed locals (pargs::'a::procargs procargvars) (args::'a procargs)
   = Abs_program (assign_local_vars locals (mk_procargvars_untyped pargs) (mk_procargs_untyped args))"
-(* TODO: we should use foldr or similar in assign_local_vars for better simplifying *)
+
 lemma assign_local_vars_typed_simp1 [simp]: 
-  "assign_local_vars_typed locals (procargvars_add p pargs) (procargs_add e args) = undefined"
-oops
+  "assign_local_vars_typed locals (procargvars_add p pargs) (procargs_add e args) = 
+   seq (assign_local_vars_typed locals pargs args) (assign p e)"
+unfolding assign_local_vars_typed_def seq_def assign_def apply simp
+apply (subst Abs_program_inverse, auto intro!: well_typed_assign_local_vars)
+by (subst Abs_program_inverse, auto)
+
+(* TODO move *)
+lemma t_default_Type [simp]: "t_default (Type TYPE('a::prog_type)) = embedding (default::'a)"
+  by (simp add: Abs_type_inverse t_default_def Type_def)
+
+lemma assign_local_vars_typed_simp2 [simp]: 
+  "assign_local_vars_typed (mk_variable_untyped x#locals) procargvars_empty procargs_empty = 
+   seq (assign_local_vars_typed locals procargvars_empty procargs_empty) (assign x (const_expression default))"
+      unfolding assign_local_vars_typed_def seq_def assign_def 
+      apply (tactic "cong_tac @{context} 1", auto)
+      close (subst Abs_program_inverse, auto intro!: well_typed_assign_local_vars)
+      apply (subst Abs_program_inverse, auto simp: const_expression_def const_expression_untyped_def)
+      unfolding mk_expression_untyped_def e_fun_def e_vars_def
+      apply (subst Abs_expression_inverse) apply auto
+      apply (subst Abs_expression_inverse) by auto
+
+lemma assign_local_vars_typed_simp3 [simp]: 
+  "assign_local_vars_typed [] procargvars_empty procargs_empty = Lang_Typed.skip"
+unfolding assign_local_vars_typed_def skip_def by simp
 
 lemma inline_rule:
   fixes p::"('a::procargs,'b::prog_type) procedure" and x::"'b variable" and args::"'a procargs"
@@ -182,20 +204,6 @@ lemma hoare_obseq_replace:
 SORRY "check assumptions carefully!"
 
 
-experiment begin
 
-definition "testproc = LOCAL x y a. proc(a) {x:=a; y:=(1::int); return x+y;}"
-lemma "LOCAL b c. hoare {b=3} b:=b+2; c:=call testproc(b+1) {b=10}"
-  apply (rule hoare_obseq_replace[where c="callproc _ _ _" 
-      and X="mk_variable_untyped ` {LVariable ''b''::int variable, LVariable ''c''::int variable}"])
-  close (auto intro!: obseq_context_seq obseq_context_assign obseq_context_empty)
-  apply (unfold testproc_def, rule inline_rule[where locals="[mk_variable_untyped (LVariable ''x''::int variable), mk_variable_untyped (LVariable ''y''::int variable), mk_variable_untyped (LVariable ''a''::int variable)]"]; simp)
-  close auto
-  close auto
-  close auto
-  close auto
-  unfolding local_assertion_def memory_lookup_def close auto
-
- unfolding program_def testproc_def apply simp
 
 end
