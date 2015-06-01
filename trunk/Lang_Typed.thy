@@ -197,8 +197,8 @@ lemma procargs_not_empty: "procargs (TYPE(_)) \<noteq> {}"
 lemma procargs_len: "\<forall>x\<in>procargs TYPE('a::procargs). length x = procargs_len TYPE('a)"
   unfolding procargs_def by (metis (full_types) length_map procargtypes_len mem_Collect_eq) 
 
-lemma procargs_typematch'': "\<forall>vs\<in>procargs TYPE('a::procargs). map eu_type vs = procargtypes TYPE('a)"
-  unfolding procargs_def by auto
+(*lemma procargs_typematch'': "\<forall>vs\<in>procargs TYPE('a::procargs). map eu_type vs = procargtypes TYPE('a)"
+  unfolding procargs_def by auto*)
 
 definition procargvars :: "'a::procargs itself \<Rightarrow> variable_untyped list set" where
   "procargvars _ = {vs. distinct vs \<and> map vu_type vs = procargtypes TYPE('a) \<and> 

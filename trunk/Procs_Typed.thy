@@ -181,7 +181,6 @@ proof -
      (Proc body (mk_procargvars_untyped args) (mk_expression_untyped retval))
      (ProcTSimple (procedure_type TYPE(('b, 'c) procedure)))"
     apply (subst wt_Proc_iff, auto simp: procedure_type_def)
-    close (metis Abs_procargs_cases Rep_procargvars procargs_typematch procargs_typematch'')
     using assms unfolding subst_prog1_def close auto
     using Rep_procargvars procargvars_local close auto
     using Rep_procargvars procargvars_distinct by auto
