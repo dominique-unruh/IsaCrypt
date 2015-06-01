@@ -184,6 +184,9 @@ definition const_expression_untyped :: "type \<Rightarrow> val \<Rightarrow> exp
 lemma eu_fun_const_expression_untyped: "a \<in> t_domain T \<Longrightarrow> eu_fun (const_expression_untyped T a) = (\<lambda>m. a)"
   unfolding const_expression_untyped_def eu_fun_def
   by (subst Abs_expression_untyped_inverse, auto)
+lemma eu_type_const_expression_untyped: "a \<in> t_domain T \<Longrightarrow> eu_type (const_expression_untyped T a) = T"
+  unfolding const_expression_untyped_def eu_type_def
+  by (subst Abs_expression_untyped_inverse, auto)
 
 lemma eu_fun_footprint: 
   assumes "\<And>v. v\<in>set (eu_vars e) \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"

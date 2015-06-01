@@ -344,14 +344,8 @@ definition "assign_local_vars (locals::variable_untyped list) vs es =
   (fold (\<lambda>x p. Seq p (Assign x (const_expression_untyped (vu_type x) (t_default (vu_type x))))) 
   locals Skip)"
 
-(* TODO move *)
-lemma eu_type_const_expression_untyped: "a \<in> t_domain T \<Longrightarrow> eu_type (const_expression_untyped T a) = T"
-  unfolding const_expression_untyped_def eu_type_def
-  by (subst Abs_expression_untyped_inverse, auto)
-
 
 lemma well_typed_assign_local_vars:
-  (*assumes   *)
   assumes "map vu_type vs = map eu_type es"
   shows "well_typed (assign_local_vars locals vs es)"
 proof -
@@ -371,7 +365,6 @@ proof -
     using wt_nil by auto
 qed
 
-(* TODO used? *)
 lemma fold_commute: 
   assumes "\<And>x y. f (g x y) = g' x (f y)"
   shows "f (fold g l a) = fold g' l (f a)"
@@ -381,12 +374,6 @@ lemma fold_commute:
 lemma fold_o: 
   shows "(fold (\<lambda>x. op o (f x)) l a) m = fold f l (a m)"
   by (induction l arbitrary: a, auto)
-
-lemma zip_end: 
-  assumes "zip as bs = x @ [(a, b)]"
-  obtains as' bs'
-  where "as = as' @ [a]" and "bs = bs' @ [b]" and "x = zip as' bs'"
-SORRY
 
 lemma zip_hd: 
   assumes "(a, b) # x = zip as bs"

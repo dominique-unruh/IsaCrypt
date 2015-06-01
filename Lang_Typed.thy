@@ -53,7 +53,9 @@ lemma memory_lookup_update_same [simp]: "memory_lookup (memory_update m v a) v =
   close (metis embedding_Type mk_variable_untyped_type)
   by (metis embedding_inv f_inv_into_f rangeI)
 lemma memory_lookup_update_same': "var_eq v w \<Longrightarrow> (memory_lookup (memory_update m v a) w == a)"
-  by (smt memory_lookup_def memory_lookup_update_same memory_update_def var_eq_def)
+  unfolding var_eq_def memory_update_def memory_lookup_def 
+  apply simp apply (subst memory_lookup_update_same_untyped)
+  by (simp_all add: embedding_inv' embedding_Type)
 lemma memory_lookup_update_notsame [simp]: 
   "\<not>var_eq v w \<Longrightarrow> memory_lookup (memory_update m v a) w == memory_lookup m w"
   unfolding var_eq_def memory_lookup_def memory_update_def
