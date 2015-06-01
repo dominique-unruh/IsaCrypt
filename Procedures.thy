@@ -165,15 +165,15 @@ where
 | subst_proc_ProcUnpair: "subst_proc k s (ProcUnpair b t) = ProcUnpair b (subst_proc k s t)"
 | subst_proc_ProcAbs: "subst_proc k s (ProcAbs t) = ProcAbs (subst_proc (Suc k) (lift_proc s 0) t)"
 
-(* TODO remove? Try (seems to be handlede automatically by simp anyway) *)
+(* TODO remove? Try (seems to be handled automatically by simp anyway) *)
 lemma subst_eq [simp]: "subst_proc k u (ProcRef k) = u"
   by simp
 
-(* TODO remove? Try (seems to be handlede automatically by simp anyway) *)
+(* TODO remove? Try (seems to be handled automatically by simp anyway) *)
 lemma subst_gt [simp]: "i < j ==> subst_proc i u (ProcRef j) = ProcRef (j - 1)"
   by (simp)
 
-(* TODO remove? Try (seems to be handlede automatically by simp anyway) *)
+(* TODO remove? Try (seems to be handled automatically by simp anyway) *)
 lemma subst_lt [simp]: "j < i ==> subst_proc i u (ProcRef j) = ProcRef j"
   by (simp)
 
