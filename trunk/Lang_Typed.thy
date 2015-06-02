@@ -158,13 +158,13 @@ lemma mk_expression_distr_fun [simp]: "ed_fun (mk_expression_distr (e::'a::prog_
   unfolding mk_expression_distr_def ed_fun_def
   apply (subst Abs_expression_distr_inverse, auto simp: embedding_Type)
   unfolding e_fun_def e_vars_def 
-  using Rep_expression[of e] by (auto, metis)
+  using Rep_expression[of e] by auto
 
 lemma mk_expression_distr_type [simp]: "ed_type (mk_expression_distr (e::'a::prog_type distr expression)) = Type TYPE('a)"
   unfolding mk_expression_distr_def ed_type_def
   apply (subst Abs_expression_distr_inverse, auto simp: embedding_Type)
   unfolding e_fun_def e_vars_def 
-  using Rep_expression[of e] by (auto, metis)
+  using Rep_expression[of e] by auto
 
 
 definition const_expression :: "'a \<Rightarrow> 'a expression" where
@@ -432,6 +432,9 @@ lemma denotation_callproc: "denotation (callproc v proc args) m =
 
 lemma denotation_seq_skip [simp]: "denotation (seq Lang_Typed.skip c) = denotation c"
   unfolding denotation_seq[THEN ext] mk_untyped_skip denotation_def by simp 
+lemma denotation_skip_seq [simp]: "denotation (seq c Lang_Typed.skip) = denotation c"
+  unfolding denotation_seq[THEN ext] mk_untyped_skip denotation_def denotation_untyped_Skip[THEN ext]
+  by simp 
 
 lemmas denotation_simp = denotation_seq denotation_skip denotation_assign denotation_sample denotation_ifte denotation_while denotation_callproc
 

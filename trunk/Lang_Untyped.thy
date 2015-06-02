@@ -60,7 +60,7 @@ proof -
     have v_vs: "fresh_variables_local used (t#ts) = v#vs"
       unfolding vs_def v_def vn_def by (auto simp: Let_def)
     from Cons.IH vs_def have vs_dist: "distinct vs" by auto
-    from Cons.IH vs_def have unused: "\<forall>x\<in>set (v#used). x\<notin>set vs" by auto
+    from Cons.IH vs_def have unused: "\<forall>x\<in>set (v#used). x\<notin>set vs" by blast
     hence vfresh: "v\<notin>set vs" by auto
     from vfresh vs_dist have vvs_dist: "distinct (v#vs)" by auto
     have vunused: "v \<notin> set used"
