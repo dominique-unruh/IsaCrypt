@@ -114,9 +114,7 @@ lemma inline_rule:
   assumes globalsVbody: "\<And>x. x\<in>set(vars body) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
   assumes globalsVret: "\<And>x. x\<in>set(e_vars ret) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
   assumes argvarsV: "set(vars_procargs args) \<subseteq> V"
-  defines "unfolded == PROGRAM[\<guillemotleft>assign_local_vars_typed locals pargs args\<guillemotright>; 
-                               \<guillemotleft>body\<guillemotright>;
-                               x := \<guillemotleft>ret\<guillemotright>]"                     
+  defines "unfolded == seq (seq (assign_local_vars_typed locals pargs args) body) (assign x ret)"
   shows "obs_eq V V (callproc x p args) unfolded"
 proof -
   def body' \<equiv> "mk_program_untyped (p_body p)"
@@ -135,7 +133,7 @@ proof -
       unfolding assign_local_vars_typed_def pargs'_def args'_def pargs_def 
       apply (subst Abs_program_inverse, auto)
       apply (rule well_typed_assign_local_vars)
-      using Rep_procargs Rep_procargvars procargs_typematch by blast
+      by simp
   have unfolded: "Rep_program unfolded = unfolded'"
     unfolding unfolded'_def unfolded_def program_def
     mk_untyped_seq assign body'_def body_def mk_untyped_assign ret_def
@@ -197,8 +195,8 @@ SORRY
 
 lemma hoare_obseq_replace: 
   assumes "obseq_context X C"
-  assumes "obs_eq X X c d"
   assumes "local_assertion X Q"
+  assumes "obs_eq X X c d"
   assumes "hoare {P &m} \<guillemotleft>C d\<guillemotright> {Q &m}"
   shows "hoare {P &m} \<guillemotleft>C c\<guillemotright> {Q &m}"
 SORRY "check assumptions carefully!"

@@ -55,12 +55,25 @@ lemma memory_lookup_update_same [simp]: "memory_lookup (memory_update m v a) v =
 lemma memory_lookup_update_same': "var_eq v w \<Longrightarrow> (memory_lookup (memory_update m v a) w == a)"
   unfolding var_eq_def memory_update_def memory_lookup_def 
   apply simp apply (subst memory_lookup_update_same_untyped)
-  by (simp_all add: embedding_inv' embedding_Type)
+  by (simp_all add: embedding_Type)
 lemma memory_lookup_update_notsame [simp]: 
   "\<not>var_eq v w \<Longrightarrow> memory_lookup (memory_update m v a) w == memory_lookup m w"
   unfolding var_eq_def memory_lookup_def memory_update_def
   by (simp add: memory_lookup_update_notsame_untyped)  
   
+lemma memory_lookup_untyped_mk_variable_untyped [simp]:
+  "memory_lookup_untyped m (mk_variable_untyped x) = embedding (memory_lookup m x)"
+proof -
+  def v == "memory_lookup_untyped m (mk_variable_untyped x)"
+  have v_type: "v \<in> t_domain (Type TYPE('a))"
+    by (metis v_def memory_lookup_untyped_type mk_variable_untyped_type)
+  have v_range: "v \<in> range (embedding::'a\<Rightarrow>val)"
+    by (simp add: embedding_Type_range v_type)
+  have "v = embedding (inv embedding v :: 'a)"
+    by (simp add: v_range f_inv_into_f)
+  thus ?thesis unfolding v_def memory_lookup_def .
+qed
+
 subsection {* Expressions *}
 
 record 'a expression_rep =
@@ -133,8 +146,8 @@ lemma e_fun_bool_untyped: "e_fun (e::bool expression) m = (eu_fun (mk_expression
   by (metis (poly_guards_query) embedding_inv mk_expression_untyped_fun)
 
 lemma mk_expression_untyped_inverse: "mk_expression_typed (mk_expression_untyped e) = e"
-  unfolding mk_expression_typed_def apply (simp add: embedding_inv')
-  by (metis (full_types) Rep_expression_inverse e_fun_def e_vars_def expression_rep.surjective old.unit.exhaust)
+  unfolding mk_expression_typed_def apply simp
+  by (metis (full_types) Rep_expression_inverse e_fun_def e_vars_def expression_rep.surjective unit.exhaust)
 
 definition "mk_expression_distr (e::('a::prog_type)distr expression) =
   Abs_expression_distr \<lparr> edr_fun=\<lambda>m. apply_to_distr embedding (e_fun e m),
