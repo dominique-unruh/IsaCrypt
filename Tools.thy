@@ -1,25 +1,19 @@
 theory Tools 
-imports Pure
+imports HOL
 keywords "close" :: "prf_script" % "proof"
 begin
 
-ML {*
-fun method_error kind pos state =
-  Seq.single (Proof_Display.method_error kind pos (Proof.raw_goal state));
+subsection {* "close" keyword *}
 
-fun close_subgoal (text, (pos, _)) =
-  let val nogoals = (ALLGOALS(K no_tac)) |> SIMPLE_METHOD |> K |> Method.Basic
-      val text = Method.Combinator (Method.no_combinator_info,Method.Then,[text,nogoals])
-      val text = Method.Combinator (Method.no_combinator_info,Method.Select_Goals 1,[text])
-  in
-  Seq.APPEND (Proof.apply text #> Seq.make_results, method_error "" pos)
-  end
-*}
+txt \<open>See @{file "tools.ML"}\<close>
 
-ML {*
-val _ =
-  Outer_Syntax.command @{command_keyword close} "initial refinement step (unstructured)"
-    (Method.parse >> (fn m => (Method.report m; Toplevel.proofs (close_subgoal m))));
-*}
+subsection {* Simplifier modulo equivalence relation *}
+
+txt {* See also @{url "http://stackoverflow.com/q/30573837/2646248"} *}
+
+definition fun_equiv :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a \<Rightarrow> 'a \<Rightarrow> bool" where "fun_equiv f x y == f x = f y"
+lemma fun_equiv_refl: "fun_equiv f x x" by(simp add: fun_equiv_def)
+
+ML_file "tools.ML"
 
 end
