@@ -102,6 +102,9 @@ typedef memory = "{(m::variable_untyped\<Rightarrow>val). (\<forall>v. m v \<in>
 *)
 
 definition "memory_lookup_untyped m v = (if vu_global v then mem_globals (Rep_memory m) v else mem_locals (Rep_memory m) v)"
+lemma memory_lookup_untyped_type: "memory_lookup_untyped m v \<in> t_domain (vu_type v)"
+  unfolding memory_lookup_untyped_def using Rep_memory by auto
+
 definition "memory_update_untyped m v x = 
   (let m = Rep_memory m in
    let varval = if x\<in>t_domain(vu_type v) then x else t_default(vu_type v) in
@@ -115,6 +118,7 @@ lemma memory_lookup_update_same_untyped: "a \<in> t_domain (vu_type v) \<Longrig
   apply (subst Abs_memory_inverse, auto)
   using Rep_memory apply auto
   by (subst Abs_memory_inverse, auto)
+
 
 lemma memory_lookup_update_notsame_untyped: 
   "v \<noteq> w \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) w = memory_lookup_untyped m w"

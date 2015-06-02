@@ -66,12 +66,13 @@ fun simp_memory_updates_tac ctx =
   end
 
 fun last_step_tac_lax i : tactic = 
-  rtac @{thm seq_rule_lastfirst} i
+  (REPEAT (rtac @{thm seq_assoc_rule} i)   THEN   rtac @{thm seq_rule_lastfirst} i)
   ORELSE (rtac @{thm addskip_rule} i   THEN   rtac @{thm seq_rule_lastfirst} i)
 
 (* Produces two goals:
   1. A hoare triple with the last statement
   2. A hoare triple with everything before (possibly skip) 
+  (If the goal is of the form a;(b;c), it will make it into "c" and "a;b")
 
   Fails if the program is only a skip
 *)

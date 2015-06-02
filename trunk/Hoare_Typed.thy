@@ -127,6 +127,12 @@ using assms unfolding hoare_def by auto
 
 section {* Rules for ML tactics *}
 
+lemma seq_assoc_rule: 
+  assumes "hoare {P &m} \<guillemotleft>a\<guillemotright>;\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright> {R &m}"
+  shows "hoare {P &m} \<guillemotleft>a\<guillemotright>;{\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright>} {R &m}"
+using assms denotation_seq_assoc hoare_def by auto
+
+
 (* Ordering of subgoals for certain tactics *)
 lemma seq_rule_lastfirst:
   fixes P Q R c d
