@@ -64,9 +64,15 @@ lemma procargs_add_untyped [simp]: "mk_procargs_untyped (procargs_add x a) = mk_
 lemma procargs_empty_untyped [simp]: "mk_procargs_untyped procargs_empty = []" SORRY
 lemma LVariable_local [simp]: "\<not> vu_global (mk_variable_untyped (LVariable x))"
   by (simp add: mk_variable_untyped_def)
+lemma Variable_global [simp]: "vu_global (mk_variable_untyped (Variable x))"
+  by (simp add: mk_variable_untyped_def)
 lemma vars_procargs_add [simp]: "vars_procargs (procargs_add e a) = e_vars e @ vars_procargs a" SORRY
 lemma vars_procargs_empty [simp]: "vars_procargs procargs_empty = []" SORRY
-lemma mk_variable_untyped_distinct [simp]: "a \<noteq> b \<Longrightarrow> mk_variable_untyped (LVariable a) \<noteq> mk_variable_untyped (LVariable b)"
+lemma mk_variable_untyped_distinct1 [simp]: "a \<noteq> b \<Longrightarrow> mk_variable_untyped (LVariable a) \<noteq> mk_variable_untyped (LVariable b)"
+  by (simp add: mk_variable_untyped_def)
+lemma mk_variable_untyped_distinct2 [simp]: "mk_variable_untyped (LVariable a) \<noteq> mk_variable_untyped (Variable b)"
+  by (simp add: mk_variable_untyped_def)
+lemma mk_variable_untyped_distinct3 [simp]: "mk_variable_untyped (Variable a) \<noteq> mk_variable_untyped (LVariable b)"
   by (simp add: mk_variable_untyped_def)
 
 
@@ -100,7 +106,7 @@ lemma assign_local_vars_typed_simp3 [simp]:
 unfolding assign_local_vars_typed_def skip_def by simp
 
 (* If the number of subgoals change, inline_rule_conditions_tac must be adapted accordingly *)
-lemma inline_rule:
+lemma callproc_rule:
   fixes p::"('a::procargs,'b::prog_type) procedure" and x::"'b variable" and args::"'a procargs"
     and locals::"variable_untyped list"
   defines "body == p_body p"
@@ -141,7 +147,7 @@ proof -
     x'_def[symmetric] ret'_def[symmetric] ..
   show "obs_eq V V (callproc x p args) unfolded"
     unfolding obs_eq_obs_eq_untyped callproc unfolded unfolded'_def p'_def 
-    apply (rule inline_rule)
+    apply (rule callproc_rule)
     unfolding body'_def vars_def[symmetric] pargs'_def ret'_def args'_def
     using body_local body_def close auto
     using pargs_local pargs_def close auto
