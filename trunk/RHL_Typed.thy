@@ -181,7 +181,7 @@ lemma callproc_equiv:
 
 
 definition "obseq_context X C == (\<forall>c d. obs_eq X X c d \<longrightarrow> obs_eq X X (C c) (C d))"
-definition "local_assertion X P == (\<forall>m1 m2. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) \<longrightarrow> P m1 = P m2)"
+definition "assertion_footprint X P == (\<forall>m1 m2. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) \<longrightarrow> P m1 = P m2)"
 
 lemma obseq_context_seq: 
   assumes "obseq_context X C1"
@@ -202,7 +202,7 @@ SORRY
 
 lemma hoare_obseq_replace: 
   assumes "obseq_context X C"
-  assumes "local_assertion X Q"
+  assumes "assertion_footprint X Q"
   assumes "obs_eq X X c d"
   assumes "hoare {P &m} \<guillemotleft>C d\<guillemotright> {Q &m}"
   shows "hoare {P &m} \<guillemotleft>C c\<guillemotright> {Q &m}"
