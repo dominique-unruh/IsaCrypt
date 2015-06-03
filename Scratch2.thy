@@ -84,16 +84,49 @@ fun callproc_rule_tac ctx proc =
   end
 *}
 
+ML {*
+(* TODO use a more efficient data structure than lists for collecting variables *)
+fun program_local_vars' (Const(@{const_name seq},_) $ p1 $ p2) = program_local_vars' p1 @ program_local_vars' p2
+  | program_local_vars' (Const(@{const_name program},_) $ p) = program_local_vars' p
+  | program_local_vars' (Const(@{const_name assign},_) $ v $ e) = var_if_local' v @ expression_local_vars' e
+  | program_local_vars' (Const(@{const_name callproc},_) $ x $ _ $ a) = var_if_local' x @ procargs_local_vars' a
+  | program_local_vars' t = raise TERM("program_local_vars",[t])
+and var_if_local' (v as Const(@{const_name LVariable},_)$_) = [v]
+  | var_if_local' (Const(@{const_name Variable},_)$_) = []
+  | var_if_local' t = raise TERM("program_local_vars",[t])
+and expression_local_vars' (Const(@{const_name apply_expression},_)$e$v) = var_if_local' v @ expression_local_vars' e
+  | expression_local_vars' (Const(@{const_name const_expression},_)$_) = []
+  | expression_local_vars' t = raise TERM("program_local_vars\<rightarrow>expression",[t])
+and procargs_local_vars' (Const(@{const_name procargs_add},_)$e$a) = expression_local_vars' e @ procargs_local_vars' a
+  | procargs_local_vars' (Const(@{const_name procargs_empty},_)) = []
+  | procargs_local_vars' t = raise TERM("program_local_vars\<rightarrow>callproc args",[t])
+
+fun program_local_vars t = program_local_vars' t |> distinct (op aconv)
+fun program_local_vars_untyped t = program_local_vars t |> map (fn v =>
+  @{termx "mk_variable_untyped (?v::?'w::prog_type variable)" where "?'v.1\<Rightarrow>?'w variable"})
+*}
+
+ML {* program_local_vars_untyped @{term "LOCAL b c. PROGRAM[ b:=b+2; c:=call testproc(b+1) ]"} 
+  |> HOLogic.mk_set @{typ variable_untyped}
+  |> (Thm.cterm_of @{context}) *}
+
+(*ML "procedure_local_vars (procedure_get_thms @{context} @{const testproc}) |> HOLogic.mk_list @{typ variable_untyped} |> (Thm.cterm_of @{context})"*)
+
 lemma "LOCAL b c. hoare {b=3} b:=b+2; c:=call testproc(b+1) {c=7}"
   (* TODO: automate this part *)
-  apply (rule hoare_obseq_replace[where c="callproc _ _ _" 
-      and X="{mk_variable_untyped g, mk_variable_untyped (LVariable ''b''::int variable), mk_variable_untyped (LVariable ''c''::int variable)}"])
+(*  apply (rule hoare_obseq_replace[where c="callproc _ _ _" 
+      and X="{mk_variable_untyped (LVariable ''b''::int variable), mk_variable_untyped (LVariable ''c''::int variable)} \<union> {x. vu_global x}"])
   close (auto intro!: obseq_context_seq obseq_context_assign obseq_context_empty) -- "Show that context allows X-rewriting"
-  close (unfold local_assertion_def memory_lookup_def, fastforce) -- "Show that the postcondition is X-local"
+  close (unfold assertion_footprint_def memory_lookup_def, fastforce) -- "Show that the postcondition is X-local" *)
 
-(*  apply (rule callproc_rule[where locals = "[mk_variable_untyped (LVariable ''x''::int variable),                mk_variable_untyped (LVariable ''y''::int variable),                mk_variable_untyped (LVariable ''a''::int variable)]"])
+apply (rule hoare_obseq_replace[where c="callproc _ _ _" and 
+(* This one is program_local_vars_untyped + Collect vu_global *)
+X="{mk_variable_untyped (LVariable ''b''::int variable), mk_variable_untyped (LVariable ''c''::int variable)} \<union> Collect vu_global"])
+  close (auto intro!: obseq_context_seq obseq_context_assign obseq_context_empty) -- "Show that context allows X-rewriting"
+  close (unfold assertion_footprint_def memory_lookup_def, fastforce) -- "Show that the postcondition is X-local" 
+
+(*  apply (rule callproc_rule[where locals = "[mk_variable_untyped (LVariable ''x''::int variable), mk_variable_untyped (LVariable ''y''::int variable), mk_variable_untyped (LVariable ''a''::int variable)]"])
   apply (unfold testproc_body_vars testproc_args testproc_return_vars, auto)[9] *)
-
   apply (tactic "callproc_rule_tac @{context} @{const testproc}")
 
   apply simp
