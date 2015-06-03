@@ -444,7 +444,11 @@ SORRY
 
 lemma compose_distr_apply_to_distr: 
   shows "compose_distr f (apply_to_distr g \<mu>) = compose_distr (f o g) \<mu>"
-by (smt comp_apply compose_distr_assoc compose_distr_cong compose_point_distr_l compose_point_distr_r)
-
+proof -
+  have "compose_distr (\<lambda>c. compose_distr f (point_distr (g c))) \<mu> = compose_distr (f \<circ> g) \<mu>"
+    by (metis (no_types) comp_def compose_point_distr_r)
+  thus ?thesis
+    by (metis compose_distr_assoc compose_point_distr_l)
+qed
 
 end
