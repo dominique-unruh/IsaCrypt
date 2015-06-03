@@ -99,6 +99,7 @@ lemma assign_local_vars_typed_simp3 [simp]:
   "assign_local_vars_typed [] procargvars_empty procargs_empty = Lang_Typed.skip"
 unfolding assign_local_vars_typed_def skip_def by simp
 
+(* If the number of subgoals change, inline_rule_conditions_tac must be adapted accordingly *)
 lemma inline_rule:
   fixes p::"('a::procargs,'b::prog_type) procedure" and x::"'b variable" and args::"'a procargs"
     and locals::"variable_untyped list"
