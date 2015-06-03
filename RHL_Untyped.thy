@@ -388,11 +388,7 @@ apply (metis list.exhaust list.sel(1) list.sel(3) prod.sel(1) zip_Cons_Cons zip_
 apply (induction bs arbitrary: as, auto)
 by (metis Pair_inject list.distinct(2) list.exhaust list.inject zip_Cons_Cons zip_Nil)
 
-(* TODO: rename to callproc_rule *)
-(* TODO: make it into a rule for "Seq c (CallProc x p args)".
-   That way we do not need to cleanup the seq-parentheses after application.
-   assign_local_vars would get another argument to be used instead of skip *)
-lemma inline_rule:
+lemma callproc_rule:
   fixes body pargs ret x args V locals
   defines "p == Proc body pargs ret"
   assumes body_locals: "\<And>x. \<lbrakk> x\<in>set(vars_untyped body); \<not> vu_global x \<rbrakk> \<Longrightarrow> x\<in>set locals"
@@ -549,7 +545,7 @@ proof -
         next case (snoc pa zip_pa) 
           obtain p a where pa:"pa=(p,a)" by (cases pa, auto)
           have zip_pa: "\<forall>pa\<in>set zip_pa. set (eu_vars (snd pa)) \<subseteq> argvars \<and> fst pa \<notin> argvars"
-            by (simp add: snoc.prems)
+            using snoc.prems(2) by auto
           def inner_right' == "fold upd zip_pa inner_right"
           def inner_left' == "fold upd' zip_pa inner_left"
           have inner_m1': "\<And>y. y\<in>argvars \<Longrightarrow> memory_lookup_untyped inner_right' y = memory_lookup_untyped m1 y"
@@ -670,7 +666,7 @@ proof -
   have eq_uf3_cp4: "eq V cp4 uf3"
   proof (unfold eq_def, rule rhoare_denotation_post_eq)
     fix m1 m2 assume m1m2: "\<forall>x\<in>V. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
-    hence m1m2': "\<And>x. x\<in>V \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m2 x" by simp
+    hence m1m2': "\<And>x. x\<in>V \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m2 x" by auto
     def m1' == "memory_lookup_untyped m1"
     def restore == "\<lambda>newmem (y::variable_untyped). 
       if x=y then newmem y else
@@ -692,7 +688,7 @@ proof -
       using G_def close blast
       using localsV close auto
       using G_def close blast
-      by (simp add: co_locals_def')
+      by (metis (full_types, lifting) IntI co_locals_def' mem_Collect_eq member_remove remove_def)
     have supp: "\<And>m. m \<in> support_distr (uf3 m2) \<Longrightarrow> \<forall>x\<in>(co_locals-{x})\<inter>V. memory_lookup_untyped m x = memory_lookup_untyped m1 x"
       apply (rule ballI)
       apply (subst m1m2') close auto
