@@ -133,7 +133,7 @@ qed
 lemma mk_expression_untyped_fun [simp]: "eu_fun (mk_expression_untyped (e::'a::prog_type expression)) m = embedding (e_fun e m)"
   unfolding mk_expression_untyped_def eu_fun_def
   apply (subst Abs_expression_untyped_inverse, auto simp: embedding_Type)
-  by (smt Rep_expression e_fun_def e_vars_def mem_Collect_eq)
+  unfolding e_fun_def e_vars_def using Rep_expression by auto
 lemma mk_expression_untyped_type [simp]: "eu_type (mk_expression_untyped (e::'a::prog_type expression)) = Type TYPE('a)"
   unfolding mk_expression_untyped_def eu_type_def
   apply (subst Abs_expression_untyped_inverse, auto simp: embedding_Type)
