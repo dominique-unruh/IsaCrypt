@@ -36,27 +36,28 @@ fun procedure_get_thms ctx proc = {
 *}
 
 ML {*
-fun NGOALS 0 _ st = all_tac st
-  | NGOALS n tac st = (tac n THEN NGOALS (n-1) tac) st
+(* "NGOALS i n tac" applies tac to goals i+n-1,...,n *)
+fun NGOALS _ 0 _ st = all_tac st
+  | NGOALS i n tac st = (tac (i+n-1) THEN NGOALS i (n-1) tac) st
 
 (* If the number of precondition of "callproc_rule" changed, need to change the number after NGOALS accordingly.
    callproc_rule_conditions_tac is supposed to solve all subgoals of "callproc_rule" except the last one. *) 
-fun callproc_rule_conditions_tac ctx procthms =
-  NGOALS 9 (fn i =>
+fun callproc_rule_conditions_tac ctx procthms i =
+  NGOALS i 9 (fn i =>
   Raw_Simplifier.rewrite_goal_tac ctx
         [#body_vars procthms, #return_vars procthms, #args procthms] i
     THEN (fast_force_tac ctx i))
 
-fun callproc_rule_tac' ctx procthms locals =
+fun callproc_rule_tac' ctx procthms locals i =
   let val callproc_rule = @{thm callproc_rule} |> Drule.instantiate' [] [NONE, SOME (Thm.cterm_of ctx locals)]
       val simp_rules = @{thms assign_local_vars_typed_simp1[THEN eq_reflection] 
                          assign_local_vars_typed_simp2[THEN eq_reflection] assign_local_vars_typed_simp3[THEN eq_reflection]}
-  in rtac callproc_rule 1 
-     THEN callproc_rule_conditions_tac ctx procthms
-     THEN Raw_Simplifier.rewrite_goal_tac ctx [#args procthms] 1
-     THEN Raw_Simplifier.rewrite_goal_tac ctx simp_rules 1
-     THEN Raw_Simplifier.rewrite_goal_tac ctx [#return procthms] 1
-     THEN Raw_Simplifier.rewrite_goal_tac ctx [#body procthms] 1
+  in rtac callproc_rule i
+     THEN callproc_rule_conditions_tac ctx procthms i
+     THEN Raw_Simplifier.rewrite_goal_tac ctx [#args procthms] i
+     THEN Raw_Simplifier.rewrite_goal_tac ctx simp_rules i
+     THEN Raw_Simplifier.rewrite_goal_tac ctx [#return procthms] i
+     THEN Raw_Simplifier.rewrite_goal_tac ctx [#body procthms] i
   end
 
 fun procedure_local_vars procthms =
@@ -76,11 +77,18 @@ fun procedure_local_vars procthms =
       val local_vars = args @ body_vars @ return_vars |> distinct (op aconv)
    in local_vars end
 
-fun callproc_rule_tac ctx proc = 
+(* forbidden := local variables that must not be used *)
+(* TODO: should determine the proc itself *)
+fun callproc_rule_tac ctx proc forbidden i = 
   let val procthms = procedure_get_thms ctx proc
-      val locals = HOLogic.mk_list @{typ variable_untyped} (procedure_local_vars procthms)
+      val locals = procedure_local_vars procthms
+      val _ = if inter (op aconv) locals forbidden = [] then () else
+        raise TERM("callproc_rule_tac: locals and forbidden vars have nonempty intersection",
+                   [locals |> HOLogic.mk_list @{typ variable_untyped},
+                    forbidden |> HOLogic.mk_list @{typ variable_untyped}])
+      val locals = HOLogic.mk_list @{typ variable_untyped} locals
   in
-    callproc_rule_tac' ctx procthms locals
+    callproc_rule_tac' ctx procthms locals i
   end
 *}
 
@@ -112,25 +120,49 @@ ML {* program_local_vars_untyped @{term "LOCAL b c. PROGRAM[ b:=b+2; c:=call tes
 
 (*ML "procedure_local_vars (procedure_get_thms @{context} @{const testproc}) |> HOLogic.mk_list @{typ variable_untyped} |> (Thm.cterm_of @{context})"*)
 
-lemma "LOCAL b c. hoare {b=3} b:=b+2; c:=call testproc(b+1) {c=7}"
-  (* TODO: automate this part *)
-(*  apply (rule hoare_obseq_replace[where c="callproc _ _ _" 
-      and X="{mk_variable_untyped (LVariable ''b''::int variable), mk_variable_untyped (LVariable ''c''::int variable)} \<union> {x. vu_global x}"])
-  close (auto intro!: obseq_context_seq obseq_context_assign obseq_context_empty) -- "Show that context allows X-rewriting"
-  close (unfold assertion_footprint_def memory_lookup_def, fastforce) -- "Show that the postcondition is X-local" *)
+ML {*
+fun ignore _ x = x
 
-apply (rule hoare_obseq_replace[where c="callproc _ _ _" and 
-(* This one is program_local_vars_untyped + Collect vu_global *)
-X="{mk_variable_untyped (LVariable ''b''::int variable), mk_variable_untyped (LVariable ''c''::int variable)} \<union> Collect vu_global"])
-  close (auto intro!: obseq_context_seq obseq_context_assign obseq_context_empty) -- "Show that context allows X-rewriting"
-  close (unfold assertion_footprint_def memory_lookup_def, fastforce) -- "Show that the postcondition is X-local" 
+fun hoare_obseq_replace_tac ctx redex obseq_tac =
+  SUBGOAL (fn (goal,i) =>
+  let 
+      val concl = Logic.strip_assums_concl goal
+      val program = case concl of @{termx "Trueprop (Hoare_Typed.hoare ?P ?c ?Q)"} => ignore (P,Q) c
+                                | t => raise TERM("hoare_obseq_replace_tac: goal not a Hoare triple",[t])
+      val program_locals = program_local_vars_untyped program
+      val program_locals_set = program_locals |> HOLogic.mk_set @{typ variable_untyped} 
+      val obs_eq_vars = @{termx "?program_locals_set \<union> Collect (vu_global::variable_untyped\<Rightarrow>_)"} |> Thm.cterm_of ctx
+      val redex = Thm.cterm_of ctx redex
+      val callproc_rule = @{thm hoare_obseq_replace} |> Drule.instantiate' [] [SOME obs_eq_vars(*X*),NONE,NONE,SOME redex(*c*)] |> @{print}
+  in
+    rtac callproc_rule i
+    THEN SOLVED' (fast_force_tac (ctx addSIs @{thms obseq_context_seq obseq_context_assign obseq_context_empty})) i
+    THEN Raw_Simplifier.rewrite_goal_tac ctx @{thms assertion_footprint_def memory_lookup_def} i
+    THEN SOLVED' (fast_force_tac ctx) i
+    THEN obseq_tac program_locals i
+  end)
+*}
 
+lemma "\<And>z. LOCAL b c x. hoare {b=3} b:=$b+2; c:=call testproc(b+z) {c=6+z}"
+apply (tactic {*
+let val callproc = callproc_rule_tac @{context} @{const testproc}
+    val obseq = hoare_obseq_replace_tac @{context} (Proof_Context.read_term_pattern @{context} "callproc _ _ _") callproc 1
+in
+obseq
+end
+*})
+
+(*
+apply (tactic \<open>hoare_obseq_replace_tac @{context} (Proof_Context.read_term_pattern @{context} "callproc _ _ _") (K (K all_tac)) 1\<close>)
+(*apply (rule hoare_obseq_replace[where c="callproc _ _ _" and 
+  X="{mk_variable_untyped (LVariable ''b''::int variable), mk_variable_untyped (LVariable ''c''::int variable)} \<union> Collect vu_global"])
+  close (auto intro!: obseq_context_seq obseq_context_assign obseq_context_empty) -- "Show that context allows X-rewriting"
+  close (unfold assertion_footprint_def memory_lookup_def, fastforce) -- "Show that the postcondition is X-local"  *)
+
+  apply (tactic "callproc_rule_tac @{context} @{const testproc} [] 1")
 (*  apply (rule callproc_rule[where locals = "[mk_variable_untyped (LVariable ''x''::int variable), mk_variable_untyped (LVariable ''y''::int variable), mk_variable_untyped (LVariable ''a''::int variable)]"])
   apply (unfold testproc_body_vars testproc_args testproc_return_vars, auto)[9] *)
-  apply (tactic "callproc_rule_tac @{context} @{const testproc}")
-
-  apply simp
-
+*)
   by (wp, skip, simp)
 
 end
