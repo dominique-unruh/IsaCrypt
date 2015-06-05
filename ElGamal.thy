@@ -1,5 +1,5 @@
 theory ElGamal
-imports Hoare_Tactics Procs_Typed
+imports Hoare_Tactics Procs_Typed Scratch2
 begin
 
 default_sort prog_type
@@ -95,13 +95,24 @@ definition_by_specification Correctness :: "(_,_,_,_) EncScheme =proc=> (_*unit,
     return succ
   }"
 
+context group begin
+(* TODO: should not be necessary *)
+definition "kg == fst ElGamal"
+schematic_lemma kg_body: "p_body kg = ?b" unfolding kg_def ElGamal_def by simp
+schematic_lemma kg_return: "p_return kg = ?b" unfolding kg_def ElGamal_def by simp
+schematic_lemma kg_args: "p_args kg = ?b" unfolding kg_def ElGamal_def by simp
+schematic_lemma kg_body_vars: "set (vars (p_body kg)) = ?b" unfolding kg_body ElGamal_def by simp
+schematic_lemma kg_return_vars: "set (e_vars (p_return kg)) = ?b" unfolding kg_return ElGamal_def by simp
+end
+
 lemma (in group) correctness0:
-  defines "kg == fst ElGamal" and "enc == fst (snd ElGamal)" and "dec == snd (snd ElGamal)"
-  shows "hoare {True} pksk := call kg();
-                      c := call enc(fst pksk, m);
+  defines (*"kg == fst ElGamal" and*) "enc == fst (snd ElGamal)" and "dec == snd (snd ElGamal)"
+  shows "LOCAL pksk c m m'. 
+         hoare {True} pksk := call kg();
+                      c := call enc(fst pksk, $m);
                       m' := call dec(snd pksk, c)
-               {m' = Some m}"
-unfolding kg_def ElGamal_def apply simp
+               {$m' = Some ($m)}"
+apply (tactic \<open>inline_tac @{context} @{term kg} 1\<close>)
 SORRY (* TODO: prove. First step: inline *)
 
 lemma (in group) correctness:

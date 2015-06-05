@@ -1,10 +1,10 @@
 theory Scratch2
-imports RHL_Typed Hoare_Tactics Lang_Simplifier
+imports RHL_Typed Hoare_Tactics
 begin
 
-abbreviation "g == Variable ''g''"
+abbreviation "globVar == Variable ''globVar''"
 
-definition "testproc = LOCAL x y a. proc(a) {x:=a; y:=(1::int); g:=x; return x+y;}"
+definition "testproc = LOCAL x y a. proc(a) {x:=a; y:=(1::int); globVar:=x; return x+y;}"
 schematic_lemma testproc_body: "p_body testproc = ?b" unfolding testproc_def by simp
 schematic_lemma testproc_return: "p_return testproc = ?b" unfolding testproc_def by simp
 schematic_lemma testproc_args: "p_args testproc = ?b" unfolding testproc_def by simp
@@ -79,8 +79,14 @@ fun procedure_local_vars procthms =
 
 (* forbidden := local variables that must not be used *)
 (* TODO: should determine the proc itself *)
-fun callproc_rule_tac ctx proc forbidden i = 
-  let val procthms = procedure_get_thms ctx proc
+fun callproc_rule_tac ctx forbidden = 
+  SUBGOAL (fn (goal,i) =>
+  let val proc = case Logic.strip_assums_concl goal of
+        Const(@{const_name Trueprop},_) $ 
+             (Const(@{const_name obs_eq'},_) $ _ $ (Const(@{const_name callproc},_)$_$p$_) $ _) => p
+         | t => raise TERM("callproc_rule_tac: goal is not of the form TODO",[t])
+      (*val _ = proc' |> Syntax.pretty_term ctx |> Pretty.writeln*)
+      val procthms = procedure_get_thms ctx proc
       val locals = procedure_local_vars procthms
       val _ = if inter (op aconv) locals forbidden = [] then () else
         raise TERM("callproc_rule_tac: locals and forbidden vars have nonempty intersection",
@@ -89,9 +95,8 @@ fun callproc_rule_tac ctx proc forbidden i =
       val locals = HOLogic.mk_list @{typ variable_untyped} locals
   in
     callproc_rule_tac' ctx procthms locals i
-  end
+  end)
 *}
-
 ML {*
 (* TODO use a more efficient data structure than lists for collecting variables *)
 fun program_local_vars' (Const(@{const_name seq},_) $ p1 $ p2) = program_local_vars' p1 @ program_local_vars' p2
@@ -113,29 +118,23 @@ fun program_local_vars t = program_local_vars' t |> distinct (op aconv)
 fun program_local_vars_untyped t = program_local_vars t |> map (fn v =>
   @{termx "mk_variable_untyped (?v::?'w::prog_type variable)" where "?'v.1\<Rightarrow>?'w variable"})
 *}
-
 ML {* program_local_vars_untyped @{term "LOCAL b c. PROGRAM[ b:=b+2; c:=call testproc(b+1) ]"} 
   |> HOLogic.mk_set @{typ variable_untyped}
   |> (Thm.cterm_of @{context}) *}
-
-(*ML "procedure_local_vars (procedure_get_thms @{context} @{const testproc}) |> HOLogic.mk_list @{typ variable_untyped} |> (Thm.cterm_of @{context})"*)
-
 ML {*
-fun ignore _ x = x
-
 fun hoare_obseq_replace_tac ctx redex obseq_tac =
   SUBGOAL (fn (goal,i) =>
   let 
       val concl = Logic.strip_assums_concl goal
-      val program = case concl of @{termx "Trueprop (Hoare_Typed.hoare ?P ?c ?Q)"} => ignore (P,Q) c
+      val program = case concl of @{termx "Trueprop (Hoare_Typed.hoare ?P ?c ?Q)"} => K c (P,Q)
                                 | t => raise TERM("hoare_obseq_replace_tac: goal not a Hoare triple",[t])
       val program_locals = program_local_vars_untyped program
       val program_locals_set = program_locals |> HOLogic.mk_set @{typ variable_untyped} 
       val obs_eq_vars = @{termx "?program_locals_set \<union> Collect (vu_global::variable_untyped\<Rightarrow>_)"} |> Thm.cterm_of ctx
       val redex = Thm.cterm_of ctx redex
-      val callproc_rule = @{thm hoare_obseq_replace} |> Drule.instantiate' [] [SOME obs_eq_vars(*X*),NONE,NONE,SOME redex(*c*)] |> @{print}
+      val obseq_rule = @{thm hoare_obseq_replace} |> Drule.instantiate' [] [SOME obs_eq_vars(*X*),NONE,NONE,SOME redex(*c*)]
   in
-    rtac callproc_rule i
+    rtac obseq_rule i
     THEN SOLVED' (fast_force_tac (ctx addSIs @{thms obseq_context_seq obseq_context_assign obseq_context_empty})) i
     THEN Raw_Simplifier.rewrite_goal_tac ctx @{thms assertion_footprint_def memory_lookup_def} i
     THEN SOLVED' (fast_force_tac ctx) i
@@ -143,9 +142,35 @@ fun hoare_obseq_replace_tac ctx redex obseq_tac =
   end)
 *}
 
+
+
+ML {*
+fun inline_tac ctx proc =
+  SUBGOAL (fn (goal,i) =>
+    (* TODO: make sure there are no collisions of schematic variables between pattern and
+        (proc and all goals) *)
+    let val idx = maxidx_of_term goal + 1
+        val (aT,bT) = case fastype_of proc of
+              Type(@{type_name procedure_ext},[aT,bT,@{typ unit}]) => (aT,bT)
+              | T => raise TYPE("inline_tac expects procedure of type (_,_)procedure",[T],[proc])
+        val pattern = 
+            @{termx "callproc::_\<Rightarrow>(?'aT::procargs,?'bT::prog_type)procedure\<Rightarrow>_\<Rightarrow>_"} $
+              Var(("_x",idx),@{typx "?'bT variable"}) $
+              proc $
+              Var(("_a",idx),@{typx "?'aT procargs"})
+        val _ = pattern |> Syntax.pretty_term @{context} |> Pretty.writeln
+        (* val pattern = Drule.instantiate' [] [] callproc_pattern *)
+        val callproc = callproc_rule_tac ctx
+        val obseq = hoare_obseq_replace_tac ctx pattern callproc i
+     in obseq end)
+*}
+
 lemma "\<And>z. LOCAL b c x. hoare {b=3} b:=$b+2; c:=call testproc(b+z) {c=6+z}"
+apply (tactic {* inline_tac @{context} @{term "testproc"} 1 *} )
+
+(*
 apply (tactic {*
-let val callproc = callproc_rule_tac @{context} @{const testproc}
+let val callproc = callproc_rule_tac @{context}
     val obseq = hoare_obseq_replace_tac @{context} (Proof_Context.read_term_pattern @{context} "callproc _ _ _") callproc 1
 in
 obseq
@@ -163,6 +188,8 @@ apply (tactic \<open>hoare_obseq_replace_tac @{context} (Proof_Context.read_term
 (*  apply (rule callproc_rule[where locals = "[mk_variable_untyped (LVariable ''x''::int variable), mk_variable_untyped (LVariable ''y''::int variable), mk_variable_untyped (LVariable ''a''::int variable)]"])
   apply (unfold testproc_body_vars testproc_args testproc_return_vars, auto)[9] *)
 *)
+*)
+
   by (wp, skip, simp)
 
 end
