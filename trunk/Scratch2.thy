@@ -16,7 +16,7 @@ ML {*
 fun procedure_get_info suffix ctx proc =
   case proc of 
     Const(procname,_) => Proof_Context.get_thm ctx (procname^suffix) |> Local_Defs.meta_rewrite_rule ctx
-  | _ => raise TERM("procedure_get_info expects a constant",[proc])
+  | _ => (@{print} proc; raise TERM("procedure_get_info expects a constant",[proc]))
 
 val procedure_get_args = procedure_get_info "_args";
 val procedure_get_body = procedure_get_info "_body";
@@ -121,6 +121,30 @@ fun program_local_vars_untyped t = program_local_vars t |> map (fn v =>
 ML {* program_local_vars_untyped @{term "LOCAL b c. PROGRAM[ b:=b+2; c:=call testproc(b+1) ]"} 
   |> HOLogic.mk_set @{typ variable_untyped}
   |> (Thm.cterm_of @{context}) *}
+
+ML {*
+datatype no_return = NoReturn of no_return
+
+fun ASSERT_SUCCESS (tac:tactic) exn st = 
+  let val res = tac st 
+      val _ = case Seq.pull res of NONE => raise exn | _ => ()
+  in res end
+fun ASSERT_SUCCESS' (tac:int->tactic) (exn:term->exn) = 
+  SUBGOAL (fn (goal,i) => fn st =>
+  let val res = tac i st
+      val _ = case Seq.pull res of NONE => raise (exn goal) | _ => ()
+  in res end)
+fun ASSERT_SOLVED' (tac:int->tactic) (exn:term->term list->no_return) = 
+  SUBGOAL (fn (goal,i) => fn st =>
+  let val res = tac i st
+      val solved = Seq.filter (fn st' => Thm.nprems_of st' < Thm.nprems_of st) res
+      val _ = case (Seq.pull res, Seq.pull solved) of
+                (_,SOME _) => ()
+              | (NONE,NONE) => (exn goal []; raise ERROR "impossible")
+              | (SOME(st',_),NONE) => (exn goal (Thm.prems_of st'); raise ERROR "impossible")
+  in res end)
+*}
+
 ML {*
 fun hoare_obseq_replace_tac ctx redex obseq_tac =
   SUBGOAL (fn (goal,i) =>
@@ -134,11 +158,15 @@ fun hoare_obseq_replace_tac ctx redex obseq_tac =
       val redex = Thm.cterm_of ctx redex
       val obseq_rule = @{thm hoare_obseq_replace} |> Drule.instantiate' [] [SOME obs_eq_vars(*X*),NONE,NONE,SOME redex(*c*)]
   in
-    rtac obseq_rule i
-    THEN SOLVED' (fast_force_tac (ctx addSIs @{thms obseq_context_seq obseq_context_assign obseq_context_empty})) i
-    THEN Raw_Simplifier.rewrite_goal_tac ctx @{thms assertion_footprint_def memory_lookup_def} i
-    THEN SOLVED' (fast_force_tac ctx) i
-    THEN obseq_tac program_locals i
+    ASSERT_SUCCESS (rtac obseq_rule i) (THM("Could not apply hoare_obseq_replace",i,[obseq_rule]))
+    THEN ASSERT_SOLVED' (fast_force_tac (ctx addSIs @{thms obseq_context_seq obseq_context_assign obseq_context_sample  obseq_context_ifte obseq_context_while obseq_context_callproc_allglobals}))
+         (fn goal => fn subgoals => raise TERM("Could not solve first subgoal of hoare_obseq_replace",goal::subgoals)) i
+    THEN ASSERT_SUCCESS (Raw_Simplifier.rewrite_goal_tac ctx @{thms assertion_footprint_def memory_lookup_def} i)
+         (ERROR "Internal error: Raw_Simplifier.rewrite_goal_tac failed")
+    THEN ASSERT_SOLVED' (fast_force_tac ctx)
+         (fn goal => fn subgoals => raise TERM("Could not solve second subgoal of hoare_obseq_replace",goal::subgoals)) i
+    THEN ASSERT_SUCCESS (obseq_tac program_locals i)
+         (ERROR "obseq_tac failed")
   end)
 *}
 

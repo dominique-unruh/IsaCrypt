@@ -59,6 +59,13 @@ subsection {* Rules *}
 (* TODO move *)
 lemma vars_seq [simp]: "vars (seq a b) = vars a @ vars b" SORRY
 lemma vars_assign [simp]: "vars (assign x e) = mk_variable_untyped x # e_vars e" SORRY
+lemma vars_sample [simp]: "vars (sample x e) = mk_variable_untyped x # e_vars e" SORRY
+lemma vars_while [simp]: "vars (Lang_Typed.while e p) = e_vars e @ vars p" SORRY
+lemma vars_ifte [simp]: "vars (Lang_Typed.ifte e p1 p2) = e_vars e @ vars p1 @ vars p2" SORRY
+lemma vars_callproc [simp]: "vars (callproc x p a) = mk_variable_untyped x # vars_procargs a 
+    @ [v. v<-vars (p_body p), vu_global v] @ [v. v<-e_vars (p_return p)]" SORRY
+lemma vars_skip [simp]: "vars Lang_Typed.skip = []" SORRY
+
 lemma procargvars_add_untyped [simp]: "mk_procargvars_untyped (procargvars_add x a) = mk_variable_untyped x # mk_procargvars_untyped a" SORRY
 lemma procargvars_empty_untyped [simp]: "mk_procargvars_untyped procargvars_empty = []" SORRY
 lemma procargs_add_untyped [simp]: "mk_procargs_untyped (procargs_add x a) = mk_expression_untyped x # mk_procargs_untyped a" SORRY
@@ -190,6 +197,19 @@ lemma obseq_context_seq:
   shows "obseq_context X (\<lambda>c. seq (C1 c) (C2 c))"
 SORRY
 
+lemma obseq_context_ifte: 
+  assumes "obseq_context X C1"
+  assumes "obseq_context X C2"
+  assumes "set (e_vars e) \<subseteq> X"
+  shows "obseq_context X (\<lambda>c. ifte e (C1 c) (C2 c))"
+SORRY
+
+lemma obseq_context_while: 
+  assumes "obseq_context X C1"
+  assumes "set (e_vars e) \<subseteq> X"
+  shows "obseq_context X (\<lambda>c. Lang_Typed.while e (C1 c))"
+SORRY
+
 lemma obseq_context_empty: 
   shows "obseq_context X (\<lambda>c. c)"
 SORRY
@@ -199,6 +219,19 @@ lemma obseq_context_assign:
   assumes "mk_variable_untyped x \<in> X"
   assumes "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. assign x e)"
+SORRY
+
+lemma obseq_context_sample: 
+  assumes "mk_variable_untyped x \<in> X"
+  assumes "set (e_vars e) \<subseteq> X"
+  shows "obseq_context X (\<lambda>c. sample x e)"
+SORRY
+
+lemma obseq_context_callproc_allglobals: 
+  fixes X' defines "X==X' \<union> Collect vu_global"
+  assumes "mk_variable_untyped x \<in> X"
+  assumes "set (vars_procargs a) \<subseteq> X"
+  shows "obseq_context X (\<lambda>c. callproc x p a)"
 SORRY
 
 lemma hoare_obseq_replace: 

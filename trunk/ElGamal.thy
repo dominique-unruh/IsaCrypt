@@ -95,15 +95,32 @@ definition_by_specification Correctness :: "(_,_,_,_) EncScheme =proc=> (_*unit,
     return succ
   }"
 
+definition "HIDDEN_EQ = op="
+lemma HIDDEN_EQ_refl: "HIDDEN_EQ x x" unfolding HIDDEN_EQ_def ..
+lemma HIDDEN_EQ_procargs:
+  shows "HIDDEN_EQ procargvars_empty procargvars_empty"
+    and "HIDDEN_EQ a b \<Longrightarrow> HIDDEN_EQ (procargvars_add (LVariable x) a) (procargvars_add (LVariable x) b)"
+unfolding HIDDEN_EQ_def by auto
+lemma HIDDEN_EQ_varset:
+  fixes x x'
+  defines "x == mk_variable_untyped (LVariable x')"
+  shows "HIDDEN_EQ {} {}"
+    and "HIDDEN_EQ a b \<Longrightarrow> HIDDEN_EQ (Set.insert x a) (Set.insert x b)"
+unfolding HIDDEN_EQ_def by auto
+
 context group begin
 (* TODO: should not be necessary *)
 definition "kg == fst ElGamal"
-schematic_lemma kg_body: "p_body kg = ?b" unfolding kg_def ElGamal_def by simp
-schematic_lemma kg_return: "p_return kg = ?b" unfolding kg_def ElGamal_def by simp
-schematic_lemma kg_args: "p_args kg = ?b" unfolding kg_def ElGamal_def by simp
-schematic_lemma kg_body_vars: "set (vars (p_body kg)) = ?b" unfolding kg_body ElGamal_def by simp
-schematic_lemma kg_return_vars: "set (e_vars (p_return kg)) = ?b" unfolding kg_return ElGamal_def by simp
+schematic_lemma kg_body: "p_body kg = ?b" unfolding HIDDEN_EQ_def[symmetric] unfolding kg_def ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
+schematic_lemma kg_return: "p_return kg = ?b" unfolding HIDDEN_EQ_def[symmetric] unfolding kg_def ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
+schematic_lemma kg_args: "p_args kg = ?b" unfolding HIDDEN_EQ_def[symmetric] unfolding kg_def ElGamal_def by (simp, rule HIDDEN_EQ_procargs)+
+schematic_lemma kg_body_vars: "set (vars (p_body kg)) = ?b" unfolding HIDDEN_EQ_def[symmetric] unfolding kg_body ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
+schematic_lemma kg_return_vars: "set (e_vars (p_return kg)) = ?b" unfolding HIDDEN_EQ_def[symmetric] unfolding kg_return ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
 end
+
+ML {*
+val testtac = SUBGOAL (fn (goal,i) => raise ERROR("bla"))
+*}
 
 lemma (in group) correctness0:
   defines (*"kg == fst ElGamal" and*) "enc == fst (snd ElGamal)" and "dec == snd (snd ElGamal)"
