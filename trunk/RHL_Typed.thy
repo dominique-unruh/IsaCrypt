@@ -19,6 +19,7 @@ definition "obs_eq X Y c1 c2 ==
   rhoare (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)
          c1 c2
          (\<lambda>m1 m2. \<forall>x\<in>Y. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)"
+definition "obs_eq' X == obs_eq X X"
 
 lemma obs_eq_obs_eq_untyped: "obs_eq X Y c1 c2 = obs_eq_untyped X Y (Rep_program c1) (Rep_program c2)"
   unfolding obs_eq_def obs_eq_untyped_def rhoare_def
@@ -122,7 +123,7 @@ lemma callproc_rule:
   assumes globalsVret: "\<And>x. x\<in>set(e_vars ret) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
   assumes argvarsV: "set(vars_procargs args) \<subseteq> V"
   defines "unfolded == seq (seq (assign_local_vars_typed locals pargs args) body) (assign x ret)"
-  shows "obs_eq V V (callproc x p args) unfolded"
+  shows "obs_eq' V (callproc x p args) unfolded"
 proof -
   def body' \<equiv> "mk_program_untyped (p_body p)"
   def pargs' \<equiv> "mk_procargvars_untyped (p_args p)"
@@ -145,8 +146,8 @@ proof -
     unfolding unfolded'_def unfolded_def program_def
     mk_untyped_seq assign body'_def body_def mk_untyped_assign ret_def
     x'_def[symmetric] ret'_def[symmetric] ..
-  show "obs_eq V V (callproc x p args) unfolded"
-    unfolding obs_eq_obs_eq_untyped callproc unfolded unfolded'_def p'_def 
+  show "obs_eq' V (callproc x p args) unfolded"
+    unfolding obs_eq'_def obs_eq_obs_eq_untyped callproc unfolded unfolded'_def p'_def 
     apply (rule callproc_rule)
     unfolding body'_def vars_def[symmetric] pargs'_def ret'_def args'_def
     using body_local body_def close auto
@@ -203,7 +204,7 @@ SORRY
 lemma hoare_obseq_replace: 
   assumes "obseq_context X C"
   assumes "assertion_footprint X Q"
-  assumes "obs_eq X X c d"
+  assumes "obs_eq' X c d"
   assumes "hoare {P &m} \<guillemotleft>C d\<guillemotright> {Q &m}"
   shows "hoare {P &m} \<guillemotleft>C c\<guillemotright> {Q &m}"
 SORRY "check assumptions carefully!"
