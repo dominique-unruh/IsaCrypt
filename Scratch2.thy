@@ -1,11 +1,17 @@
 theory Scratch2
-imports RHL_Typed Hoare_Tactics
+imports RHL_Typed Hoare_Tactics Procs_Typed
 begin
 
 abbreviation "globVar == Variable ''globVar''"
 
-definition "testproc = LOCAL x y a. proc(a) {x:=a; y:=(1::int); globVar:=x; return x+y;}"
-schematic_lemma testproc_body: "p_body testproc = ?b" unfolding testproc_def by simp
+definition_by_specification' testproc :: "(unit,unit) procedure \<Rightarrow> (unit,unit)procedure"
+where "testproc f = proc(a) {z:=call f(); return ();}"
+apply (tactic "fn st => (@{print} st; Seq.single st)")
+
+definition_by_specification' testproc :: "(unit,unit) procedure \<Rightarrow> (int*unit,int)procedure"
+where "testproc f = LOCAL x y a z. proc(a) {x:=a; z:=call f(); y:=(1::int); globVar:=x; return x+y;}"
+apply (tactic "fn st => (@{print} st; Seq.single st)")
+schematic_lemma testproc_body: "p_body (testproc f) = ?b" unfolding testproc_def by simp
 schematic_lemma testproc_return: "p_return testproc = ?b" unfolding testproc_def by simp
 schematic_lemma testproc_args: "p_args testproc = ?b" unfolding testproc_def by simp
 schematic_lemma testproc_body_vars: "set (vars (p_body testproc)) = ?b" unfolding testproc_body by simp
