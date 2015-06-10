@@ -2,20 +2,40 @@ theory Scratch2
 imports RHL_Typed Hoare_Tactics Procs_Typed
 begin
 
+definition "HIDDEN_EQ = op="
+lemma HIDDEN_EQ_refl: "HIDDEN_EQ x x" unfolding HIDDEN_EQ_def ..
+lemma HIDDEN_EQ_procargs:
+  shows "HIDDEN_EQ procargvars_empty procargvars_empty"
+    and "HIDDEN_EQ a b \<Longrightarrow> HIDDEN_EQ (procargvars_add (LVariable x) a) (procargvars_add (LVariable x) b)"
+unfolding HIDDEN_EQ_def by auto
+lemma HIDDEN_EQ_varset:
+  fixes x x' y y'
+  defines "x == mk_variable_untyped (LVariable x')"
+  defines "y == mk_variable_untyped (Variable y')"
+  shows "HIDDEN_EQ {} {}"
+    and "HIDDEN_EQ a b \<Longrightarrow> HIDDEN_EQ (Set.insert x a) (Set.insert x b)"
+    and "HIDDEN_EQ a b \<Longrightarrow> HIDDEN_EQ (Set.insert y a) (Set.insert y b)"
+unfolding HIDDEN_EQ_def by auto
+
+lemma vars_proc_global_inter_vu_global: 
+  "set (vars_proc_global f) \<inter> Collect vu_global = set (vars_proc_global f)"
+unfolding vars_proc_global_def by auto
+
 abbreviation "globVar == Variable ''globVar''"
 
-definition_by_specification' testproc :: "(unit,unit) procedure \<Rightarrow> (unit,unit)procedure"
-where "testproc f = proc(a) {z:=call f(); return ();}"
-apply (tactic "fn st => (@{print} st; Seq.single st)")
-
-definition_by_specification' testproc :: "(unit,unit) procedure \<Rightarrow> (int*unit,int)procedure"
-where "testproc f = LOCAL x y a z. proc(a) {x:=a; z:=call f(); y:=(1::int); globVar:=x; return x+y;}"
-apply (tactic "fn st => (@{print} st; Seq.single st)")
+definition_by_specification testproc :: "(unit,unit) procedure \<Rightarrow> (int*unit,int)procedure" where
+  "testproc f = LOCAL x y a z. proc(a) {x:=a; z:=call f(); y:=(1::int); globVar:=x; return x+y;}"
 schematic_lemma testproc_body: "p_body (testproc f) = ?b" unfolding testproc_def by simp
-schematic_lemma testproc_return: "p_return testproc = ?b" unfolding testproc_def by simp
-schematic_lemma testproc_args: "p_args testproc = ?b" unfolding testproc_def by simp
-schematic_lemma testproc_body_vars: "set (vars (p_body testproc)) = ?b" unfolding testproc_body by simp
-schematic_lemma testproc_return_vars: "set (e_vars (p_return testproc)) = ?b" unfolding testproc_return by simp
+schematic_lemma testproc_return: "p_return (testproc f) = ?b" unfolding testproc_def by simp
+schematic_lemma testproc_args: "p_args (testproc f) = ?b" unfolding testproc_def by simp
+schematic_lemma testproc_body_vars: "set (vars_proc_global f) = fv \<Longrightarrow> set (vars (p_body (testproc f))) = ?b" unfolding testproc_body by simp
+schematic_lemma testproc_global_vars: assumes "set (vars_proc_global f) = fv" shows "set (vars_proc_global (testproc f)) = ?b" 
+ apply (subst HIDDEN_EQ_def[symmetric])
+ unfolding vars_proc_global_def testproc_body testproc_return 
+ apply (simp add: vars_proc_global_inter_vu_global)
+ unfolding assms
+ by (rule HIDDEN_EQ_varset HIDDEN_EQ_refl[of fv])+
+schematic_lemma testproc_return_vars: "set (e_vars (p_return (testproc f))) = ?b" unfolding testproc_return by simp
 
 
 ML {*
@@ -124,9 +144,7 @@ fun program_local_vars t = program_local_vars' t |> distinct (op aconv)
 fun program_local_vars_untyped t = program_local_vars t |> map (fn v =>
   @{termx "mk_variable_untyped (?v::?'w::prog_type variable)" where "?'v.1\<Rightarrow>?'w variable"})
 *}
-ML {* program_local_vars_untyped @{term "LOCAL b c. PROGRAM[ b:=b+2; c:=call testproc(b+1) ]"} 
-  |> HOLogic.mk_set @{typ variable_untyped}
-  |> (Thm.cterm_of @{context}) *}
+
 
 ML {*
 datatype no_return = NoReturn of no_return
@@ -165,7 +183,7 @@ fun hoare_obseq_replace_tac ctx redex obseq_tac =
       val obseq_rule = @{thm hoare_obseq_replace} |> Drule.instantiate' [] [SOME obs_eq_vars(*X*),NONE,NONE,SOME redex(*c*)]
   in
     ASSERT_SUCCESS (rtac obseq_rule i) (THM("Could not apply hoare_obseq_replace",i,[obseq_rule]))
-    THEN ASSERT_SOLVED' (fast_force_tac (ctx addSIs @{thms obseq_context_seq obseq_context_assign obseq_context_sample  obseq_context_ifte obseq_context_while obseq_context_callproc_allglobals}))
+    THEN ASSERT_SOLVED' (fast_force_tac (ctx addSIs @{thms obseq_context_empty obseq_context_seq obseq_context_assign obseq_context_sample  obseq_context_ifte obseq_context_while obseq_context_callproc_allglobals}))
          (fn goal => fn subgoals => raise TERM("Could not solve first subgoal of hoare_obseq_replace",goal::subgoals)) i
     THEN ASSERT_SUCCESS (Raw_Simplifier.rewrite_goal_tac ctx @{thms assertion_footprint_def memory_lookup_def} i)
          (ERROR "Internal error: Raw_Simplifier.rewrite_goal_tac failed")
@@ -199,8 +217,8 @@ fun inline_tac ctx proc =
      in obseq end)
 *}
 
-lemma "\<And>z. LOCAL b c x. hoare {b=3} b:=$b+2; c:=call testproc(b+z) {c=6+z}"
-apply (tactic {* inline_tac @{context} @{term "testproc"} 1 *} )
+lemma "\<And>z. LOCAL b c x. hoare {b=3} b:=$b+2; c:=call testproc f(b+z) {c=6+z}"
+apply (tactic {* inline_tac @{context} @{term "testproc f"} 1 *})
 
 (*
 apply (tactic {*
@@ -210,19 +228,18 @@ in
 obseq
 end
 *})
+*)
 
-(*
-apply (tactic \<open>hoare_obseq_replace_tac @{context} (Proof_Context.read_term_pattern @{context} "callproc _ _ _") (K (K all_tac)) 1\<close>)
+
+(*apply (tactic \<open>hoare_obseq_replace_tac @{context} (Proof_Context.read_term_pattern @{context} "callproc _ _ _") (K (K all_tac)) 1\<close>)*)
 (*apply (rule hoare_obseq_replace[where c="callproc _ _ _" and 
   X="{mk_variable_untyped (LVariable ''b''::int variable), mk_variable_untyped (LVariable ''c''::int variable)} \<union> Collect vu_global"])
-  close (auto intro!: obseq_context_seq obseq_context_assign obseq_context_empty) -- "Show that context allows X-rewriting"
-  close (unfold assertion_footprint_def memory_lookup_def, fastforce) -- "Show that the postcondition is X-local"  *)
+  close (auto intro!: obseq_context_empty obseq_context_seq obseq_context_assign obseq_context_sample  obseq_context_ifte obseq_context_while obseq_context_callproc_allglobals) -- "Show that context allows X-rewriting"
+  close (unfold assertion_footprint_def memory_lookup_def, fastforce) -- "Show that the postcondition is X-local"   *)
 
-  apply (tactic "callproc_rule_tac @{context} @{const testproc} [] 1")
+  apply (tactic {* callproc_rule_tac @{context} [] 1 *})
 (*  apply (rule callproc_rule[where locals = "[mk_variable_untyped (LVariable ''x''::int variable), mk_variable_untyped (LVariable ''y''::int variable), mk_variable_untyped (LVariable ''a''::int variable)]"])
   apply (unfold testproc_body_vars testproc_args testproc_return_vars, auto)[9] *)
-*)
-*)
 
   by (wp, skip, simp)
 
