@@ -170,6 +170,8 @@ definition "subst_proc1 (p::'a::procedure_functor) q (pr::('b::procargs,'c::prog
 
 locale reduce_procfun begin
 
+lemma proc: shows "p = (p::('a,'b)procedure)" ..
+
 
 lemma apply1:
   fixes p body body0 retval args and arg_proc::"'a::procedure_functor"
@@ -341,7 +343,7 @@ lemma right:
   shows "subst_proc1 (l, r) q0 p"
 SORRY
 
-lemmas safe = apply1 closed seq procref callproc
+lemmas safe = proc apply1 closed seq procref callproc
 lemmas unsafe = left right
 lemmas reduce = safe unsafe
 

@@ -62,8 +62,8 @@ lemma vars_assign [simp]: "vars (assign x e) = mk_variable_untyped x # e_vars e"
 lemma vars_sample [simp]: "vars (sample x e) = mk_variable_untyped x # e_vars e" SORRY
 lemma vars_while [simp]: "vars (Lang_Typed.while e p) = e_vars e @ vars p" SORRY
 lemma vars_ifte [simp]: "vars (Lang_Typed.ifte e p1 p2) = e_vars e @ vars p1 @ vars p2" SORRY
-lemma vars_callproc [simp]: "vars (callproc x p a) = mk_variable_untyped x # vars_procargs a 
-    @ [v. v<-vars (p_body p), vu_global v] @ [v. v<-e_vars (p_return p)]" SORRY
+definition "vars_proc_global p == [v. v<-vars (p_body p), vu_global v] @ [v. v<-e_vars (p_return p), vu_global v]"
+lemma vars_callproc [simp]: "vars (callproc x p a) = mk_variable_untyped x # vars_procargs a @ vars_proc_global p" SORRY
 lemma vars_skip [simp]: "vars Lang_Typed.skip = []" SORRY
 
 lemma procargvars_add_untyped [simp]: "mk_procargvars_untyped (procargvars_add x a) = mk_variable_untyped x # mk_procargvars_untyped a" SORRY

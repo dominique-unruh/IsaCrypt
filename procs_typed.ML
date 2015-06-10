@@ -15,6 +15,27 @@ fun definition_via_specification_tac tac ctx =
   THEN hyp_subst_tac_thin true ctx 1
   THEN tac ctx 1
 
+(* Instantiates all schematic term variables in t with "undefined" *)
+fun instantiate_schematics (t$u) = instantiate_schematics t $ instantiate_schematics u
+  | instantiate_schematics (Abs(x,T,t)) = Abs(x,T,instantiate_schematics t)
+  | instantiate_schematics (t as Free _) = t
+  | instantiate_schematics (t as Bound _) = t
+  | instantiate_schematics (t as Const _) = t
+  | instantiate_schematics (Var(_,T)) = Const(@{const_name undefined},T)
+
+(*
+(* Instantiate all schematic type variables in t. 
+   Leaves term unmodified if it cannot find all sort witnesses *)
+fun instantiate_schematicsT thy t =
+  let val _ = @{print} t
+      val tvars = Term.add_tvars t []
+      val names = map fst tvars |> @{print}
+      val sorts = map snd tvars
+      val witn = Sign.witness_sorts thy [] sorts |> map fst
+      val t' = subst_TVars (ListPair.zip (names,witn)) t |> Sign.cert_term thy (* TODO: catch errors because of missing witnesses *)
+              (* cert_term should never fail. Else: add suitable error checks above *)
+  in t' end
+*)
 
 fun definition_via_specification tac (consts:((binding * typ) * mixfix) list) 
   (props: (Attrib.binding * term) list)(lthy:Proof.context) = 
@@ -34,6 +55,7 @@ let val schema_eqs = consts |> map (fn ((b,T),_) =>
     let val def_thm = thms |> hd |> hd
       val rhs = def_thm |> Thm.legacy_freezeT |> Thm.prop_of |> Logic.strip_assums_hyp |> take (length consts)
                 |> map (snd o Logic.dest_equals)
+                |> map instantiate_schematics (* Else the definition fails if schematic vars were introduced*)
       val (raw_thms,lthy) = fold2 (fn const => fn rhs => fn (raw_thms,lthy) =>
           let val ((bind,_),syn) = const
               val ((_,(_,thm)),lthy) = Local_Theory.define
