@@ -407,5 +407,9 @@ lemmas my_proc_def = my_proc_def0[THEN reduce_procfun.l1]
 
 *)
 
+named_theorems procedure_info
+
+
+
 end
 

@@ -8,6 +8,15 @@ setup {* ML_Antiquotation.inline @{binding termx} TermX_Antiquot.termx_antiquot 
 
 setup {* ML_Antiquotation.inline @{binding typx} TermX_Antiquot.typx_antiquot *}
 
+(* From Isabelle Cookbook *)
+setup {* let val parser = Args.context -- Scan.lift Args.name_inner_syntax
+             fun term_pat (ctxt, str) = str |> Proof_Context.read_term_pattern ctxt
+                                            |> ML_Syntax.print_term
+                                            |> ML_Syntax.atomic
+         in
+           ML_Antiquotation.inline @{binding "term_pat"} (parser >> term_pat)
+         end *}
+
 class test
 locale bla begin
 typedef x = "{1::int}" by auto

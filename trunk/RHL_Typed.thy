@@ -113,14 +113,19 @@ lemma assign_local_vars_typed_simp3 [simp]:
   "assign_local_vars_typed [] procargvars_empty procargs_empty = Lang_Typed.skip"
 unfolding assign_local_vars_typed_def skip_def by simp
 
+(* TODO move *)
+definition "local_vars prog = filter (\<lambda>x. \<not>vu_global x) (vars prog)"
+
+
 (* If the number of subgoals change, inline_rule_conditions_tac must be adapted accordingly *)
 lemma callproc_rule:
   fixes p::"('a::procargs,'b::prog_type) procedure" and x::"'b variable" and args::"'a procargs"
-    and locals::"variable_untyped list"
+    and locals::"variable_untyped list" and V::"variable_untyped set"
   defines "body == p_body p"
   defines "ret == p_return p"
   defines "pargs == p_args p"
-  assumes body_local: "\<And>x. x \<in> set (vars body) \<Longrightarrow> \<not> vu_global x \<Longrightarrow> x \<in> set locals"
+  (*assumes body_local: "\<And>x. x \<in> set (vars body) \<Longrightarrow> \<not> vu_global x \<Longrightarrow> x \<in> set locals"*)
+  assumes body_local: "\<And>x. x \<in> set (local_vars body) \<Longrightarrow> x \<in> set locals"
   assumes pargs_local: "set (mk_procargvars_untyped pargs) \<subseteq> set locals"
   assumes ret_local: "set (e_vars ret) \<subseteq> set locals"
   assumes locals_local: "\<And>x. x\<in>set locals \<Longrightarrow> \<not>vu_global x"
@@ -132,6 +137,9 @@ lemma callproc_rule:
   defines "unfolded == seq (seq (assign_local_vars_typed locals pargs args) body) (assign x ret)"
   shows "obs_eq' V (callproc x p args) unfolded"
 proof -
+(*  have body_local_old: "\<And>x. x \<in> set (vars body) \<Longrightarrow> \<not> vu_global x \<Longrightarrow> x \<in> set locals" 
+    using body_local unfolding local_vars_def by auto*)
+
   def body' \<equiv> "mk_program_untyped (p_body p)"
   def pargs' \<equiv> "mk_procargvars_untyped (p_args p)"
   def ret' \<equiv> "mk_expression_untyped (p_return p)"
@@ -157,7 +165,7 @@ proof -
     unfolding obs_eq'_def obs_eq_obs_eq_untyped callproc unfolded unfolded'_def p'_def 
     apply (rule callproc_rule)
     unfolding body'_def vars_def[symmetric] pargs'_def ret'_def args'_def
-    using body_local body_def close auto
+    using body_local local_vars_def body_def close auto
     using pargs_local pargs_def close auto
     using ret_local ret_def close auto
     using locals_local close auto
@@ -220,6 +228,9 @@ lemma obseq_context_assign:
   assumes "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. assign x e)"
 SORRY
+
+lemma obseq_context_skip: "obseq_context X (\<lambda>c. Lang_Typed.skip)"
+  unfolding obseq_context_def apply auto unfolding obs_eq_def (* TODO use skip rule *) SORRY
 
 lemma obseq_context_sample: 
   assumes "mk_variable_untyped x \<in> X"
