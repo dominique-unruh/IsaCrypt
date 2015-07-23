@@ -15,9 +15,10 @@ lemma HIDDEN_EQ_varset:
   shows "HIDDEN_EQ {} {}"
     and "HIDDEN_EQ a b \<Longrightarrow> HIDDEN_EQ (Set.insert x a) (Set.insert x b)"
     and "HIDDEN_EQ a b \<Longrightarrow> HIDDEN_EQ (Set.insert y a) (Set.insert y b)"
+    and "HIDDEN_EQ a b \<Longrightarrow> HIDDEN_EQ a' b' \<Longrightarrow> HIDDEN_EQ (a \<union> a') (b \<union> b')"
 unfolding HIDDEN_EQ_def by auto
-lemma HIDDEN_EQ_I': "HIDDEN_EQ a b \<Longrightarrow> a==b"
-by (simp add: HIDDEN_EQ_def)
+lemma HIDDEN_EQ_I': "HIDDEN_EQ a b \<Longrightarrow> a==b" by (simp add: HIDDEN_EQ_def)
+lemma HIDDEN_EQ_D': "a==b \<Longrightarrow> HIDDEN_EQ a b" by (simp add: HIDDEN_EQ_def)
 
 lemma vars_proc_global_inter_vu_global: 
   "set (vars_proc_global f) \<inter> Collect vu_global = set (vars_proc_global f)"

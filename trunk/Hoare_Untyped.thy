@@ -22,10 +22,16 @@ lemma seq_rule:
   using assms unfolding hoare_untyped_def by auto
 
 lemma assign_rule:
-  fixes P Q c x
+  fixes P Q x e
   assumes "\<forall>m. P m \<longrightarrow> Q (memory_update_untyped m x (eu_fun e m))"
   shows "hoare_untyped P (Assign x e) Q"
   using assms unfolding hoare_untyped_def by simp
+
+lemma sample_rule: 
+  fixes P Q x e
+  assumes "\<forall>m. P m \<longrightarrow> (\<forall>v\<in>support_distr (ed_fun e m). Q (memory_update_untyped m x v))"
+  shows "hoare_untyped P (Sample x e) Q"
+  using assms unfolding hoare_untyped_def by auto
 
 lemma while_rule:
   fixes P Q I c p
