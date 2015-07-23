@@ -86,26 +86,43 @@ val last_step_tac : int -> tactic =
     | _ => last_step_tac_lax i
     end)
 
-fun wp_if_strict ctx i : tactic =
+type wp_config = {
+  nondeterministic_sample : bool (* Should wp/wp1 also remove "x <- e" statements (treated as nondeterministic assignments) *)
+}
+val wp_config_default = {nondeterministic_sample=false}
+fun wp_config_update_nondeterministic_sample {...} b = {nondeterministic_sample=b}
+
+local
+fun parse conf toks = 
+  ((Scan.lift (Parse.reserved "sample") |-- parse (wp_config_update_nondeterministic_sample conf true)) ||
+  Scan.succeed conf) toks
+in
+val wp_config_parser : wp_config context_parser = parse wp_config_default
+end
+
+fun assert_tac b tac = if b then tac else no_tac
+
+fun wp_if_strict ctx (conf:wp_config) i : tactic =
   rtac @{thm if_case_rule} i
-  THEN wp_total_strict_tac ctx i
-  THEN wp_total_strict_tac ctx i
+  THEN wp_total_strict_tac conf ctx i
+  THEN wp_total_strict_tac conf ctx i
   THEN simp_memory_updates_tac ctx i
 
 (* Removes a hoare-triple goal. If the precondition is ?Q, ?Q will be instantiated with the wp *)
-and wp_total_strict_tac' ctx i : tactic = (REPEAT_DETERM (wp1_tac ctx i)) THEN (rtac @{thm skip_rule_strict} i)
-and wp_total_strict_tac ctx = NGOALS 0 (wp_total_strict_tac' ctx)
+and wp_total_strict_tac' ctx conf i : tactic = (REPEAT_DETERM (wp1_tac ctx conf i)) THEN (rtac @{thm skip_rule_strict} i)
+and wp_total_strict_tac ctx conf = NGOALS 0 (wp_total_strict_tac' conf ctx)
 
-and wp1_tac ctx i st =
+and wp1_tac ctx conf i st =
   (last_step_tac i
   THEN ((rtac @{thm assign_rule_strict} i THEN simp_memory_updates_tac ctx i)
+        ORELSE assert_tac (#nondeterministic_sample conf) (rtac @{thm sample_rule_strict} i THEN simp_memory_updates_tac ctx i)
         ORELSE rtac @{thm skip_rule_strict} i
-        ORELSE wp_if_strict ctx i))
+        ORELSE wp_if_strict ctx conf i))
   st
 
 fun skip_tac i : tactic = Tactic.rtac @{thm skip_rule} i
 
-fun wp_tac ctx i : tactic = REPEAT_DETERM1 (wp1_tac ctx i)
+fun wp_tac ctx conf i : tactic = REPEAT_DETERM1 (wp1_tac ctx conf i)
 
 (*fun wp_total_tac i : tactic = (REPEAT_DETERM (wp1_tac i)) THEN (skip_tac i)*)
 

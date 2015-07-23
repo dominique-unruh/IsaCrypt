@@ -75,15 +75,20 @@ fun procedure_local_vars proc (procthms:procedure_thms) =
   let fun extr1 _ (Const(@{const_name procargvars_empty},_)) = []
         | extr1 args (Const(@{const_name procargvars_add},_) $ v $ rest) = 
             @{termx "mk_variable_untyped (?v::?'w::prog_type variable)" where "?'v.1\<Rightarrow>?'w variable"} :: extr1 args rest
-        | extr1 args t = raise TERM ("While trying to extract local variables from procedure (1), got the expression (2), which contains the unexpected term (3).\n" ^
+        | extr1 args t = raise TERM ("While trying to extract variables from the arguments of procedure (1), got the expression (2), which contains the unexpected term (3).\n" ^
                                      "Probably you need to add additional lemmas to 'procedure_info' to rewrite term (3)",
                                      [proc,args,t])
       fun extr2 _ (Const(@{const_name Orderings.bot_class.bot},_)) = []
         | extr2 fullterm (Const(@{const_name Set.insert},_) $ v $ rest) =
             (case v of Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name LVariable},_)$_) => v :: extr2 fullterm rest
                      | Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name Variable},_)$_) => extr2 fullterm rest (* Drop global vars *)
-                     | _ => raise TERM ("callproc_rule_tac: description of body/return contains unexpected subterm",[proc,fullterm,v]))
-        | extr2 fullterm t = raise TERM ("callproc_rule_tac: description of body/return contains unexpected subterm",[proc,fullterm,t])
+                     | _ => raise TERM ("While trying to extract local variables from body/return-expression of procedure (1), got the expression (2), which contains the unexpected term (3).\n" ^
+                                        "Probably you need to add additional lemmas to 'procedure_info' to rewrite term (3)",
+                                        [proc,fullterm,v]))
+        | extr2 fullterm (Const(@{const_name sup},_) $ a $ b) = extr2 fullterm a @ extr2 fullterm b
+        | extr2 fullterm t = raise TERM ("While trying to extract local variables from body/return-expression of procedure (1), got the expression (2), which contains the unexpected term (3).\n" ^
+                                         "Probably you need to add additional lemmas to 'procedure_info' to rewrite term (3)",
+                                         [proc,fullterm,t])
       val args = Thm.rhs_of (#args procthms) |> Thm.term_of |> (fn t => extr1 t t)
       val body_vars = Thm.rhs_of (#body_local_vars procthms) |> Thm.term_of |> (fn t => extr2 t t)
       val return_vars = Thm.rhs_of (#return_vars procthms) |> Thm.term_of |> (fn t => extr2 t t)

@@ -80,8 +80,8 @@ subsection {* Tactic/method declarations *}
 
 ML_file "hoare_tactics.ML"
 
-method_setup wp = {* Scan.succeed (fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp_tac ctx))) *} "weakest precondition (tail of program: if + assign + skip)"
-method_setup wp1 = {* Scan.succeed (fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp1_tac ctx))) *} "weakest precondition (last statement only)"
+method_setup wp = {* Hoare_Tactics.wp_config_parser >> (fn conf => fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp_tac ctx conf))) *} "weakest precondition (tail of program: if + assign + skip)"
+method_setup wp1 = {* Hoare_Tactics.wp_config_parser >> (fn conf => fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.wp1_tac ctx conf))) *} "weakest precondition (last statement only)"
 method_setup skip = {* Scan.succeed (K (SIMPLE_METHOD' Hoare_Tactics.skip_tac)) *} "skip"
 method_setup seq = {*
  (Scan.lift Parse.int -- 
@@ -90,6 +90,10 @@ method_setup seq = {*
   >> (fn (n,inv) => fn ctx => (SIMPLE_METHOD' (Hoare_Tactics.seq_tac ctx n inv))) *}
   "seq n [invariant: term]"
 
+
+(*lemma "hoare {true} x := 1; y <- e x; x := 1 {y=1}"
+  apply (wp sample)
+*)
 
 (* TODO:
 
