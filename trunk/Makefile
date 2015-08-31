@@ -1,3 +1,6 @@
+# sudo apt-get install idle-python2.7 
+# sudo pip install Pyro4 cricket  
+
 HEAPS = /home/unruh/.isabelle/Isabelle2014/heaps/polyml-5.5.2_x86-linux
 BROWSER_INFO = /home/unruh/.isabelle/Isabelle2014/browser_info/Unsorted/EasyCrypt
 HEAP = $(HEAPS)/IsaCrypt

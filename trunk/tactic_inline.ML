@@ -8,8 +8,27 @@ fun procedure_get_info_tac ctx localfacts partial =
       fun tac i = DETERM ((resolve0_tac allfacts THEN_ALL_NEW tac) i)
                   ORELSE (if partial then SOLVED' (resolve0_tac @{thms reflexive refl}) i else no_tac)
   in
+  Raw_Simplifier.rewrite_goal_tac ctx localfacts 1
+  THEN
   tac 1
   end
+
+(*
+fun procedure_get_info_tac ctx localfacts partial : tactic =
+  let val facts = Proof_Context.get_fact ctx (Facts.named "procedure_info")
+      val simpset = put_simpset HOL_basic_ss ctx 
+                    addsimps localfacts
+                    addsimps facts
+      fun remove_HIDDEN_EQ_tac i = 
+        ((fn i => resolve0_tac @{thms HIDDEN_EQ_ok} i THEN print_tac ctx "XXX") THEN_ALL_NEW remove_HIDDEN_EQ_tac) i
+      val remove_HIDDEN_EQ_tac_partial = rtac @{thm HIDDEN_EQ_refl}
+  in
+  rtac @{thm HIDDEN_EQ_I'} 1
+  THEN simp_tac simpset 1
+  THEN print_tac ctx "final"
+  THEN (if partial then SOLVED' remove_HIDDEN_EQ_tac_partial 1 else SOLVED' remove_HIDDEN_EQ_tac 1)
+  end
+*)
 
 (* partial=false: enforce that the resulting theorem does not refer to info of subprocedures 
       (e.g., not "set (vars_proc_global (f g)) = {x} \union (set (vars_proc_global g))") *)
@@ -60,15 +79,15 @@ fun callproc_rule_tac' ctx (procthms:procedure_thms) locals i =
                          assign_local_vars_typed_simp2[THEN eq_reflection] assign_local_vars_typed_simp3[THEN eq_reflection]}
   in rtac callproc_rule i
      THEN callproc_rule_conditions_tac ctx procthms i
-     THEN print_tac ctx "conditions done"
+(*     THEN print_tac ctx "conditions done"*)
      THEN Raw_Simplifier.rewrite_goal_tac ctx [#args procthms] i
-     THEN print_tac ctx "step1"
+(*     THEN print_tac ctx "step1"*)
      THEN Raw_Simplifier.rewrite_goal_tac ctx simp_rules i
-     THEN print_tac ctx "step2"
+(*     THEN print_tac ctx "step2"*)
      THEN Raw_Simplifier.rewrite_goal_tac ctx [#return procthms] i
-     THEN print_tac ctx "step3"
+(*     THEN print_tac ctx "step3"*)
      THEN Raw_Simplifier.rewrite_goal_tac ctx [#body procthms] i
-     THEN print_tac ctx "step4"
+(*     THEN print_tac ctx "step4"*)
   end
 
 fun procedure_local_vars proc (procthms:procedure_thms) =
@@ -101,6 +120,7 @@ fun procedure_local_vars proc (procthms:procedure_thms) =
 
    It is roughly equivalent to: 
      ML_prf {* val procthms = Tactic_Inline.procedure_get_thms @{context} facts true proc *} (* Obtain info about proc *)
+                                                                                             (* Try "false" instead of "true" to see where it gets stuck *)
      ML_prf {* val locals = Tactic_Inline.procedure_local_vars proc procthms |> HOLogic.mk_list @{typ variable_untyped} *} (* Obtain local variables of proc *)
      apply (tactic \<open>Tactic_Inline.callproc_rule_tac' @{context} procthms locals 1\<close>)
    Here "locals:term" is a HOL-list of the local variables occuring in the procedure proc
