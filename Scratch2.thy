@@ -2,7 +2,7 @@ theory Scratch2
 imports RHL_Typed Hoare_Tactics Procs_Typed Tactic_Inline
 begin
 
-definition "HIDDEN_EQ = op="
+(*definition "HIDDEN_EQ = op="*)
 lemma HIDDEN_EQ_refl: "HIDDEN_EQ x x" unfolding HIDDEN_EQ_def ..
 lemma HIDDEN_EQ_procargs:
   shows "HIDDEN_EQ procargvars_empty procargvars_empty"
