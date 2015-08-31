@@ -46,6 +46,13 @@ type_synonym ('pk,'sk,'m,'c) EncScheme =
   ('pk*'m*unit, 'c) procedure *
   ('sk*'c*unit, 'm option) procedure"
 
+(* TODO: use this *)
+(*record ('pk,'sk,'m,'c) EncScheme2 = 
+ keygen :: "(unit,'pk*'sk) procedure"
+ enc :: "('pk*'m*unit, 'c) procedure"
+ dec :: "('sk*'c*unit, 'm option) procedure"*)
+
+
 (* (choose,guess) *)
 type_synonym ('pk,'sk,'m,'c) CPA_Adv = 
  "('pk*unit,'m*'m) procedure *
@@ -111,6 +118,7 @@ definition_by_specification Correctness :: "(_,_,_,_) EncScheme =proc=> (_*unit,
 
 lemma h1: "scheme = (fst scheme, fst (snd scheme), snd (snd scheme))" by auto
 
+(* TODO: create those automatically *)
 schematic_lemma Correctness_body [procedure_info]: "p_body (procfun_apply Correctness scheme) == ?b" 
   apply (subst h1) apply (rule HIDDEN_EQ_I') unfolding Correctness_def apply simp by (fact HIDDEN_EQ_refl)
 schematic_lemma Correctness_return [procedure_info]: "p_return (procfun_apply Correctness scheme) == ?b" 
@@ -172,15 +180,12 @@ end
 lemma (in group) correctness:
   shows "LOCAL succ0. hoare {True} succ0 := call (procfun_apply Correctness ElGamal)(m) {succ0}"
 apply (inline "procfun_apply Correctness ElGamal")
-apply wp
-apply (inline "fst ElGamal")       
+apply (inline "fst ElGamal")
 apply (inline "snd (snd ElGamal)")
 apply (inline "fst (snd ElGamal)")
 apply (wp sample) apply skip apply auto
 unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat]) 
 apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
-SORRY (* TODO: prove. First step: inline *)
-
 
 lemma (in group) correctness0:
   defines "kg == fst ElGamal" and "enc == fst (snd ElGamal)" and "dec == snd (snd ElGamal)"
@@ -189,19 +194,11 @@ lemma (in group) correctness0:
                       c0 := call enc(fst pksk, $m);
                       m' := call dec(snd pksk, c0)
                {$m' = Some ($m)}"
-unfolding kg_def  apply (inline "fst ElGamal")       
-unfolding dec_def apply (inline "snd (snd ElGamal)")
-unfolding enc_def apply (inline "fst (snd ElGamal)")
+using kg_def apply (inline "kg")
+using dec_def apply (inline "dec")
+using enc_def apply (inline "enc")
 apply (wp sample) apply skip apply auto
 unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat]) 
 apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
-
-(*
-lemma (in group) correctness:
-  shows "LOCAL succ0. hoare {True} succ0 := call (procfun_apply Correctness ElGamal)(m) {succ}"
-apply (inline "procfun_apply Correctness ElGamal")
-unfolding ElGamal_def Correctness_def
-SORRY (* TODO: prove. First step: inline *)
-*)
 
 end
