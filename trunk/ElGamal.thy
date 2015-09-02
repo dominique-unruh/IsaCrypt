@@ -41,10 +41,66 @@ definition_by_specification (in group) DDH1 :: "'G DDH_Adv =proc=> 'G DDH_Game" 
     }"
 
 (* (keygen,enc,dec) *)
-type_synonym ('pk,'sk,'m,'c) EncScheme = 
+type_synonym ('pk,'sk,'m,'c) EncScheme_rep = 
  "(unit,'pk*'sk) procedure *
   ('pk*'m*unit, 'c) procedure *
   ('sk*'c*unit, 'm option) procedure"
+
+typedef ('pk,'sk,'m,'c) EncScheme = "UNIV::('pk,'sk,'m,'c) EncScheme_rep set" ..
+
+instantiation EncScheme :: (prog_type,prog_type,prog_type,prog_type)procedure_functor begin
+definition "procedure_functor_type (_::('a,'b,'c,'d) EncScheme itself) == procedure_functor_type (TYPE(('a,'b,'c,'d) EncScheme_rep))"
+definition "procedure_functor_mk_untyped x == procedure_functor_mk_untyped (Rep_EncScheme x)"
+definition "procedure_functor_mk_typed' p == Abs_EncScheme (procedure_functor_mk_typed' p)"
+instance 
+  apply intro_classes
+  close (unfold procedure_functor_mk_untyped_EncScheme_def procedure_functor_type_EncScheme_def, fact procedure_functor_welltyped)
+  close (unfold procedure_functor_mk_untyped_EncScheme_def, fact procedure_functor_beta_reduced)
+  close (unfold procedure_functor_mk_untyped_EncScheme_def procedure_functor_mk_typed'_EncScheme_def procedure_functor_type_EncScheme_def Abs_EncScheme_inverse[OF Set.UNIV_I],
+         fact procedure_functor_mk_typed_inverse')
+  apply (unfold procedure_functor_mk_typed'_EncScheme_def procedure_functor_mk_untyped_EncScheme_def Rep_EncScheme_inverse procedure_functor_mk_untyped_inverse')
+  by (fact refl)
+end
+
+definition Rep_EncScheme' :: "('pk,'sk,'m,'c) EncScheme =proc=> ('pk,'sk,'m,'c) EncScheme_rep" where
+  "Rep_EncScheme' = Abs_procfun (ProcAbs (ProcRef 0))"
+lemma "procfun_apply Rep_EncScheme' = Rep_EncScheme"
+  apply (rule ext)
+  unfolding Rep_EncScheme'_def procfun_apply_def procedure_functor_mk_untyped_EncScheme_def
+            procedure_functor_mk_untyped_procfun_def apply_procedure_def
+  apply (subst Abs_procfun_inverse; simp?)
+   apply (auto simp: wt_ProcAbs_iff wt_ProcRef_iff)
+   unfolding procedure_functor_type_EncScheme_def
+   close simp
+  apply (subst beta_reduce_ProcApplAbs)
+    close (auto simp: wt_ProcRef_iff)
+   close (fact procedure_functor_welltyped)
+  apply simp
+  apply (subst beta_reduce_procedure_functor_mk_untyped)
+  by (fact procedure_functor_mk_untyped_inverse)
+
+definition Abs_EncScheme' :: "('pk,'sk,'m,'c) EncScheme_rep =proc=> ('pk,'sk,'m,'c) EncScheme" where
+  "Abs_EncScheme' = Abs_procfun (ProcAbs (ProcRef 0))"
+lemma "procfun_apply Abs_EncScheme' = Abs_EncScheme"
+  apply (rule ext)
+  unfolding Abs_EncScheme'_def procfun_apply_def procedure_functor_mk_untyped_EncScheme_def
+            procedure_functor_mk_untyped_procfun_def apply_procedure_def
+  apply (subst Abs_procfun_inverse; simp?)
+   apply (auto simp: wt_ProcAbs_iff wt_ProcRef_iff)
+   unfolding procedure_functor_type_EncScheme_def
+   close simp
+  apply (subst beta_reduce_ProcApplAbs)
+    close (auto simp: wt_ProcRef_iff)
+   close (fact procedure_functor_welltyped)
+  apply simp
+  apply (subst beta_reduce_procedure_functor_mk_untyped)
+  by (simp add: beta_reduce_procedure_functor_mk_untyped procedure_functor_mk_typed'_EncScheme_def procedure_functor_mk_typed_def procedure_functor_mk_untyped_inverse')
+
+(* TODO: make these into procfuns *)
+definition "keygen module = (case Rep_EncScheme module of (xkeygen,xenc,xdec) \<Rightarrow> xkeygen)"
+definition "enc module = (case Rep_EncScheme module of (xkeygen,xenc,xdec) \<Rightarrow> xenc)"
+definition "dec module = (case Rep_EncScheme module of (xkeygen,xenc,xdec) \<Rightarrow> xdec)"
+definition "EncScheme x y z = Abs_EncScheme(x,y,z)"
 
 (* TODO: use this *)
 (*record ('pk,'sk,'m,'c) EncScheme2 = 
@@ -52,6 +108,45 @@ type_synonym ('pk,'sk,'m,'c) EncScheme =
  enc :: "('pk*'m*unit, 'c) procedure"
  dec :: "('sk*'c*unit, 'm option) procedure"*)
 
+definition "K = (%x y. x)"
+definition "S = (%x y z. (x z (y z)))"
+
+definition "X = (%x. x S K)"
+definition "X' = (%x. x S K)"
+
+lemma "op \<circ> = S (S (K S) (S (K K) (S (K S) K))) (K (S (S (K S) K) (K id)))"
+apply (rule ext)+ unfolding o_def id_def K_def S_def by simp
+
+
+definition procfun_K :: "'a::procedure_functor =proc=> 'b::procedure_functor =proc=> 'a::procedure_functor" where
+  "procfun_K = Abs_procfun (ProcAbs (ProcAbs (ProcRef 1)))"
+lemma procfun_K: "procfun_K <$> x <$> y = x"
+  unfolding procfun_K_def procfun_apply_def apply_procedure_def
+  apply (subst procedure_functor_mk_typed_inverse)
+   apply (subst beta_reduce_preserves_well_typed; simp)
+   apply (subst wt_ProcAppl_iff, rule exI; auto)
+
+by auto
+
+definition procfun_S :: "('c::procedure_functor =proc=> 'd::procedure_functor =proc=> 'e::procedure_functor) =proc=> ('c =proc=> 'd) =proc=> 'c =proc=> 'e" where
+  "procfun_S = Abs_procfun (ProcAbs (ProcAbs (ProcAbs (ProcAppl (ProcAppl (ProcRef 2) (ProcRef 0)) (ProcAppl (ProcRef 1) (ProcRef 0))))))"
+lemma procfun_S: "procfun_S <$> x <$> y <$> z = (x <$> z) <$> (y <$> z)"
+  by auto
+
+definition procfun_id :: "'a::procedure_functor =proc=> 'a" where
+  "procfun_id = procfun_S <$> procfun_K <$> (procfun_K :: 'a =proc=> 'a =proc=> 'a)"
+lemma procfun_id: "procfun_id <$> x = x"
+  unfolding procfun_id_def procfun_S procfun_K ..
+
+definition procfun_compose :: "('b::procedure_functor =proc=> 'c::procedure_functor)
+                       =proc=> ('a::procedure_functor =proc=> 'b)
+                       =proc=> ('a =proc=> 'c)" where
+  "procfun_compose = procfun_S <$> (procfun_S <$> (procfun_K <$> procfun_S) <$> (procfun_S <$> 
+   (procfun_K <$> procfun_K) <$> (procfun_S <$> (procfun_K <$> procfun_S) <$> procfun_K))) <$>
+   (procfun_K <$> (procfun_S <$> (procfun_S <$> (procfun_K <$> procfun_S) <$> procfun_K) <$>
+   (procfun_K <$> procfun_id)))"
+lemma procfun_compose: "(procfun_compose <$> x <$> y) <$> z = x <$> (y <$> z)"
+  unfolding procfun_compose_def procfun_S procfun_id procfun_K ..
 
 (* (choose,guess) *)
 type_synonym ('pk,'sk,'m,'c) CPA_Adv = 
@@ -60,18 +155,18 @@ type_synonym ('pk,'sk,'m,'c) CPA_Adv =
 
 type_synonym CPA_Game = "(unit,bool)procedure"
 
-definition_by_specification CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) CPA_Adv =proc=> CPA_Game" where
- "procfun_apply CPA_main ((kg,enc,dec),(Achoose,Aguess)) = 
+definition_by_specification CPA_main :: "('pk,'sk,'m,'c) EncScheme_rep * ('pk,'sk,'m,'c) CPA_Adv =proc=> CPA_Game" where
+ "procfun_apply CPA_main (E,(Achoose,Aguess)) = 
   LOCAL pk sk m0 m1 b c b' tmp1 tmp2.
   proc () { 
-    tmp1 := call kg();
+    tmp1 := call fst E();
     pk := fst tmp1;
     sk := snd tmp1;
     tmp2 := call Achoose(pk);
     m0 := fst tmp2;
     m1 := snd tmp2;
     b <- uniform UNIV;
-    c := call enc(pk, if b then m1 else m0);
+    c := call (fst (snd E))(pk, if b then m1 else m0);
     b' := call Aguess(c);
     return b'=b
   }"
