@@ -1170,6 +1170,81 @@ proof -
     by (rule beta_reduceI[rotated])
 qed
 
+lemma beta_reduce_ProcRef:
+  shows "beta_reduce (ProcRef i) = ProcRef i"
+apply (rule beta_reduceI)
+using beta_reduce_proofs.beta_reduce_cases(1) beta_reduced_def by auto
+
+
+lemma beta_reduce_ProcPair:
+  assumes "well_typed_proc'' E1 p1 T1" and "well_typed_proc'' E2 p2 T2"
+  shows "beta_reduce (ProcPair p1 p2) = ProcPair (beta_reduce p1) (beta_reduce p2)"
+proof -
+  have "beta_reduce_proc\<^sup>*\<^sup>* p1 (beta_reduce p1)" and "beta_reduce_proc\<^sup>*\<^sup>* p2 (beta_reduce p2)" 
+    apply (rule beta_reduce_def2) apply (rule well_typed_beta_reduce) using assms apply auto
+    apply (rule beta_reduce_def2) apply (rule well_typed_beta_reduce) using assms by auto
+  hence "beta_reduce_proc\<^sup>*\<^sup>* (ProcPair p1 p2) (ProcPair (beta_reduce p1) (beta_reduce p2))"
+    by (metis beta_reduce_proofs.rtrancl_beta_ProcPair1 beta_reduce_proofs.rtrancl_beta_ProcPair2 rtranclp_trans)
+  moreover have redp1: "beta_reduced (beta_reduce p1)" and redp2: "beta_reduced (beta_reduce p2)" 
+    apply (rule beta_reduce_def2) apply (rule well_typed_beta_reduce) using assms apply auto
+    apply (rule beta_reduce_def2) apply (rule well_typed_beta_reduce) using assms by auto
+  have "beta_reduced (ProcPair (beta_reduce p1) (beta_reduce p2))"
+    by (metis redp1 redp2 beta_reduced_def brc_ProcPair)
+  ultimately show ?thesis
+    by (rule beta_reduceI[rotated])
+qed
+
+lemma beta_reduce_ProcApplAbs:
+  assumes wt_p: "well_typed_proc'' (T#E) p T'"
+  assumes wt_q: "well_typed_proc'' E q T"
+  shows "beta_reduce (ProcAppl (ProcAbs p) q) = beta_reduce (subst_proc 0 q p)"
+proof -
+  have wt_sp: "well_typed_proc'' E (subst_proc 0 q p) T'"
+    apply (rule well_typed_subst_proc(2)[where F="[]", simplified])
+    by (fact wt_q, fact wt_p)
+
+  have "beta_reduce_proc\<^sup>*\<^sup>* (ProcAppl (ProcAbs p) q) (subst_proc 0 q p)"
+    by (rule r_into_rtranclp, rule br_beta)
+  moreover have "beta_reduce_proc\<^sup>*\<^sup>* (subst_proc 0 q p) (beta_reduce (subst_proc 0 q p))"
+    by (rule beta_reduce_def2, rule well_typed_beta_reduce, fact wt_sp)
+  ultimately have "beta_reduce_proc\<^sup>*\<^sup>* (ProcAppl (ProcAbs p) q) (beta_reduce (subst_proc 0 q p))" by auto
+
+  thus ?thesis
+    apply (rule beta_reduceI[rotated])
+    by (fact beta_reduced_beta_reduce)
+qed
+ 
+lemma beta_reduce_ProcUnpair1:
+  assumes "well_typed_proc'' Ea a Ta"
+  shows "beta_reduce (ProcUnpair True (ProcPair a b)) = beta_reduce a"
+proof -
+  have "beta_reduce_proc\<^sup>*\<^sup>* (ProcUnpair True (ProcPair a b)) a"
+    by (rule r_into_rtranclp, rule br_ProcUnpairPair[where b=True, simplified])
+  moreover have "beta_reduce_proc\<^sup>*\<^sup>* a (beta_reduce a)"
+    by (rule beta_reduce_def2, rule well_typed_beta_reduce, fact assms)
+  ultimately have "beta_reduce_proc\<^sup>*\<^sup>* (ProcUnpair True (ProcPair a b)) (beta_reduce a)" by auto
+
+  thus ?thesis
+    apply (rule beta_reduceI[rotated])
+    by (fact beta_reduced_beta_reduce)
+qed
+ 
+lemma beta_reduce_ProcUnpair2:
+  assumes "well_typed_proc'' Ea b Tb"
+  shows "beta_reduce (ProcUnpair False (ProcPair a b)) = beta_reduce b"
+proof -
+  have "beta_reduce_proc\<^sup>*\<^sup>* (ProcUnpair False (ProcPair a b)) b"
+    by (rule r_into_rtranclp, rule br_ProcUnpairPair[where b=False, simplified])
+  moreover have "beta_reduce_proc\<^sup>*\<^sup>* b (beta_reduce b)"
+    by (rule beta_reduce_def2, rule well_typed_beta_reduce, fact assms)
+  ultimately have "beta_reduce_proc\<^sup>*\<^sup>* (ProcUnpair False (ProcPair a b)) (beta_reduce b)" by auto
+
+  thus ?thesis
+    apply (rule beta_reduceI[rotated])
+    by (fact beta_reduced_beta_reduce)
+qed
+ 
+
 lemma beta_reduce_Proc:
   assumes "well_typed'' E body"
   shows "beta_reduce (Proc body args ret) = Proc (beta_reduce' body) args ret"
@@ -1227,6 +1302,26 @@ apply auto
 apply (metis br_ProcPair1)
 apply (metis br_ProcPair2)
 by (metis brc_ProcPair)
+
+lemma beta_reduced_ProcAbs [simp]: 
+  "beta_reduced (ProcAbs x) = beta_reduced x"
+unfolding beta_reduced_def
+apply auto
+using br_ProcAbs apply blast
+using brc_ProcAbs by blast
+
+
+lemma beta_reduced_ProcUnpair [simp]: 
+  "beta_reduced (ProcUnpair b x) = (beta_reduced x \<and> (case x of ProcPair _ _ \<Rightarrow> False | _ \<Rightarrow> True))"
+ unfolding beta_reduced_def
+ apply auto
+   using br_ProcUnpair close blast
+  apply (cases x; simp)
+ using br_ProcUnpairPair close blast
+by (metis beta_reduce_proofs.beta_reduce_cases(5) procedure_rep.simps(41))
+
+lemma beta_reduced_ProcRef [simp]: "beta_reduced (ProcRef i)"
+  by (smt beta_reduce_proofs.beta_reduce_cases(1) beta_reduced_def)
 
 lemma beta_reduce_beta:
   assumes "well_typed_proc'' (T#E) p U"
@@ -1324,7 +1419,7 @@ proof -
     apply (insert red, insert p, insert E_def) using wt[folded E_def]
     apply (induction arbitrary: p1 p2 b taking: "\<lambda>x y. True", auto)
     using appl close metis
-    using unpair by metis
+    using unpair beta_reduced_ProcUnpair by blast 
 qed
 
 lemma well_typed_ProcTSimple_Proc:
