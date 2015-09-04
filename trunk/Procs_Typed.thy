@@ -11,11 +11,11 @@ class procedure_functor =
   fixes procedure_functor_mk_untyped :: "'a \<Rightarrow> procedure_rep"
   fixes procedure_functor_mk_typed' :: "procedure_rep \<Rightarrow> 'a"
   assumes procedure_functor_welltyped: "well_typed_proc'' [] (procedure_functor_mk_untyped (p::'a)) (procedure_functor_type TYPE('a))"
-  assumes procedure_functor_beta_reduced: "beta_reduced (procedure_functor_mk_untyped (p::'a))"
+  assumes procedure_functor_beta_reduced [simp]: "beta_reduced (procedure_functor_mk_untyped (p::'a))"
   assumes procedure_functor_mk_typed_inverse': 
     "well_typed_proc'' [] q (procedure_functor_type TYPE('a)) \<Longrightarrow> beta_reduced q
        \<Longrightarrow> procedure_functor_mk_untyped (procedure_functor_mk_typed' q) = q"
-  assumes procedure_functor_mk_untyped_inverse':
+  assumes procedure_functor_mk_untyped_inverse' [simp]:
     "procedure_functor_mk_typed' (procedure_functor_mk_untyped p) = p"
 
 definition "procedure_functor_mk_typed p = procedure_functor_mk_typed' (beta_reduce p)"
@@ -25,11 +25,9 @@ lemma procedure_functor_mk_typed_inverse:
        \<Longrightarrow> procedure_functor_mk_untyped (procedure_functor_mk_typed q :: 'a) = beta_reduce q"
   unfolding procedure_functor_mk_typed_def 
   apply (subst procedure_functor_mk_typed_inverse')
-  apply (rule beta_reduce_preserves_well_typed, auto)
-  apply (rule beta_reduce_def2)
-  by (rule well_typed_beta_reduce)
+  by (rule beta_reduce_preserves_well_typed, auto)
 
-lemma procedure_functor_mk_untyped_inverse:
+lemma procedure_functor_mk_untyped_inverse [simp]:
     "procedure_functor_mk_typed (procedure_functor_mk_untyped p) = p"
   unfolding procedure_functor_mk_typed_def
   apply (subst beta_reduced_beta_reduce_id)
@@ -41,12 +39,13 @@ lemma procedure_functor_mk_untyped_injective:
     "procedure_functor_mk_untyped p = procedure_functor_mk_untyped q \<Longrightarrow> p = q"
 using procedure_functor_mk_untyped_inverse by metis
 
+subsubsection "Procedure functions"
+
 typedef ('a::procedure_functor,'b::procedure_functor) procfun = "{p::procedure_rep.
   well_typed_proc'' [] p (ProcTFun (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b)))
   \<and> beta_reduced p}"
   apply (rule exI[of _ "ProcAbs (procedure_functor_mk_untyped (undefined::'b))"], auto)
-  apply (rule wt_ProcAbs, rule well_typed_extend, rule procedure_functor_welltyped)
-  by (fact procedure_functor_beta_reduced)
+  by (rule wt_ProcAbs, rule well_typed_extend, rule procedure_functor_welltyped)
 
 type_notation "procfun" (infixr "=proc=>" 0)
 
@@ -67,6 +66,8 @@ end
 definition procfun_apply :: "('a::procedure_functor,'b::procedure_functor)procfun \<Rightarrow> 'a \<Rightarrow> 'b" (infixl "<$>" 100)where
    "procfun_apply f p = procedure_functor_mk_typed (apply_procedure (procedure_functor_mk_untyped f) (procedure_functor_mk_untyped p))"
 
+subsubsection "Procedure pairs"
+
 instantiation prod :: (procedure_functor,procedure_functor) procedure_functor begin
 definition [simp]: "procedure_functor_type (_::('a*'b) itself)
      == ProcTPair (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b))"
@@ -81,9 +82,7 @@ instance proof intro_classes
   fix p::"'a\<times>'b"
   show "beta_reduced (procedure_functor_mk_untyped p)"
     unfolding procedure_functor_mk_untyped_prod_def
-    apply (case_tac p, simp)
-    using procedure_functor_beta_reduced procedure_functor_beta_reduced
-    by auto
+    by (case_tac p, simp)
 next
   fix q assume wt_q: "well_typed_proc'' [] q (procedure_functor_type TYPE('a\<times>'b))" and br_q: "beta_reduced q"
   then obtain q1 q2 where q: "q = ProcPair q1 q2"
@@ -108,9 +107,9 @@ end
 
 
 (* TODO move *)
-lemma beta_reduce_procedure_functor_mk_untyped:
+lemma beta_reduce_procedure_functor_mk_untyped [simp]:
   "beta_reduce (procedure_functor_mk_untyped x) = procedure_functor_mk_untyped x"
-by (simp add: beta_reduced_beta_reduce_id procedure_functor_beta_reduced)
+by (simp add: beta_reduced_beta_reduce_id)
 
 
 definition fst_procfun :: "('a::procedure_functor*'b::procedure_functor) =proc=> 'a" where
@@ -123,7 +122,7 @@ lemma fst_procfun [simp]: "procfun_apply fst_procfun x = fst x"
   apply (cases x, auto)
   unfolding procedure_functor_mk_untyped_prod_def
   apply auto
-  apply (subst beta_reduce_ProcApplAbs)
+  apply (subst beta_reduce_beta)
     close (auto simp: wt_ProcAbs_iff wt_ProcUnpair_iff wt_ProcRef_iff)
     close (auto simp: wt_ProcAbs_iff wt_ProcUnpair_iff wt_ProcRef_iff wt_ProcPair_iff; rule procedure_functor_welltyped)+
   apply simp  apply (subst beta_reduce_ProcUnpair1)
@@ -141,12 +140,12 @@ lemma snd_procfun [simp]: "procfun_apply snd_procfun x = snd x"
   apply (cases x, auto)
   unfolding procedure_functor_mk_untyped_prod_def
   apply auto
-  apply (subst beta_reduce_ProcApplAbs)
+  apply (subst beta_reduce_beta)
     close (auto simp: wt_ProcAbs_iff wt_ProcUnpair_iff wt_ProcRef_iff)
     close (auto simp: wt_ProcAbs_iff wt_ProcUnpair_iff wt_ProcRef_iff wt_ProcPair_iff; rule procedure_functor_welltyped)+
   apply simp  apply (subst beta_reduce_ProcUnpair2)
     close (rule procedure_functor_welltyped)
-  by (simp add: beta_reduced_beta_reduce_id procedure_functor_beta_reduced procedure_functor_mk_untyped_inverse)
+  by (simp add: beta_reduced_beta_reduce_id)
 
 (* TODO move *)
 lemma liftproc_wt_id: 
@@ -158,7 +157,7 @@ apply (auto simp: wt_Proc_iff wt_ProcRef_iff wt_ProcAbs_iff wt_ProcAppl_iff wt_P
 using wt_ProcUnpair_iff by blast
 
 
-(* TODO move *)
+(* TODO remove *)
 lemma liftproc_wt0_id: 
   shows "well_typed''      [] p   \<Longrightarrow> lift_proc_in_prog p 0 = p"
     and "well_typed_proc'' [] q T \<Longrightarrow> lift_proc q 0 = q"
@@ -175,7 +174,7 @@ apply (auto simp: wt_Proc_iff wt_ProcRef_iff wt_ProcAbs_iff wt_ProcAppl_iff wt_P
 apply (metis Procedures.subst_lift(2) length_Cons liftproc_wt_id(2) not_less_eq_eq)
 using wt_ProcUnpair_iff by blast
 
-(* TODO move *)
+(* TODO remove *)
 lemma subst_proc_wt0_id: 
   shows "well_typed''      [] p   \<Longrightarrow> subst_proc_in_prog i r p = p"
     and "well_typed_proc'' [] q T \<Longrightarrow> subst_proc i r q = q" 
@@ -188,7 +187,7 @@ lemma pair_procfun [simp]: "procfun_apply (procfun_apply pair_procfun a) b = (a,
   unfolding procedure_functor_mk_typed_def beta_reduce_idem 
   apply (subst Abs_procfun_inverse)
    close (auto simp: wt_ProcAbs_iff wt_ProcUnpair_iff wt_ProcRef_iff wt_ProcPair_iff)
-  apply (subst beta_reduce_ProcApplAbs)
+  apply (subst beta_reduce_beta)
     close (auto simp: wt_ProcAbs_iff wt_ProcUnpair_iff wt_ProcRef_iff wt_ProcPair_iff)
    close (rule procedure_functor_welltyped)
   apply (simp?, subst beta_reduce_ProcAbs[where E="[_]"])
@@ -210,9 +209,8 @@ lemma pair_procfun [simp]: "procfun_apply (procfun_apply pair_procfun a) b = (a,
   using [[show_consts=true]]
   unfolding procedure_functor_mk_typed'_procfun_def
   apply (subst Abs_procfun_inverse; auto?)
-    close (auto simp: wt_ProcAbs_iff wt_ProcUnpair_iff wt_ProcRef_iff wt_ProcPair_iff procedure_functor_welltyped well_typed_extend)
-   close (fact procedure_functor_beta_reduced)
-  apply (subst beta_reduce_ProcApplAbs)
+   close (auto simp: wt_ProcAbs_iff wt_ProcUnpair_iff wt_ProcRef_iff wt_ProcPair_iff procedure_functor_welltyped well_typed_extend)
+  apply (subst beta_reduce_beta)
     apply (subst wt_ProcPair_iff)
     apply (rule exI, rule exI; auto)
      apply (rule well_typed_extend)
@@ -229,7 +227,9 @@ lemma pair_procfun [simp]: "procfun_apply (procfun_apply pair_procfun a) b = (a,
    close (fact procedure_functor_welltyped)
   apply (subst beta_reduce_procedure_functor_mk_untyped)
   apply (subst beta_reduce_procedure_functor_mk_untyped)
-  by (simp add: procedure_functor_mk_typed'_prod_def procedure_functor_mk_untyped_inverse')
+  by (simp add: procedure_functor_mk_typed'_prod_def)
+
+subsubsection "Procedures"
 
 instantiation procedure_ext :: (procargs,prog_type,singleton) procedure_functor begin
 definition [simp]: "procedure_functor_type (_::('a,'b,'c)procedure_ext itself) == ProcTSimple (procedure_type TYPE(('a,'b,'c)procedure_ext))"

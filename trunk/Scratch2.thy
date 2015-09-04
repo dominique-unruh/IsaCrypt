@@ -1,5 +1,5 @@
 theory Scratch2
-imports RHL_Typed Hoare_Tactics Procs_Typed Tactic_Inline "~~/src/HOL/Algebra/Ring"
+imports RHL_Typed Hoare_Tactics Procs_Typed Tactic_Inline 
 begin
 
 definition "HIDDEN_EQ = op="
