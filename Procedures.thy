@@ -254,6 +254,7 @@ and brc_ProcAppl: "beta_reduce_proc (ProcApply p1 p2) u"
 and brc_ProcAbs: "beta_reduce_proc (ProcAbs p) u"
 and brc_ProcPair: "beta_reduce_proc (ProcPair p1 p2) u"
 and brc_ProcUnpair: "beta_reduce_proc (ProcUnpair b p) u"
+and brc_ProcRef: "beta_reduce_proc (ProcRef i) u"
 
 
 
@@ -1260,6 +1261,22 @@ proof -
     by (rule beta_reduceI[rotated])
 qed
 
+lemma beta_reduce_CallProc:
+  assumes "well_typed_proc'' E p T"
+  shows "beta_reduce' (CallProc x p a) = CallProc x (beta_reduce p) a"
+proof -
+  have "beta_reduce_proc\<^sup>*\<^sup>* p (beta_reduce p)"
+    apply (rule beta_reduce_def2) apply (rule well_typed_beta_reduce) using assms by auto
+  hence "beta_reduce_prog\<^sup>*\<^sup>* (CallProc x p a) (CallProc x (beta_reduce p) a)"
+    by (metis beta_reduce_proofs.rtrancl_beta_CallProc)
+  moreover have br_br_p: "beta_reduced (beta_reduce p)" 
+    apply (rule beta_reduce_def2) apply (rule well_typed_beta_reduce) using assms by auto
+  have "beta_reduced' (CallProc x (beta_reduce p) a)"
+    by (metis br_br_p beta_reduced_def beta_reduced'_def brc_CallProc)
+  ultimately show ?thesis
+    by (rule beta_reduceI'[rotated])
+qed
+
 lemma beta_reduce_Seq:
   assumes "well_typed'' E p1" and "well_typed'' E p2"
   shows "beta_reduce' (Seq p1 p2) = Seq (beta_reduce' p1) (beta_reduce' p2)"
@@ -1276,6 +1293,111 @@ proof -
     by (metis redp1 redp2 beta_reduced'_def brc_Seq)
   ultimately show ?thesis
     by (rule beta_reduceI'[rotated])
+qed
+
+
+
+lemma beta_reduce_ProcAppl1:
+  assumes "well_typed_proc'' E a (ProcTFun T U)"
+  assumes "well_typed_proc'' E b T"
+  shows "beta_reduce (ProcAppl a b) = beta_reduce (ProcAppl (beta_reduce a) b)"
+proof -
+  have "beta_reduce_proc\<^sup>*\<^sup>* a (beta_reduce a)"
+    by (rule beta_reduce_def2, rule well_typed_beta_reduce, fact assms)
+  hence "beta_reduce_proc\<^sup>*\<^sup>* (ProcAppl a b) (ProcAppl (beta_reduce a) b)"
+    by (rule beta_reduce_proofs.rtrancl_beta_ProcAppl1)
+  moreover have "beta_reduce_proc\<^sup>*\<^sup>* (ProcAppl (beta_reduce a) b) (beta_reduce (ProcAppl (beta_reduce a) b))"
+    apply (rule beta_reduce_def2, rule well_typed_beta_reduce)
+    apply (subst wt_ProcAppl_iff, rule exI, rule conjI)
+    apply (rule beta_reduce_preserves_well_typed)
+    by (fact assms)+
+  ultimately have "beta_reduce_proc\<^sup>*\<^sup>* (ProcAppl a b)  (beta_reduce (ProcAppl (beta_reduce a) b))"
+    by auto
+  thus ?thesis
+    by (rule beta_reduceI[rotated], simp)
+qed
+
+lemma beta_reduce_ProcAppl2:
+  assumes "well_typed_proc'' E a (ProcTFun T U)"
+  assumes "well_typed_proc'' E b T"
+  shows "beta_reduce (ProcAppl a b) = beta_reduce (ProcAppl a (beta_reduce b))"
+proof -
+  have "beta_reduce_proc\<^sup>*\<^sup>* b (beta_reduce b)"
+    by (rule beta_reduce_def2, rule well_typed_beta_reduce, fact assms)
+  hence "beta_reduce_proc\<^sup>*\<^sup>* (ProcAppl a b) (ProcAppl a (beta_reduce b))"
+    by (rule beta_reduce_proofs.rtrancl_beta_ProcAppl2)
+  moreover have "beta_reduce_proc\<^sup>*\<^sup>* (ProcAppl a (beta_reduce b)) (beta_reduce (ProcAppl a (beta_reduce b)))"
+    apply (rule beta_reduce_def2, rule well_typed_beta_reduce)
+    apply (subst wt_ProcAppl_iff, rule exI, rule conjI)
+    close (fact assms)
+    apply (rule beta_reduce_preserves_well_typed)
+    by (fact assms)
+  ultimately have "beta_reduce_proc\<^sup>*\<^sup>* (ProcAppl a b)  (beta_reduce (ProcAppl a (beta_reduce b)))"
+    by auto
+  thus ?thesis
+    by (rule beta_reduceI[rotated], simp)
+qed
+
+lemma beta_reduce_ProcAppl12:
+  assumes "well_typed_proc'' E a (ProcTFun T U)"
+  assumes "well_typed_proc'' E b T"
+  shows "beta_reduce (ProcAppl a b) = beta_reduce (ProcAppl (beta_reduce a) (beta_reduce b))"
+apply (subst beta_reduce_ProcAppl1) close (fact assms) close (fact assms)
+apply (subst beta_reduce_ProcAppl2) apply (rule beta_reduce_preserves_well_typed) close (fact assms) close (fact assms)
+by simp
+
+
+(* TODO move *)
+lemma beta_reduce_subst_proc1:
+  shows "beta_reduce_prog p p' \<Longrightarrow> beta_reduce_prog (subst_proc_in_prog i s p) (subst_proc_in_prog i s p')"
+    and "beta_reduce_proc q q' \<Longrightarrow> beta_reduce_proc (subst_proc i s q) (subst_proc i s q')"
+proof (induct arbitrary: s i and s i rule:beta_reduce_prog_beta_reduce_proc.inducts)
+print_cases
+  case (br_Seq1 a b u) thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_Seq1)
+  next case (br_Seq2 a b u) thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_Seq2)
+  next case br_While thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_While)
+  next case br_IfTE1 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_IfTE1)
+  next case br_IfTE2 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_IfTE2)
+  next case br_CallProc thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_CallProc)
+  next case br_Proc thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_Proc)
+  next case br_ProcAppl1 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcAppl1)
+  next case br_ProcAppl2 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcAppl2)
+  next case (br_beta a b) show ?case apply simp
+    by (metis Procedures.subst_subst(2) beta_reduce_prog_beta_reduce_proc.br_beta zero_less_Suc)
+  next case (br_ProcAbs a b) show ?case apply simp
+    apply (rule beta_reduce_prog_beta_reduce_proc.br_ProcAbs)
+    by (rule br_ProcAbs.hyps)
+  next case br_ProcPair1 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcPair1)
+  next case br_ProcPair2 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcPair2)
+  next case br_ProcUnpair thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcUnpair)
+  next case br_ProcUnpairPair thus ?case apply simp
+    using beta_reduce_prog_beta_reduce_proc.br_ProcUnpairPair by presburger
+qed
+  
+lemma subst_proc_beta_reduce':
+  assumes wt_p: "well_typed'' (F@U#E) p"
+  assumes wt_s: "well_typed_proc'' (F@E) s U"
+  defines "i==length F"
+  shows "beta_reduce' (subst_proc_in_prog i s (beta_reduce' p)) = beta_reduce' (subst_proc_in_prog i s p)"
+proof -
+  let ?beta = "beta_reduce_prog\<^sup>*\<^sup>*"
+  let ?subst = "subst_proc_in_prog i s"
+  have wt_subst_p: "well_typed'' (F@E) (subst_proc_in_prog i s (beta_reduce' p))"    
+    unfolding i_def
+    apply (rule well_typed_subst_proc)
+    apply (fact wt_s)
+    apply (rule beta_reduce_preserves_well_typed)
+    by (fact wt_p)
+  have "?beta p (beta_reduce' p)"
+    by (rule beta_reduce'_def2, rule well_typed_beta_reduce, fact wt_p)
+  hence beta1: "?beta (?subst p) (?subst (beta_reduce' p))"
+    by (induct, simp_all add: beta_reduce_subst_proc1(1) rtranclp.rtrancl_into_rtrancl)
+  moreover have "?beta (?subst (beta_reduce' p)) (beta_reduce' (?subst (beta_reduce' p)))"
+    by (rule beta_reduce'_def2, rule well_typed_beta_reduce, fact wt_subst_p)
+  finally have beta2: "?beta (?subst p) (beta_reduce' (?subst (beta_reduce' p)))"
+    by simp
+  show "beta_reduce' (?subst (beta_reduce' p)) = beta_reduce' (?subst p)"
+    using beta2 beta_reduceI' beta_reduced_beta_reduce' by fastforce
 qed
 
 
@@ -1514,6 +1636,24 @@ lemma beta_reduce_idem [simp]: "beta_reduce (beta_reduce x) = beta_reduce x"
 
 lemma beta_reduce_idem' [simp]: "beta_reduce' (beta_reduce' x) = beta_reduce' x"
   using beta_reduced_beta_reduce_id' beta_reduced_beta_reduce' by auto
+
+lemma liftproc_wt_id: 
+  shows "well_typed''      E p   \<Longrightarrow> i\<ge>length E \<Longrightarrow> lift_proc_in_prog p i = p"
+    and "well_typed_proc'' E q T \<Longrightarrow> i\<ge>length E \<Longrightarrow> lift_proc q i = q" 
+apply (induct p and q arbitrary: E i and E T i)
+apply (auto simp: wt_Seq_iff wt_IfTE_iff wt_While_iff wt_CallProc_iff)
+apply (auto simp: wt_Proc_iff wt_ProcRef_iff wt_ProcAbs_iff wt_ProcAppl_iff wt_ProcPair_iff)
+using wt_ProcUnpair_iff by blast
+
+lemma subst_proc_wt_id: 
+  shows "well_typed''      E p   \<Longrightarrow> i\<ge>length E \<Longrightarrow> subst_proc_in_prog i r p = p"
+    and "well_typed_proc'' E q T \<Longrightarrow> i\<ge>length E \<Longrightarrow> subst_proc i r q = q" 
+apply (induct p and q arbitrary: E i and E T i)
+apply (auto simp: wt_Seq_iff wt_IfTE_iff wt_While_iff wt_CallProc_iff)
+apply (auto simp: wt_Proc_iff wt_ProcRef_iff wt_ProcAbs_iff wt_ProcAppl_iff wt_ProcPair_iff)
+apply (metis Procedures.subst_lift(2) length_Cons liftproc_wt_id(2) not_less_eq_eq)
+using wt_ProcUnpair_iff by blast
+
 
 (* Undoing syntax changes introduced by Lambda and LambdaType *)
 declare [[syntax_ambiguity_warning = true]]
