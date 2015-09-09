@@ -438,9 +438,9 @@ subsection {* Support for defining typed procedure functors *}
 definition "subst_prog1 (p::'a::procedure_functor) q pr ==
   well_typed'' [procedure_functor_type TYPE('a)] q 
 \<and> Abs_program (beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' q))) = pr"
-definition "subst_proc1 (p::'a::procedure_functor) q (pr::('b::procargs,'c::prog_type)procedure) == 
+(*definition "subst_proc1 (p::'a::procedure_functor) q (pr::('b::procargs,'c::prog_type)procedure) == 
   well_typed_proc'' [procedure_functor_type TYPE('a)] q (ProcTSimple (procedure_type TYPE(('b,'c)procedure)))
-  \<and> procedure_functor_mk_typed (subst_proc 0 (procedure_functor_mk_untyped p) (beta_reduce q)) = pr"
+  \<and> procedure_functor_mk_typed (subst_proc 0 (procedure_functor_mk_untyped p) (beta_reduce q)) = pr"*)
 
 locale reduce_procfun begin
 
@@ -644,6 +644,7 @@ proof (unfold subst_prog1_def, rule conjI)
     by (simp add: procedure_functor_mk_untyped_procedure_ext_def qpr')
 qed
 
+(*
 lemma left: 
   assumes "subst_proc1 l q p"
   defines "q0 == ProcAppl (ProcAbs q) (ProcUnpair True (ProcRef 0))"
@@ -660,13 +661,41 @@ lemma right:
   defines "q0 == ProcAppl (ProcAbs q) (ProcUnpair False (ProcRef 0))"
   shows "subst_proc1 (l, r) q0 p"
 SORRY
-
+*)
 
 lemma procfun_apply:
-  shows "xxx"
+  fixes q0 a b r a0 b0
+  assumes "a0 <$> r = a"
+  assumes "b0 <$> r = b"
+  defines "q0 == procfun_S <$> a0 <$> b0"
+  shows "q0 <$> r = a <$> b"
+unfolding procfun_S assms..
 
+lemma left:
+  assumes "q <$> l = a"
+  defines "q0 == procfun_compose <$> q <$> fst_procfun"
+  shows "q0 <$> (l,r) = a"
+by (smt assms(1) fst_conv fst_procfun procfun_compose q0_def)
 
-lemmas safe = proc apply1 closed seq procref callproc
+lemma right:
+  assumes "q <$> r = a"
+  defines "q0 == procfun_compose <$> q <$> snd_procfun"
+  shows "q0 <$> (l,r) = a"
+by (smt assms(1) procfun_compose q0_def sndI snd_procfun)
+
+lemma procfun_closed:
+  fixes a r q0
+  defines "q0 == procfun_K <$> a"
+  shows "q0 <$> r = a"
+by (smt procfun_K q0_def)
+
+lemma procfun_id:
+  defines "q0 == procfun_id"
+  shows "q0 <$> r = r"
+by (smt procfun_id q0_def)
+
+lemmas safe = proc apply1 closed seq (*procref*) callproc
+              procfun_id procfun_closed procfun_apply
 lemmas unsafe = left right
 lemmas reduce = safe unsafe
 

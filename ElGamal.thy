@@ -100,11 +100,11 @@ definition "keygen = procfun_compose <$> fst_procfun <$> Rep_EncScheme'"
 definition "enc = procfun_compose <$> fst_procfun <$> (procfun_compose <$> snd_procfun <$> Rep_EncScheme')"
 definition "dec = procfun_compose <$> snd_procfun <$> (procfun_compose <$> snd_procfun <$> Rep_EncScheme')"
 
-lemma "keygen <$> (Abs_EncScheme (x,y,z)) = x"
+lemma keygen[simp]: "keygen <$> (Abs_EncScheme (x,y,z)) = x"
   unfolding keygen_def Rep_EncScheme' procfun_compose Abs_EncScheme_inverse fst_procfun by simp
-lemma "enc <$> (Abs_EncScheme (x,y,z)) = y"
+lemma enc[simp]: "enc <$> (Abs_EncScheme (x,y,z)) = y"
   unfolding enc_def Rep_EncScheme' procfun_compose Abs_EncScheme_inverse fst_procfun snd_procfun by simp
-lemma "dec <$> (Abs_EncScheme (x,y,z)) = z"
+lemma dec[simp]: "dec <$> (Abs_EncScheme (x,y,z)) = z"
   unfolding dec_def Rep_EncScheme' procfun_compose Abs_EncScheme_inverse fst_procfun snd_procfun by simp
 
 
@@ -114,6 +114,8 @@ type_synonym ('pk,'sk,'m,'c) CPA_Adv =
   ('c*unit,bool) procedure"
 
 type_synonym CPA_Game = "(unit,bool)procedure"
+
+declare[[show_types=false]]
 
 definition_by_specification CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) CPA_Adv =proc=> CPA_Game" where
  "procfun_apply CPA_main (E,(Achoose,Aguess)) = 
@@ -133,9 +135,9 @@ definition_by_specification CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m
 
 definition (in group) ElGamal :: "('G,nat,'G,'G\<times>'G) EncScheme" where
  "ElGamal = LOCAL pk m0 c sk sk' y gm gy.
-   (proc() { sk <- uniform {0..<q}; return (g^sk, sk) },
-    proc(pk,m0) { y <- uniform {0..<q}; return (g^y, pk^y * m0) },
-    proc(sk',c) { gy := fst c; gm := snd c; return Some (gm * inverse (gy^sk')) })"
+   Abs_EncScheme (proc() { sk <- uniform {0..<q}; return (g^sk, sk) },
+                  proc(pk,m0) { y <- uniform {0..<q}; return (g^y, pk^y * m0) },
+                  proc(sk',c) { gy := fst c; gm := snd c; return Some (gm * inverse (gy^sk')) })"
 
 (*
 module Correctness (S:Scheme) = {
@@ -162,16 +164,19 @@ lemma HIDDEN_EQ_set_filter: "HIDDEN_EQ (Set.filter (\<lambda>x\<Colon>variable_u
   unfolding HIDDEN_EQ_def vars_proc_global_def by auto
 
 definition_by_specification Correctness :: "(_,_,_,_) EncScheme =proc=> (_*unit,bool)procedure" where
-  "procfun_apply Correctness (kg,enc,dec) = LOCAL m1 m2 succ pksk c1.
+  "procfun_apply Correctness E = LOCAL m1 m2 succ pksk c1.
   proc(m1) {
-    pksk := call kg();
-    c1 := call enc(fst pksk, m1);
-    m2 := call dec(snd pksk, c1);
+    pksk := call keygen<$>E();
+    c1 := call enc<$>E(fst pksk, m1);
+    m2 := call dec<$>E(snd pksk, c1);
     succ := (m2 = Some m1);
     return succ
   }"
 
-lemma h1: "scheme = (fst scheme, fst (snd scheme), snd (snd scheme))" by auto
+(*lemma h1: "scheme = (fst scheme, fst (snd scheme), snd (snd scheme))" by auto*)
+lemma h1: "scheme = Abs_EncScheme (keygen<$>scheme, enc<$>scheme, dec<$>scheme)"
+  apply (subst (1 2 3 4) Rep_EncScheme_inverse[of scheme, symmetric])
+  by (cases "Rep_EncScheme scheme", simp)
 
 (* TODO: create those automatically *)
 schematic_lemma Correctness_body [procedure_info]: "p_body (procfun_apply Correctness scheme) == ?b" 
@@ -181,7 +186,8 @@ schematic_lemma Correctness_return [procedure_info]: "p_return (procfun_apply Co
 schematic_lemma Correctness_args [procedure_info]: "p_args (procfun_apply Correctness scheme) == ?b" 
   apply (subst h1) apply (rule HIDDEN_EQ_I') unfolding Correctness_def by (simp?, rule HIDDEN_EQ_procargs)+
 schematic_lemma Correctness_body_vars [procedure_info]: "
-  \<lbrakk> set (vars_proc_global (fst scheme)) == ?v1; set (vars_proc_global (fst(snd scheme))) == ?v2; set (vars_proc_global (snd(snd scheme))) == ?v3\<rbrakk>
+  \<lbrakk> set (vars_proc_global (keygen<$>scheme)) == ?v1; set (vars_proc_global (enc<$>scheme)) == ?v2; 
+    set (vars_proc_global (dec<$>scheme)) == ?v3\<rbrakk>
   \<Longrightarrow> set (vars (p_body (procfun_apply Correctness scheme))) == ?b"
   apply (subst h1) apply (drule HIDDEN_EQ_D')+ apply (rule HIDDEN_EQ_I')
   unfolding Correctness_body apply simp_all by (rule HIDDEN_EQ_varset; simp?)+
@@ -197,61 +203,47 @@ schematic_lemma Correctness_body_local_vars [procedure_info]: "set (local_vars (
 
 
 context group begin
-schematic_lemma kg_body [procedure_info]: "p_body (fst ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
-schematic_lemma kg_return [procedure_info]: "p_return (fst ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
-schematic_lemma kg_args [procedure_info]: "p_args (fst ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def by (simp, rule HIDDEN_EQ_procargs)+
-schematic_lemma kg_body_vars [procedure_info]: "set (vars (p_body (fst ElGamal))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_body ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
-schematic_lemma kg_return_vars [procedure_info]: "set (e_vars (p_return (fst ElGamal))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_return ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
-schematic_lemma kg_body_local_vars [procedure_info]: "set (local_vars (p_body (fst ElGamal))) == ?b" 
+schematic_lemma kg_body [procedure_info]: "p_body (keygen<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
+schematic_lemma kg_return [procedure_info]: "p_return (keygen<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
+schematic_lemma kg_args [procedure_info]: "p_args (keygen<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def by (simp, rule HIDDEN_EQ_procargs)+
+schematic_lemma kg_body_vars [procedure_info]: "set (vars (p_body (keygen<$>ElGamal))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_body ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
+schematic_lemma kg_return_vars [procedure_info]: "set (e_vars (p_return (keygen<$>ElGamal))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_return ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
+schematic_lemma kg_body_local_vars [procedure_info]: "set (local_vars (p_body (keygen<$>ElGamal))) == ?b" 
  apply (rule HIDDEN_EQ_I')
  unfolding local_vars_def filter_set[symmetric] apply (subst kg_body_vars)
  unfolding filter_locals1 filter_locals2 filter_locals3 set_filter_empty
  by (rule HIDDEN_EQ_varset)+
 
-schematic_lemma enc_args [procedure_info]: "p_args (fst (snd ElGamal)) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (rule HIDDEN_EQ_procargs)+
-schematic_lemma enc_body_vars [procedure_info]: "set (vars (p_body (fst (snd ElGamal)))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_body ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
-schematic_lemma enc_body_local_vars [procedure_info]: "set (local_vars (p_body (fst (snd ElGamal)))) == ?b" 
+schematic_lemma enc_args [procedure_info]: "p_args (enc<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (rule HIDDEN_EQ_procargs)+
+schematic_lemma enc_body_vars [procedure_info]: "set (vars (p_body (enc<$>ElGamal))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_body ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
+schematic_lemma enc_body_local_vars [procedure_info]: "set (local_vars (p_body (enc<$>ElGamal))) == ?b" 
  apply (rule HIDDEN_EQ_I')
  unfolding local_vars_def filter_set[symmetric] apply (subst enc_body_vars)
  unfolding filter_locals1 filter_locals2 filter_locals3 set_filter_empty
  by (rule HIDDEN_EQ_varset)+
-schematic_lemma enc_return_vars [procedure_info]: "set (e_vars (p_return (fst (snd ElGamal)))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_return ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
-schematic_lemma enc_body [procedure_info]: "p_body (fst (snd ElGamal)) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
-schematic_lemma enc_return [procedure_info]: "p_return (fst (snd ElGamal)) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
+schematic_lemma enc_return_vars [procedure_info]: "set (e_vars (p_return (enc<$>ElGamal))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_return ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
+schematic_lemma enc_body [procedure_info]: "p_body (enc<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
+schematic_lemma enc_return [procedure_info]: "p_return (enc<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
 
-schematic_lemma dec_args [procedure_info]: "p_args (snd (snd ElGamal)) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (rule HIDDEN_EQ_procargs)+
-schematic_lemma dec_body_vars [procedure_info]: "set (vars (p_body (snd (snd ElGamal)))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_body ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
-schematic_lemma dec_body_local_vars [procedure_info]: "set (local_vars (p_body (snd (snd ElGamal)))) == ?b" 
+schematic_lemma dec_args [procedure_info]: "p_args (dec<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (rule HIDDEN_EQ_procargs)+
+schematic_lemma dec_body_vars [procedure_info]: "set (vars (p_body (dec<$>ElGamal))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_body ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
+schematic_lemma dec_body_local_vars [procedure_info]: "set (local_vars (p_body (dec<$>ElGamal))) == ?b" 
  apply (rule HIDDEN_EQ_I')
  unfolding local_vars_def filter_set[symmetric] apply (subst dec_body_vars)
  unfolding filter_locals1 filter_locals2 filter_locals3 set_filter_empty
  by (rule HIDDEN_EQ_varset)+
-schematic_lemma dec_return_vars [procedure_info]: "set (e_vars (p_return (snd (snd ElGamal)))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_return ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
-schematic_lemma dec_body [procedure_info]: "p_body (snd (snd ElGamal)) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
-schematic_lemma dec_return [procedure_info]: "p_return (snd (snd ElGamal)) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
+schematic_lemma dec_return_vars [procedure_info]: "set (e_vars (p_return (dec<$>ElGamal))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_return ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
+schematic_lemma dec_body [procedure_info]: "p_body (dec<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
+schematic_lemma dec_return [procedure_info]: "p_return (dec<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
 
 end
 
 lemma (in group) correctness:
   shows "LOCAL succ0. hoare {True} succ0 := call (procfun_apply Correctness ElGamal)(m) {succ0}"
 apply (inline "procfun_apply Correctness ElGamal")
-apply (inline "fst ElGamal")
-apply (inline "snd (snd ElGamal)")
-apply (inline "fst (snd ElGamal)")
-apply (wp sample) apply skip apply auto
-unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat]) 
-apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
-
-lemma (in group) correctness0:
-  defines "kg == fst ElGamal" and "enc == fst (snd ElGamal)" and "dec == snd (snd ElGamal)"
-  shows "LOCAL pksk c0 m m'. 
-         hoare {True} pksk := call kg();
-                      c0 := call enc(fst pksk, $m);
-                      m' := call dec(snd pksk, c0)
-               {$m' = Some ($m)}"
-using kg_def apply (inline "kg")
-using dec_def apply (inline "dec")
-using enc_def apply (inline "enc")
+apply (inline "keygen<$>ElGamal")
+apply (inline "dec<$>ElGamal")
+apply (inline "enc<$>ElGamal")
 apply (wp sample) apply skip apply auto
 unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat]) 
 apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
