@@ -1,6 +1,81 @@
 structure Procs_Typed = 
 struct
 
+(** procedure_info **)
+
+type procedure_info = {
+  pattern : cterm,
+  args : thm option,
+  body : thm option,
+  return : thm option,
+  body_local_vars : thm option,
+  return_vars : thm option
+};
+
+structure ProcedureData = Generic_Data
+  (type T = procedure_info Symtab.table
+   val empty = Symtab.empty
+   val extend = I
+   val merge = Symtab.merge (K true));
+
+fun morphism_procedure_info phi ({args,body,return,body_local_vars,return_vars,pattern} : procedure_info) =
+  let val f = Option.map (Morphism.thm phi)
+      val f2 = Morphism.cterm phi
+  in
+  { args=f args, body=f body, body_local_vars=f body_local_vars, return_vars=f return_vars, 
+    return=f return, pattern=f2 pattern
+  } : procedure_info
+  end
+
+fun register_procedure name info =
+  Local_Theory.declaration {pervasive=true, syntax=false}
+  (fn phi => ProcedureData.map (Symtab.update (name,morphism_procedure_info phi info)));
+
+
+fun trivial_procedure_info (ctx:Proof.context) (p:term) : procedure_info =
+  { pattern = Thm.cterm_of ctx p,
+    args=NONE,
+    body=NONE,
+    body_local_vars=NONE,
+    return=NONE,
+    return_vars=NONE
+  };
+
+
+fun procedure_head_of (Const(@{const_name procfun_apply},_) $ p $ _) = procedure_head_of p
+  | procedure_head_of (p $ _) = procedure_head_of p
+  | procedure_head_of (Const(name,_)) = name
+  | procedure_head_of (Abs _) = error "procedure_head_of Abs"
+  | procedure_head_of (Var _) = error "procedure_head_of Var"
+  | procedure_head_of (Free _) = error "procedure_head_of Free"
+  | procedure_head_of (Bound _) = error "procedure_head_of Bound"
+
+
+fun get_procedure_info lthy partial proc = 
+  let val name = procedure_head_of proc
+      val cproc = Thm.cterm_of lthy proc
+      val info = Symtab.lookup (ProcedureData.get (Context.Proof lthy)) name
+      val info = case info of SOME info => info 
+                            | NONE => if partial then trivial_procedure_info lthy proc
+                                      else error ("Could not find procedure_info for procedure "^name)
+      val matcher = Thm.first_order_match (#pattern info, cproc)
+                    handle Pattern.MATCH => error ("get_procedure_info: cannot match "
+                      ^Pretty.string_of (Syntax.pretty_term lthy proc)^" with "
+                      ^Pretty.string_of (Syntax.pretty_term lthy (Thm.term_of (#pattern info))))
+      fun inst thm = Option.map (Thm.instantiate matcher) thm handle Match => error "Match"
+      val info : procedure_info = {
+        pattern = #pattern info |> Thm.instantiate_cterm matcher,
+        args = #args info |> inst, body = #body info |> inst,
+        body_local_vars = #body_local_vars info |> inst,
+        return_vars = #return_vars info |> inst, return = #return info |> inst }
+      val _ = if (Thm.term_of (#pattern info)) aconv proc then () else error "bad instatiation"
+  in
+    info
+  end
+
+
+(** definition of procedures **)
+
 
 fun procedure_existence_solve_tac ctx i =
   (resolve_tac ctx @{thms reduce_procfun.reduce} THEN_ALL_NEW procedure_existence_solve_tac ctx) i
@@ -89,13 +164,13 @@ fun definition_via_specification_cmd dvs (consts,props) ctx =
   let val ((consts,props),_) = Specification.read_free_spec consts props ctx
   in dvs consts props ctx end;
 
-val _ = Outer_Syntax.local_theory @{command_keyword definition_by_specification}
+val _ = Outer_Syntax.local_theory @{command_keyword procedure}
 "definition of simple inductive predicates"
 (definition_via_specification_parser >>
    definition_via_specification_cmd (definition_via_specification_solve 
       (definition_via_specification_tac procedure_existence_tac)))
 
-val _ = Outer_Syntax.local_theory_to_proof @{command_keyword definition_by_specification'}
+val _ = Outer_Syntax.local_theory_to_proof @{command_keyword procedure'}
 "definition of simple inductive predicates (with proof obligation)"
 (definition_via_specification_parser >>
    definition_via_specification_cmd (definition_via_specification 

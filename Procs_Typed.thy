@@ -1,7 +1,7 @@
 theory Procs_Typed
 imports TermX_Antiquot Lang_Typed Procedures
-keywords "definition_by_specification" :: thy_decl
-     and "definition_by_specification'" :: thy_goal
+keywords "procedure" :: thy_decl
+     and "procedure'" :: thy_goal
 begin
 
 subsection {* Procedure functors *}
@@ -759,6 +759,7 @@ lemmas my_proc_def = my_proc_def0[THEN reduce_procfun.l1]
 
 *)
 
+(* TODO remove *)
 named_theorems procedure_info
 
 

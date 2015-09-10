@@ -1,7 +1,8 @@
 structure Tactic_Inline =
 struct
 
-fun procedure_get_info_tac ctx localfacts partial =
+(* DEPRECATED *)
+(* fun procedure_get_info_tac ctx localfacts partial =
   let 
       val facts = Proof_Context.get_fact ctx (Facts.named "procedure_info")
       val allfacts = localfacts@facts
@@ -12,7 +13,7 @@ fun procedure_get_info_tac ctx localfacts partial =
   THEN
   tac 1
   end
-
+ *)
 (*
 fun procedure_get_info_tac ctx localfacts partial : tactic =
   let val facts = Proof_Context.get_fact ctx (Facts.named "procedure_info")
@@ -30,15 +31,16 @@ fun procedure_get_info_tac ctx localfacts partial : tactic =
   end
 *)
 
+(* DEPRECATED *)
 (* partial=false: enforce that the resulting theorem does not refer to info of subprocedures 
       (e.g., not "set (vars_proc_global (f g)) = {x} \union (set (vars_proc_global g))") *)
-fun procedure_get_info ctx facts partial property : thm =
+(* fun procedure_get_info ctx facts partial property : thm =
   let val goal = Logic.mk_equals (property, Var(("rhs",0),fastype_of property))
   in
   Goal.prove ctx [] [] goal (fn {context,prems} => procedure_get_info_tac context (prems@facts) partial)
   end
-
-fun procedure_get_args ctx facts partial proc = 
+ *)
+(* fun procedure_get_args ctx facts partial proc = 
   procedure_get_info ctx facts partial @{termx "p_args (?proc::?'proc.1)" where "?'proc.1 \<Rightarrow> (?'a::procargs, ?'b, ?'c) procedure_scheme"}
 fun procedure_get_body ctx facts partial proc = 
   procedure_get_info ctx facts partial @{termx "p_body (?proc::?'proc.1)" where "?'proc.1 \<Rightarrow> (?'a::procargs, ?'b, ?'c) procedure_scheme"}
@@ -53,6 +55,7 @@ fun procedure_get_return_vars ctx facts partial proc =
 
 type procedure_thms = {args:thm, body:thm, return:thm, body_local_vars:thm, return_vars:thm}
 
+(* DEPRECATED *)
 fun procedure_get_thms ctx facts partial proc : procedure_thms = {
   args=procedure_get_args ctx facts partial proc,
   body=procedure_get_body ctx facts partial proc,
@@ -60,43 +63,55 @@ fun procedure_get_thms ctx facts partial proc : procedure_thms = {
   body_local_vars=procedure_get_body_local_vars ctx facts partial proc,
   return_vars=procedure_get_return_vars ctx facts partial proc
 }
-
+ *)
 (* "NGOALS i n tac" applies tac to goals i+n-1,...,n *)
 fun NGOALS _ 0 _ st = all_tac st
   | NGOALS i n tac st = (tac (i+n-1) THEN NGOALS i (n-1) tac) st
 
+fun some _ (SOME x) = x : thm
+  | some procthms NONE = 
+     let val pat = #pattern procthms 
+         val ppat = Syntax.pretty_term_global (Thm.theory_of_cterm pat) (Thm.term_of pat) |> Pretty.string_of
+     in
+     error ("Could not access body etc. of "^ppat)
+     end
+
 (* If the number of precondition of "callproc_rule" changed, need to change the number after NGOALS accordingly.
    callproc_rule_conditions_tac is supposed to solve all subgoals of "callproc_rule" except the last one. *) 
-fun callproc_rule_conditions_tac ctx (procthms:procedure_thms) i =
+fun callproc_rule_conditions_tac ctx (procthms:Procs_Typed.procedure_info) i =
   NGOALS i 9 (fn i =>
   Raw_Simplifier.rewrite_goal_tac ctx
-        [#body_local_vars procthms, #return_vars procthms, #args procthms] i
+        [#body_local_vars procthms |> some procthms, 
+         #return_vars procthms |> some procthms, 
+         #args procthms |> some procthms] i
     THEN (fast_force_tac ctx i))
 
-fun callproc_rule_tac' ctx (procthms:procedure_thms) locals i =
+fun callproc_rule_tac' ctx (procthms:Procs_Typed.procedure_info) locals i =
   let val callproc_rule = @{thm callproc_rule} |> Drule.instantiate' [] [NONE, SOME (Thm.cterm_of ctx locals)]
       val simp_rules = @{thms assign_local_vars_typed_simp1[THEN eq_reflection] 
                          assign_local_vars_typed_simp2[THEN eq_reflection] assign_local_vars_typed_simp3[THEN eq_reflection]}
   in rtac callproc_rule i
      THEN callproc_rule_conditions_tac ctx procthms i
 (*     THEN print_tac ctx "conditions done"*)
-     THEN Raw_Simplifier.rewrite_goal_tac ctx [#args procthms] i
+     THEN Raw_Simplifier.rewrite_goal_tac ctx [#args procthms |> some procthms] i
 (*     THEN print_tac ctx "step1"*)
      THEN Raw_Simplifier.rewrite_goal_tac ctx simp_rules i
 (*     THEN print_tac ctx "step2"*)
-     THEN Raw_Simplifier.rewrite_goal_tac ctx [#return procthms] i
+     THEN Raw_Simplifier.rewrite_goal_tac ctx [#return procthms |> some procthms] i
 (*     THEN print_tac ctx "step3"*)
-     THEN Raw_Simplifier.rewrite_goal_tac ctx [#body procthms] i
+     THEN Raw_Simplifier.rewrite_goal_tac ctx [#body procthms |> some procthms] i
 (*     THEN print_tac ctx "step4"*)
   end
 
-fun procedure_local_vars proc (procthms:procedure_thms) =
+fun procedure_local_vars ctx proc (procthms:Procs_Typed.procedure_info) =
   let fun extr1 _ (Const(@{const_name procargvars_empty},_)) = []
         | extr1 args (Const(@{const_name procargvars_add},_) $ v $ rest) = 
             @{termx "mk_variable_untyped (?v::?'w::prog_type variable)" where "?'v.1\<Rightarrow>?'w variable"} :: extr1 args rest
         | extr1 args t = raise TERM ("While trying to extract variables from the arguments of procedure (1), got the expression (2), which contains the unexpected term (3).\n" ^
                                      "Probably you need to add additional lemmas to 'procedure_info' to rewrite term (3)",
                                      [proc,args,t])
+      fun some (SOME x) = x 
+        | some NONE = error ("procedure_local_vars: body of "^Pretty.string_of (Syntax.pretty_term ctx proc)^" not known")
       fun extr2 _ (Const(@{const_name Orderings.bot_class.bot},_)) = []
         | extr2 fullterm (Const(@{const_name Set.insert},_) $ v $ rest) =
             (case v of Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name LVariable},_)$_) => v :: extr2 fullterm rest
@@ -108,9 +123,9 @@ fun procedure_local_vars proc (procthms:procedure_thms) =
         | extr2 fullterm t = raise TERM ("While trying to extract local variables from body/return-expression of procedure (1), got the expression (2), which contains the unexpected term (3).\n" ^
                                          "Probably you need to add additional lemmas to 'procedure_info' to rewrite term (3)",
                                          [proc,fullterm,t])
-      val args = Thm.rhs_of (#args procthms) |> Thm.term_of |> (fn t => extr1 t t)
-      val body_vars = Thm.rhs_of (#body_local_vars procthms) |> Thm.term_of |> (fn t => extr2 t t)
-      val return_vars = Thm.rhs_of (#return_vars procthms) |> Thm.term_of |> (fn t => extr2 t t)
+      val args = #args procthms |> some |> Thm.rhs_of |> Thm.term_of |> (fn t => extr1 t t)
+      val body_vars = #body_local_vars procthms |> some |> Thm.rhs_of |> Thm.term_of |> (fn t => extr2 t t)
+      val return_vars = #return_vars procthms |> some |> Thm.rhs_of |> Thm.term_of |> (fn t => extr2 t t)
       val local_vars = args @ body_vars @ return_vars |> distinct (op aconv)
    in local_vars end
 
@@ -128,14 +143,16 @@ fun procedure_local_vars proc (procthms:procedure_thms) =
    "forbidden" lists local variables that must not occur in ?body 
    (currently, no renaming is performed, the method fails if proc has local variables in "forbidden"   
 *)
-fun callproc_rule_tac ctx facts forbidden = 
+(* NOTE: facts are not currently used! *)
+fun callproc_rule_tac ctx _ forbidden = 
   SUBGOAL (fn (goal,i) =>
   let val proc = case Logic.strip_assums_concl goal of
         Const(@{const_name Trueprop},_) $ 
              (Const(@{const_name obs_eq'},_) $ _ $ (Const(@{const_name callproc},_)$_$p$_) $ _) => p
          | t => raise TERM("callproc_rule_tac: goal is not of the form ??? (TODO)",[t])
-      val procthms = procedure_get_thms ctx facts false proc
-      val locals = procedure_local_vars proc procthms
+      val procthms = (*procedure_get_thms ctx facts false proc*) 
+                     Procs_Typed.get_procedure_info ctx false proc
+      val locals = procedure_local_vars ctx proc procthms
       val _ = if inter (op aconv) locals forbidden = [] then () else
         raise TERM("callproc_rule_tac: locals and forbidden vars have nonempty intersection",
                    [locals |> HOLogic.mk_list @{typ variable_untyped},

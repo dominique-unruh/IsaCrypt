@@ -36,7 +36,7 @@ lemma filter_locals2: "Set.filter (\<lambda>x. \<not> vu_global x) (insert (mk_v
 lemma filter_locals3: "Set.filter (\<lambda>x. \<not> vu_global x) (set (vars_proc_global f)) = {}"
   using vars_proc_global_inter_vu_global by fastforce 
 
-definition_by_specification testproc :: "(unit,unit) procedure \<Rightarrow> (int*unit,int)procedure" where
+procedure testproc :: "(unit,unit) procedure \<Rightarrow> (int*unit,int)procedure" where
   "testproc f = LOCAL x y a z. proc(a) {x:=a; z:=call f(); y:=(1::int); globVar:=x; return x+y;}"
 schematic_lemma testproc_body [procedure_info]: "p_body (testproc f) == ?b" unfolding testproc_def by simp
 schematic_lemma testproc_return [procedure_info]: "p_return (testproc f) == ?b" unfolding testproc_def by simp
