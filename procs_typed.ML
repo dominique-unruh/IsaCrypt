@@ -73,6 +73,51 @@ fun get_procedure_info lthy partial proc =
     info
   end
 
+open Conv
+
+fun register_procedure_thm thm lthy = 
+  let val thm' = case Thm.concl_of thm of
+                   (Const ("Pure.eq", _) $ _ $ _) => thm
+                 | _ => thm RS @{thm eq_reflection}
+      fun unfold th = top_sweep_conv (K (rewr_conv th)) lthy (* TODO: should fail if no occurrence *)
+      val pattern = thm' |> Thm.concl_of |> Logic.dest_equals |> fst
+
+      val return = @{termx "p_return (?pattern::(?'a::procargs, ?'b::prog_type) procedure)"
+                      where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
+            |> (unfold thm' then_conv unfold @{thm p_return_simp})
+
+      val body = @{termx "p_body (?pattern::(?'a::procargs, ?'b::prog_type) procedure)"
+                      where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
+            |> (unfold thm' then_conv unfold @{thm p_body_simp})
+
+      val args = @{termx "p_args (?pattern::(?'a::procargs, ?'b::prog_type) procedure)"
+                      where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
+            |> (unfold thm' then_conv unfold @{thm p_args_simp})
+
+      val return_vars = @{termx "set (e_vars (p_return (?pattern::(?'a::procargs, ?'b::prog_type) procedure)))"
+                          where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
+            |> (unfold return then_conv Simplifier.rewrite lthy)
+
+(*      val body_vars = @{termx "set (vars (p_body (?pattern::(?'a::procargs, ?'b::prog_type) procedure)))"
+                          where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
+            |> (unfold body then_conv Simplifier.rewrite lthy) *)
+
+      val simpset = lthy addsimps @{thms vars_proc_global_locals}
+      val body_local_vars = @{termx "set (local_vars (p_body (?pattern::(?'a::procargs, ?'b::prog_type) procedure)))"
+                          where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
+            |> (unfold body
+                then_conv unfold @{thm local_vars_def[THEN eq_reflection]} 
+                then_conv Simplifier.rewrite simpset)
+      val name = procedure_head_of pattern
+  in
+  register_procedure name {
+    pattern=Thm.cterm_of lthy pattern,
+    body=SOME body, return=SOME return, args=SOME args,
+    body_local_vars=SOME body_local_vars, return_vars=SOME return_vars
+  } lthy
+  end
+
+
 
 (** definition of procedures **)
 

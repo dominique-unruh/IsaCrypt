@@ -701,6 +701,28 @@ lemmas reduce = safe unsafe
 
 end
 
+lemma vars_proc_global_locals: "{x \<in> set (vars_proc_global p). \<not> vu_global x} = {}"
+  unfolding vars_proc_global_def by auto
+lemma mk_procthm_body:
+  assumes "p = \<lparr>p_body = body, p_args = x, p_return = y\<rparr>"
+  shows "p_body p == body" 
+using assms by simp
+
+lemma mk_procthm_return:
+  assumes "p = \<lparr>p_body = body, p_args = x, p_return = ret\<rparr>"
+  shows "p_return p == ret" 
+using assms by simp
+
+lemma mk_procthm_args:
+  assumes "p = \<lparr>p_body = body, p_args = args, p_return = ret\<rparr>"
+  shows "p_args p == args" 
+using assms by simp
+
+lemma p_return_simp: "p_return \<lparr> p_body=body, p_args=args, p_return=ret \<rparr> == ret" by simp
+lemma p_args_simp: "p_args \<lparr> p_body=body, p_args=args, p_return=ret \<rparr> == args" by simp
+lemma p_body_simp: "p_body \<lparr> p_body=body, p_args=args, p_return=ret \<rparr> == body" by simp
+
+
 ML_file "procs_typed.ML"
 
 (*
