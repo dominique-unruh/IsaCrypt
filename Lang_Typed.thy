@@ -339,6 +339,12 @@ proof -
 qed
 
 
+lemma procargvars_add_untyped [simp]: "mk_procargvars_untyped (procargvars_add x a) = mk_variable_untyped x # mk_procargvars_untyped a" SORRY
+lemma procargvars_empty_untyped [simp]: "mk_procargvars_untyped procargvars_empty = []" SORRY
+lemma procargs_add_untyped [simp]: "mk_procargs_untyped (procargs_add x a) = mk_expression_untyped x # mk_procargs_untyped a" SORRY
+lemma procargs_empty_untyped [simp]: "mk_procargs_untyped procargs_empty = []" SORRY
+lemma vars_procargs_add [simp]: "vars_procargs (procargs_add e a) = e_vars e @ vars_procargs a" SORRY
+lemma vars_procargs_empty [simp]: "vars_procargs procargs_empty = []" SORRY
 
 
 
@@ -528,5 +534,24 @@ Const(@{const_name Lang_Typed.procedure.procedure_ext},dummyT) $
    Const(@{const_name Product_Type.Unity},dummyT)
 end)] *}
 
+
+lemma vars_seq [simp]: "vars (seq a b) = vars a @ vars b" SORRY
+lemma vars_assign [simp]: "vars (assign x e) = mk_variable_untyped x # e_vars e" SORRY
+lemma vars_sample [simp]: "vars (sample x e) = mk_variable_untyped x # e_vars e" SORRY
+lemma vars_while [simp]: "vars (Lang_Typed.while e p) = e_vars e @ vars p" SORRY
+lemma vars_ifte [simp]: "vars (Lang_Typed.ifte e p1 p2) = e_vars e @ vars p1 @ vars p2" SORRY
+definition "vars_proc_global p == [v. v<-vars (p_body p), vu_global v] @ [v. v<-e_vars (p_return p), vu_global v]"
+lemma vars_callproc [simp]: "vars (callproc x p a) = mk_variable_untyped x # vars_procargs a @ vars_proc_global p" SORRY
+lemma vars_skip [simp]: "vars Lang_Typed.skip = []" SORRY
+lemma LVariable_local [simp]: "\<not> vu_global (mk_variable_untyped (LVariable x))"
+  by (simp add: mk_variable_untyped_def)
+lemma Variable_global [simp]: "vu_global (mk_variable_untyped (Variable x))"
+  by (simp add: mk_variable_untyped_def)
+lemma mk_variable_untyped_distinct1 [simp]: "a \<noteq> b \<Longrightarrow> mk_variable_untyped (LVariable a) \<noteq> mk_variable_untyped (LVariable b)"
+  by (simp add: mk_variable_untyped_def)
+lemma mk_variable_untyped_distinct2 [simp]: "mk_variable_untyped (LVariable a) \<noteq> mk_variable_untyped (Variable b)"
+  by (simp add: mk_variable_untyped_def)
+lemma mk_variable_untyped_distinct3 [simp]: "mk_variable_untyped (Variable a) \<noteq> mk_variable_untyped (LVariable b)"
+  by (simp add: mk_variable_untyped_def)
 
 end

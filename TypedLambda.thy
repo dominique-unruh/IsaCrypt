@@ -245,12 +245,12 @@ lemma shift_commute [simp]: "e\<langle>i:U\<rangle>\<langle>0:T\<rangle> = e\<la
 
 subsection {* Types and typing rules *}
 
-datatype type =
+datatype lambda_type =
     Atom nat
-  | Fun type type    (infixr "\<Rightarrow>" 200)
-  | Prod type type
+  | Fun lambda_type lambda_type    (infixr "\<Rightarrow>" 200)
+  | Prod lambda_type lambda_type
 
-inductive typing :: "(nat \<Rightarrow> type) \<Rightarrow> dB \<Rightarrow> type \<Rightarrow> bool"  ("_ \<turnstile> _ : _" [50, 50, 50] 50)
+inductive typing :: "(nat \<Rightarrow> lambda_type) \<Rightarrow> dB \<Rightarrow> lambda_type \<Rightarrow> bool"  ("_ \<turnstile> _ : _" [50, 50, 50] 50)
   where
     Var [intro!]: "env x = T \<Longrightarrow> env \<turnstile> Var x : T"
   | Abs [intro!]: "env\<langle>0:T\<rangle> \<turnstile> t : U \<Longrightarrow> env \<turnstile> Abs t : (T \<Rightarrow> U)"
@@ -267,7 +267,7 @@ inductive_cases typing_elims [elim!]:
   "e \<turnstile> Unpair b t : T"
 
 primrec
-  typings :: "(nat \<Rightarrow> type) \<Rightarrow> dB list \<Rightarrow> type list \<Rightarrow> bool"
+  typings :: "(nat \<Rightarrow> lambda_type) \<Rightarrow> dB list \<Rightarrow> lambda_type list \<Rightarrow> bool"
 where
     "typings e [] Ts = (Ts = [])"
   | "typings e (t # ts) Ts =
@@ -276,7 +276,7 @@ where
       | T # Ts \<Rightarrow> e \<turnstile> t : T \<and> typings e ts Ts)"
 
 abbreviation
-  typings_rel :: "(nat \<Rightarrow> type) \<Rightarrow> dB list \<Rightarrow> type list \<Rightarrow> bool"
+  typings_rel :: "(nat \<Rightarrow> lambda_type) \<Rightarrow> dB list \<Rightarrow> lambda_type list \<Rightarrow> bool"
     ("_ ||- _ : _" [50, 50, 50] 50) where
   "env ||- ts : Ts == typings env ts Ts"
 
@@ -284,7 +284,7 @@ notation (latex)
   typings_rel  ("_ \<tturnstile> _ : _" [50, 50, 50] 50)
 
 abbreviation
-  funs :: "type list \<Rightarrow> type \<Rightarrow> type"  (infixr "=>>" 200) where
+  funs :: "lambda_type list \<Rightarrow> lambda_type \<Rightarrow> lambda_type"  (infixr "=>>" 200) where
   "Ts =>> T == foldr Fun Ts T"
 
 notation (latex)

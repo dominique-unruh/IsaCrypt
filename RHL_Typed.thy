@@ -1,5 +1,5 @@
 theory RHL_Typed
-imports RHL_Untyped Hoare_Typed
+imports RHL_Untyped Hoare_Typed Procs_Typed
 begin
 
 subsection {* Definition *}
@@ -55,48 +55,23 @@ term "hoare {(x)\<^sub>1 = undefined} skip ~ skip {undefined}"
 
 subsection {* Rules *}
 
-
-(* TODO move *)
-lemma vars_seq [simp]: "vars (seq a b) = vars a @ vars b" SORRY
-lemma vars_assign [simp]: "vars (assign x e) = mk_variable_untyped x # e_vars e" SORRY
-lemma vars_sample [simp]: "vars (sample x e) = mk_variable_untyped x # e_vars e" SORRY
-lemma vars_while [simp]: "vars (Lang_Typed.while e p) = e_vars e @ vars p" SORRY
-lemma vars_ifte [simp]: "vars (Lang_Typed.ifte e p1 p2) = e_vars e @ vars p1 @ vars p2" SORRY
-definition "vars_proc_global p == [v. v<-vars (p_body p), vu_global v] @ [v. v<-e_vars (p_return p), vu_global v]"
-lemma vars_callproc [simp]: "vars (callproc x p a) = mk_variable_untyped x # vars_procargs a @ vars_proc_global p" SORRY
-lemma vars_skip [simp]: "vars Lang_Typed.skip = []" SORRY
-
-lemma procargvars_add_untyped [simp]: "mk_procargvars_untyped (procargvars_add x a) = mk_variable_untyped x # mk_procargvars_untyped a" SORRY
-lemma procargvars_empty_untyped [simp]: "mk_procargvars_untyped procargvars_empty = []" SORRY
-lemma procargs_add_untyped [simp]: "mk_procargs_untyped (procargs_add x a) = mk_expression_untyped x # mk_procargs_untyped a" SORRY
-lemma procargs_empty_untyped [simp]: "mk_procargs_untyped procargs_empty = []" SORRY
-lemma LVariable_local [simp]: "\<not> vu_global (mk_variable_untyped (LVariable x))"
-  by (simp add: mk_variable_untyped_def)
-lemma Variable_global [simp]: "vu_global (mk_variable_untyped (Variable x))"
-  by (simp add: mk_variable_untyped_def)
-lemma vars_procargs_add [simp]: "vars_procargs (procargs_add e a) = e_vars e @ vars_procargs a" SORRY
-lemma vars_procargs_empty [simp]: "vars_procargs procargs_empty = []" SORRY
-lemma mk_variable_untyped_distinct1 [simp]: "a \<noteq> b \<Longrightarrow> mk_variable_untyped (LVariable a) \<noteq> mk_variable_untyped (LVariable b)"
-  by (simp add: mk_variable_untyped_def)
-lemma mk_variable_untyped_distinct2 [simp]: "mk_variable_untyped (LVariable a) \<noteq> mk_variable_untyped (Variable b)"
-  by (simp add: mk_variable_untyped_def)
-lemma mk_variable_untyped_distinct3 [simp]: "mk_variable_untyped (Variable a) \<noteq> mk_variable_untyped (LVariable b)"
-  by (simp add: mk_variable_untyped_def)
-
-
 definition "assign_local_vars_typed locals (pargs::'a::procargs procargvars) (args::'a procargs)
   = Abs_program (assign_local_vars locals (mk_procargvars_untyped pargs) (mk_procargs_untyped args))"
 
 lemma assign_local_vars_typed_simp1 [simp]: 
   "assign_local_vars_typed locals (procargvars_add p pargs) (procargs_add e args) = 
    seq (assign_local_vars_typed locals pargs args) (assign p e)"
-unfolding assign_local_vars_typed_def seq_def assign_def apply simp
+using[[simp_trace_new]]
+unfolding assign_local_vars_typed_def seq_def assign_def 
+apply simp
+find_theorems "mk_procargvars_untyped (procargvars_add _ _)"
 apply (subst Abs_program_inverse, auto intro!: well_typed_assign_local_vars)
 by (subst Abs_program_inverse, auto)
 
 (* TODO move *)
 lemma t_default_Type [simp]: "t_default (Type TYPE('a::prog_type)) = embedding (default::'a)"
   by (simp add: Abs_type_inverse t_default_def Type_def)
+
 
 lemma assign_local_vars_typed_simp2 [simp]: 
   "assign_local_vars_typed (mk_variable_untyped x#locals) procargvars_empty procargs_empty = 
@@ -113,8 +88,7 @@ lemma assign_local_vars_typed_simp3 [simp]:
   "assign_local_vars_typed [] procargvars_empty procargs_empty = Lang_Typed.skip"
 unfolding assign_local_vars_typed_def skip_def by simp
 
-(* TODO move *)
-definition "local_vars prog = filter (\<lambda>x. \<not>vu_global x) (vars prog)"
+
 
 
 (* If the number of subgoals change, inline_rule_conditions_tac must be adapted accordingly *)

@@ -21,7 +21,6 @@ lemma rhoare_untyped_rhoare_denotation: "rhoare_untyped pre c1 c2 post = rhoare_
 
 
 
-
 lemma rskip_rule:
   assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q m1 m2"
   shows "rhoare_untyped P Skip Skip Q"

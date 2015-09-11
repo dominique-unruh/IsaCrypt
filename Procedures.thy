@@ -319,7 +319,7 @@ fun to_dB where
 
 abbreviation "ProcT == Fun (Atom 0) (Atom 0)"
 
-fun typ_conv :: "procedure_type_open \<Rightarrow> TypedLambda.type" where
+fun typ_conv :: "procedure_type_open \<Rightarrow> lambda_type" where
   "typ_conv (ProcTSimple _) = ProcT"
 | "typ_conv ProcTUnit = ProcT"
 | "typ_conv (ProcTFun T U) = Fun (typ_conv T) (typ_conv U)"

@@ -81,9 +81,12 @@ fun procedure_existence_solve_tac ctx i =
   (resolve_tac ctx @{thms reduce_procfun.reduce} THEN_ALL_NEW procedure_existence_solve_tac ctx) i
 
 fun procedure_existence_tac ctx i = 
+print_tac ctx "GOAL"  THEN
+(
   (resolve_tac ctx @{thms reduce_procfun.safe} THEN_ALL_NEW procedure_existence_tac ctx) i
   ORELSE (resolve_tac ctx @{thms reduce_procfun.unsafe} THEN_ALL_NEW procedure_existence_solve_tac ctx) i
-  ORELSE all_tac;;
+  ORELSE all_tac
+);;
 
 fun definition_via_specification_tac tac ctx =
   dtac meta_eq_to_obj_eq 1
@@ -175,4 +178,5 @@ val _ = Outer_Syntax.local_theory_to_proof @{command_keyword procedure'}
 (definition_via_specification_parser >>
    definition_via_specification_cmd (definition_via_specification 
       (definition_via_specification_tac procedure_existence_tac)))
+
 end

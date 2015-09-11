@@ -336,4 +336,8 @@ definition "lossless_untyped p = (\<forall>m. weight_distr (denotation_untyped p
 definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"
 
 
+definition "local_vars prog = filter (\<lambda>x. \<not>vu_global x) (vars prog)"
+
+
+
 end

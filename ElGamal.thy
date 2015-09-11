@@ -1,5 +1,5 @@
 theory ElGamal
-imports Hoare_Tactics Procs_Typed Tactic_Inline Lang_Simplifier
+imports Hoare_Tactics Procs_Typed Tactic_Inline Lang_Simplifier Scratch
 begin
 
 definition "HIDDEN_EQ = op="
@@ -213,11 +213,15 @@ procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_*unit,bool)procedure" wh
     return succ
   }"
 
+find_theorems "vars (assign _ _)"
+
+
 (*lemma h1: "scheme = (fst scheme, fst (snd scheme), snd (snd scheme))" by auto*)
 lemma h1: "scheme = Abs_EncScheme (keygen<$>scheme, enc<$>scheme, dec<$>scheme)"
   apply (subst (1 2 3 4) Rep_EncScheme_inverse[of scheme, symmetric])
   by (cases "Rep_EncScheme scheme", simp)
 
+(*
 (* TODO: create those automatically *)
 schematic_lemma Correctness_body [procedure_info]: "p_body (Correctness <$> scheme) == ?b" 
   apply (subst h1) apply (rule HIDDEN_EQ_I') unfolding Correctness_def apply simp by (fact HIDDEN_EQ_refl)
@@ -238,6 +242,7 @@ schematic_lemma Correctness_body_local_vars [procedure_info]: "set (local_vars (
   unfolding local_vars_def filter_set[symmetric] apply (subst Correctness_body_vars)
   unfolding filter_locals1 filter_locals2 filter_locals3 set_filter_empty set_filter_union
   apply simp_all by (rule HIDDEN_EQ_varset HIDDEN_EQ_set_filter; simp?)+
+*)
 
 ML {* fun pull_pattern thm = thm |> Thm.concl_of |> Logic.dest_equals |> fst |> Term.dest_comb |> snd |> 
   Thm.global_cterm_of (Thm.theory_of_thm thm)
@@ -261,7 +266,8 @@ fun quick_reg [args,body,return,return_vars,body_local_vars] =
   | quick_reg _ = error "quick_reg"
   *}
 
-local_setup {* quick_reg @{thms Correctness_args Correctness_body Correctness_return Correctness_return_vars Correctness_body_local_vars} *}
+(*local_setup {* quick_reg @{thms Correctness_args Correctness_body Correctness_return Correctness_return_vars Correctness_body_local_vars} *}*)
+local_setup {* register_procedure_thm @{thm Correctness_def} *}
 
 (*
 local_setup {*
@@ -285,7 +291,7 @@ ML {* Procs_Typed.get_procedure_info @{context} true @{term "Correctness <$> x"}
 
 
 context group begin
-schematic_lemma kg_body [procedure_info]: "p_body (keygen<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
+(*schematic_lemma kg_body [procedure_info]: "p_body (keygen<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
 schematic_lemma kg_return [procedure_info]: "p_return (keygen<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
 schematic_lemma kg_args [procedure_info]: "p_args (keygen<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def by (simp, rule HIDDEN_EQ_procargs)+
 schematic_lemma kg_body_vars [procedure_info]: "set (vars (p_body (keygen<$>ElGamal))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_body ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
@@ -294,11 +300,16 @@ schematic_lemma kg_body_local_vars [procedure_info]: "set (local_vars (p_body (k
  apply (rule HIDDEN_EQ_I')
  unfolding local_vars_def filter_set[symmetric] apply (subst kg_body_vars)
  unfolding filter_locals1 filter_locals2 filter_locals3 set_filter_empty
- by (rule HIDDEN_EQ_varset)+
+ by (rule HIDDEN_EQ_varset)+ *)
 
-local_setup {* quick_reg @{thms kg_args kg_body kg_return kg_return_vars kg_body_local_vars} *}
+schematic_lemma keygen_def': "keygen<$>ElGamal = ?x"
+  unfolding ElGamal_def by simp
+
+(*local_setup {* quick_reg @{thms kg_args kg_body kg_return kg_return_vars kg_body_local_vars} *}*)
+local_setup {* register_procedure_thm @{thm keygen_def'} *}
 
 
+(*
 schematic_lemma enc_args [procedure_info]: "p_args (enc<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (rule HIDDEN_EQ_procargs)+
 schematic_lemma enc_body_vars [procedure_info]: "set (vars (p_body (enc<$>ElGamal))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_body ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
 schematic_lemma enc_body_local_vars [procedure_info]: "set (local_vars (p_body (enc<$>ElGamal))) == ?b" 
@@ -311,7 +322,13 @@ schematic_lemma enc_body [procedure_info]: "p_body (enc<$>ElGamal) == ?b" apply 
 schematic_lemma enc_return [procedure_info]: "p_return (enc<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
 
 local_setup {* quick_reg @{thms enc_args enc_body enc_return enc_return_vars enc_body_local_vars} *}
+*)
 
+schematic_lemma enc_def': "enc<$>ElGamal = ?x"
+  unfolding ElGamal_def by simp
+local_setup {* register_procedure_thm @{thm enc_def'} *}
+
+(*
 schematic_lemma dec_args [procedure_info]: "p_args (dec<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (rule HIDDEN_EQ_procargs)+
 schematic_lemma dec_body_vars [procedure_info]: "set (vars (p_body (dec<$>ElGamal))) == ?b" apply (rule HIDDEN_EQ_I') unfolding kg_body ElGamal_def apply simp? by (rule HIDDEN_EQ_varset)+
 schematic_lemma dec_body_local_vars [procedure_info]: "set (local_vars (p_body (dec<$>ElGamal))) == ?b" 
@@ -324,6 +341,13 @@ schematic_lemma dec_body [procedure_info]: "p_body (dec<$>ElGamal) == ?b" apply 
 schematic_lemma dec_return [procedure_info]: "p_return (dec<$>ElGamal) == ?b" apply (rule HIDDEN_EQ_I') unfolding ElGamal_def apply simp by (fact HIDDEN_EQ_refl)
 
 local_setup {* quick_reg @{thms dec_args dec_body dec_return dec_return_vars dec_body_local_vars} *}
+*)
+
+
+schematic_lemma dec_def': "dec<$>ElGamal = ?x"
+  unfolding ElGamal_def by simp
+local_setup {* register_procedure_thm @{thm dec_def'} *}
+
 
 end
 
