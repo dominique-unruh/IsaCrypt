@@ -722,67 +722,93 @@ lemma p_return_simp: "p_return \<lparr> p_body=body, p_args=args, p_return=ret \
 lemma p_args_simp: "p_args \<lparr> p_body=body, p_args=args, p_return=ret \<rparr> == args" by simp
 lemma p_body_simp: "p_body \<lparr> p_body=body, p_args=args, p_return=ret \<rparr> == body" by simp
 
+subsection {* Support for automatic module type creation *}
+
+
+lemma Rep_ModuleType'_template:
+  fixes Rep' :: "'abs::procedure_functor =proc=> 'rep::procedure_functor"
+    and Rep :: "'abs::procedure_functor \<Rightarrow> 'rep::procedure_functor"
+  assumes Rep'_def: "Rep' \<equiv> Abs_procfun (ProcAbs (ProcRef 0))"
+  assumes procedure_functor_mk_untyped_abs_def: 
+    "procedure_functor_mk_untyped \<equiv> \<lambda>x\<Colon>'abs. procedure_functor_mk_untyped (Rep x)"
+  assumes procedure_functor_type_abs_def:
+    "procedure_functor_type \<equiv> \<lambda>_\<Colon>'abs itself. procedure_functor_type TYPE('rep)"
+  shows "procfun_apply Rep' = Rep"
+apply (rule ext)
+unfolding Rep'_def procfun_apply_def procedure_functor_mk_untyped_abs_def
+          procedure_functor_mk_untyped_procfun_def apply_procedure_def
+apply (subst Abs_procfun_inverse, simp)
+ apply (auto simp: wt_ProcAbs_iff wt_ProcRef_iff)
+ unfolding procedure_functor_type_abs_def
+ close simp
+apply (subst beta_reduce_beta)
+  close (auto simp: wt_ProcRef_iff)
+ close (fact procedure_functor_welltyped)
+by simp
+
+lemma Abs_ModuleType'_template:
+  fixes Abs' :: "'rep::procedure_functor =proc=> 'abs::procedure_functor"
+    and Abs :: "'rep::procedure_functor \<Rightarrow> 'abs::procedure_functor"
+  assumes Abs'_def: "Abs' \<equiv> Abs_procfun (ProcAbs (ProcRef 0))"
+  assumes procedure_functor_mk_typed'_abs_def: 
+    "procedure_functor_mk_typed' \<equiv> \<lambda>p. Abs (procedure_functor_mk_typed' p)"
+  assumes procedure_functor_type_abs_def:
+    "procedure_functor_type \<equiv> \<lambda>_\<Colon>'abs itself. procedure_functor_type TYPE('rep)"
+  shows "procfun_apply Abs' = Abs"
+apply (rule ext)
+unfolding Abs'_def procfun_apply_def 
+          procedure_functor_mk_untyped_procfun_def apply_procedure_def
+apply (subst Abs_procfun_inverse; simp?)
+ apply (auto simp: wt_ProcAbs_iff wt_ProcRef_iff)
+ unfolding procedure_functor_type_abs_def
+ close simp
+apply (subst beta_reduce_beta)
+  close (auto simp: wt_ProcRef_iff)
+ close (fact procedure_functor_welltyped)
+by (simp add: procedure_functor_mk_typed'_abs_def procedure_functor_mk_typed_def)
+
+
+(* Hack to allow to state lemma OFCLASS_procedure_functor_class_I. Is there a cleaner way? *)
+ML {*  
+  val consts_to_unconstrain = [@{const_name procedure_functor_type},
+                               @{const_name procedure_functor_mk_untyped},
+                               @{const_name procedure_functor_mk_typed'}
+                               ];
+  val consts_orig_constraints = map (Sign.the_const_constraint @{theory}) consts_to_unconstrain
+*}
+setup {*
+  fold (fn c => fn thy => Sign.add_const_constraint (c,NONE) thy) consts_to_unconstrain
+*}
+
+
+lemma OFCLASS_procedure_functor_class_I: 
+  fixes Rep :: "'t::type \<Rightarrow> 'rep::procedure_functor"
+    and Abs :: "'rep \<Rightarrow> 't"
+  assumes type_def: "procedure_functor_type == \<lambda>x::'t itself. procedure_functor_type (TYPE('rep))"
+  assumes mk_untyped_def: "procedure_functor_mk_untyped == \<lambda>x::'t. procedure_functor_mk_untyped (Rep x)"
+  assumes mk_typed_def: "procedure_functor_mk_typed' == \<lambda>p. Abs (procedure_functor_mk_typed' p)"
+  assumes Abs_inverse: "\<And>y. y\<in>UNIV \<Longrightarrow> Rep (Abs y) = y"
+  assumes Rep_inverse: "\<And>x. Abs (Rep x) = x"
+  shows "OFCLASS('t, procedure_functor_class)"
+apply (intro_classes)
+using[[show_consts]]
+close (unfold mk_untyped_def type_def, fact procedure_functor_welltyped)
+close (unfold mk_untyped_def, fact procedure_functor_beta_reduced)
+close (unfold mk_untyped_def mk_typed_def type_def Abs_inverse[OF UNIV_I], fact procedure_functor_mk_typed_inverse')
+apply (unfold mk_typed_def mk_untyped_def Rep_inverse procedure_functor_mk_untyped_inverse')
+by (fact refl)
+
+
+(* Recover stored type constraints *)
+setup {*
+  fold2 (fn c => fn T => fn thy => Sign.add_const_constraint (c,SOME (Logic.unvarifyT_global T)) thy)
+      consts_to_unconstrain consts_orig_constraints
+*}
+
+
 
 ML_file "procs_typed.ML"
 
-(*
-definition "x == Variable ''x'' :: int variable"
-definition "y == Variable ''y'' :: unit variable"
-
-(*
-ML {*
-structure Result = Proof_Data
-(type T = unit -> (local_theory -> Proof.state)
-fun init _ () = error "Result")
-val result_cookie = (Result.get, Result.put, "Result.put")
-*}
-
-ML {*
-  val local_setup_goal_fun = Unsynchronized.ref (fn (_:local_theory) => error "xxx" : Proof.state);
-  Outer_Syntax.local_theory_to_proof @{command_spec "local_setup_goal"} 
-        "invokes a 'local_theory => Proof.state' function (HACK!!!)"
-        (Scan.succeed (fn x => !local_setup_goal_fun x))
-*}
-*)
-
-locale test = fixes v::"(unit, unit) procedure" begin
-
-
-definition_by_specification my_proc where
-  "procfun_apply my_proc (p,q,r::(unit,unit)procedure) = 
-     proc() { x:=1; y:=call p(); y:=call r(); return () }"
-
-end
-
-schematic_lemma (in reduce_procfun) l1:
-  shows "\<And>p q r. my_proc == ?my_proc \<Longrightarrow> 
-  (procfun_apply my_proc (p,q,r) = proc() { x:=1; y:=call p(); y:=call r(); return () })"
-apply (tactic "dtac meta_eq_to_obj_eq 1")
-apply (tactic "hyp_subst_tac_thin true @{context} 1")
-apply (tactic "Procs_Typed.procedure_existence_tac @{context} 1")
-done
-
-(*
-definition my_proc_def0: "my_proc \<equiv>
- procedure_functor_mk_typed
-  (ProcAbs
-    (Proc (Seq (Seq (mk_program_untyped (assign x (const_expression 1)))
-                 (CallProc (mk_variable_untyped y)
-                   (ProcAppl (ProcAbs (ProcRef 0)) (ProcUnpair True (ProcRef 0)))
-                   (mk_procargs_untyped procargs_empty)))
-            (CallProc (mk_variable_untyped y)
-              (ProcAppl (ProcAbs (ProcAppl (ProcAbs (ProcRef 0)) (ProcUnpair True (ProcRef 0))))
-                (ProcUnpair False (ProcRef 0)))
-              (mk_procargs_untyped procargs_empty)))
-      (mk_procargvars_untyped procargvars_empty) (mk_expression_untyped (const_expression ()))))"
-*)
-
-lemmas my_proc_def = my_proc_def0[THEN reduce_procfun.l1]
-
-*)
-
-(* TODO remove *)
-named_theorems procedure_info
 
 
 

@@ -224,4 +224,137 @@ val _ = Outer_Syntax.local_theory_to_proof @{command_keyword procedure'}
    definition_via_specification_cmd (definition_via_specification 
       (definition_via_specification_tac procedure_existence_tac)))
 
+(** Definition of module types **)
+
+fun instantiate_type_copy_procedure_functor bind abs_type_name tparams rep_type AbsF RepF Abs_inverse Rep_inverse thy 
+  : (thm*thm*thm) * theory
+=
+  let (* Declaring: instantiation ModuleType :: (prog_type,prog_type)procedure_functor_type *)
+      val lthy = Class.instantiation ([abs_type_name], tparams, @{sort procedure_functor}) thy
+
+      val abs_type = Type(abs_type_name,map TFree tparams)
+
+      (* Declaring: definition "procedure_functor_type_AbsType (x::('a,'b) AbsType itself) == procedure_functor_type (TYPE(RepType))" *)
+      val pftype_bind = Binding.prefix_name "procedure_functor_type_" bind
+      val ((_,(_,pftype_def)),lthy) = Local_Theory.define
+          ((pftype_bind,NoSyn), 
+           ((Thm.def_binding pftype_bind,[]),
+             @{termx "\<lambda>_::?'abs_type itself. procedure_functor_type (TYPE(?'rep_type::procedure_functor))"})) lthy
+
+      (* Declaring: definition "procedure_functor_mk_untyped_AbsType x == procedure_functor_mk_untyped (Rep x)" *)
+      val pfmkuntyped_bind = Binding.prefix_name "procedure_functor_mk_untyped_" bind
+      val ((_,(_,pfmkuntyped_def)),lthy) = Local_Theory.define
+          ((pfmkuntyped_bind,NoSyn), 
+           ((Thm.def_binding pfmkuntyped_bind,[]),
+             @{termx "\<lambda>x::?'abs_type. procedure_functor_mk_untyped (?RepF x :: ?'rep_type::procedure_functor)"})) lthy
+
+      (* Declaring: definition "procedure_functor_mk_typed'_AbsType p == Abs (procedure_functor_mk_typed' p)" *)
+      val pfmktyped_bind = Binding.prefix_name "procedure_functor_mk_typed'_" bind
+      val ((_,(_,pfmktyped_def)),lthy) = Local_Theory.define
+          ((pfmktyped_bind,NoSyn), 
+           ((Thm.def_binding pfmktyped_bind,[]),
+             @{termx "\<lambda>p. ?AbsF (procedure_functor_mk_typed' p :: ?'rep_type::procedure_functor) :: 'abs_type"})) lthy
+
+      val export_target = Proof_Context.init_global thy
+      fun export thm = Proof_Context.export lthy export_target [thm] |> hd
+
+      (* Declaring: instance apply (rule OFCLASS_procedure_functor_class_I)
+                             apply (fact procedure_functor_type_AbsType_def)
+                             apply (fact procedure_functor_mk_untyped_AbsType_def)
+                             apply (fact procedure_functor_mk_typed'_AbsType_def)
+                             apply (fact Abs_inverse apply (fact Rep_inverse) *)
+
+      val pftype_def = export pftype_def
+      val pfmktyped_def = export pfmktyped_def
+      val pfmkuntyped_def = export pfmkuntyped_def
+
+      fun instance_tac ctx = 
+        rtac @{thm OFCLASS_procedure_functor_class_I} 1
+            THEN solve_tac ctx [pftype_def] 1
+            THEN solve_tac ctx [pfmkuntyped_def] 1
+            THEN solve_tac ctx [pfmktyped_def] 1
+            THEN solve_tac ctx [Abs_inverse] 1
+            THEN solve_tac ctx [Rep_inverse] 1
+      val thy = Class.prove_instantiation_exit instance_tac lthy
+in ((pftype_def,pfmkuntyped_def,pfmktyped_def),thy) end
+
+
+type module_type_spec = {
+  name : binding,
+  type_params : (string*sort) list,
+  procedures : (binding * typ) list
+}
+
+
+
+
+(* Example: spec = {name = @{binding ModuleType},
+                    type_params = [("'a",@{sort prog_type}), ("'b",@{sort prog_type})],
+                    procedures = [(@{binding proc1}, @{typ "(unit,unit) procedure"}),
+                                  (@{binding proc2}, @{typ "(unit,'b) procedure"})]} *)
+
+fun declare_module_type (spec:module_type_spec) lthy =
+  let val rep_binding = Binding.suffix_name "_rep" (#name spec)
+      val tparams = map fst (#type_params spec)
+      val proctypes = map snd (#procedures spec)
+      val proctypes_tuple = HOLogic.mk_tupleT proctypes
+
+      val lthy_start = lthy
+
+      (* Declaring: type_synonym ('a,'b) ModuleType_rep = "(unit,unit) procedure * (unit,'b) procedure" *)
+      val (rep_type_name,lthy) = Typedecl.abbrev (rep_binding,tparams,NoSyn) proctypes_tuple lthy
+      val rep_type = Type(rep_type_name, map TFree (#type_params spec))
+
+      (* Declaring: typedef ('a,'b) ModuleType = "UNIV :: ('a::prog_type,'b::prog_type) ModuleType_rep set" *)
+      val typedef_repset = HOLogic.mk_UNIV (rep_type)
+      val ((abs_type_name,typedef_info),lthy) = 
+          Typedef.add_typedef false (#name spec, #type_params spec, NoSyn)
+              typedef_repset NONE (K (rtac @{thm UNIV_witness} 1)) lthy
+      val abs_type = Type(abs_type_name, map TFree (#type_params spec))
+
+      fun export thm = Proof_Context.export lthy lthy_start [thm] |> hd
+
+      (* Declaring: instantiation ModuleType = (...)procedure_type begin ... end *)
+      val inst_global : theory -> (thm*thm*thm)*theory = instantiate_type_copy_procedure_functor 
+          (#name spec) abs_type_name (#type_params spec) rep_type
+          (Const(#Abs_name (fst typedef_info), rep_type --> abs_type))
+          (Const(#Rep_name (fst typedef_info), abs_type --> rep_type))
+          (#Abs_inverse (snd typedef_info) |> export) (#Rep_inverse (snd typedef_info) |> export)
+      val ((pftype_def,pfmkuntyped_def,pfmktyped_def),lthy) = Local_Theory.background_theory_result inst_global lthy
+
+      (* Declaring: definition Abs_ModuleType' :: "('a,'b) ModuleType_rep =proc=> ('a,'b) ModuleType" where
+                    "Abs_ModuleType' = Abs_procfun (ProcAbs (ProcRef 0))" *)
+      val Abs_MT_bind = #name spec |> Binding.prefix_name "Abs_" |> Binding.suffix_name "'"
+      val ((_,(_,Abs_MT_def)),lthy) = Local_Theory.define
+          ((Abs_MT_bind,NoSyn), 
+           ((Thm.def_binding Abs_MT_bind,[]),
+             @{termx "Abs_procfun (ProcAbs (ProcRef 0)) 
+                 :: ?'rep_type::procedure_functor =proc=> ?'abs_type::procedure_functor"})) lthy
+
+      (* Declaring: definition Rep_ModuleType' :: "('a,'b) ModuleType_rep =proc=> ('a,'b) ModuleType" where
+                    "Rep_ModuleType' = Rep_procfun (ProcRep (ProcRef 0))" *)
+      val Rep_MT_bind = #name spec |> Binding.prefix_name "Rep_" |> Binding.suffix_name "'"
+      val ((_,(_,Rep_MT_def)),lthy) = Local_Theory.define
+          ((Rep_MT_bind,NoSyn), 
+           ((Thm.def_binding Rep_MT_bind,[]),
+             @{termx "Abs_procfun (ProcAbs (ProcRef 0)) 
+                 :: ?'abs_type::procedure_functor =proc=> ?'rep_type::procedure_functor"})) lthy
+
+      (* Declaring: lemma Rep_ModuleType': "procfun_apply Rep_ModuleType' = Rep_moduleType" *) 
+      val Rep_MT_thm = @{thm Rep_ModuleType'_template} OF [Rep_MT_def] OF [pfmkuntyped_def] OF [pftype_def]
+      val (_,lthy) = Local_Theory.note ((Rep_MT_bind,@{attributes [simp]}),[Rep_MT_thm]) lthy
+
+      (* Declaring: lemma Abs_ModuleType': "procfun_apply Rep_ModuleType' = Rep_moduleType" *) 
+      val Abs_MT_thm = @{thm Abs_ModuleType'_template} OF [Abs_MT_def] OF [pfmktyped_def] OF [pftype_def]
+      val (_,lthy) = Local_Theory.note ((Abs_MT_bind,@{attributes [simp]}),[Abs_MT_thm]) lthy
+
+(* TODO remove *)
+(* val _ = Rep_MT_def
+  |> Display.string_of_thm lthy |> writeln *)
+val t1 = @{thm Rep_ModuleType'_template} OF [Rep_MT_def] OF [pfmkuntyped_def] OF [pftype_def]
+val _ = t1  |> Display.string_of_thm lthy |> writeln
+
+  in  lthy  end
+
+
 end
