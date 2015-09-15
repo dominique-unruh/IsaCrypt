@@ -2,6 +2,45 @@ theory Scratch
 imports Main Procs_Typed
 begin
 
+class testclass =
+  fixes hmpf :: "'a"
+  assumes finite_UNIV': "finite (UNIV \<Colon> 'a set)"
+print_theorems
+
+locale xxx begin
+
+typedef 'a x = "UNIV::'a set" ..
+
+lemma tc: "class.testclass TYPE('a::finite xxx.x)"
+  sorry
+
+lemma tc2: "OFCLASS('a::finite xxx.x, testclass_class)"
+  apply (rule Scratch.class.Scratch.testclass.of_class.intro)
+  by (fact tc)
+
+ML {*
+fun inst thy =
+  let fun tac ctx = print_tac ctx "goal" 
+              THEN rtac @{thm tc2} 1
+      val lthy = Class.instantiation ([@{type_name xxx.x}], [("'a",@{sort finite})], @{sort testclass}) thy
+      val thy = Class.prove_instantiation_exit tac lthy
+  in
+  thy
+  end
+*}
+
+declare[[show_sorts=true]]
+local_setup "Local_Theory.background_theory inst"
+
+end
+
+
+lemma "OFCLASS(xxx.x, testclass_class)"
+  by (tactic \<open>rtac @{thm Scratch.class.Scratch.testclass.of_class.intro} 1\<close>)
+
+instantiation xxx.x :: testclass begin
+instance by intro_classes
+end
 
 abbreviation "gX == Variable ''gX'' :: int variable"
 
