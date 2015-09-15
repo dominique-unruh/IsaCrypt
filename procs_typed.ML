@@ -286,6 +286,17 @@ type module_type_spec = {
 }
 
 
+fun nth_of_m_procfun 0 1 f = f
+  | nth_of_m_procfun 0 m f =
+      if m<=0 then error "nth_of_m_procfun: m\<le>0" 
+      else @{termx "procfun_compose <$> fst_procfun <$> (?f::?'f.1)" 
+             where "?'f.1\<Rightarrow>?'a::procedure_functor=proc=>(?'b::procedure_functor*?'c::procedure_functor)"}
+  | nth_of_m_procfun n m f =
+      if n<0 then error "nth_of_m_procfun: n<0"
+      else if m<=n then error "nth_of_m_procfun: n\<ge>m"
+      else nth_of_m_procfun (n-1) (m-1)
+            @{termx "procfun_compose <$> snd_procfun <$> (?f::?'f.1)" 
+             where "?'f.1\<Rightarrow>?'a::procedure_functor=proc=>(?'b::procedure_functor*?'c::procedure_functor)"}
 
 
 (* Example: spec = {name = @{binding ModuleType},
@@ -334,19 +345,34 @@ fun declare_module_type (spec:module_type_spec) lthy =
       (* Declaring: definition Rep_ModuleType' :: "('a,'b) ModuleType_rep =proc=> ('a,'b) ModuleType" where
                     "Rep_ModuleType' = Rep_procfun (ProcRep (ProcRef 0))" *)
       val Rep_MT_bind = #name spec |> Binding.prefix_name "Rep_" |> Binding.suffix_name "'"
-      val ((_,(_,Rep_MT_def)),lthy) = Local_Theory.define
+      val ((Rep_MT_t,(_,Rep_MT_def)),lthy) = Local_Theory.define
           ((Rep_MT_bind,NoSyn), 
            ((Thm.def_binding Rep_MT_bind,[]),
              @{termx "Abs_procfun (ProcAbs (ProcRef 0)) 
                  :: ?'abs_type::procedure_functor =proc=> ?'rep_type::procedure_functor"})) lthy
 
-      (* Declaring: lemma Rep_ModuleType': "procfun_apply Rep_ModuleType' = Rep_moduleType" *) 
+      (* Declaring: lemma Rep_ModuleType': "procfun_apply Rep_ModuleType' = Rep_ModuleType" *) 
       val Rep_MT_thm = @{thm Rep_ModuleType'_template} OF [Rep_MT_def] OF [pfmkuntyped_def] OF [pftype_def]
       val (_,lthy) = Local_Theory.note ((Rep_MT_bind,@{attributes [simp]}),[Rep_MT_thm]) lthy
 
-      (* Declaring: lemma Abs_ModuleType': "procfun_apply Rep_ModuleType' = Rep_moduleType" *) 
+      (* Declaring: lemma Abs_ModuleType': "procfun_apply Abs_ModuleType' = Abs_ModuleType" *) 
       val Abs_MT_thm = @{thm Abs_ModuleType'_template} OF [Abs_MT_def] OF [pfmktyped_def] OF [pftype_def]
       val (_,lthy) = Local_Theory.note ((Abs_MT_bind,@{attributes [simp]}),[Abs_MT_thm]) lthy
+
+      val numgetters = length (#procedures spec)
+      fun declare_getter (i,proc) lthy : local_theory =
+        let val rhs = nth_of_m_procfun i numgetters Rep_MT_t
+            val (bind,_) = proc
+            (* Declaring: definition "proc1 == procfun_compose <$> fst_procfun <$> Rep_ModuleType'"
+               and similarly for proc2... *)
+            val ((_,(_,_)),lthy) = Local_Theory.define ((bind,NoSyn),((Thm.def_binding bind,[]),rhs)) lthy
+            (* TODO: Declaring: lemma proc1 [simp]: "proc1 <$> Abs_ModuleType (x,y) = x"
+               and similar for proc2... *)
+        in
+        lthy
+        end
+
+      val lthy = fold_index declare_getter (#procedures spec) lthy
 
 (* TODO remove *)
 (* val _ = Rep_MT_def
