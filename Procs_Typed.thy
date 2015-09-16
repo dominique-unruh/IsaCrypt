@@ -428,7 +428,7 @@ definition procfun_compose :: "('b::procedure_functor =proc=> 'c::procedure_func
    (procfun_K <$> procfun_K) <$> (procfun_S <$> (procfun_K <$> procfun_S) <$> procfun_K))) <$>
    (procfun_K <$> (procfun_S <$> (procfun_S <$> (procfun_K <$> procfun_S) <$> procfun_K) <$>
    (procfun_K <$> procfun_id)))"
-lemma procfun_compose: "(procfun_compose <$> x <$> y) <$> z = x <$> (y <$> z)"
+lemma procfun_compose: "procfun_compose <$> x <$> y <$> z = x <$> (y <$> z)"
   unfolding procfun_compose_def procfun_S procfun_id procfun_K ..
 
 

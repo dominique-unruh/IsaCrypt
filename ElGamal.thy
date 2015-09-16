@@ -58,7 +58,6 @@ val EncScheme_spec = {
 }
 *}
 
-
 local_setup "Procs_Typed.declare_module_type EncScheme_spec"
 
 (*
@@ -67,13 +66,15 @@ definition "enc = procfun_compose <$> fst_procfun <$> (procfun_compose <$> snd_p
 definition "dec = procfun_compose <$> snd_procfun <$> (procfun_compose <$> snd_procfun <$> Rep_EncScheme')"
 *)
 
-lemma keygen[simp]: "keygen <$> (Abs_EncScheme (x,y,z)) = x"
+(* lemma keygen[simp]: "keygen <$> (Abs_EncScheme (x,y,z)) = x"
+  unfolding keygen_def
+  unfolding procfun_compose
   unfolding keygen_def Rep_EncScheme' procfun_compose Abs_EncScheme_inverse[OF UNIV_I] fst_procfun by simp
 lemma enc[simp]: "enc <$> (Abs_EncScheme (x,y,z)) = y"
   unfolding enc_def Rep_EncScheme' procfun_compose Abs_EncScheme_inverse[OF UNIV_I] fst_procfun snd_procfun by simp
 lemma dec[simp]: "dec <$> (Abs_EncScheme (x,y,z)) = z"
   unfolding dec_def Rep_EncScheme' procfun_compose Abs_EncScheme_inverse[OF UNIV_I] fst_procfun snd_procfun by simp
-
+ *)
 
 
 
