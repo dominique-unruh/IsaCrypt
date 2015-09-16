@@ -1,5 +1,6 @@
 theory ElGamal
 imports Hoare_Tactics Procs_Typed Tactic_Inline Lang_Simplifier
+keywords "module_type" :: thy_decl
 begin
 
 subsection {* General setup *}
@@ -46,61 +47,61 @@ procedure (in group) DDH1 :: "'G DDH_Adv =proc=> 'G DDH_Game" where
 subsection {* Declaring module type EncScheme *}
 
 ML {*
-val EncScheme_spec = {
-  name = @{binding EncScheme},
-  type_params = [("'pk",@{sort prog_type}),
-                 ("'sk",@{sort prog_type}),
-                 ("'m",@{sort prog_type}),
-                 ("'c",@{sort prog_type})],
-  procedures = [(@{binding keygen}, @{typ "(unit,'pk*'sk) procedure"}),
-                (@{binding enc}, @{typ "('pk*'m*unit, 'c) procedure"}),
-                (@{binding dec}, @{typ "('sk*'c*unit, 'm option) procedure"})]
-}
+fun declare_module_type_cmd name tparams procedures lthy =
+  let val tparams = map (apsnd (Typedecl.read_constraint lthy)) tparams
+      (* val lthy = fold (Variable.declare_typ o TFree) tparams lthy *)
+      val tparams = map (Proof_Context.check_tfree lthy) tparams
+      val procedureTs = Syntax.read_typs lthy (map (fn (_, T, _) => T) procedures)
+      val procedureBindings = map (fn (bind,_,_) => bind) procedures
+      val procedures = ListPair.zip (procedureBindings, procedureTs)
+      val spec = { name = name, type_params = tparams, procedures = procedures }
+(*
+    val params = map (apsnd (Typedecl.read_constraint ctxt)) raw_params;
+    val ctxt1 = fold (Variable.declare_typ o TFree) params ctxt;
+    val (parent, ctxt2) = read_parent raw_parent ctxt1;
+    val (fields, ctxt3) = read_fields raw_fields ctxt2;
+    val params' = map (Proof_Context.check_tfree ctxt3) params;
+*)
+  in
+  Procs_Typed.declare_module_type spec lthy
+  end
 *}
 
-local_setup "Procs_Typed.declare_module_type EncScheme_spec"
 
-(*
-definition "keygen = procfun_compose <$> fst_procfun <$> Rep_EncScheme'"
-definition "enc = procfun_compose <$> fst_procfun <$> (procfun_compose <$> snd_procfun <$> Rep_EncScheme')"
-definition "dec = procfun_compose <$> snd_procfun <$> (procfun_compose <$> snd_procfun <$> Rep_EncScheme')"
-*)
+ML {*
+Outer_Syntax.local_theory @{command_keyword module_type} "define a module type"
+    (Parse.type_args_constrained -- Parse.binding -- (@{keyword "="} |-- Scan.repeat1 Parse.const_binding)
+    >> (fn ((tparams,binding), procedures) => declare_module_type_cmd binding tparams procedures))
+*}
 
-(* lemma keygen[simp]: "keygen <$> (Abs_EncScheme (x,y,z)) = x"
-  unfolding keygen_def
-  unfolding procfun_compose
-  unfolding keygen_def Rep_EncScheme' procfun_compose Abs_EncScheme_inverse[OF UNIV_I] fst_procfun by simp
-lemma enc[simp]: "enc <$> (Abs_EncScheme (x,y,z)) = y"
-  unfolding enc_def Rep_EncScheme' procfun_compose Abs_EncScheme_inverse[OF UNIV_I] fst_procfun snd_procfun by simp
-lemma dec[simp]: "dec <$> (Abs_EncScheme (x,y,z)) = z"
-  unfolding dec_def Rep_EncScheme' procfun_compose Abs_EncScheme_inverse[OF UNIV_I] fst_procfun snd_procfun by simp
- *)
 
+module_type ('pk,'sk,'m,'c) EncScheme =
+  keygen :: "(unit,'pk*'sk) procedure"
+  enc :: "('pk*'m*unit, 'c) procedure"
+  dec :: "('sk*'c*unit, 'm option) procedure"
 
 
 
 subsection {* Declaring module type CPA *}
 
-(* (choose,guess) *)
-type_synonym ('pk,'sk,'m,'c) CPA_Adv = 
- "('pk*unit,'m*'m) procedure *
-  ('c*unit,bool) procedure"
+module_type ('pk,'sk,'m,'c) CPA_Adv =
+  pick    :: "('pk*unit,'m*'m) procedure"
+  "guess" :: "('c*unit,bool) procedure"
 
-type_synonym CPA_Game = "(unit,bool)procedure"
 
-procedure CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) CPA_Adv =proc=> CPA_Game" where
- "CPA_main <$> (E,(Achoose,Aguess)) = 
+procedure CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) CPA_Adv =proc=> (unit,bool)procedure" where
+ "CPA_main <$> (E,A) = 
   LOCAL pk sk m0 m1 b c b' tmp1 tmp2.
   proc () {
     tmp1 := call keygen<$>E();
     pk := fst tmp1;
     sk := snd tmp1;
-    tmp2 := call Achoose(pk);
+    tmp2 := call pick<$>A(pk);
     m0 := fst tmp2;
     m1 := snd tmp2;
     b <- uniform UNIV;
     c := call enc<$>E(pk, if b then m1 else m0);
-    b' := call Aguess(c);
+    b' := call guess<$>A(c);
     return b'=b
   }"
 
@@ -116,9 +117,9 @@ definition (in group) ElGamal :: "('G,nat,'G,'G\<times>'G) EncScheme" where
 procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_*unit,bool)procedure" where
   "Correctness <$> E = LOCAL m1 m2 succ pksk c1.
   proc(m1) {
-    pksk := call keygen<$>E();
-    c1 := call enc<$>E(fst pksk, m1);
-    m2 := call dec<$>E(snd pksk, c1);
+    pksk := call keygen<$>E ();
+    c1 := call enc<$>E (fst pksk, m1);
+    m2 := call dec<$>E (snd pksk, c1);
     succ := (m2 = Some m1);
     return succ
   }"
@@ -130,7 +131,6 @@ context group begin
 
 schematic_lemma keygen_def': "keygen<$>ElGamal = ?x"
   unfolding ElGamal_def by simp
-
 local_setup {* Procs_Typed.register_procedure_thm @{thm keygen_def'} *}
 
 
@@ -142,10 +142,7 @@ schematic_lemma dec_def': "dec<$>ElGamal = ?x"
   unfolding ElGamal_def by simp
 local_setup {* Procs_Typed.register_procedure_thm @{thm dec_def'} *}
 
-
-end
-
-lemma (in group) correctness:
+lemma correctness:
   shows "LOCAL succ0. hoare {True} succ0 := call Correctness <$> ElGamal(m) {succ0}"
 apply (inline "Correctness<$>ElGamal")
 apply (inline "keygen<$>ElGamal")
@@ -155,4 +152,9 @@ apply (wp sample) apply skip apply auto
 unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat]) 
 apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
 
-end
+end (* context group *)
+
+
+
+
+end (* theory *)

@@ -322,7 +322,7 @@ fun declare_module_type (spec:module_type_spec) lthy =
           Typedef.add_typedef false (#name spec, #type_params spec, NoSyn)
               typedef_repset NONE (K (rtac @{thm UNIV_witness} 1)) lthy
       val abs_type = Type(abs_type_name, map TFree (#type_params spec))
-      val Rep_MT = Const(#Rep_name (fst typedef_info),abs_type --> rep_type)
+      (* val Rep_MT = Const(#Rep_name (fst typedef_info),abs_type --> rep_type) *)
       val Abs_MT = Const(#Abs_name (fst typedef_info),rep_type --> abs_type)
 
       fun export thm = Proof_Context.export lthy lthy_start [thm] |> hd
@@ -364,7 +364,7 @@ fun declare_module_type (spec:module_type_spec) lthy =
       val numgetters = length (#procedures spec)
       fun declare_getter (i,proc) lthy : local_theory =
         let val rhs = nth_of_m_procfun i numgetters Rep_MT'_t
-            val (bind,typ) = proc
+            val (bind,_) = proc
             (* Declaring: definition "proc1 == procfun_compose <$> fst_procfun <$> Rep_ModuleType'"
                and similarly for proc2... *)
             val ((getter,(_,getter_def)),lthy) = Local_Theory.define ((bind,NoSyn),((Thm.def_binding bind,[]),rhs)) lthy
