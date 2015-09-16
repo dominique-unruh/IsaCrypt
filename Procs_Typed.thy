@@ -2,6 +2,7 @@ theory Procs_Typed
 imports TermX_Antiquot Lang_Typed Procedures
 keywords "procedure" :: thy_decl
      and "procedure'" :: thy_goal
+     and "module_type" :: thy_decl
 begin
 
 subsection {* Procedure functors *}

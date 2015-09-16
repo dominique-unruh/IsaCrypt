@@ -146,19 +146,6 @@ fun instantiate_schematics (t$u) = instantiate_schematics t $ instantiate_schema
   | instantiate_schematics (t as Const _) = t
   | instantiate_schematics (Var(_,T)) = Const(@{const_name undefined},T)
 
-(*
-(* Instantiate all schematic type variables in t. 
-   Leaves term unmodified if it cannot find all sort witnesses *)
-fun instantiate_schematicsT thy t =
-  let val _ = @{print} t
-      val tvars = Term.add_tvars t []
-      val names = map fst tvars |> @{print}
-      val sorts = map snd tvars
-      val witn = Sign.witness_sorts thy [] sorts |> map fst
-      val t' = subst_TVars (ListPair.zip (names,witn)) t |> Sign.cert_term thy (* TODO: catch errors because of missing witnesses *)
-              (* cert_term should never fail. Else: add suitable error checks above *)
-  in t' end
-*)
 
 fun definition_via_specification tac (consts:((binding * typ) * mixfix) list) 
   (props: (Attrib.binding * term) list)(lthy:Proof.context) = 
@@ -322,7 +309,7 @@ fun declare_module_type (spec:module_type_spec) lthy =
           Typedef.add_typedef false (#name spec, #type_params spec, NoSyn)
               typedef_repset NONE (K (rtac @{thm UNIV_witness} 1)) lthy
       val abs_type = Type(abs_type_name, map TFree (#type_params spec))
-      val Rep_MT = Const(#Rep_name (fst typedef_info),abs_type --> rep_type)
+      (* val Rep_MT = Const(#Rep_name (fst typedef_info),abs_type --> rep_type) *)
       val Abs_MT = Const(#Abs_name (fst typedef_info),rep_type --> abs_type)
 
       fun export thm = Proof_Context.export lthy lthy_start [thm] |> hd
@@ -364,7 +351,7 @@ fun declare_module_type (spec:module_type_spec) lthy =
       val numgetters = length (#procedures spec)
       fun declare_getter (i,proc) lthy : local_theory =
         let val rhs = nth_of_m_procfun i numgetters Rep_MT'_t
-            val (bind,typ) = proc
+            val (bind,_) = proc
             (* Declaring: definition "proc1 == procfun_compose <$> fst_procfun <$> Rep_ModuleType'"
                and similarly for proc2... *)
             val ((getter,(_,getter_def)),lthy) = Local_Theory.define ((bind,NoSyn),((Thm.def_binding bind,[]),rhs)) lthy
@@ -397,6 +384,23 @@ fun declare_module_type (spec:module_type_spec) lthy =
 
 
   in  lthy  end
+
+
+fun declare_module_type_cmd name tparams procedures lthy =
+  let val tparams = map (apsnd (Typedecl.read_constraint lthy)) tparams
+      (* val lthy = fold (Variable.declare_typ o TFree) tparams lthy *)
+      val tparams = map (Proof_Context.check_tfree lthy) tparams
+      val procedureTs = Syntax.read_typs lthy (map (fn (_, T, _) => T) procedures)
+      val procedureBindings = map (fn (bind,_,_) => bind) procedures
+      val procedures = ListPair.zip (procedureBindings, procedureTs)
+      val spec = { name = name, type_params = tparams, procedures = procedures }
+  in
+    declare_module_type spec lthy
+  end
+
+val _ = Outer_Syntax.local_theory @{command_keyword module_type} "define a module type"
+    (Parse.type_args_constrained -- Parse.binding -- (@{keyword "="} |-- Scan.repeat1 Parse.const_binding)
+    >> (fn ((tparams,binding), procedures) => declare_module_type_cmd binding tparams procedures))
 
 
 end
