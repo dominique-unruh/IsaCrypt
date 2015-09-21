@@ -18,6 +18,10 @@ lemma embedding_Type_range: "range (embedding::'a\<Rightarrow>val) = t_domain (T
   unfolding Type_def t_domain_def
   by (subst Abs_type_inverse, auto)
 
+lemma t_default_Type [simp]: "t_default (Type TYPE('a::prog_type)) = embedding (default::'a)"
+  by (simp add: Abs_type_inverse t_default_def Type_def)
+
+
 subsection {* Variables *}
 
 datatype ('a::prog_type) variable = Variable variable_name | LVariable variable_name
@@ -482,7 +486,7 @@ syntax "" :: "procedure_call_args_syntax' \<Rightarrow> procedure_call_args_synt
 
 nonterminal program_syntax
 
-
+print_syntax
 syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _; ]")
 syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ]")
 syntax "_label" :: "idt \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("_: _" [10,11] 10)
@@ -499,7 +503,7 @@ syntax "_sample_quote" :: "'a variable \<Rightarrow> 'a expression \<Rightarrow>
 syntax "_while_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("while '(\<guillemotleft>_\<guillemotright>') (2_)" [0,20] 20)
 syntax "_ifte_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_) else _" [0,20] 20)
 syntax "_ifthen_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_)" [0,20] 20)
-syntax "_callproc" :: "idt \<Rightarrow> ('a,'b) procedure \<Rightarrow> procedure_call_args_syntax \<Rightarrow> program_syntax" ("_ := call _ _" 30)
+syntax "_callproc" :: "idt \<Rightarrow> ('a,'b) procedure \<Rightarrow> tuple_syntax \<Rightarrow> program_syntax" ("_ := call _ (_)" 30)
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ }")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_')")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_;')")

@@ -55,6 +55,7 @@ term "hoare {(x)\<^sub>1 = undefined} skip ~ skip {undefined}"
 
 subsection {* Rules *}
 
+(*
 definition "assign_local_vars_typed locals (pargs::'a::procargs procargvars) (args::'a procargs)
   = Abs_program (assign_local_vars locals (mk_procargvars_untyped pargs) (mk_procargs_untyped args))"
 
@@ -67,12 +68,10 @@ apply simp
 find_theorems "mk_procargvars_untyped (procargvars_add _ _)"
 apply (subst Abs_program_inverse, auto intro!: well_typed_assign_local_vars)
 by (subst Abs_program_inverse, auto)
-
-(* TODO move *)
-lemma t_default_Type [simp]: "t_default (Type TYPE('a::prog_type)) = embedding (default::'a)"
-  by (simp add: Abs_type_inverse t_default_def Type_def)
+*)
 
 
+(*
 lemma assign_local_vars_typed_simp2 [simp]: 
   "assign_local_vars_typed (mk_variable_untyped x#locals) procargvars_empty procargs_empty = 
    seq (assign_local_vars_typed locals procargvars_empty procargs_empty) (assign x (const_expression default))"
@@ -87,7 +86,7 @@ lemma assign_local_vars_typed_simp2 [simp]:
 lemma assign_local_vars_typed_simp3 [simp]: 
   "assign_local_vars_typed [] procargvars_empty procargs_empty = Lang_Typed.skip"
 unfolding assign_local_vars_typed_def skip_def by simp
-
+*)
 
 
 
@@ -214,8 +213,8 @@ SORRY
 
 lemma obseq_context_callproc_allglobals: 
   fixes X' defines "X==X' \<union> Collect vu_global"
-  assumes "mk_variable_untyped x \<in> X"
-  assumes "set (vars_procargs a) \<subseteq> X"
+  assumes "set (p_vars x) \<subseteq> X"
+  assumes "set (e_vars a) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. callproc x p a)"
 SORRY
 
