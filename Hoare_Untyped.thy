@@ -22,15 +22,15 @@ lemma seq_rule:
   using assms unfolding hoare_untyped_def by auto
 
 lemma assign_rule:
-  fixes P Q x e
-  assumes "\<forall>m. P m \<longrightarrow> Q (memory_update_untyped m x (eu_fun e m))"
-  shows "hoare_untyped P (Assign x e) Q"
+  fixes P Q xs gs e
+  assumes "\<forall>m. P m \<longrightarrow> Q (memory_update_untyped_pattern m pat (eu_fun e m))"
+  shows "hoare_untyped P (Assign pat e) Q"
   using assms unfolding hoare_untyped_def by simp
 
 lemma sample_rule: 
-  fixes P Q x e
-  assumes "\<forall>m. P m \<longrightarrow> (\<forall>v\<in>support_distr (ed_fun e m). Q (memory_update_untyped m x v))"
-  shows "hoare_untyped P (Sample x e) Q"
+  fixes P Q xs gs e
+  assumes "\<forall>m. P m \<longrightarrow> (\<forall>v\<in>support_distr (ed_fun e m). Q (memory_update_untyped_pattern m pat v))"
+  shows "hoare_untyped P (Sample pat e) Q"
   using assms unfolding hoare_untyped_def by auto
 
 lemma while_rule:
@@ -84,8 +84,8 @@ SORRY
 
 (* TODO move *)
 lemma readonly_assign: 
-  fixes x y::variable_untyped and e::expression_untyped and a::val
-  assumes "x\<noteq>y"
+  fixes x::pattern_untyped and y::variable_untyped and e::expression_untyped and a::val
+  assumes "y\<notin>set(p_vars x)"
   shows "hoare_untyped (\<lambda>m. memory_lookup_untyped m y = a) (Assign x e) (\<lambda>m. memory_lookup_untyped m y = a)"
 SORRY
 

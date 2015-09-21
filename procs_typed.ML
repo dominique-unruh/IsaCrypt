@@ -82,19 +82,19 @@ fun register_procedure_thm thm lthy =
       fun unfold th = top_sweep_conv (K (rewr_conv th)) lthy (* TODO: should fail if no occurrence *)
       val pattern = thm' |> Thm.concl_of |> Logic.dest_equals |> fst
 
-      val return = @{termx "p_return (?pattern::(?'a::procargs, ?'b::prog_type) procedure)"
+      val return = @{termx "p_return (?pattern::(?'a::prog_type, ?'b::prog_type) procedure)"
                       where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
             |> (unfold thm' then_conv unfold @{thm p_return_simp})
 
-      val body = @{termx "p_body (?pattern::(?'a::procargs, ?'b::prog_type) procedure)"
+      val body = @{termx "p_body (?pattern::(?'a::prog_type, ?'b::prog_type) procedure)"
                       where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
             |> (unfold thm' then_conv unfold @{thm p_body_simp})
 
-      val args = @{termx "p_args (?pattern::(?'a::procargs, ?'b::prog_type) procedure)"
+      val args = @{termx "p_args (?pattern::(?'a::prog_type, ?'b::prog_type) procedure)"
                       where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
             |> (unfold thm' then_conv unfold @{thm p_args_simp})
 
-      val return_vars = @{termx "set (e_vars (p_return (?pattern::(?'a::procargs, ?'b::prog_type) procedure)))"
+      val return_vars = @{termx "set (e_vars (p_return (?pattern::(?'a::prog_type, ?'b::prog_type) procedure)))"
                           where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
             |> (unfold return then_conv Simplifier.rewrite lthy)
 
@@ -103,7 +103,7 @@ fun register_procedure_thm thm lthy =
             |> (unfold body then_conv Simplifier.rewrite lthy) *)
 
       val simpset = lthy addsimps @{thms vars_proc_global_locals}
-      val body_local_vars = @{termx "set (local_vars (p_body (?pattern::(?'a::procargs, ?'b::prog_type) procedure)))"
+      val body_local_vars = @{termx "set (local_vars (p_body (?pattern::(?'a::prog_type, ?'b::prog_type) procedure)))"
                           where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
             |> (unfold body
                 then_conv unfold @{thm local_vars_def[THEN eq_reflection]} 

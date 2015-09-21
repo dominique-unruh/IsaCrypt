@@ -81,16 +81,16 @@ proof (unfold rhoare_untyped_def, rule, rule, rule)
 qed
 
 lemma rassign_rule1:
-  assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q (memory_update_untyped m1 x (eu_fun e m1)) m2"
-  shows "rhoare_untyped P (Assign x e) Skip Q"
+  assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q (memory_update_untyped_pattern m1 pat (eu_fun e m1)) m2"
+  shows "rhoare_untyped P (Assign pat e) Skip Q"
   apply (rule hoare_to_rhoare)
   unfolding lossless_untyped_def apply simp
   apply (rule allI, rule assign_rule)
   using assms by simp
 
 lemma rassign_rule2:
-  assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q m1 (memory_update_untyped m2 x (eu_fun e m2))"
-  shows "rhoare_untyped P Skip (Assign x e) Q"
+  assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q m1 (memory_update_untyped_pattern m2 pat (eu_fun e m2))"
+  shows "rhoare_untyped P Skip (Assign pat e) Q"
 apply (rule rsymmetric_rule)
 apply (rule rassign_rule1)
 using assms by simp
@@ -108,7 +108,39 @@ lemma rnd_rule:
 lemma rnd_rule:
   assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow> apply_to_distr fst (\<mu> m1 m2) = ed_fun d m1"
       and "\<And>m1 m2. P m1 m2 \<Longrightarrow> apply_to_distr snd (\<mu> m1 m2) = ed_fun e m2"
-      and "\<And>m1 m2. P m1 m2 \<Longrightarrow> \<forall>(xval,yval)\<in>support_distr (\<mu> m1 m2). Q (memory_update_untyped m1 x xval) (memory_update_untyped m2 y yval)"
+      and "\<And>m1 m2. P m1 m2 \<Longrightarrow> \<forall>(xval,yval)\<in>support_distr (\<mu> m1 m2). 
+           Q (memory_update_untyped_pattern m1 x xval) (memory_update_untyped_pattern m2 y yval)"
+  shows "rhoare_untyped P (Sample x d) (Sample y e) Q"
+  unfolding rhoare_untyped_def apply rule+ defer apply rule
+proof -
+  fix m1 m2 assume "P m1 m2"
+  def map == "\<lambda>(xval,yval). (memory_update_untyped_pattern m1 x xval, memory_update_untyped_pattern m2 y yval)"
+  def \<mu>' == "apply_to_distr map (\<mu> m1 m2)"
+  have mu1: "apply_to_distr fst (\<mu> m1 m2) = ed_fun d m1" using assms `P m1 m2` by simp
+  have mu2: "apply_to_distr snd (\<mu> m1 m2) = ed_fun e m2" using assms `P m1 m2` by simp
+  have post: "\<forall>(xval,yval)\<in>support_distr (\<mu> m1 m2).
+              Q (memory_update_untyped_pattern m1 x xval) (memory_update_untyped_pattern m2 y yval)"
+    using assms `P m1 m2` by simp
+  show "apply_to_distr fst \<mu>' = denotation_untyped (Sample x d) m1"
+    unfolding \<mu>'_def apply simp
+    unfolding mu1[symmetric] apply simp
+    apply (rule cong_middle[where f=apply_to_distr])
+    unfolding map_def by auto
+  show "apply_to_distr snd \<mu>' = denotation_untyped (Sample y e) m2" 
+    unfolding \<mu>'_def apply simp
+    unfolding mu2[symmetric] apply simp
+    apply (rule cong_middle[where f=apply_to_distr])
+    unfolding map_def by auto
+  show "\<forall>m1' m2'. (m1', m2') \<in> support_distr \<mu>' \<longrightarrow> Q m1' m2'" 
+    unfolding \<mu>'_def map_def using post by auto
+qed
+
+(* TODO remove 
+lemma rnd_rule:
+  assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow> apply_to_distr fst (\<mu> m1 m2) = ed_fun d m1"
+      and "\<And>m1 m2. P m1 m2 \<Longrightarrow> apply_to_distr snd (\<mu> m1 m2) = ed_fun e m2"
+      and "\<And>m1 m2. P m1 m2 \<Longrightarrow> \<forall>(xval,yval)\<in>support_distr (\<mu> m1 m2). 
+           Q (memory_update_untyped m1 x xval) (memory_update_untyped m2 y yval)"
   shows "rhoare_untyped P (Sample x d) (Sample y e) Q"
   unfolding rhoare_untyped_def apply rule+ defer apply rule
 proof -
@@ -132,7 +164,7 @@ proof -
   show "\<forall>m1' m2'. (m1', m2') \<in> support_distr \<mu>' \<longrightarrow> Q m1' m2'" 
     unfolding \<mu>'_def map_def using post by auto
 qed
-
+*)
 
 lemma rtrans_rule:
   assumes p:"\<And>m1 m2. P m1 m2 \<Longrightarrow> \<exists>m. P1 m1 m \<and> P2 m m2"
@@ -333,15 +365,15 @@ SORRY
 
 lemma self_obseq_assign:
   assumes "set (eu_vars e) \<subseteq> X"
-  assumes "Y \<subseteq> X\<union>{x}"
-  shows "obs_eq_untyped X Y (Assign x e) (Assign x e)"
+  assumes "Y \<subseteq> X\<union>set(p_vars pat)"
+  shows "obs_eq_untyped X Y (Assign pat e) (Assign pat e)"
 SORRY
 
 fun assign_local_vars :: "variable_untyped list \<Rightarrow> variable_untyped list \<Rightarrow> expression_untyped list \<Rightarrow> program_rep" where
   "assign_local_vars [] [] [] = Skip"
-| "assign_local_vars locals (v#vs) (e#es) = Seq (assign_local_vars locals vs es) (Assign v e)"
+| "assign_local_vars locals (v#vs) (e#es) = Seq (assign_local_vars locals vs es) (Assign (pattern_1var v) e)"
 | "assign_local_vars (x#locals) [] [] = Seq (assign_local_vars locals [] [])
-        (Assign x (const_expression_untyped (vu_type x) (t_default (vu_type x))))"
+        (Assign (pattern_1var x) (const_expression_untyped (vu_type x) (t_default (vu_type x))))"
 | "assign_local_vars locals [] (e#es) = assign_local_vars locals [] []"
 | "assign_local_vars locals (v#vs) [] = assign_local_vars locals [] []"
 
@@ -399,7 +431,7 @@ lemma callproc_rule:
   assumes globalsVbody: "\<And>x. x\<in>set(vars_untyped body) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
   assumes globalsVret: "\<And>x. x\<in>set(eu_vars ret) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
   assumes argvarsV: "\<And>e x. e\<in>set args \<Longrightarrow> set(eu_vars e) \<subseteq> V"
-  defines "unfolded == Seq (Seq (assign_local_vars locals pargs args) body) (Assign x ret)"
+  defines "unfolded == Seq (Seq (assign_local_vars locals pargs args) body) (Assign (pattern_1var x) ret)"
   shows "obs_eq_untyped V V (CallProc x p args) unfolded"
 proof -
   def eq == "\<lambda>V \<mu> \<nu>. apply_to_distr (\<lambda>m x. if x \<in> V then memory_lookup_untyped m x else undefined) \<mu>
@@ -422,8 +454,8 @@ proof -
 
   {fix locals vs es
   have "assign_local_vars locals vs es = 
-    foldr (\<lambda>(x,e) p. Seq p (Assign x e)) (zip vs es)
-    (foldr (\<lambda>x p. Seq p (Assign x (const_expression_untyped (vu_type x) (t_default (vu_type x))))) 
+    foldr (\<lambda>(x,e) p. Seq p (Assign (pattern_1var x) e)) (zip vs es)
+    (foldr (\<lambda>x p. Seq p (Assign (pattern_1var x) (const_expression_untyped (vu_type x) (t_default (vu_type x))))) 
     locals Skip)"
     apply (induction vs es rule:list_induct2', auto)
     by (induction locals, auto)+
@@ -636,10 +668,10 @@ proof -
     with m'_m0 show "memory_lookup_untyped m x = memory_lookup_untyped m0 x" by simp
   qed
 
-  def uf3 == "\<lambda>m. compose_distr (denotation_untyped (Assign x ret)) (uf2 m)"
-  def cp3 == "\<lambda>m. compose_distr (denotation_untyped (Assign x ret)) (cp2 m)"
+  def uf3 == "\<lambda>m. compose_distr (denotation_untyped (Assign (pattern_1var x) ret)) (uf2 m)"
+  def cp3 == "\<lambda>m. compose_distr (denotation_untyped (Assign (pattern_1var x) ret)) (cp2 m)"
 
-  have eq_assign: "obs_eq_untyped (G\<union>set locals) (G\<union>set locals\<union>{x}) (Assign x ret) (Assign x ret)"
+  have eq_assign: "obs_eq_untyped (G\<union>set locals) (G\<union>set locals\<union>{x}) (Assign (pattern_1var x) ret) (Assign (pattern_1var x) ret)"
     apply (rule self_obseq_assign)
     using globalsVret ret_locals unfolding G_def by auto
   have eq3: "eq (G\<union>set locals\<union>{x}) cp3 uf3"
@@ -655,7 +687,7 @@ proof -
       using untouched2 unfolding untouched_def by auto
     assume yx: "y\<noteq>x"
     have m_m': "memory_lookup_untyped (memory_update_untyped m x (eu_fun ret m)) y = memory_lookup_untyped m y"
-      apply (rule readonly_assign[unfolded hoare_untyped_def, rule_format, where x=x and e=ret and y=y and m=m])
+      apply (rule readonly_assign[unfolded hoare_untyped_def, rule_format, where x="pattern_1var x" and e=ret and y=y and m=m])
       using yx by auto 
     with m'_m0 show "memory_lookup_untyped (memory_update_untyped m x (eu_fun ret m)) y = memory_lookup_untyped m0 y" by simp
   qed

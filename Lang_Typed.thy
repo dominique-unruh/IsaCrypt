@@ -197,7 +197,7 @@ lemma e_fun_var_expression [simp]: "e_fun (var_expression v) = (\<lambda>m. memo
 
 subsection {* Procedures *}
 
-class procargs =
+(*class procargs =
   fixes procargs_len :: "'a itself \<Rightarrow> nat"
   fixes procargtypes :: "'a itself \<Rightarrow> type list" 
   assumes procargtypes_len: "length (procargtypes TYPE('a)) = procargs_len TYPE('a)"
@@ -257,20 +257,31 @@ abbreviation "mk_procargvars_untyped == Rep_procargvars"
 lemma vu_type_procargvars [simp]: "map vu_type (mk_procargvars_untyped (pargs::'a procargvars)) = procargtypes TYPE('a::procargs)"
   using Rep_procargvars unfolding procargvars_def by auto
 
-definition "vars_procargs p = [x. e<-mk_procargs_untyped p, x<-eu_vars e]"
+
+definition "vars_procargs p = [x. e<-mk_procargs_untyped p, x<-eu_vars e]" *)
+
+typedef ('a::prog_type) pattern = "{pat. pu_type pat = Type TYPE('a)}"
+  by (rule exI[of _ "pattern_ignore (Type TYPE('a))"], simp)
+abbreviation "mk_pattern_untyped == Rep_pattern"
+definition "p_vars p = pu_vars (mk_pattern_untyped p)"
+lemma pu_type_mk_pattern_untyped [simp]: "pu_type (mk_pattern_untyped (p::'a pattern)) = Type TYPE('a::prog_type)"
+  using Rep_pattern by simp
+
+definition "memory_update_pattern m (v::'a pattern) (a::'a::prog_type) =
+  memory_update_untyped_pattern m (mk_pattern_untyped v) (embedding a)"
 
 
-record ('a::procargs,'b) procedure = 
+record ('a,'b) procedure = 
   p_body :: program
-  p_args :: "'a procargvars"
+  p_args :: "'a pattern" (* TODO rename p_arg *)
   p_return :: "'b expression"
 
 definition "mk_procedure_untyped proc = 
-  Proc (mk_program_untyped (p_body proc)) (Rep_procargvars (p_args proc)) (mk_expression_untyped (p_return proc))"
+  Proc (mk_program_untyped (p_body proc)) (Rep_pattern (p_args proc)) (mk_expression_untyped (p_return proc))"
 
-fun mk_procedure_typed :: "procedure_rep \<Rightarrow> ('a::procargs, 'b::prog_type, 'c) procedure_ext"  where
+fun mk_procedure_typed :: "procedure_rep \<Rightarrow> ('a::prog_type, 'b::prog_type, 'c) procedure_ext"  where
  "mk_procedure_typed (Proc body args return) = 
-    \<lparr> p_body=Abs_program body, p_args=Abs_procargvars args, p_return=mk_expression_typed return, \<dots> = undefined\<rparr>"
+    \<lparr> p_body=Abs_program body, p_args=Abs_pattern args, p_return=mk_expression_typed return, \<dots> = undefined\<rparr>"
 | "mk_procedure_typed _ = undefined"
 
 class singleton = 
@@ -281,11 +292,12 @@ instantiation unit :: singleton begin
 end
 
 lemma mk_procedure_untyped_inverse:
-  shows "mk_procedure_typed (mk_procedure_untyped p) = (p::('a::procargs,'b::prog_type,'c::singleton)procedure_ext)"
+  shows "mk_procedure_typed (mk_procedure_untyped p) = (p::('a::prog_type,'b::prog_type,'c::singleton)procedure_ext)"
 unfolding mk_procedure_untyped_def 
 apply (cases p)
-by (auto simp: Rep_program_inverse Rep_procargvars_inverse mk_expression_untyped_inverse)
+by (auto simp: Rep_program_inverse mk_expression_untyped_inverse Rep_pattern_inverse)
 
+(* TODO remove *)
 ML {*
 Axclass.thynames_of_arity @{theory} (@{type_name bool},"Universe.prog_type")  
 
@@ -294,26 +306,26 @@ Axclass.thynames_of_arity @{theory} (@{type_name bool},"Universe.prog_type")
 lemma mk_procedure_typed_inverse:
   fixes body args return
   assumes "well_typed body"
-  assumes "args \<in> procargvars TYPE('a)"
+  assumes "pu_type args = Type TYPE('a)"
   assumes "eu_type return = Type TYPE('b)"
   defines "p == Proc body args return"
-  shows "mk_procedure_untyped (mk_procedure_typed p :: ('a::procargs,'b::prog_type,'c)procedure_ext) = p"
+  shows "mk_procedure_untyped (mk_procedure_typed p :: ('a::prog_type,'b::prog_type,'c)procedure_ext) = p"
   unfolding mk_procedure_untyped_def p_def apply auto
   apply (subst Abs_program_inverse, auto simp: assms)
-  apply (subst Abs_procargvars_inverse, auto simp: assms)
-  apply (subst mk_expression_typed_inverse, auto simp: assms)
-done
+  apply (simp add: Abs_pattern_inverse assms)
+  by (subst mk_expression_typed_inverse, auto simp: assms)
 
-definition "procedure_type (_::('a::procargs,'b::prog_type,'c) procedure_ext itself) = 
-  \<lparr> pt_argtypes=procargtypes TYPE('a), pt_returntype=Type TYPE('b) \<rparr>"
+
+definition "procedure_type (_::('a::prog_type,'b::prog_type,'c) procedure_ext itself) = 
+  \<lparr> pt_argtype=Type TYPE('a), pt_returntype=Type TYPE('b) \<rparr>"
 
 lemma mk_procedure_untyped:
-  fixes p0::"('a::procargs,'b::prog_type,'c)procedure_ext"
+  fixes p0::"('a::prog_type,'b::prog_type,'c)procedure_ext"
   defines "p == mk_procedure_untyped p0"
   shows "well_typed_proc p" and "proctype_of p = procedure_type TYPE(('a,'b,'c)procedure_ext)"
 SORRY
 
-
+(*
 definition procargs_empty :: "unit procargs" where
   "procargs_empty = Abs_procargs []"
 definition procargs_add :: "('a::prog_type) expression \<Rightarrow> ('b::procargs) procargs \<Rightarrow> ('a*'b) procargs" where
@@ -322,8 +334,9 @@ definition procargvars_empty :: "unit procargvars" where
   "procargvars_empty = Abs_procargvars []"
 definition procargvars_add :: "('a::prog_type) variable \<Rightarrow> ('b::procargs) procargvars \<Rightarrow> ('a*'b) procargvars" where
   "procargvars_add v vs = Abs_procargvars (mk_variable_untyped v#Rep_procargvars vs)"
+*)
 
-
+(*
 lemma procedure_type_procargvars:
   assumes procT: "proctype_of (Proc body args ret) = procedure_type TYPE(('a::procargs,'b::prog_type,'c)procedure_ext)"
   and wt: "well_typed_proc (Proc body args ret)"
@@ -337,15 +350,16 @@ proof -
     unfolding procargvars_def apply (simp add: dist_glob)
     unfolding t list_all2_map2 by simp
 qed
+*)
 
-
+(*
 lemma procargvars_add_untyped [simp]: "mk_procargvars_untyped (procargvars_add x a) = mk_variable_untyped x # mk_procargvars_untyped a" SORRY
 lemma procargvars_empty_untyped [simp]: "mk_procargvars_untyped procargvars_empty = []" SORRY
 lemma procargs_add_untyped [simp]: "mk_procargs_untyped (procargs_add x a) = mk_expression_untyped x # mk_procargs_untyped a" SORRY
 lemma procargs_empty_untyped [simp]: "mk_procargs_untyped procargs_empty = []" SORRY
 lemma vars_procargs_add [simp]: "vars_procargs (procargs_add e a) = e_vars e @ vars_procargs a" SORRY
 lemma vars_procargs_empty [simp]: "vars_procargs procargs_empty = []" SORRY
-
+*)
 
 
 
@@ -357,56 +371,56 @@ definition "label (l::string) (p::program) = p"
 
 definition "seq p q = Abs_program (Seq (mk_program_untyped p) (mk_program_untyped q))"
 
-lemma mk_untyped_seq: "mk_program_untyped (seq p q) = Seq (mk_program_untyped p) (mk_program_untyped q)"
+lemma mk_untyped_seq [simp]: "mk_program_untyped (seq p q) = Seq (mk_program_untyped p) (mk_program_untyped q)"
   unfolding seq_def denotation_def apply (subst Abs_program_inverse) by auto
 
 definition "skip = Abs_program Skip"
 
-lemma mk_untyped_skip: "mk_program_untyped skip = Skip"
+lemma mk_untyped_skip [simp]: "mk_program_untyped skip = Skip"
   unfolding skip_def denotation_def apply (subst Abs_program_inverse) by auto
 
 definition "assign (v::('a::prog_type) variable) (e::'a expression) =
-  Abs_program (Assign (mk_variable_untyped v) (mk_expression_untyped e))"
+  Abs_program (Assign (pattern_1var (mk_variable_untyped v)) (mk_expression_untyped e))"
 
-lemma mk_untyped_assign: "mk_program_untyped (assign v e) = Assign (mk_variable_untyped v) (mk_expression_untyped e)"
-  unfolding assign_def denotation_def apply (subst Abs_program_inverse) by auto
+lemma mk_untyped_assign [simp]: "mk_program_untyped (assign (v::'a::prog_type variable) e) = 
+  Assign (pattern_1var (mk_variable_untyped v)) (mk_expression_untyped e)"
+  unfolding assign_def denotation_def apply (subst Abs_program_inverse) by (simp_all)
   
 definition "sample (v::('a::prog_type) variable) (e::'a distr expression) =
-  Abs_program (Sample (mk_variable_untyped v) (mk_expression_distr e))"
+  Abs_program (Sample (pattern_1var (mk_variable_untyped v)) (mk_expression_distr e))"
 
-lemma mk_untyped_sample: "mk_program_untyped (sample v e) = Sample (mk_variable_untyped v) (mk_expression_distr e)"
-  unfolding sample_def denotation_def apply (subst Abs_program_inverse) by auto
+lemma mk_untyped_sample [simp]: "mk_program_untyped (sample (v::'a::prog_type variable) e)
+   = Sample (pattern_1var (mk_variable_untyped v)) (mk_expression_distr e)"
+  unfolding sample_def denotation_def apply (subst Abs_program_inverse) by simp_all 
 
 definition ifte :: "bool expression \<Rightarrow> program \<Rightarrow> program \<Rightarrow> program" where
   "ifte e thn els = Abs_program (IfTE (mk_expression_untyped e) (mk_program_untyped thn) (mk_program_untyped els))"
 
-lemma mk_untyped_ifte: "mk_program_untyped (ifte e thn els) =
+lemma mk_untyped_ifte [simp]: "mk_program_untyped (ifte e thn els) =
   IfTE (mk_expression_untyped e) (mk_program_untyped thn) (mk_program_untyped els)"
   unfolding ifte_def denotation_def apply (subst Abs_program_inverse) using bool_type by auto
 
 definition while :: "bool expression \<Rightarrow> program \<Rightarrow> program" where
   "while e p = Abs_program (While (mk_expression_untyped e) (mk_program_untyped p))"
 
-lemma mk_untyped_while: "mk_program_untyped (while e p) =
+lemma mk_untyped_while [simp]: "mk_program_untyped (while e p) =
   While (mk_expression_untyped e) (mk_program_untyped p)"
   unfolding while_def denotation_def apply (subst Abs_program_inverse) using bool_type by auto
 
-definition callproc :: "'a::prog_type variable \<Rightarrow> ('b::procargs,'a) procedure \<Rightarrow> 'b procargs \<Rightarrow> program" where
-  "callproc v proc args = Abs_program (CallProc (mk_variable_untyped v) (mk_procedure_untyped proc) (mk_procargs_untyped args))"
+definition callproc :: "'a::prog_type pattern \<Rightarrow> ('b::prog_type,'a) procedure \<Rightarrow> 'b expression \<Rightarrow> program" where
+  "callproc v proc args = Abs_program (CallProc (mk_pattern_untyped v) (mk_procedure_untyped proc) (mk_expression_untyped args))"
 
 lemma list_all2_swap: "list_all2 P x y = list_all2 (\<lambda>x y. P y x) y x"
   by (metis list_all2_conv_all_nth)
 
-lemma mk_untyped_callproc: "mk_program_untyped (callproc v proc args) =
-  CallProc (mk_variable_untyped v) (mk_procedure_untyped proc) (mk_procargs_untyped args)"
+lemma mk_untyped_callproc [simp]: "mk_program_untyped (callproc v proc args) =
+  CallProc (mk_pattern_untyped v) (mk_procedure_untyped proc) (mk_expression_untyped args)"
 proof -
   have swap: "\<And>x y. list_all2 (\<lambda>(x::variable_untyped) y. vu_type x = eu_type y) x y = list_all2 (\<lambda>y x. eu_type y = vu_type x) y x"
    unfolding list_all2_conv_all_nth by auto
   show ?thesis
   unfolding callproc_def denotation_def mk_procedure_untyped_def 
-  apply (subst Abs_program_inverse, auto)
-  using Rep_procargvars procargvars_local close blast
-  using Rep_procargvars procargvars_distinct by auto
+  by (subst Abs_program_inverse, auto)
 qed
 
 (*lemma denotation_seq: "denotation (seq p q) m = 
@@ -421,7 +435,7 @@ unfolding denotation_def memory_update_def mk_untyped_skip by simp
 lemma denotation_assign: "denotation (assign v e) m = point_distr (memory_update m v (e_fun e m))"
   unfolding denotation_def memory_update_def mk_untyped_assign by simp
 lemma denotation_sample: "denotation (sample v e) m = apply_to_distr (memory_update m v) (e_fun e m)"
-  unfolding denotation_def memory_update_def[THEN ext] mk_untyped_sample by auto
+  unfolding denotation_def memory_update_def[THEN ext] mk_untyped_sample by simp
 
 lemma denotation_ifte: "denotation (ifte e thn els) m = (if e_fun e m then denotation thn m else denotation els m)"
   unfolding denotation_def mk_untyped_ifte by simp
@@ -430,11 +444,15 @@ lemma denotation_while: "denotation (while e p) m = Abs_distr (\<lambda>m'. \<Su
   unfolding denotation_def mk_untyped_while by simp 
 
 lemma denotation_callproc: "denotation (callproc v proc args) m =
-  apply_to_distr (restore_locals (mk_variable_untyped v) m)
-     (apply_to_distr (\<lambda>m. memory_update m v (e_fun (p_return proc) m))
-       (denotation_untyped (mk_program_untyped (p_body proc))
-         (init_locals (mk_procargvars_untyped (p_args proc)) (mk_procargs_untyped args) m)))"
-  unfolding denotation_def mk_untyped_callproc mk_procedure_untyped_def memory_update_def by simp
+  (let argval = e_fun args m in
+  let m' = init_locals m in
+  let m' = memory_update_pattern m' (p_args proc) argval in
+  apply_to_distr (\<lambda>m'.
+    let res = e_fun (p_return proc) m' in
+    let m' = restore_locals m m' in
+    memory_update_pattern m' v res)
+  (denotation (p_body proc) m'))"
+  unfolding denotation_def mk_untyped_callproc mk_procedure_untyped_def memory_update_pattern_def by simp
 
 lemma denotation_seq_skip [simp]: "denotation (seq Lang_Typed.skip c) = denotation c"
   unfolding denotation_seq[THEN ext] mk_untyped_skip denotation_def by simp 
@@ -517,13 +535,15 @@ syntax "" :: "procedure_decl_args_syntax' \<Rightarrow> procedure_decl_args_synt
 syntax "_procedure_decl" :: "procedure_decl_args_syntax \<Rightarrow> program_syntax \<Rightarrow> 'b \<Rightarrow> ('a,'b) procedure" ("proc _ {_; return _}")
 syntax "_procedure_decl" :: "procedure_decl_args_syntax \<Rightarrow> program_syntax \<Rightarrow> 'b \<Rightarrow> ('a,'b) procedure" ("proc _ {_; return _;}")
 
+definition "TODO_REMOVE_ME == undefined"
+
 parse_translation {* [("_procedure_decl", fn ctx => fn [args,body,return] => 
 let val known = Unsynchronized.ref[] (* TODO: add local vars *)
-    fun trargs (Const("_procedure_decl_args_none",_)) = Const(@{const_name procargvars_empty},dummyT)
+    fun trargs (Const("_procedure_decl_args_none",_)) = Const(@{const_name TODO_REMOVE_ME},dummyT)
       | trargs (Const("_procedure_decl_args_single",_)$x) = 
-          (Lang_Syntax.add_var known x; Const(@{const_name procargvars_add},dummyT) $ x $ Const(@{const_name procargvars_empty},dummyT))
+          (Lang_Syntax.add_var known x; Const(@{const_name TODO_REMOVE_ME},dummyT) $ x $ Const(@{const_name TODO_REMOVE_ME},dummyT))
       | trargs (Const("_procedure_decl_args_cons",_)$x$xs) = 
-          (Lang_Syntax.add_var known x; Const(@{const_name procargvars_add},dummyT) $ x $ trargs xs)
+          (Lang_Syntax.add_var known x; Const(@{const_name TODO_REMOVE_ME},dummyT) $ x $ trargs xs)
       | trargs t = raise (TERM ("trargs",[t]))
     val args = trargs args
 in
@@ -535,14 +555,15 @@ Const(@{const_name Lang_Typed.procedure.procedure_ext},dummyT) $
 end)] *}
 
 
-lemma vars_seq [simp]: "vars (seq a b) = vars a @ vars b" SORRY
+lemma vars_seq [simp]: "vars (seq a b) = vars a @ vars b" by (simp add: vars_def)
 lemma vars_assign [simp]: "vars (assign x e) = mk_variable_untyped x # e_vars e" SORRY
 lemma vars_sample [simp]: "vars (sample x e) = mk_variable_untyped x # e_vars e" SORRY
-lemma vars_while [simp]: "vars (Lang_Typed.while e p) = e_vars e @ vars p" SORRY
-lemma vars_ifte [simp]: "vars (Lang_Typed.ifte e p1 p2) = e_vars e @ vars p1 @ vars p2" SORRY
-definition "vars_proc_global p == [v. v<-vars (p_body p), vu_global v] @ [v. v<-e_vars (p_return p), vu_global v]"
-lemma vars_callproc [simp]: "vars (callproc x p a) = mk_variable_untyped x # vars_procargs a @ vars_proc_global p" SORRY
-lemma vars_skip [simp]: "vars Lang_Typed.skip = []" SORRY
+lemma vars_while [simp]: "vars (Lang_Typed.while e p) = e_vars e @ vars p" by (simp add: vars_def)
+lemma vars_ifte [simp]: "vars (Lang_Typed.ifte e p1 p2) = e_vars e @ vars p1 @ vars p2" by (simp add: vars_def)
+definition "vars_proc_global p == [v. v<-p_vars (p_args p), vu_global v] @ [v. v<-vars (p_body p), vu_global v] @ [v. v<-e_vars (p_return p), vu_global v]"
+lemma vars_callproc [simp]: "vars (callproc x p a) = p_vars x @ e_vars a @ vars_proc_global p"
+  unfolding vars_def vars_proc_global_def p_vars_def by (auto simp: mk_procedure_untyped_def)
+lemma vars_skip [simp]: "vars Lang_Typed.skip = []" by (simp add: vars_def)
 lemma LVariable_local [simp]: "\<not> vu_global (mk_variable_untyped (LVariable x))"
   by (simp add: mk_variable_untyped_def)
 lemma Variable_global [simp]: "vu_global (mk_variable_untyped (Variable x))"

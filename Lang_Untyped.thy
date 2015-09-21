@@ -27,6 +27,9 @@ record variable_untyped =
 definition "bool_type =
       Abs_type \<lparr> tr_domain=range (embedding::bool\<Rightarrow>val),
                  tr_default=embedding (default::bool) \<rparr>"
+definition "unit_type =
+      Abs_type \<lparr> tr_domain=range (embedding::unit\<Rightarrow>val),
+                 tr_default=embedding (default::unit) \<rparr>"
 
 definition "freshvar vs = (SOME vn. \<forall>v\<in>set vs. vn \<noteq> vu_name v)"
 lemma freshvar_def2: "\<forall>v\<in>set vs. (freshvar vs) \<noteq> vu_name v"
@@ -201,22 +204,67 @@ using Rep_expression_untyped assms eu_fun_def eu_vars_def by auto
 type_synonym id0 = string
 type_synonym id = "id0 list"
 
+subsection {* Patterns *}
+
+record pattern_rep =
+  pur_var_getters :: "(variable_untyped*(val\<Rightarrow>val)) list"
+  pur_type :: "type"
+
+typedef pattern_untyped = "{(p::pattern_rep). 
+  (\<forall>(v,f)\<in>set(pur_var_getters p). 
+    (\<forall>x\<in>t_domain (pur_type p). f x \<in> t_domain (vu_type v)))}"
+  by (rule exI[of _ "\<lparr> pur_var_getters=[], pur_type=undefined \<rparr>"], simp)
+
+
+definition "pu_var_getters p = pur_var_getters (Rep_pattern_untyped p)"
+definition "pu_vars p = map fst (pur_var_getters (Rep_pattern_untyped p))"
+definition "pu_type p = pur_type (Rep_pattern_untyped p)"
+
+definition "pattern_1var v = Abs_pattern_untyped \<lparr> pur_var_getters=[(v, \<lambda>x. x)], pur_type=vu_type v \<rparr>"
+lemma p_var_getters_pattern_1var [simp]: "pu_var_getters (pattern_1var v) = [(v, \<lambda>x. x)]"
+  by (simp add: Abs_pattern_untyped_inverse pu_var_getters_def pattern_1var_def)
+lemma p_vars_pattern_1var [simp]: "pu_vars (pattern_1var v) = [v]"
+  by (simp add: Abs_pattern_untyped_inverse pu_vars_def pattern_1var_def)
+lemma p_type_pattern_1var [simp]: "pu_type (pattern_1var v) = vu_type v"
+  by (simp add: Abs_pattern_untyped_inverse pu_type_def pattern_1var_def)
+
+definition "pattern_ignore T = Abs_pattern_untyped \<lparr> pur_var_getters=[], pur_type=T \<rparr>"
+lemma p_var_getters_pattern_ignore [simp]: "pu_var_getters (pattern_ignore T) = []"
+  by (simp add: Abs_pattern_untyped_inverse pu_var_getters_def pattern_ignore_def)
+lemma p_vars_pattern_ignore [simp]: "pu_vars (pattern_ignore T) = []"
+  by (simp add: Abs_pattern_untyped_inverse pu_vars_def pattern_ignore_def)
+lemma p_type_pattern_ignore [simp]: "pu_type (pattern_ignore T) = T"
+  by (simp add: Abs_pattern_untyped_inverse pu_type_def pattern_ignore_def)
+
+definition memory_update_untyped_pattern :: "memory \<Rightarrow> pattern_untyped \<Rightarrow> val \<Rightarrow> memory" where
+  "memory_update_untyped_pattern m p x = 
+  foldl (\<lambda>m (v,f). memory_update_untyped m v (f x)) m (pu_var_getters p)"
+
+lemma memory_update_untyped_pattern_1var [simp]: 
+  "memory_update_untyped_pattern m (pattern_1var x) = memory_update_untyped m x"
+by (rule ext, simp add: memory_update_untyped_pattern_def)
+
+lemma memory_update_untyped_pattern_ignore [simp]:
+  "memory_update_untyped_pattern m (pattern_ignore x) = (\<lambda>_. m)"
+by (rule ext, simp add: memory_update_untyped_pattern_def)
+
 subsection {* Procedures *}
 
 record procedure_type =
-  pt_argtypes :: "type list"
+  pt_argtype :: "type"
   pt_returntype :: "type"
 
 datatype program_rep =
-  Assign variable_untyped expression_untyped
-| Sample variable_untyped expression_distr
+  Assign pattern_untyped expression_untyped
+     (* Assign vars getters exp \<rightarrow> the getters are applied to the result of exp and assigned to the variables *)
+| Sample pattern_untyped expression_distr
 | Seq program_rep program_rep
 | Skip
 | IfTE expression_untyped program_rep program_rep
 | While expression_untyped program_rep
-| CallProc variable_untyped procedure_rep "expression_untyped list"
+| CallProc pattern_untyped procedure_rep expression_untyped
 and procedure_rep =
-  Proc program_rep "variable_untyped list" expression_untyped
+  Proc program_rep pattern_untyped expression_untyped
 | ProcRef nat (* deBruijn index *)
 | ProcAbs procedure_rep
 | ProcAppl procedure_rep procedure_rep
@@ -230,27 +278,27 @@ fun is_concrete_proc where
 *)
 
 fun proctype_of :: "procedure_rep \<Rightarrow> procedure_type" where
-  "proctype_of (Proc body args return) = \<lparr> pt_argtypes=map vu_type args, pt_returntype=eu_type return \<rparr>"
+  "proctype_of (Proc body argpat return) = \<lparr> pt_argtype=pu_type argpat, pt_returntype=eu_type return \<rparr>"
 | "proctype_of _ = undefined" (* Cannot happen for well-typed programs *)
 
 subsection {* Well-typed programs *}
 
 fun well_typed :: "program_rep \<Rightarrow> bool" where
   "well_typed (Seq p1 p2) = (well_typed p1 \<and> well_typed p2)"
-| "well_typed (Assign v e) = (eu_type e = vu_type v)"
-| "well_typed (Sample v e) = (ed_type e = vu_type v)"
+| "well_typed (Assign pat e) = (pu_type pat = eu_type e)"
+| "well_typed (Sample pat e) = (pu_type pat = ed_type e)"
 | "well_typed Skip = True"
 | "well_typed (While e p) = ((eu_type e = bool_type) \<and> well_typed p)"
 | "well_typed (IfTE e thn els) = ((eu_type e = bool_type) \<and> well_typed thn \<and> well_typed els)"
-| "well_typed (CallProc v (Proc body pargs ret) args) =
-    (vu_type v = eu_type ret \<and> 
-    map eu_type args = map vu_type pargs \<and>
-    well_typed body \<and> (\<forall>v\<in>set pargs. \<not> vu_global v) \<and> distinct pargs)"
+| "well_typed (CallProc v (Proc body argpat ret) args) =
+    (pu_type v = eu_type ret \<and> 
+    eu_type args = pu_type argpat \<and>
+    well_typed body)" (* \<and> (\<forall>v\<in>set(p_vars argpat). \<not> vu_global v) *)
 | "well_typed (CallProc v _ args) = False"
 
 fun well_typed_proc :: "procedure_rep \<Rightarrow> bool" where
-  "well_typed_proc (Proc body pargs ret) = 
-    (well_typed body \<and> (\<forall>v\<in>set pargs. \<not> vu_global v) \<and> distinct pargs)"
+  "well_typed_proc (Proc body argpat ret) = 
+    (well_typed body)" (*  \<and> (\<forall>v\<in>set(pu_vars argpat). \<not> vu_global v) *)
 | "well_typed_proc _ = False"
 
 typedef program = "{prog. well_typed prog}"
@@ -270,6 +318,11 @@ fun while_iter :: "nat \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> d
       compose_distr (\<lambda>m. if e m then p m else 0)
                     (while_iter n e p m)"
 
+definition "init_locals m = Abs_memory (Rep_memory m\<lparr> mem_locals := (\<lambda>v. t_default (vu_type v)) \<rparr>)"
+definition "restore_locals oldmem newmem = Abs_memory (Rep_memory newmem \<lparr> mem_locals := mem_locals (Rep_memory oldmem) \<rparr>)"
+
+
+(*
 definition "init_locals pargs args m = 
   (let args = map (\<lambda>e. eu_fun e m) args;
        m = Abs_memory (Rep_memory m\<lparr> mem_locals := (\<lambda>v. t_default (vu_type v)) \<rparr>) in
@@ -287,20 +340,43 @@ lemma restore_locals_lookup:
    else if vu_global y then memory_lookup_untyped newmem y
    else memory_lookup_untyped oldmem y)"
 using Abs_memory_inverse Rep_memory memory_lookup_untyped_def memory_lookup_update_untyped restore_locals_def by auto
+*)
 
 fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
   denotation_untyped_Seq: "denotation_untyped (Seq p1 p2) m = compose_distr (denotation_untyped p2) (denotation_untyped p1 m)"
-| denotation_untyped_Assign: "denotation_untyped (Assign v e) m = point_distr (memory_update_untyped m v (eu_fun e m))"
-| denotation_untyped_Sample: "denotation_untyped (Sample v e) m = apply_to_distr (memory_update_untyped m v) (ed_fun e m)"
+| denotation_untyped_Assign: "denotation_untyped (Assign pat e) m = point_distr (memory_update_untyped_pattern m pat (eu_fun e m))"
+| denotation_untyped_Sample: "denotation_untyped (Sample pat e) m = apply_to_distr (memory_update_untyped_pattern m pat) (ed_fun e m)"
 | denotation_untyped_Skip: "denotation_untyped (Skip) m = point_distr m"
 | denotation_untyped_IfTE: "denotation_untyped (IfTE e thn els) m = (if (eu_fun e m = embedding True) then denotation_untyped thn m else denotation_untyped els m)"
 | denotation_untyped_While: "denotation_untyped (While e p) m = 
     Abs_distr (\<lambda>m'. \<Sum>n. Rep_distr (compose_distr (\<lambda>m. if eu_fun e m = embedding True then 0 else point_distr m)
                                             (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)) m')"
 | denotation_untyped_CallProc: "denotation_untyped (CallProc v (Proc body pargs return) args) m = 
-  apply_to_distr (restore_locals v m)
-  (apply_to_distr (\<lambda>m. memory_update_untyped m v (eu_fun return m))
-  (denotation_untyped body (init_locals pargs args m)))"
+  (let argval = eu_fun args m in
+  let m' = init_locals m in
+  let m' = memory_update_untyped_pattern m' pargs argval in
+  apply_to_distr (\<lambda>m'.
+    let res = eu_fun return m' in
+    let m' = restore_locals m m' in
+    memory_update_untyped_pattern m' v res)
+  (denotation_untyped body m'))"
+(*  apply_to_distr (restore_locals v m)
+  (apply_to_distr (\<lambda>m. memory_update_untyped_pattern m v (eu_fun return m))
+  (denotation_untyped body (init_locals pargs args m)))" *)
+
+(* New plan (written monadically):
+  do
+   let m_init = m
+   let arg = "evaluate args in m" (arg is a single value now)
+   let m = m[locals:=default]
+   let m = memory_update_untyped_pattern m v arg
+   m <- denotation_untyped body m
+   let res = eu_fun return m
+   let m = restore_locals m_init m
+   let m = memory_update_untyped_pattern m v res
+   return m
+*)
+
 | denotation_untyped_CallProc_bad: "denotation_untyped (CallProc v _ args) m = 0" (* Cannot happen for well-typed programs *)
 definition "denotation prog = denotation_untyped (mk_program_untyped prog)"
 
@@ -314,14 +390,14 @@ fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list"
 and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" where
   "vars_untyped Skip = []"
 | "vars_untyped (Seq p1 p2) = (vars_untyped p1) @ (vars_untyped p2)"
-| "vars_untyped (Assign v e) = v # eu_vars e"
-| "vars_untyped (Sample v e) = v # ed_vars e"
+| "vars_untyped (Assign pat e) = pu_vars pat @ eu_vars e"
+| "vars_untyped (Sample pat e) = pu_vars pat @ ed_vars e"
 | "vars_untyped (IfTE e p1 p2) = eu_vars e @ vars_untyped p1 @ vars_untyped p2"
 | "vars_untyped (While e p) = eu_vars e @ vars_untyped p"
 | "vars_untyped (CallProc v proc args) = 
-      v # [v. a\<leftarrow>args, v\<leftarrow>eu_vars a] @ vars_proc_untyped proc"
+      pu_vars v @ eu_vars args @ vars_proc_untyped proc"
 | "vars_proc_untyped (Proc body pargs return) =
-      [v. v\<leftarrow>pargs, vu_global v] (* Empty for well-typed progs *)
+      [v. v\<leftarrow>pu_vars pargs, vu_global v]
       @ [v. v\<leftarrow>vars_untyped body, vu_global v]
       @ [v. v\<leftarrow>eu_vars return, vu_global v]"
 | "vars_proc_untyped (ProcRef i) = []"

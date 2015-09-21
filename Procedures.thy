@@ -4,10 +4,10 @@ begin
 
 subsection {* Various facts and definitions *}
 
-
+(*
 lemma proctype_inhabited: "\<exists>p. well_typed_proc p \<and> proctype_of p = pT"
 proof (rule,rule)
-  def args == "fresh_variables_local [] (pt_argtypes pT) :: variable_untyped list"
+  def args == "fresh_variables_local [] (pt_argtype pT) :: variable_untyped list"
   def ret == "Abs_expression_untyped \<lparr> eur_fun=(\<lambda>m. t_default (pt_returntype pT)), eur_type=pt_returntype pT, eur_vars=[] \<rparr> :: expression_untyped"
   def p == "(Proc Skip args ret)"
   show "well_typed_proc p" 
@@ -19,7 +19,7 @@ proof (rule,rule)
     unfolding ret_def eu_type_def
     by (subst Abs_expression_untyped_inverse, auto)
 qed
-
+*)
 
 
 subsection {* Simply-typed lambda calculus over procedures *}
@@ -33,17 +33,17 @@ datatype procedure_type_open =
 inductive well_typed'' :: "procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool"
 and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \<Rightarrow> procedure_type_open \<Rightarrow> bool" where
   wt_Seq: "well_typed'' E p1 \<and> well_typed'' E p2 \<Longrightarrow> well_typed'' E (Seq p1 p2)"
-| wt_Assign: "eu_type e = vu_type v \<Longrightarrow> well_typed'' E (Assign v e)"
-| wt_Sample: "ed_type e = vu_type v \<Longrightarrow> well_typed'' E (Sample v e)"
+| wt_Assign: "eu_type e = pu_type pat \<Longrightarrow> well_typed'' E (Assign pat e)"
+| wt_Sample: "ed_type e = pu_type pat \<Longrightarrow> well_typed'' E (Sample pat e)"
 | wt_Skip: "well_typed'' E Skip"
 | wt_While: "eu_type e = bool_type \<Longrightarrow> well_typed'' E p \<Longrightarrow> well_typed'' E (While e p)"
 | wt_IfTE: "eu_type e = bool_type \<Longrightarrow> well_typed'' E thn \<Longrightarrow>  well_typed'' E els \<Longrightarrow> well_typed'' E (IfTE e thn els)"
-| wt_CallProc: "well_typed_proc'' E prc (ProcTSimple \<lparr> pt_argtypes=map eu_type args, pt_returntype=vu_type v \<rparr>) \<Longrightarrow>
+| wt_CallProc: "well_typed_proc'' E prc (ProcTSimple \<lparr> pt_argtype=eu_type args, pt_returntype=pu_type v \<rparr>) \<Longrightarrow>
    well_typed'' E (CallProc v prc args)"
 | wt_Proc: "well_typed'' E body \<Longrightarrow>
-   (\<forall>v\<in>set pargs. \<not> vu_global v) \<Longrightarrow>
-   distinct pargs \<Longrightarrow>
-   well_typed_proc'' E (Proc body pargs ret) (ProcTSimple \<lparr> pt_argtypes=map vu_type pargs, pt_returntype=eu_type ret\<rparr>)"
+(*   (\<forall>v\<in>set pargs. \<not> vu_global v) \<Longrightarrow>
+   distinct pargs \<Longrightarrow> *)
+   well_typed_proc'' E (Proc body pargs ret) (ProcTSimple \<lparr> pt_argtype=pu_type pargs, pt_returntype=eu_type ret\<rparr>)"
 | wt_ProcRef: "i<length E \<Longrightarrow> E!i = T \<Longrightarrow> well_typed_proc'' E (ProcRef i) T"
 | wt_ProcAppl: "well_typed_proc'' E p (ProcTFun T U) \<Longrightarrow>
   well_typed_proc'' E q T \<Longrightarrow>
@@ -52,13 +52,13 @@ and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \
 | wt_ProcPair: "well_typed_proc'' E p T \<Longrightarrow> well_typed_proc'' E q U \<Longrightarrow> well_typed_proc'' E (ProcPair p q) (ProcTPair T U)"
 | wt_ProcUnpair: "well_typed_proc'' E p (ProcTPair T U) \<Longrightarrow> well_typed_proc'' E (ProcUnpair b p) (if b then T else U)"
 
-lemma wt_Assign_iff[symmetric]: "(eu_type e = vu_type v) = well_typed'' E (Assign v e)"
+lemma wt_Assign_iff[symmetric]: "(eu_type e = pu_type v) = well_typed'' E (Assign v e)"
   apply (rule iffI, simp add: wt_Assign)
   by (cases rule:well_typed''.cases, auto)
 lemma wt_Seq_iff[symmetric]: "(well_typed'' E p1 \<and> well_typed'' E p2) = well_typed'' E (Seq p1 p2)"
   apply (rule iffI, simp add: wt_Seq)
   by (cases rule:well_typed''.cases, auto)
-lemma wt_Sample_iff[symmetric]: "(ed_type e = vu_type v) = well_typed'' E (Sample v e)"
+lemma wt_Sample_iff[symmetric]: "(ed_type e = pu_type v) = well_typed'' E (Sample v e)"
   apply (rule iffI, simp add: wt_Sample)
   by (cases rule:well_typed''.cases, auto)
 lemma wt_While_iff[symmetric]: "(eu_type e = bool_type \<and> well_typed'' E p) = well_typed'' E (While e p)"
@@ -68,15 +68,15 @@ lemma wt_IfTE_iff[symmetric]: "(eu_type e = bool_type \<and> well_typed'' E thn 
   apply (rule iffI, simp add: wt_IfTE)
   by (cases rule:well_typed''.cases, auto)
 lemma wt_CallProc_iff[symmetric]: "
-   well_typed_proc'' E prc (ProcTSimple \<lparr> pt_argtypes=map eu_type args, pt_returntype=vu_type v\<rparr>) =
+   well_typed_proc'' E prc (ProcTSimple \<lparr> pt_argtype=eu_type args, pt_returntype=pu_type v\<rparr>) =
    well_typed'' E (CallProc v prc args)"
   apply (rule iffI, auto simp: wt_CallProc)
   by (cases rule:well_typed''.cases, auto)
 lemma wt_Proc_iff[symmetric]: "
-  (T'=ProcTSimple \<lparr> pt_argtypes=map vu_type pargs, pt_returntype=eu_type ret\<rparr> \<and> 
-   well_typed'' E body \<and>
+  (T'=ProcTSimple \<lparr> pt_argtype=pu_type pargs, pt_returntype=eu_type ret\<rparr> \<and> 
+   well_typed'' E body) (*\<and>
    (\<forall>v\<in>set pargs. \<not> vu_global v) \<and>
-   distinct pargs) =
+   distinct pargs *) =
    well_typed_proc'' E (Proc body pargs ret) T'"
   apply (rule iffI, simp add: wt_Proc)
   by (cases rule:well_typed_proc''.cases, auto)
@@ -1020,7 +1020,7 @@ definition "beta_reduced p == \<not>(\<exists>q. beta_reduce_proc p q)"
 definition "beta_reduce p == 
   if (\<exists>q. beta_reduced q \<and> beta_reduce_proc\<^sup>*\<^sup>* p q)
   then (THE q. beta_reduced q \<and> beta_reduce_proc\<^sup>*\<^sup>* p q)
-  else (Proc Skip [] undefined)"
+  else (Proc Skip (pattern_ignore unit_type) undefined)"
 definition "beta_reduced' p == \<not>(\<exists>q. beta_reduce_prog p q)"
 definition "beta_reduce' p == 
   if (\<exists>q. beta_reduced' q \<and> beta_reduce_prog\<^sup>*\<^sup>* p q)
@@ -1099,12 +1099,13 @@ proof (cases "\<exists>q. beta_reduced q \<and> beta_reduce_proc\<^sup>*\<^sup>*
   hence "beta_reduce p = q" by (rule beta_reduceI)
   with red_q show ?thesis by auto
 next
+  let ?nullproc = "Proc Skip (pattern_ignore unit_type) undefined"
   assume "\<not> (\<exists>q. beta_reduced q \<and> beta_reduce_proc\<^sup>*\<^sup>* p q)"
-  hence "beta_reduce p = Proc Skip [] undefined"
+  hence "beta_reduce p = ?nullproc"
     unfolding beta_reduce_def by auto
-  moreover have "beta_reduced (Proc Skip [] undefined)"
+  moreover have "beta_reduced ?nullproc"
     unfolding beta_reduced_def apply auto
-    apply (ind_cases "beta_reduce_proc (Proc Skip [] undefined) x" for x)
+    apply (ind_cases "beta_reduce_proc ?nullproc x" for x)
     by (ind_cases "beta_reduce_prog Skip t" for t)
   ultimately show ?thesis by auto
 qed
@@ -1483,7 +1484,7 @@ lemma well_typed_well_typed'':
 
 lemma well_typed_proc_well_typed_proc'':
   shows "well_typed_proc p \<Longrightarrow> well_typed_proc'' [] p (ProcTSimple (proctype_of p))"
-apply (cases p, auto) apply (rule wt_Proc, auto) by (rule well_typed_well_typed'', simp)
+apply (cases p, auto) apply (rule wt_Proc) by (rule well_typed_well_typed'', simp)
 
 lemma well_typed_proc_beta_reduced: 
   shows "well_typed p' \<Longrightarrow> beta_reduced' p'"

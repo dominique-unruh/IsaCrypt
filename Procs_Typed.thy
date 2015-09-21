@@ -214,7 +214,7 @@ lemma pair_procfun [simp]: "procfun_apply (procfun_apply pair_procfun a) b = (a,
 
 subsubsection "Procedures"
 
-instantiation procedure_ext :: (procargs,prog_type,singleton) procedure_functor begin
+instantiation procedure_ext :: (prog_type,prog_type,singleton) procedure_functor begin
 definition [simp]: "procedure_functor_type (_::('a,'b,'c)procedure_ext itself) == ProcTSimple (procedure_type TYPE(('a,'b,'c)procedure_ext))"
 definition "procedure_functor_mk_untyped == mk_procedure_untyped"
 definition "procedure_functor_mk_typed' == mk_procedure_typed"
@@ -241,19 +241,21 @@ instance proof intro_classes
         close (rule wtq[unfolded procedure_functor_type_procedure_ext_def])
         by (rule betaq)  
     hence "well_typed body" unfolding q by simp
-    moreover have "\<And>v. v \<in> set args \<Longrightarrow> \<not> vu_global v"
-      by (metis wtq0 q well_typed_proc.simps(1))
+(*    moreover have "\<And>v. v \<in> set args \<Longrightarrow> \<not> vu_global v"
+      by (metis wtq0 q well_typed_proc.simps(1)) 
     moreover have "distinct args"
-      by (metis wtq0 q well_typed_proc.simps(1))
+      by (metis wtq0 q well_typed_proc.simps(1)) *)
     moreover
     have pt_q: "proctype_of q = procedure_type TYPE(('a, 'b, 'c) procedure_scheme)"
       apply (rule well_typed_proc''_proctype_of)
         close (rule wtq[unfolded procedure_functor_type_procedure_ext_def])
         by (rule betaq)  
-    have "args \<in> procargvars TYPE('a)" 
+    hence "pu_type args = Type TYPE('a)"
+      unfolding procedure_type_def q by auto
+(*    have "args \<in> procargvars TYPE('a)" 
       apply (rule procedure_type_procargvars)
         close (fact pt_q[unfolded q])
-        by (fact wtq0[unfolded q])
+        by (fact wtq0[unfolded q]) *)
     moreover have "eu_type ret = Type TYPE('b)" 
       using pt_q by (simp add: q procedure_type_def)
     ultimately show "procedure_functor_mk_untyped (procedure_functor_mk_typed' q::('a, 'b, 'c) procedure_scheme) = q"
@@ -449,20 +451,21 @@ lemma proc: shows "p = (p::('a,'b)procedure)" ..
 
 
 lemma apply1:
-  fixes p body body0 retval args and arg_proc::"'a::procedure_functor"
+  fixes p::"('b::prog_type,'c::prog_type)procedure" and body body0 and retval::"'c expression"
+    and args::"'b pattern" and arg_proc::"'a::procedure_functor"
   assumes subst: "subst_prog1 arg_proc body PROGRAM[\<guillemotleft>body0\<guillemotright>]"
-  defines "p0==procedure_functor_mk_typed (ProcAbs (Proc body (Rep_procargvars args) (mk_expression_untyped retval)))"
+  defines "p0==procedure_functor_mk_typed (ProcAbs (Proc body (mk_pattern_untyped args) (mk_expression_untyped retval)))"
   shows "procfun_apply p0 arg_proc = \<lparr> p_body=body0, p_args=args, p_return=retval \<rparr>"
 proof -
+  have args_type: "Type TYPE('b) = pu_type (mk_pattern_untyped args)"
+    by (metis (mono_tags, lifting) Rep_pattern mem_Collect_eq)
   have wt1: "well_typed_proc'' [procedure_functor_type TYPE('a)]
-     (Proc body (mk_procargvars_untyped args) (mk_expression_untyped retval))
+     (Proc body (mk_pattern_untyped args) (mk_expression_untyped retval))
      (ProcTSimple (procedure_type TYPE(('b, 'c) procedure)))"
     apply (subst wt_Proc_iff, auto simp: procedure_type_def)
-    using assms unfolding subst_prog1_def close auto
-    using Rep_procargvars procargvars_local close auto
-    using Rep_procargvars procargvars_distinct by auto
+    using assms unfolding subst_prog1_def args_type by auto
 
-  have wt2: "well_typed_proc'' [] (ProcAbs (Proc body (mk_procargvars_untyped args) (mk_expression_untyped retval)))
+  have wt2: "well_typed_proc'' [] (ProcAbs (Proc body (mk_pattern_untyped args) (mk_expression_untyped retval)))
         (procedure_functor_type TYPE('a =proc=> ('b, 'c) procedure))" 
     apply simp apply (rule wt_ProcAbs) by (fact wt1)
 
@@ -606,10 +609,10 @@ SORRY
 
 
 lemma callproc:
-  fixes p::"'mod::procedure_functor" and q::"'mod =proc=> ('in::procargs,'out::prog_type)procedure"
-        and r::"('in::procargs,'out::prog_type)procedure" and a and v::"'out variable"
+  fixes p::"'mod::procedure_functor" and q::"'mod =proc=> ('in::prog_type,'out::prog_type)procedure"
+        and r::"('in,'out)procedure" and a::"'in expression" and v::"'out pattern"
   assumes qpr: "q <$> p = r"
-  defines "q0 == CallProc (mk_variable_untyped v) (ProcAppl (procedure_functor_mk_untyped q) (ProcRef 0)) (mk_procargs_untyped a)"
+  defines "q0 == CallProc (mk_pattern_untyped v) (ProcAppl (procedure_functor_mk_untyped q) (ProcRef 0)) (mk_expression_untyped a)"
   shows "subst_prog1 p q0 PROGRAM[ \<guillemotleft>callproc v r a\<guillemotright> ]"
 proof (unfold subst_prog1_def, rule conjI)
   let ?E = "[procedure_functor_type TYPE('mod)]"
@@ -617,10 +620,10 @@ proof (unfold subst_prog1_def, rule conjI)
     unfolding q0_def 
     apply (rule well_typed''_well_typed_proc''.wt_CallProc)
      apply (rule well_typed''_well_typed_proc''.wt_ProcAppl)
-     apply (insert procedure_functor_welltyped'[of "?E" "q"])[1]
-     close (simp add: procedure_type_def procedure_functor_mk_untyped_procedure_ext_def)
+      using procedure_functor_welltyped'[of "?E" "q"] close (simp add: procedure_type_def)
+      apply (insert procedure_functor_welltyped'[of "?E" "q"])[1]
+      apply (simp add: procedure_type_def procedure_functor_mk_untyped_procedure_ext_def)
     by (rule well_typed''_well_typed_proc''.wt_ProcRef, simp_all)
-
   
   have qpr': "beta_reduce (ProcAppl (procedure_functor_mk_untyped q) (procedure_functor_mk_untyped p))
             = procedure_functor_mk_untyped r"

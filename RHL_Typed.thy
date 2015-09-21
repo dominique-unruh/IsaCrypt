@@ -124,7 +124,7 @@ proof -
   def args' \<equiv> "mk_procargs_untyped args"
   have callproc: "mk_program_untyped (callproc x p args) == CallProc x' p' args'"
     unfolding mk_untyped_callproc x'_def[symmetric] p' args'_def[symmetric] .
-  def unfolded' \<equiv> "Seq (Seq (assign_local_vars locals pargs' args') body') (Assign x' ret')"
+  def unfolded' \<equiv> "Seq (Seq (assign_local_vars locals pargs' args') body') (Assign (pattern_1var x') ret')"
   have assign: "mk_program_untyped (assign_local_vars_typed locals pargs args)
       == assign_local_vars locals pargs' args'"
       unfolding assign_local_vars_typed_def pargs'_def args'_def pargs_def 

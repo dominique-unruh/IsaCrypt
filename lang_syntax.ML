@@ -55,12 +55,12 @@ struct
 
 
   fun translate_program (ctx:Proof.context) known (p:term) =
-    let fun trargs (Const("_procedure_call_args_none",_)) = Const(@{const_name procargs_empty},dummyT)
+    let (*fun trargs (Const("_procedure_call_args_none",_)) = Const(@{const_name procargs_empty},dummyT)
           | trargs (Const("_procedure_call_args_single",_)$x) = 
               (Const(@{const_name procargs_add},dummyT) $ translate_expression ctx known x $ Const(@{const_name procargs_empty},dummyT))
           | trargs (Const("_procedure_call_args_cons",_)$x$xs) = 
               (Const(@{const_name procargs_add},dummyT) $ translate_expression ctx known x $ trargs xs)
-          | trargs t = raise (TERM ("trargs",[t]))
+          | trargs t = raise (TERM ("trargs",[t]))*)
         fun trans (Const("_assign",_) $ x $ e) =
                 (add_var known x;
                  Const(@{const_syntax assign},dummyT) $ x $ translate_expression ctx known e)
@@ -95,7 +95,7 @@ struct
                 Const(@{const_syntax seq},dummyT) $ trans p1 $ trans p2
           | trans (Const("_skip",_)) = Const(@{const_syntax skip},dummyT)
           | trans (Const("_callproc",_) $ x $ f $ args) = (add_var known x;
-                Const(@{const_syntax callproc},dummyT) $ x $ f $ trargs args)
+                Const(@{const_syntax callproc},dummyT) $ x $ f $ args)
 (*          | trans (Const("_local_var",_) $ (body as Const("_constrainAbs",_) $ Abs(vn,_,_) $ _)) = 
               let val _ = add_var known v
                   val vn = HOLogic.mk_string (get_var_name v)
