@@ -18,6 +18,10 @@ lemma embedding_Type_range: "range (embedding::'a\<Rightarrow>val) = t_domain (T
   unfolding Type_def t_domain_def
   by (subst Abs_type_inverse, auto)
 
+lemma t_default_Type [simp]: "t_default (Type TYPE('a::prog_type)) = embedding (default::'a)"
+  by (simp add: Abs_type_inverse t_default_def Type_def)
+
+
 subsection {* Variables *}
 
 datatype ('a::prog_type) variable = Variable variable_name | LVariable variable_name

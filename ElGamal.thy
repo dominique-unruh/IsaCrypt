@@ -19,7 +19,7 @@ locale group =
 
 subsection {* DDH *}
 
-type_synonym 'g DDH_Adv = "('g*'g*'g*unit,bool) procedure"
+type_synonym 'g DDH_Adv = "('g*'g*'g,bool) procedure"
 type_synonym 'g DDH_Game = "(unit,bool) procedure"
 
 procedure (in group) DDH0 :: "'G DDH_Adv =proc=> 'G DDH_Game" where
@@ -48,15 +48,15 @@ subsection {* Declaring module type EncScheme *}
 
 module_type ('pk,'sk,'m,'c) EncScheme =
   keygen :: "(unit,'pk*'sk) procedure"
-  enc :: "('pk*'m*unit, 'c) procedure"
-  dec :: "('sk*'c*unit, 'm option) procedure"
+  enc :: "('pk*'m, 'c) procedure"
+  dec :: "('sk*'c, 'm option) procedure"
 
 
 subsection {* Declaring CPA game *}
 
 module_type ('pk,'sk,'m,'c) CPA_Adv =
-  pick    :: "('pk*unit,'m*'m) procedure"
-  "guess" :: "('c*unit,bool) procedure"
+  pick    :: "('pk,'m*'m) procedure"
+  "guess" :: "('c,bool) procedure"
 
 procedure CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) CPA_Adv =proc=> (unit,bool)procedure" where
  "CPA_main <$> (E,A) = 
@@ -83,7 +83,7 @@ definition (in group) ElGamal :: "('G,nat,'G,'G\<times>'G) EncScheme" where
                   proc(sk',c) { gy := fst c; gm := snd c; return Some (gm * inverse (gy^sk')) })"
 
 
-procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_*unit,bool)procedure" where
+procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
   "Correctness <$> E = LOCAL m1 m2 succ pksk c1.
   proc(m1) {
     pksk := call keygen<$>E ();

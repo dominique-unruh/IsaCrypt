@@ -369,6 +369,7 @@ lemma self_obseq_assign:
   shows "obs_eq_untyped X Y (Assign pat e) (Assign pat e)"
 SORRY
 
+(*
 fun assign_local_vars :: "variable_untyped list \<Rightarrow> variable_untyped list \<Rightarrow> expression_untyped list \<Rightarrow> program_rep" where
   "assign_local_vars [] [] [] = Skip"
 | "assign_local_vars locals (v#vs) (e#es) = Seq (assign_local_vars locals vs es) (Assign (pattern_1var v) e)"
@@ -376,6 +377,7 @@ fun assign_local_vars :: "variable_untyped list \<Rightarrow> variable_untyped l
         (Assign (pattern_1var x) (const_expression_untyped (vu_type x) (t_default (vu_type x))))"
 | "assign_local_vars locals [] (e#es) = assign_local_vars locals [] []"
 | "assign_local_vars locals (v#vs) [] = assign_local_vars locals [] []"
+*)
 
 (*
 definition "assign_local_vars (locals::variable_untyped list) vs es = 
@@ -384,6 +386,7 @@ definition "assign_local_vars (locals::variable_untyped list) vs es =
   locals Skip)"
 *)
 
+(*
 lemma well_typed_assign_local_vars:
   assumes "map vu_type vs = map eu_type es"
   shows "well_typed (assign_local_vars locals vs es)"
@@ -398,6 +401,7 @@ proof -
     apply (induction vs es rule:list_induct2') 
     using wt_nil by auto
 qed
+*)
 
 lemma foldr_commute: 
   assumes "\<And>x y. f (g x y) = g' x (f y)"
