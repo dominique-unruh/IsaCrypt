@@ -267,9 +267,34 @@ definition "p_vars p = pu_vars (mk_pattern_untyped p)"
 lemma pu_type_mk_pattern_untyped [simp]: "pu_type (mk_pattern_untyped (p::'a pattern)) = Type TYPE('a::prog_type)"
   using Rep_pattern by simp
 
+definition "unit_pattern = (Abs_pattern (pattern_ignore unit_type) :: unit pattern)"
+definition "pair_pattern (p1::'a pattern) (p2::'b pattern) = (undefined :: ('a*'b) pattern)"
+definition "variable_pattern (v::'a::prog_type variable) = (Abs_pattern (pattern_1var (mk_variable_untyped v)) :: 'a pattern)"
+
 definition "memory_update_pattern m (v::'a pattern) (a::'a::prog_type) =
   memory_update_untyped_pattern m (mk_pattern_untyped v) (embedding a)"
 
+
+
+(*
+class pattern = fixes pattern_of :: "'a \<Rightarrow> 'a pattern"
+
+instantiation unit :: pattern begin
+definition "pattern_of (_::unit) = Abs_pattern (pattern_ignore unit_type)"
+instance by intro_classes
+end
+
+instantiation prod :: (pattern,pattern)pattern begin
+(* TODO define pattern_of *)
+instance by intro_classes
+end
+
+instantiation variable :: (prog_type)pattern begin
+
+TODO: does not work.
+prog_type would have to map "'a variable \<Rightarrow> 'a pattern", but it's type is "'a variable \<Rightarrow> 'a variable pattern"
+what to do?
+*)
 
 record ('a,'b) procedure = 
   p_body :: program
@@ -283,6 +308,8 @@ fun mk_procedure_typed :: "procedure_rep \<Rightarrow> ('a::prog_type, 'b::prog_
  "mk_procedure_typed (Proc body args return) = 
     \<lparr> p_body=Abs_program body, p_args=Abs_pattern args, p_return=mk_expression_typed return, \<dots> = undefined\<rparr>"
 | "mk_procedure_typed _ = undefined"
+
+(*definition "mk_procedure args body return = \<lparr> p_body=body, p_args=pattern_of args, p_return=return \<rparr>"*)
 
 class singleton = 
   fixes the_singleton::'a (* Why do we need this? *)
@@ -473,15 +500,15 @@ subsection {* Concrete syntax for programs *}
 
 subsubsection {* Grammar *}
 
+term Product_Type.Pair
+ML {* @{term "()"} *}
+
 nonterminal procedure_call_args_syntax
-nonterminal procedure_call_args_syntax'
-syntax "_procedure_call_args_none" :: procedure_call_args_syntax ("'(')")
-syntax "_procedure_call_args_single" :: "'a \<Rightarrow> procedure_call_args_syntax'" ("_")
-syntax "_procedure_call_args_cons" :: "'a \<Rightarrow> procedure_call_args_syntax' \<Rightarrow> procedure_call_args_syntax'" ("_,_")
-syntax "" :: "procedure_call_args_syntax' \<Rightarrow> procedure_call_args_syntax" ("'(_')")
+syntax "Product_Type.Unity" :: procedure_call_args_syntax ("'(')")
+syntax "" :: "'a \<Rightarrow> procedure_call_args_syntax" ("'(_')")
+syntax "_tuple" :: "'a \<Rightarrow> tuple_args \<Rightarrow> procedure_call_args_syntax" ("'(_,_')")
 
 nonterminal program_syntax
-
 
 syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _; ]")
 syntax "_program" :: "program_syntax \<Rightarrow> term" ("PROGRAM [ _ ]")
@@ -499,7 +526,7 @@ syntax "_sample_quote" :: "'a variable \<Rightarrow> 'a expression \<Rightarrow>
 syntax "_while_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("while '(\<guillemotleft>_\<guillemotright>') (2_)" [0,20] 20)
 syntax "_ifte_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_) else _" [0,20] 20)
 syntax "_ifthen_quote" :: "bool expression \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(\<guillemotleft>_\<guillemotright>') (2_)" [0,20] 20)
-syntax "_callproc" :: "idt \<Rightarrow> ('a,'b) procedure \<Rightarrow> procedure_call_args_syntax \<Rightarrow> program_syntax" ("_ := call _ _" 30)
+syntax "_callproc" :: "'a \<Rightarrow> ('a,'b) procedure \<Rightarrow> procedure_call_args_syntax \<Rightarrow> program_syntax" ("_ := call _ _" 30)
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("{ _ }")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_')")
 syntax "" :: "program_syntax \<Rightarrow> program_syntax" ("'(_;')")
@@ -526,32 +553,40 @@ parse_translation {* [("_local_vars_global", fn ctx => fn p =>
 
 subsection {* Concrete grammar for procedures *}
 
+(*
 nonterminal procedure_decl_args_syntax
 nonterminal procedure_decl_args_syntax'
 syntax "_procedure_decl_args_none" :: procedure_decl_args_syntax ("'(')")
 syntax "_procedure_decl_args_single" :: "idt \<Rightarrow> procedure_decl_args_syntax'" ("_")
 syntax "_procedure_decl_args_cons" :: "idt \<Rightarrow> procedure_decl_args_syntax' \<Rightarrow> procedure_decl_args_syntax'" ("_,_")
 syntax "" :: "procedure_decl_args_syntax' \<Rightarrow> procedure_decl_args_syntax" ("'(_')")
-syntax "_procedure_decl" :: "procedure_decl_args_syntax \<Rightarrow> program_syntax \<Rightarrow> 'b \<Rightarrow> ('a,'b) procedure" ("proc _ {_; return _}")
-syntax "_procedure_decl" :: "procedure_decl_args_syntax \<Rightarrow> program_syntax \<Rightarrow> 'b \<Rightarrow> ('a,'b) procedure" ("proc _ {_; return _;}")
-
-definition "TODO_REMOVE_ME == undefined"
+*)
+syntax "_procedure_decl" :: "procedure_call_args_syntax \<Rightarrow> program_syntax \<Rightarrow> 'b \<Rightarrow> ('a,'b) procedure" ("proc _ {_; return _}")
+syntax "_procedure_decl" :: "procedure_call_args_syntax \<Rightarrow> program_syntax \<Rightarrow> 'b \<Rightarrow> ('a,'b) procedure" ("proc _ {_; return _;}")
 
 parse_translation {* [("_procedure_decl", fn ctx => fn [args,body,return] => 
 let val known = Unsynchronized.ref[] (* TODO: add local vars *)
-    fun trargs (Const("_procedure_decl_args_none",_)) = Const(@{const_name TODO_REMOVE_ME},dummyT)
+(*    fun trargs (Const(@{const_name Unity},_)) = @{term "unit_pattern"}
+      | trargs (Const(@{const_syntax Pair},_)$a$b) =
+          Const(@{const_name pair_pattern},dummyT) $ trargs a $ trargs b
+(*          let val apat = trargs a val bpat = trargs b in
+          @{termx "pair_pattern (?apat::?'apat.1) (?bpat::?'bpat.1)" 
+                  where "?'apat.1\<Rightarrow>?'a pattern"   "?'bpat.1\<Rightarrow>?'b pattern"} end *)
+      | trargs t = Const(@{const_name variable_pattern},dummyT) $ t*)
+(* @{termx "variable_pattern (?t::?'t.1)" where "?'t.1\<Rightarrow>(?'x::prog_type variable)"} *)
+(*    fun trargs (Const("_procedure_decl_args_none",_)) = Const(@{const_name TODO_REMOVE_ME},dummyT)
       | trargs (Const("_procedure_decl_args_single",_)$x) = 
           (Lang_Syntax.add_var known x; Const(@{const_name TODO_REMOVE_ME},dummyT) $ x $ Const(@{const_name TODO_REMOVE_ME},dummyT))
       | trargs (Const("_procedure_decl_args_cons",_)$x$xs) = 
           (Lang_Syntax.add_var known x; Const(@{const_name TODO_REMOVE_ME},dummyT) $ x $ trargs xs)
-      | trargs t = raise (TERM ("trargs",[t]))
-    val args = trargs args
+      | trargs t = raise (TERM ("trargs",[t])) *)
+    val args = Lang_Syntax.translate_pattern known args
 in
-Const(@{const_name Lang_Typed.procedure.procedure_ext},dummyT) $ 
+Const(@{const_name procedure_ext},dummyT) $ 
    Lang_Syntax.translate_program ctx known body $ (* p_body *)
    args $ (* p_args *)
    Lang_Syntax.translate_expression ctx known return $ (* p_return *)
-   Const(@{const_name Product_Type.Unity},dummyT)
+   @{term "()"}
 end)] *}
 
 
