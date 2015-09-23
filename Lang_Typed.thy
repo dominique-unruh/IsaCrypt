@@ -164,6 +164,12 @@ lemma mk_expression_distr_fun [simp]: "ed_fun (mk_expression_distr (e::'a::prog_
   unfolding e_fun_def e_vars_def 
   using Rep_expression[of e] by auto
 
+lemma mk_expression_distr_vars [simp]: "ed_vars (mk_expression_distr (e::'a::prog_type distr expression)) = e_vars e"
+  unfolding mk_expression_distr_def ed_vars_def
+  apply (subst Abs_expression_distr_inverse, auto simp: embedding_Type)
+  unfolding e_fun_def e_vars_def 
+  using Rep_expression[of e] by auto
+
 lemma mk_expression_distr_type [simp]: "ed_type (mk_expression_distr (e::'a::prog_type distr expression)) = Type TYPE('a)"
   unfolding mk_expression_distr_def ed_type_def
   apply (subst Abs_expression_distr_inverse, auto simp: embedding_Type)
@@ -410,18 +416,18 @@ definition "skip = Abs_program Skip"
 lemma mk_untyped_skip [simp]: "mk_program_untyped skip = Skip"
   unfolding skip_def denotation_def apply (subst Abs_program_inverse) by auto
 
-definition "assign (v::('a::prog_type) variable) (e::'a expression) =
-  Abs_program (Assign (pattern_1var (mk_variable_untyped v)) (mk_expression_untyped e))"
+definition "assign (v::('a::prog_type) pattern) (e::'a expression) =
+  Abs_program (Assign (mk_pattern_untyped v) (mk_expression_untyped e))"
 
-lemma mk_untyped_assign [simp]: "mk_program_untyped (assign (v::'a::prog_type variable) e) = 
-  Assign (pattern_1var (mk_variable_untyped v)) (mk_expression_untyped e)"
+lemma mk_untyped_assign [simp]: "mk_program_untyped (assign v e) = 
+  Assign (mk_pattern_untyped v) (mk_expression_untyped e)"
   unfolding assign_def denotation_def apply (subst Abs_program_inverse) by (simp_all)
   
-definition "sample (v::('a::prog_type) variable) (e::'a distr expression) =
-  Abs_program (Sample (pattern_1var (mk_variable_untyped v)) (mk_expression_distr e))"
+definition "sample (v::('a::prog_type) pattern) (e::'a distr expression) =
+  Abs_program (Sample (mk_pattern_untyped v) (mk_expression_distr e))"
 
-lemma mk_untyped_sample [simp]: "mk_program_untyped (sample (v::'a::prog_type variable) e)
-   = Sample (pattern_1var (mk_variable_untyped v)) (mk_expression_distr e)"
+lemma mk_untyped_sample [simp]: "mk_program_untyped (sample v e)
+   = Sample (mk_pattern_untyped v) (mk_expression_distr e)"
   unfolding sample_def denotation_def apply (subst Abs_program_inverse) by simp_all 
 
 definition ifte :: "bool expression \<Rightarrow> program \<Rightarrow> program \<Rightarrow> program" where
@@ -463,10 +469,10 @@ unfolding denotation_def memory_update_def mk_untyped_seq by simp
 lemma denotation_skip: "denotation skip m = point_distr m"
 unfolding denotation_def memory_update_def mk_untyped_skip by simp
 
-lemma denotation_assign: "denotation (assign v e) m = point_distr (memory_update m v (e_fun e m))"
-  unfolding denotation_def memory_update_def mk_untyped_assign by simp
-lemma denotation_sample: "denotation (sample v e) m = apply_to_distr (memory_update m v) (e_fun e m)"
-  unfolding denotation_def memory_update_def[THEN ext] mk_untyped_sample by simp
+lemma denotation_assign: "denotation (assign v e) m = point_distr (memory_update_pattern m v (e_fun e m))"
+  unfolding denotation_def memory_update_pattern_def mk_untyped_assign by simp
+lemma denotation_sample: "denotation (sample v e) m = apply_to_distr (memory_update_pattern m v) (e_fun e m)"
+  unfolding denotation_def memory_update_pattern_def[THEN ext] mk_untyped_sample by simp
 
 lemma denotation_ifte: "denotation (ifte e thn els) m = (if e_fun e m then denotation thn m else denotation els m)"
   unfolding denotation_def mk_untyped_ifte by simp
@@ -520,8 +526,8 @@ syntax "_label" :: "idt \<Rightarrow> program_syntax \<Rightarrow> program_synta
 syntax "_seq" :: "program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("_;/ _" [10,11] 10)
 syntax "_skip" :: "program_syntax" ("skip")
 syntax "_quote" :: "program \<Rightarrow> program_syntax" ("\<guillemotleft>_\<guillemotright>" [31] 30)
-syntax "_assign" :: "idt \<Rightarrow> 'a \<Rightarrow> program_syntax" (infix ":=" 30)
-syntax "_sample" :: "idt \<Rightarrow> 'a \<Rightarrow> program_syntax" (infix "<-" 30)
+syntax "_assign" :: "'a \<Rightarrow> 'b \<Rightarrow> program_syntax" (infix ":=" 30)
+syntax "_sample" :: "'a \<Rightarrow> 'b \<Rightarrow> program_syntax" (infix "<-" 30)
 syntax "_ifte" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(_') (2_) else (2_)" [0,20] 20)
 syntax "_ifthen" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("if '(_') (2_)" [0,20] 20)
 syntax "_while" :: "bool \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("while '(_') (2_)" [0,20] 20)
@@ -593,10 +599,9 @@ Const(@{const_name procedure_ext},dummyT) $
    @{term "()"}
 end)] *}
 
-
 lemma vars_seq [simp]: "vars (seq a b) = vars a @ vars b" by (simp add: vars_def)
-lemma vars_assign [simp]: "vars (assign x e) = mk_variable_untyped x # e_vars e" SORRY
-lemma vars_sample [simp]: "vars (sample x e) = mk_variable_untyped x # e_vars e" SORRY
+lemma vars_assign [simp]: "vars (assign x e) = p_vars x @ e_vars e" by (simp add: p_vars_def vars_def)
+lemma vars_sample [simp]: "vars (sample x e) = p_vars x @ e_vars e" by (simp add: p_vars_def vars_def)
 lemma vars_while [simp]: "vars (Lang_Typed.while e p) = e_vars e @ vars p" by (simp add: vars_def)
 lemma vars_ifte [simp]: "vars (Lang_Typed.ifte e p1 p2) = e_vars e @ vars p1 @ vars p2" by (simp add: vars_def)
 definition "vars_proc_global p == [v. v<-p_vars (p_args p), vu_global v] @ [v. v<-vars (p_body p), vu_global v] @ [v. v<-e_vars (p_return p), vu_global v]"

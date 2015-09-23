@@ -44,7 +44,7 @@ lemma lang_simp_whilefalse [lang_simp]: "(\<And>m. \<not> e_fun e m) \<Longright
   SORRY
 lemma lang_simp_ifsame [lang_simp]: "fun_equiv denotation c d \<Longrightarrow> fun_equiv denotation (ifte e c d) c"
   SORRY
-lemma lang_simp_selfassign [lang_simp]: "e_fun e m = memory_lookup m x \<Longrightarrow> fun_equiv denotation (assign x e) Lang_Typed.skip"
+lemma lang_simp_selfassign [lang_simp]: "e_fun e m = memory_lookup m x \<Longrightarrow> fun_equiv denotation (assign (variable_pattern x) e) Lang_Typed.skip"
   SORRY
 
 experiment begin

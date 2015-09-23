@@ -217,14 +217,14 @@ typedef pattern_untyped = "{(p::pattern_rep).
 
 
 definition "pu_var_getters p = pur_var_getters (Rep_pattern_untyped p)"
-definition "pu_vars p = map fst (pur_var_getters (Rep_pattern_untyped p))"
+definition "pu_vars p = map fst (pu_var_getters p)"
 definition "pu_type p = pur_type (Rep_pattern_untyped p)"
 
 definition "pattern_1var v = Abs_pattern_untyped \<lparr> pur_var_getters=[(v, \<lambda>x. x)], pur_type=vu_type v \<rparr>"
 lemma p_var_getters_pattern_1var [simp]: "pu_var_getters (pattern_1var v) = [(v, \<lambda>x. x)]"
   by (simp add: Abs_pattern_untyped_inverse pu_var_getters_def pattern_1var_def)
 lemma p_vars_pattern_1var [simp]: "pu_vars (pattern_1var v) = [v]"
-  by (simp add: Abs_pattern_untyped_inverse pu_vars_def pattern_1var_def)
+  unfolding pu_vars_def by simp
 lemma p_type_pattern_1var [simp]: "pu_type (pattern_1var v) = vu_type v"
   by (simp add: Abs_pattern_untyped_inverse pu_type_def pattern_1var_def)
 
@@ -232,7 +232,7 @@ definition "pattern_ignore T = Abs_pattern_untyped \<lparr> pur_var_getters=[], 
 lemma p_var_getters_pattern_ignore [simp]: "pu_var_getters (pattern_ignore T) = []"
   by (simp add: Abs_pattern_untyped_inverse pu_var_getters_def pattern_ignore_def)
 lemma p_vars_pattern_ignore [simp]: "pu_vars (pattern_ignore T) = []"
-  by (simp add: Abs_pattern_untyped_inverse pu_vars_def pattern_ignore_def)
+  unfolding pu_vars_def by simp
 lemma p_type_pattern_ignore [simp]: "pu_type (pattern_ignore T) = T"
   by (simp add: Abs_pattern_untyped_inverse pu_type_def pattern_ignore_def)
 

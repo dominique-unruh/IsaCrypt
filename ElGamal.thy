@@ -62,12 +62,8 @@ procedure CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) CPA_Adv =proc
  "CPA_main <$> (E,A) = 
   LOCAL pk sk m0 m1 b c b' tmp1 tmp2.
   proc () {
-    tmp1 := call keygen<$>E ();
-    pk := fst tmp1;
-    sk := snd tmp1;
-    tmp2 := call pick<$>A (pk);
-    m0 := fst tmp2;
-    m1 := snd tmp2;
+    (pk,sk) := call keygen<$>E ();
+    (m0,m1) := call pick<$>A (pk);
     b <- uniform UNIV;
     c := call enc<$>E(pk, if b then m1 else m0);
     b' := call guess<$>A (c);
@@ -77,18 +73,18 @@ procedure CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) CPA_Adv =proc
 subsection {* ElGamal *}
 
 definition (in group) ElGamal :: "('G,nat,'G,'G\<times>'G) EncScheme" where
- "ElGamal = LOCAL pk m0 c sk sk' y gm gy.
+ "ElGamal = LOCAL pk m0 c1 c2 sk sk' y gm gy.
    Abs_EncScheme (proc() { sk <- uniform {0..<q}; return (g^sk, sk) },
                   proc(pk,m0) { y <- uniform {0..<q}; return (g^y, pk^y * m0) },
-                  proc(sk',c) { gy := fst c; gm := snd c; return Some (gm * inverse (gy^sk')) })"
+                  proc(sk',(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk')) })"
 
 
 procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
-  "Correctness <$> E = LOCAL m1 m2 succ pksk c1.
+  "Correctness <$> E = LOCAL m1 m2 succ pk sk c1.
   proc(m1) {
-    pksk := call keygen<$>E ();
-    c1 := call enc<$>E (fst pksk, m1);
-    m2 := call dec<$>E (snd pksk, c1);
+    (pk,sk) := call keygen<$>E ();
+    c1 := call enc<$>E (pk, m1);
+    m2 := call dec<$>E (sk, c1);
     succ := (m2 = Some m1);
     return succ
   }"

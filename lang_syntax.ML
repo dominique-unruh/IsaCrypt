@@ -69,16 +69,16 @@ fun translate_program (ctx:Proof.context) known (p:term) =
         | trargs t = raise (TERM ("trargs",[t]))*)
       fun trans (Const("_assign",_) $ x $ e) =
               (add_var known x;
-               Const(@{const_syntax assign},dummyT) $ x $ translate_expression ctx known e)
+               Const(@{const_syntax assign},dummyT) $ translate_pattern known x $ translate_expression ctx known e)
         | trans (Const("_assign_quote",_) $ x $ e) =
               (add_var known x;
-               Const(@{const_syntax assign},dummyT) $ x $ e)
+               Const(@{const_syntax assign},dummyT) $ translate_pattern known x $ e)
         | trans (Const("_sample",_) $ x $ e) =
               (add_var known x;
-               Const(@{const_syntax sample},dummyT) $ x $ translate_expression ctx known e)
+               Const(@{const_syntax sample},dummyT) $ translate_pattern known x $ translate_expression ctx known e)
         | trans (Const("_sample_quote",_) $ x $ e) =
               (add_var known x;
-               Const(@{const_syntax sample},dummyT) $ x $ e)
+               Const(@{const_syntax sample},dummyT) $ translate_pattern known x $ e)
         | trans (Const("_label",_) $ Free(l,_) $ p) = 
               Const(@{const_syntax label},dummyT) $ HOLogic.mk_string l $ trans p
         | trans (Const("_label",_) $ (Const("_constrain",_)$Free(l,_)$_) $ p) = 

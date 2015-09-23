@@ -197,16 +197,17 @@ SORRY
 
 
 lemma obseq_context_assign: 
-  assumes "mk_variable_untyped x \<in> X"
+  assumes "set (p_vars x) \<subseteq> X"
   assumes "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. assign x e)"
 SORRY
 
 lemma obseq_context_skip: "obseq_context X (\<lambda>c. Lang_Typed.skip)"
-  unfolding obseq_context_def apply auto unfolding obs_eq_def (* TODO use skip rule *) SORRY
+  unfolding obseq_context_def apply auto unfolding obs_eq_def
+  by (simp add: rhoare_untyped rskip_rule)
 
 lemma obseq_context_sample: 
-  assumes "mk_variable_untyped x \<in> X"
+  assumes "set (p_vars x) \<subseteq> X"
   assumes "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. sample x e)"
 SORRY

@@ -40,30 +40,30 @@ lemma seq_rule:
 
 lemma assign_rule:
   fixes P Q x e
-  assumes "\<forall>m. P m \<longrightarrow> Q (memory_update m x (e_fun e m))"
-  shows "hoare {P &m} x := \<guillemotleft>e\<guillemotright> {Q &m}"
+  assumes "\<forall>m. P m \<longrightarrow> Q (memory_update_pattern m x (e_fun e m))"
+  shows "hoare {P &m} \<guillemotleft>assign x e\<guillemotright> {Q &m}"
   unfolding hoare_untyped mk_untyped_assign
   apply (rule assign_rule)
-  using assms unfolding memory_update_def by auto
+  using assms unfolding memory_update_pattern_def by auto
 
 lemma assign_rule':
   fixes P Q c x e
-  assumes "hoare {P &m} \<guillemotleft>c\<guillemotright> {Q (memory_update &m x (e_fun e &m))}"
-  shows "hoare {P &m} \<guillemotleft>c\<guillemotright>; x := \<guillemotleft>e\<guillemotright> {Q &m}"
+  assumes "hoare {P &m} \<guillemotleft>c\<guillemotright> {Q (memory_update_pattern &m x (e_fun e &m))}"
+  shows "hoare {P &m} \<guillemotleft>c\<guillemotright>; \<guillemotleft>assign x e\<guillemotright> {Q &m}"
 by (rule seq_rule, rule assms, rule assign_rule, simp)
 
 lemma sample_rule:
   fixes P Q x e
-  assumes "\<forall>m. P m \<longrightarrow> (\<forall>v\<in>support_distr (e_fun e m). Q (memory_update m x v))"
-  shows "hoare {P &m} x <- \<guillemotleft>e\<guillemotright> {Q &m}"
+  assumes "\<forall>m. P m \<longrightarrow> (\<forall>v\<in>support_distr (e_fun e m). Q (memory_update_pattern m x v))"
+  shows "hoare {P &m} \<guillemotleft>sample x e\<guillemotright> {Q &m}"
   unfolding hoare_untyped mk_untyped_sample 
   apply (rule sample_rule)
-  using assms unfolding memory_update_def by auto
+  using assms unfolding memory_update_pattern_def by auto
 
 lemma sample_rule':
   fixes P Q c x e
-  assumes "hoare {P &m} \<guillemotleft>c\<guillemotright> {\<forall>v\<in>support_distr (e_fun e &m). Q (memory_update &m x v)}"
-  shows "hoare {P &m} \<guillemotleft>c\<guillemotright>; x <- \<guillemotleft>e\<guillemotright> {Q &m}"
+  assumes "hoare {P &m} \<guillemotleft>c\<guillemotright> {\<forall>v\<in>support_distr (e_fun e &m). Q (memory_update_pattern &m x v)}"
+  shows "hoare {P &m} \<guillemotleft>c\<guillemotright>; \<guillemotleft>sample x e\<guillemotright> {Q &m}"
 by (rule seq_rule, rule assms, rule sample_rule, simp)
 
 lemma while_rule:
@@ -155,15 +155,15 @@ lemma seq_rule_lastfirst:
 
 lemma assign_rule_strict:
   fixes Q x e
-  defines "Q' == \<lambda>m. Q (memory_update m x (e_fun e m))"
-  shows "hoare {Q' &m} x := \<guillemotleft>e\<guillemotright> {Q &m}"
+  defines "Q' == \<lambda>m. Q (memory_update_pattern m x (e_fun e m))"
+  shows "hoare {Q' &m} \<guillemotleft>assign x e\<guillemotright> {Q &m}"
   apply (rule assign_rule)
   unfolding Q'_def by simp
 
 lemma sample_rule_strict:
   fixes Q x e
-  defines "Q' == \<lambda>m. \<forall>v\<in>support_distr (e_fun e m). Q (memory_update m x v)"
-  shows "hoare {Q' &m} x <- \<guillemotleft>e\<guillemotright> {Q &m}"
+  defines "Q' == \<lambda>m. \<forall>v\<in>support_distr (e_fun e m). Q (memory_update_pattern m x v)"
+  shows "hoare {Q' &m} \<guillemotleft>sample x e\<guillemotright> {Q &m}"
   apply (rule sample_rule)
   unfolding Q'_def by simp
 
