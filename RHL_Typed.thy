@@ -88,18 +88,27 @@ lemma assign_local_vars_typed_simp3 [simp]:
 unfolding assign_local_vars_typed_def skip_def by simp
 *)
 
+definition "assign_default_typed locals = Abs_program (assign_default locals)"
 
 
 (* If the number of subgoals change, inline_rule_conditions_tac must be adapted accordingly *)
 lemma callproc_rule:
-  fixes p::"('a::prog_type,'b::prog_type) procedure" and x::"'b pattern" and args::"'a"
+  fixes p::"('a::prog_type,'b::prog_type) procedure" and x::"'b pattern" and args::"'a expression"
     and locals::"variable_untyped list" and V::"variable_untyped set"
     and non_parg_locals::"variable_untyped list"
   defines "body == p_body p"
   defines "ret == p_return p"
   defines "pargs == p_args p"
+  defines "GL == {x. vu_global x}"
+  assumes proc_locals: "(set(vars body) \<union> set(p_vars pargs) \<union> set(e_vars ret)) - GL \<subseteq> set locals"
+  assumes locals_local: "GL \<inter> set locals = {}"
+  assumes localsV: "V \<inter> set locals \<subseteq> set (p_vars x)"
+  assumes proc_globals: "(set(vars body) \<union> set(e_vars ret)) \<inter> GL \<subseteq> V"
+  assumes argvarsV: "set(e_vars args) \<subseteq> V"
+  assumes non_parg_locals: "set non_parg_locals = set locals - set (p_vars pargs)"
+
   (*assumes body_local: "\<And>x. x \<in> set (vars body) \<Longrightarrow> \<not> vu_global x \<Longrightarrow> x \<in> set locals"*)
-  assumes body_local: "\<And>x. x \<in> set (local_vars body) \<Longrightarrow> x \<in> set locals"
+(*  assumes body_local: "\<And>x. x \<in> set (local_vars body) \<Longrightarrow> x \<in> set locals"
   assumes pargs_local: "set (mk_procargvars_untyped pargs) \<subseteq> set locals"
   assumes ret_local: "set (e_vars ret) \<subseteq> set locals"
   assumes locals_local: "\<And>x. x\<in>set locals \<Longrightarrow> \<not>vu_global x"
@@ -107,48 +116,46 @@ lemma callproc_rule:
   assumes localsV: "V \<inter> set locals \<subseteq> {mk_variable_untyped x}"
   assumes globalsVbody: "\<And>x. x\<in>set(vars body) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
   assumes globalsVret: "\<And>x. x\<in>set(e_vars ret) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
-  assumes argvarsV: "set(vars_procargs args) \<subseteq> V"
+  assumes argvarsV: "set(vars_procargs args) \<subseteq> V" *)
 
-  defines "unfolded == seq (seq (assign_local_vars_typed locals pargs args) body) (assign x ret)"
+(*
+  defines "unfolded == Seq (Seq (Seq (Assign pargs args) (assign_default non_parg_locals)) body)
+                           (Assign x ret)"
+*)
+  defines "unfolded == seq (seq (seq (assign pargs args) (assign_default_typed non_parg_locals)) body) (assign x ret)"
   shows "obs_eq' V (callproc x p args) unfolded"
 proof -
 (*  have body_local_old: "\<And>x. x \<in> set (vars body) \<Longrightarrow> \<not> vu_global x \<Longrightarrow> x \<in> set locals" 
     using body_local unfolding local_vars_def by auto*)
 
   def body' \<equiv> "mk_program_untyped (p_body p)"
-  def pargs' \<equiv> "mk_procargvars_untyped (p_args p)"
+  def pargs' \<equiv> "mk_pattern_untyped (p_args p)"
   def ret' \<equiv> "mk_expression_untyped (p_return p)"
   def p' \<equiv>  "Proc body' pargs' ret'"
   have p': "mk_procedure_untyped p = p'"
     unfolding mk_procedure_untyped_def p'_def body'_def pargs'_def ret'_def ..
-  def x' \<equiv> "mk_variable_untyped x"
-  def args' \<equiv> "mk_procargs_untyped args"
+  def x' \<equiv> "mk_pattern_untyped x"
+  def args' \<equiv> "mk_expression_untyped args"
   have callproc: "mk_program_untyped (callproc x p args) == CallProc x' p' args'"
     unfolding mk_untyped_callproc x'_def[symmetric] p' args'_def[symmetric] .
-  def unfolded' \<equiv> "Seq (Seq (assign_local_vars locals pargs' args') body') (Assign (pattern_1var x') ret')"
-  have assign: "mk_program_untyped (assign_local_vars_typed locals pargs args)
-      == assign_local_vars locals pargs' args'"
-      unfolding assign_local_vars_typed_def pargs'_def args'_def pargs_def 
+  def unfolded' \<equiv> "Seq (Seq (Seq (Assign pargs' args') (assign_default non_parg_locals)) body')
+                           (Assign x' ret')"
+(* Seq (Seq (assign_local_vars locals pargs' args') body') (Assign (pattern_1var x') ret')" *)
+  have assign: "mk_program_untyped (assign_default_typed locals) == assign_default locals"
+      unfolding assign_default_typed_def 
       apply (subst Abs_program_inverse, auto)
-      apply (rule well_typed_assign_local_vars)
-      by simp
+      by (rule assign_default_welltyped)
   have unfolded: "Rep_program unfolded = unfolded'"
-    unfolding unfolded'_def unfolded_def program_def
+    unfolding unfolded'_def unfolded_def program_def pargs'_def pargs_def args'_def
     mk_untyped_seq assign body'_def body_def mk_untyped_assign ret_def
-    x'_def[symmetric] ret'_def[symmetric] ..
+    x'_def[symmetric] ret'_def[symmetric] assign_default_typed_def
+   apply (subst Abs_program_inverse)
+   using assign_default_welltyped by auto
   show "obs_eq' V (callproc x p args) unfolded"
     unfolding obs_eq'_def obs_eq_obs_eq_untyped callproc unfolded unfolded'_def p'_def 
-    apply (rule callproc_rule)
-    unfolding body'_def vars_def[symmetric] pargs'_def ret'_def args'_def
-    using body_local local_vars_def body_def close auto
-    using pargs_local pargs_def close auto
-    using ret_local ret_def close auto
-    using locals_local close auto
-    using argvars_locals unfolding vars_procargs_def close auto
-    using localsV x'_def  close auto
-    using globalsVbody body_def close auto
-    using globalsVret ret_def close auto
-    using argvarsV unfolding vars_procargs_def by auto
+    apply (rule callproc_rule) 
+    unfolding body'_def x'_def vars_def[symmetric] e_vars_def[symmetric] p_vars_def[symmetric] pargs'_def ret'_def args'_def
+    using assms by auto
 qed
 
 (*

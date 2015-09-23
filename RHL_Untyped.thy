@@ -432,6 +432,10 @@ by (metis Pair_inject list.distinct(2) list.exhaust list.inject zip_Cons_Cons zi
 definition "assign_default = foldl (\<lambda>p v. Seq p (Assign (pattern_1var v) 
                       (const_expression_untyped (vu_type v) (t_default (vu_type v))))) Skip"
 
+lemma assign_default_welltyped: "well_typed (assign_default locals)"
+  apply (induct locals rule:rev_induct)
+  unfolding assign_default_def 
+  using Rep_type eu_type_const_expression_untyped t_default_def t_domain_def by auto
 
 (* TODO move *)
 lemma memory_lookup_update_pattern_notsame:
