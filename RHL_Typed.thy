@@ -92,8 +92,9 @@ unfolding assign_local_vars_typed_def skip_def by simp
 
 (* If the number of subgoals change, inline_rule_conditions_tac must be adapted accordingly *)
 lemma callproc_rule:
-  fixes p::"('a::procargs,'b::prog_type) procedure" and x::"'b variable" and args::"'a procargs"
+  fixes p::"('a::prog_type,'b::prog_type) procedure" and x::"'b pattern" and args::"'a"
     and locals::"variable_untyped list" and V::"variable_untyped set"
+    and non_parg_locals::"variable_untyped list"
   defines "body == p_body p"
   defines "ret == p_return p"
   defines "pargs == p_args p"
@@ -107,6 +108,7 @@ lemma callproc_rule:
   assumes globalsVbody: "\<And>x. x\<in>set(vars body) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
   assumes globalsVret: "\<And>x. x\<in>set(e_vars ret) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
   assumes argvarsV: "set(vars_procargs args) \<subseteq> V"
+
   defines "unfolded == seq (seq (assign_local_vars_typed locals pargs args) body) (assign x ret)"
   shows "obs_eq' V (callproc x p args) unfolded"
 proof -
