@@ -276,10 +276,43 @@ abbreviation "mk_pattern_untyped == Rep_pattern"
 definition "p_vars p = pu_vars (mk_pattern_untyped p)"
 lemma pu_type_mk_pattern_untyped [simp]: "pu_type (mk_pattern_untyped (p::'a pattern)) = Type TYPE('a::prog_type)"
   using Rep_pattern by simp
+definition "p_var_getters p = pu_var_getters (mk_pattern_untyped p)"
 
 definition "unit_pattern = (Abs_pattern (pattern_ignore unit_type) :: unit pattern)"
-definition "pair_pattern (p1::'a pattern) (p2::'b pattern) = (undefined :: ('a*'b) pattern)"
+lemma vars_unit_pattern [simp]: "p_vars unit_pattern = []"
+  unfolding p_vars_def unit_pattern_def apply (subst Abs_pattern_inverse) by (auto simp: Type_def unit_type_def)
+definition "pair_pattern (p1::'a pattern) (p2::'b pattern) = (Abs_pattern (Abs_pattern_untyped 
+  \<lparr> pur_var_getters=(map (\<lambda>(v,g). (v,g o embedding o fst o inv (embedding::'a*'b\<Rightarrow>_))) (p_var_getters p1))
+                  @ (map (\<lambda>(v,g). (v,g o embedding o snd o inv (embedding::'a*'b\<Rightarrow>_))) (p_var_getters p2)),
+    pur_type=Type TYPE('a::prog_type*'b::prog_type) \<rparr>) :: ('a*'b) pattern)"
+lemma Rep_pair_pattern: "Rep_pattern_untyped (Rep_pattern (pair_pattern (p1::'a pattern) (p2::'b pattern))) = 
+  \<lparr> pur_var_getters=(map (\<lambda>(v,g). (v,g o embedding o fst o inv (embedding::'a*'b\<Rightarrow>_))) (p_var_getters p1))
+                  @ (map (\<lambda>(v,g). (v,g o embedding o snd o inv (embedding::'a*'b\<Rightarrow>_))) (p_var_getters p2)),
+    pur_type=Type TYPE('a::prog_type*'b::prog_type) \<rparr>"
+  unfolding pair_pattern_def  apply (subst Abs_pattern_inverse, simp)
+  unfolding pu_type_def apply (subst Abs_pattern_untyped_inverse, auto)
+  apply (metis (mono_tags, lifting) Rep_pattern_untyped mem_Collect_eq old.prod.case p_var_getters_def pu_var_getters_def)
+  apply (metis (mono_tags, lifting) Rep_pattern_untyped mem_Collect_eq old.prod.case p_var_getters_def pu_var_getters_def)
+  apply (subst Abs_pattern_untyped_inverse, auto)
+  apply (metis (mono_tags, lifting) Rep_pattern_untyped mem_Collect_eq old.prod.case p_var_getters_def pu_var_getters_def)
+  by (metis (mono_tags, lifting) Rep_pattern_untyped mem_Collect_eq old.prod.case p_var_getters_def pu_var_getters_def)
+
+lemma var_getters_pair_pattern: "p_var_getters (pair_pattern (p1::'a::prog_type pattern) (p2::'b::prog_type pattern)) = 
+    map (\<lambda>(v,g). (v, g \<circ> embedding \<circ> fst \<circ> inv (embedding::'a*'b\<Rightarrow>_)))  (p_var_getters p1) @
+    map (\<lambda>(v, g). (v, g \<circ> embedding \<circ> snd \<circ> inv (embedding::'a*'b\<Rightarrow>_))) (p_var_getters p2)"
+  unfolding p_var_getters_def pu_var_getters_def Rep_pair_pattern by simp
+
+lemma vars_pair_pattern [simp]: "p_vars (pair_pattern p1 p2) = p_vars p1 @ p_vars p2"
+    unfolding p_vars_def pu_vars_def apply (subst pu_var_getters_def) unfolding Rep_pair_pattern apply simp
+    unfolding p_var_getters_def[symmetric] by auto
+
+
+
 definition "variable_pattern (v::'a::prog_type variable) = (Abs_pattern (pattern_1var (mk_variable_untyped v)) :: 'a pattern)"
+lemma Rep_variable_pattern: "Rep_pattern (variable_pattern v) = pattern_1var (mk_variable_untyped v)"
+  unfolding variable_pattern_def apply (subst Abs_pattern_inverse) by auto
+lemma vars_variable_pattern [simp]: "p_vars (variable_pattern v) = [mk_variable_untyped v]" 
+  unfolding p_vars_def Rep_variable_pattern by simp
 
 definition "memory_update_pattern m (v::'a pattern) (a::'a::prog_type) =
   memory_update_untyped_pattern m (mk_pattern_untyped v) (embedding a)"

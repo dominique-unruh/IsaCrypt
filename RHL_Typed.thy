@@ -90,7 +90,6 @@ unfolding assign_local_vars_typed_def skip_def by simp
 
 definition "assign_default_typed locals = Abs_program (assign_default locals)"
 
-
 (* If the number of subgoals change, inline_rule_conditions_tac must be adapted accordingly *)
 lemma callproc_rule:
   fixes p::"('a::prog_type,'b::prog_type) procedure" and x::"'b pattern" and args::"'a expression"
@@ -100,7 +99,7 @@ lemma callproc_rule:
   defines "ret == p_return p"
   defines "pargs == p_args p"
   defines "GL == {x. vu_global x}"
-  assumes proc_locals: "(set(vars body) \<union> set(p_vars pargs) \<union> set(e_vars ret)) - GL \<subseteq> set locals"
+  assumes proc_locals: "(set(local_vars body) \<union> set(p_vars pargs) \<union> set(e_vars ret)) - GL \<subseteq> set locals"
   assumes locals_local: "GL \<inter> set locals = {}"
   assumes localsV: "V \<inter> set locals \<subseteq> set (p_vars x)"
   assumes proc_globals: "(set(vars body) \<union> set(e_vars ret)) \<inter> GL \<subseteq> V"
@@ -158,6 +157,8 @@ proof -
     using assms by auto
 qed
 
+print_theorems
+
 (*
 definition "blockassign (xs::'a::procargs procargvars) (es::'a procargs) == 
   Abs_program
@@ -176,7 +177,6 @@ lemma callproc_equiv:
                   \<guillemotleft>callproc x p e\<guillemotright> ~ \<guillemotleft>blockassign (p_args p) e\<guillemotright>; \<guillemotleft>p_body p\<guillemotright>; x := \<guillemotleft>p_return p\<guillemotright>
                {\<forall>x\<in>V. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x}"
 *)
-
 
 definition "obseq_context X C == (\<forall>c d. obs_eq X X c d \<longrightarrow> obs_eq X X (C c) (C d))"
 definition "assertion_footprint X P == (\<forall>m1 m2. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) \<longrightarrow> P m1 = P m2)"

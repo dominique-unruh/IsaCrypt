@@ -50,9 +50,25 @@ fun procedure_head_of (Const(@{const_name procfun_apply},_) $ p $ _) = procedure
   | procedure_head_of (Free _) = error "procedure_head_of Free"
   | procedure_head_of (Bound _) = error "procedure_head_of Bound"
 
+fun assert_procedure_info_complete ctx ({args=_,body=_,body_local_vars, pattern=_, return=_, return_vars} : procedure_info) = 
+  let fun is_string_literal n = (HOLogic.dest_string n; true) handle TERM _ => false
+      fun is_var (v as (Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name LVariable},_) $ n))) =
+              if is_string_literal n then () else error ("Not a variable: "^Syntax.string_of_term ctx v)
+        | is_var t = error ("not a var: "^Syntax.string_of_term ctx t)
+      fun is_varset (Const(@{const_name insert},_) $ v $ s) = (is_var v; is_varset s)
+        | is_varset (Const(@{const_name Orderings.bot_class.bot},_)) = ()
+        | is_varset t = error ("not a varset: "^Syntax.string_of_term ctx t)
+      fun rhs thm = Thm.prop_of thm |> Logic.dest_equals |> snd
+      fun is_varset_thm NONE = ()
+        | is_varset_thm (SOME thm) = is_varset (rhs thm)
+      val _ = is_varset_thm body_local_vars
+      val _ = is_varset_thm return_vars
+  in ()
+  end
 
 fun get_procedure_info lthy partial proc = 
-  let val name = procedure_head_of proc
+  let val _ = tracing ("Constructing procedure info for "^Syntax.string_of_term lthy proc)
+      val name = procedure_head_of proc
       val cproc = Thm.cterm_of lthy proc
       val info = Symtab.lookup (ProcedureData.get (Context.Proof lthy)) name
       val info = case info of SOME info => info 
@@ -69,6 +85,7 @@ fun get_procedure_info lthy partial proc =
         body_local_vars = #body_local_vars info |> inst,
         return_vars = #return_vars info |> inst, return = #return info |> inst }
       val _ = if (Thm.term_of (#pattern info)) aconv proc then () else error "bad instatiation"
+      val _ = if not partial then assert_procedure_info_complete lthy info else ()
   in
     info
   end

@@ -212,7 +212,7 @@ record pattern_rep =
 
 typedef pattern_untyped = "{(p::pattern_rep). 
   (\<forall>(v,f)\<in>set(pur_var_getters p). 
-    (\<forall>x\<in>t_domain (pur_type p). f x \<in> t_domain (vu_type v)))}"
+    (\<forall>x(*\<in>t_domain (pur_type p)*). f x \<in> t_domain (vu_type v)))}"
   by (rule exI[of _ "\<lparr> pur_var_getters=[], pur_type=undefined \<rparr>"], simp)
 
 
@@ -220,9 +220,10 @@ definition "pu_var_getters p = pur_var_getters (Rep_pattern_untyped p)"
 definition "pu_vars p = map fst (pu_var_getters p)"
 definition "pu_type p = pur_type (Rep_pattern_untyped p)"
 
-definition "pattern_1var v = Abs_pattern_untyped \<lparr> pur_var_getters=[(v, \<lambda>x. x)], pur_type=vu_type v \<rparr>"
-lemma p_var_getters_pattern_1var [simp]: "pu_var_getters (pattern_1var v) = [(v, \<lambda>x. x)]"
-  by (simp add: Abs_pattern_untyped_inverse pu_var_getters_def pattern_1var_def)
+definition "pattern_1var v = Abs_pattern_untyped \<lparr> pur_var_getters=[(v, \<lambda>x. if x\<in>t_domain(vu_type v) then x else t_default(vu_type v))], pur_type=vu_type v \<rparr>"
+lemma p_var_getters_pattern_1var [simp]: "pu_var_getters (pattern_1var v) = [(v, \<lambda>x. if x\<in>t_domain(vu_type v) then x else t_default(vu_type v))]"
+  unfolding  pu_var_getters_def pattern_1var_def 
+  apply (subst Abs_pattern_untyped_inverse) by auto
 lemma p_vars_pattern_1var [simp]: "pu_vars (pattern_1var v) = [v]"
   unfolding pu_vars_def by simp
 lemma p_type_pattern_1var [simp]: "pu_type (pattern_1var v) = vu_type v"
@@ -241,8 +242,9 @@ definition memory_update_untyped_pattern :: "memory \<Rightarrow> pattern_untype
   foldl (\<lambda>m (v,f). memory_update_untyped m v (f x)) m (pu_var_getters p)"
 
 lemma memory_update_untyped_pattern_1var [simp]: 
-  "memory_update_untyped_pattern m (pattern_1var x) = memory_update_untyped m x"
-by (rule ext, simp add: memory_update_untyped_pattern_def)
+  assumes "z \<in> t_domain (vu_type x)"
+  shows "memory_update_untyped_pattern m (pattern_1var x) z = memory_update_untyped m x z"
+by (simp add: assms memory_update_untyped_pattern_def)
 
 lemma memory_update_untyped_pattern_ignore [simp]:
   "memory_update_untyped_pattern m (pattern_ignore x) = (\<lambda>_. m)"

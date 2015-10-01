@@ -1,5 +1,5 @@
 theory RHL_Untyped
-imports Lang_Untyped Hoare_Untyped "~~/src/HOL/Library/Rewrite"
+imports Lang_Untyped Hoare_Untyped
 begin
 
 definition rhoare_untyped :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> program_rep \<Rightarrow> program_rep \<Rightarrow> (memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> bool" where
@@ -511,7 +511,8 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
       using uf1_def by fastforce
     have "denotation_untyped (assign_default non_parg_locals) uf1_1 = point_distr (uf1_2 uf1_1)"
       unfolding assign_default_def uf1_2_def
-      apply (induct non_parg_locals rule: rev_induct) by auto
+      apply (induct non_parg_locals rule: rev_induct)
+      using Rep_type eu_fun_const_expression_untyped t_default_def t_domain_def by auto
     with l1 show "uf1 = point_distr (uf1_2 uf1_1)" by simp
   qed
 

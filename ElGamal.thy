@@ -80,11 +80,11 @@ definition (in group) ElGamal :: "('G,nat,'G,'G\<times>'G) EncScheme" where
 
 
 procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
-  "Correctness <$> E = LOCAL m1 m2 succ pk sk c1.
+  "Correctness <$> E = LOCAL m1 m2 succ pk0 sk0 c1.
   proc(m1) {
-    (pk,sk) := call keygen<$>E ();
-    c1 := call enc<$>E (pk, m1);
-    m2 := call dec<$>E (sk, c1);
+    (pk0,sk0) := call keygen<$>E ();
+    c1 := call enc<$>E (pk0, m1);
+    m2 := call dec<$>E (sk0, c1);
     succ := (m2 = Some m1);
     return succ
   }"
@@ -107,17 +107,58 @@ schematic_lemma dec_def': "dec<$>ElGamal = ?x"
   unfolding ElGamal_def by simp
 local_setup {* Procs_Typed.register_procedure_thm @{thm dec_def'} *}
 
+ML {* 
+Procs_Typed.get_procedure_info @{context} true @{term "Correctness<$>ElGamal"}
+*}
+
+find_theorems "(p_vars (variable_pattern (_)))"
+
+(* TODO move *)
+lemma mk_expression_untyped_const_expression:
+  "mk_expression_untyped (const_expression (x::'a)) = const_expression_untyped (Type TYPE('a)) (embedding x)"
+  unfolding const_expression_def const_expression_untyped_def mk_expression_untyped_def e_fun_def e_vars_def
+  by (subst Abs_expression_inverse, auto?)+
+
+definition "assign_default_typed_rev vs = assign_default_typed (rev vs)"
+lemma assign_default_typed_rev: "assign_default_typed vs = assign_default_typed_rev (rev vs)"
+unfolding assign_default_typed_rev_def by auto
+
+lemma "assign_default_typed ([mk_variable_untyped a,mk_variable_untyped b,mk_variable_untyped c]) =
+  PROGRAM [ skip; a:=default; b:=default; c:=default ]"
+  unfolding assign_default_typed_def assign_default_def program_def seq_def assign_def
+      variable_pattern_def mk_expression_untyped_const_expression 
+  apply (subst Abs_program_inverse, tactic \<open>Skip_Proof.cheat_tac @{context} 1\<close>)+
+  apply (subst Abs_pattern_inverse, tactic \<open>Skip_Proof.cheat_tac @{context} 1\<close>)+
+  by simp
+
+lemma assign_default_typed_rev_cons: "assign_default_typed_rev (mk_variable_untyped v # vs) = seq (assign_default_typed_rev vs) (assign (variable_pattern v) (const_expression default))"
+  unfolding assign_default_typed_def assign_default_typed_rev_def assign_default_def seq_def
+    assign_def variable_pattern_def mk_expression_untyped_const_expression
+  apply simp
+  apply (subst Abs_program_inverse)
+   using assign_default_def assign_default_welltyped close auto
+  apply (subst Abs_program_inverse)
+   close (simp add: embedding_Type eu_type_const_expression_untyped)
+  apply (subst Abs_pattern_inverse)
+   by auto
+
+lemma assign_default_typed_rev_nil: "assign_default_typed_rev [] = Lang_Typed.skip"
+  unfolding assign_default_typed_def assign_default_typed_rev_def assign_default_def skip_def
+  by auto
+
 lemma correctness:
   shows "LOCAL succ0. hoare {True} succ0 := call Correctness <$> ElGamal(m) {succ0}"
 apply (inline "Correctness<$>ElGamal")
+(* TODO remove *) apply (simp add: assign_default_typed_rev assign_default_typed_rev_cons assign_default_typed_rev_nil)
 apply (inline "keygen<$>ElGamal")
+(* TODO remove *) apply (simp add: assign_default_typed_rev assign_default_typed_rev_cons assign_default_typed_rev_nil)
 apply (inline "dec<$>ElGamal")
 apply (inline "enc<$>ElGamal")
-apply (wp sample) apply skip apply auto
+apply (wp sample) apply skip apply autox
 unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat]) 
 apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
 
-end (* context group *)
+end (* context: group *)
 
 
 
