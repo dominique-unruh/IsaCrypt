@@ -125,5 +125,5 @@ unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat])
 apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
 
 end (* context: group *)
-                                                   
+
 end (* theory *)

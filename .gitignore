@@ -1,2 +1,5 @@
 *~
 .*.marks
+__pycache__
+.isabelle-test-server
+.isabelle-server-out.log

@@ -222,8 +222,14 @@ lemma callproc_equiv:
 
 definition "obseq_context X C == (\<forall>c d. obs_eq X X c d \<longrightarrow> obs_eq X X (C c) (C d))"
 definition "assertion_footprint X P == (\<forall>m1 m2. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) \<longrightarrow> P m1 = P m2)"
+lemma assertion_footprint_const: "assertion_footprint X (\<lambda>m. P)"
+  unfolding assertion_footprint_def by simp
+lemma assertion_footprint_lookup: "mk_variable_untyped x \<in> X \<Longrightarrow> assertion_footprint X (\<lambda>m. memory_lookup m x)"
+  unfolding assertion_footprint_def by auto
+lemma assertion_footprint_app: "assertion_footprint X P \<Longrightarrow> assertion_footprint X Q \<Longrightarrow> assertion_footprint X (\<lambda>m. (P m) (Q m))"
+  unfolding assertion_footprint_def by auto
 
-lemma obseq_context_seq: 
+lemma obseq_context_seq:                                        
   assumes "obseq_context X C1"
   assumes "obseq_context X C2"
   shows "obseq_context X (\<lambda>c. seq (C1 c) (C2 c))"

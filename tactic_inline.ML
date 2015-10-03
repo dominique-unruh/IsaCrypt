@@ -1,6 +1,37 @@
 structure Tactic_Inline =
 struct
 
+fun has_Bound0 t =
+  let fun h (Bound i) j = i=j
+        | h (Free _) _ = false
+        | h (Var _) _ = false
+        | h (a$b) i = h a i orelse h b i
+        | h (Abs(_,_,t)) i = h t (i+1)
+        | h (Const _) _ = false
+  in h t 0 end
+
+fun assertion_footprint_tac ctx = SUBGOAL (fn (goal,i) =>
+  case goal of
+    Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint},_) $ X $ (Abs(v,T,t))) => 
+      if not (has_Bound0 t) then solve_tac ctx @{thms assertion_footprint_const} i
+      else (case t of
+             Const(@{const_name memory_lookup},_) $ Bound 0 $ _ =>
+               rtac @{thm assertion_footprint_lookup} i
+           | t1 $ t2 => 
+                let val ct1 = Abs(v,T,t1) |> Thm.cterm_of ctx
+                    val ct2 = Abs(v,T,t2) |> Thm.cterm_of ctx
+                    val ctX = X |> Thm.cterm_of ctx
+                    val cts = Thm.ctyp_of_cterm ct1 |> Thm.dest_ctyp |> (fn x => nth x 1) |> Thm.dest_ctyp
+                in
+                  (rtac (Drule.instantiate' [SOME (hd cts), SOME (hd (tl cts))] [SOME ctX,SOME ct1,SOME ct2]
+                    @{thm assertion_footprint_app}) THEN_ALL_NEW assertion_footprint_tac ctx) i
+                end
+           | _ => raise (TERM( "nyi",[t])))
+  | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint},_) $ _ $ _) => 
+    raise (TERM ("handle this case!", [goal]))
+  | _ => raise (TERM ("write real error message", [goal])))
+
+
 datatype no_return = NoReturn of no_return
 
 fun string_of_varlist ctx vs =
@@ -182,9 +213,9 @@ fun hoare_obseq_replace_tac ctx redex obseq_tac =
          (fn subgoal1 => fn subgoals => raise TERM("While trying to prove (1) using hoare_obseq_replace, I got subgoal (2).\n"^
                                                    "I could not prove that subgoal using 'fastforce obseq_context_empty obseq_context_seq obseq_context_assign obseq_context_sample obseq_context_ifte obseq_context_while obseq_context_skip obseq_context_callproc_allglobals'.\n",
                                                    goal::subgoal1::subgoals)) i
-    THEN ASSERT_SUCCESS (Raw_Simplifier.rewrite_goal_tac ctx @{thms assertion_footprint_def memory_lookup_def} i)
-         (ERROR "Internal error: Raw_Simplifier.rewrite_goal_tac failed")
-    THEN ASSERT_SOLVED' (fast_force_tac ctx)
+(*    THEN ASSERT_SUCCESS (Raw_Simplifier.rewrite_goal_tac ctx @{thms assertion_footprint_def memory_lookup_def} i)
+         (ERROR "Internal error: Raw_Simplifier.rewrite_goal_tac failed") *)
+    THEN ASSERT_SOLVED' (assertion_footprint_tac ctx THEN_ALL_NEW simp_tac ctx)
          (fn goal => fn subgoals => raise TERM("Could not solve second subgoal of hoare_obseq_replace",goal::subgoals)) i
     THEN (case obseq_tac of NONE => all_tac
           | SOME tac => ASSERT_SUCCESS (tac program_locals i)

@@ -32,7 +32,7 @@ graph: session.graph
 	/opt/Isabelle/bin/isabelle browser session.graph 
 
 testsuite.py : tests.py tests/*.thy
-	python tests.py
+	python3 tests.py
 
 test: testsuite.py tests.py
 	cricket-unittest &

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
-# sudo apt-get install python2-pyro4
-# sudo pip install serpent
+# sudo apt-get install python3-pyro4
+# sudo pip3 install serpent
 
 import glob, sys, os, random, re, subprocess, time
 import unittest
@@ -103,9 +103,9 @@ def run_theory(thy):
     success = err==[]
     err = "".join(err)
 
-    print "Success: {}".format(success)
-    if out != "": print "\nOutput:\n"+out
-    if err != "": print "\nError:\n"+err
+    print("Success: {}".format(success))
+    if out != "": print("\nOutput:\n"+out)
+    if err != "": print("\nError:\n"+err)
 
     for (k,v) in expect:
         if k=="SUCCEED":
@@ -152,7 +152,7 @@ def discover_tests():
     for thy in glob.glob("tests/*.thy"):
         info = parse_thy(thy)
         suite = info.get('suite','Unsorted')
-        if not suites.has_key(suite): suites[suite] = []
+        if not suite in suites: suites[suite] = []
         suites[suite].append(thy)
 
     with open("testsuite.py","w") as f:
@@ -197,7 +197,7 @@ def get_server():
         isabelle_server=Pyro4.Proxy(uri)
         isabelle_server.check()
     def start():
-        print "Starting server..."
+        print("Starting server...")
         os.system("nohup python tests.py ISABELLE_SERVER >.isabelle-server-out.log 2>&1 &")
         time.sleep(1)
         connect()

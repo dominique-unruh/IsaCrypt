@@ -54,6 +54,8 @@ fun assert_procedure_info_complete ctx ({args=_,body=_,body_local_vars, pattern=
   let fun is_string_literal n = (HOLogic.dest_string n; true) handle TERM _ => false
       fun is_var (v as (Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name LVariable},_) $ n))) =
               if is_string_literal n then () else error ("Not a variable: "^Syntax.string_of_term ctx v)
+        | is_var (v as (Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name Variable},_) $ n))) =
+              if is_string_literal n then () else error ("Not a variable: "^Syntax.string_of_term ctx v)
         | is_var t = error ("not a var: "^Syntax.string_of_term ctx t)
       fun is_varset (Const(@{const_name insert},_) $ v $ s) = (is_var v; is_varset s)
         | is_varset (Const(@{const_name Orderings.bot_class.bot},_)) = ()
