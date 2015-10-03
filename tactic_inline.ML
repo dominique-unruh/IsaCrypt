@@ -1,6 +1,32 @@
 structure Tactic_Inline =
 struct
 
+datatype no_return = NoReturn of no_return
+
+fun string_of_varlist ctx vs =
+  (String.concatWith "\n" 
+  (map (fn t => case t of _$v => Syntax.string_of_term ctx t ^ " (" ^ Syntax.string_of_typ ctx (fastype_of v) ^ ")"
+                        | _ => Syntax.string_of_term ctx t)  vs))
+
+fun ASSERT_SUCCESS (tac:tactic) exn st = 
+  let val res = tac st 
+      val _ = case Seq.pull res of NONE => raise exn | _ => ()
+  in res end
+fun ASSERT_SUCCESS' (tac:int->tactic) (exn:term->exn) = 
+  SUBGOAL (fn (goal,i) => fn st =>
+  let val res = tac i st
+      val _ = case Seq.pull res of NONE => raise (exn goal) | _ => ()
+  in res end)
+fun ASSERT_SOLVED' (tac:int->tactic) (exn:term->term list->no_return) = 
+  SUBGOAL (fn (goal,i) => fn st =>
+  let val res = tac i st
+      val solved = Seq.filter (fn st' => Thm.nprems_of st' < Thm.nprems_of st) res
+      val _ = case (Seq.pull res, Seq.pull solved) of
+                (_,SOME _) => ()
+              | (NONE,NONE) => (exn goal []; raise ERROR "impossible")
+              | (SOME(st',_),NONE) => (exn goal (Thm.prems_of st'); raise ERROR "impossible")
+  in res end)
+
 (* "NGOALS i n tac" applies tac to goals i+n-1,...,n *)
 fun NGOALS _ 0 _ st = all_tac st
   | NGOALS i n tac st = (tac (i+n-1) THEN NGOALS i (n-1) tac) st
@@ -17,23 +43,22 @@ fun some _ (SOME x) = x : thm
    callproc_rule_conditions_tac is supposed to solve all subgoals of "callproc_rule" except the last one. *) 
 fun callproc_rule_conditions_tac ctx (procthms:Procs_Typed.procedure_info) i =
   NGOALS i 6 (fn i =>
-  Raw_Simplifier.rewrite_goal_tac ctx
+  Raw_Simplifier.rewrite_goal_tac ctx                                                 
         [#body_local_vars procthms |> some procthms, 
          #return_vars procthms |> some procthms, 
          #args procthms |> some procthms] i
-    THEN (fast_force_tac ctx i))
+    THEN (ASSERT_SUCCESS' (fast_force_tac ctx) (fn t => TERM("callproc_rule_conditions_tac, goal "^string_of_int i, [t])) i))
 
 fun callproc_rule_tac' ctx (procthms:Procs_Typed.procedure_info) locals non_parg_locals i =
   let val callproc_rule = @{thm callproc_rule} |> Drule.instantiate' []
         [NONE, SOME (Thm.cterm_of ctx locals), NONE, NONE, NONE, SOME (Thm.cterm_of ctx non_parg_locals)]
-val _ = (writeln "locals"; writeln (Syntax.string_of_term ctx locals) )
-val _ = (writeln "non_parg_locals"; writeln (Syntax.string_of_term ctx non_parg_locals) )
-val _ = writeln (Display.string_of_thm ctx callproc_rule)
-      val simp_rules = @{thms vars_variable_pattern[THEN eq_reflection] } (* TODO *)
+      val simp_rules = @{thms vars_variable_pattern[THEN eq_reflection] 
+        assign_default_typed_aux[THEN eq_reflection] assign_default_typed_aux_cons[THEN eq_reflection]
+        assign_default_typed_aux_nil[THEN eq_reflection]} 
   in rtac callproc_rule i
      (* THEN print_tac ctx "callproc_rule subgoals" *)
      THEN callproc_rule_conditions_tac ctx procthms i
-     THEN print_tac ctx "conditions done"
+     (* THEN print_tac ctx "conditions done" *)
      THEN Raw_Simplifier.rewrite_goal_tac ctx [#args procthms |> some procthms] i
 (*     THEN print_tac ctx "step1"*)
      THEN Raw_Simplifier.rewrite_goal_tac ctx simp_rules i
@@ -102,9 +127,11 @@ fun callproc_rule_tac ctx _ forbidden =
       val procthms = (*procedure_get_thms ctx facts false proc*) 
                      Procs_Typed.get_procedure_info ctx false proc
       val (locals,non_parg_locals) = procedure_local_vars ctx proc procthms
-      val _ = if inter (op aconv) locals forbidden = [] then () else
+      val forbidden_inter = inter (fn (x,y) => (map_types (K dummyT) x) aconv (map_types (K dummyT) y)) locals forbidden
+      val _ = if forbidden_inter = [] then () else
         raise TERM("callproc_rule_tac: locals and forbidden vars have nonempty intersection",
-                   [locals |> HOLogic.mk_list @{typ variable_untyped},
+                   [forbidden_inter |> HOLogic.mk_list @{typ variable_untyped},
+                    locals |> HOLogic.mk_list @{typ variable_untyped},
                     forbidden |> HOLogic.mk_list @{typ variable_untyped}])
       val locals = HOLogic.mk_list @{typ variable_untyped} locals
       val non_parg_locals = HOLogic.mk_list @{typ variable_untyped} non_parg_locals
@@ -126,39 +153,17 @@ and var_if_local' (v as Const(@{const_name LVariable},_)$_) = [v]
 and expression_local_vars' (Const(@{const_name apply_expression},_)$e$v) = var_if_local' v @ expression_local_vars' e
   | expression_local_vars' (Const(@{const_name const_expression},_)$_) = []
   | expression_local_vars' t = raise TERM("program_local_vars\<rightarrow>expression",[t])
-(*and procargs_local_vars' (Const(@{const_name procargs_add},_)$e$a) = expression_local_vars' e @ procargs_local_vars' a
-  | procargs_local_vars' (Const(@{const_name procargs_empty},_)) = []
-  | procargs_local_vars' t = raise TERM("program_local_vars\<rightarrow>callproc args",[t])*)
 and pattern_local_vars' (Const(@{const_name variable_pattern},_)$v) = var_if_local' v
   | pattern_local_vars' (Const(@{const_name pair_pattern},_) $ p1 $ p2) =
       pattern_local_vars' p1 @ pattern_local_vars' p2
   | pattern_local_vars' (Const(@{const_name unit_pattern},_)) = []
-  | pattern_local_vars' t = raise TERM("program_local_vars\<rightarrow>pattern",[t]) (* TODO *)
+  | pattern_local_vars' t = raise TERM("program_local_vars\<rightarrow>pattern",[t])
 
 fun program_local_vars t = program_local_vars' t |> distinct (op aconv)
 fun program_local_vars_untyped t = program_local_vars t |> map (fn v =>
   @{termx "mk_variable_untyped (?v::?'w::prog_type variable)" where "?'v.1\<Rightarrow>?'w variable"})
 
-datatype no_return = NoReturn of no_return
 
-fun ASSERT_SUCCESS (tac:tactic) exn st = 
-  let val res = tac st 
-      val _ = case Seq.pull res of NONE => raise exn | _ => ()
-  in res end
-fun ASSERT_SUCCESS' (tac:int->tactic) (exn:term->exn) = 
-  SUBGOAL (fn (goal,i) => fn st =>
-  let val res = tac i st
-      val _ = case Seq.pull res of NONE => raise (exn goal) | _ => ()
-  in res end)
-fun ASSERT_SOLVED' (tac:int->tactic) (exn:term->term list->no_return) = 
-  SUBGOAL (fn (goal,i) => fn st =>
-  let val res = tac i st
-      val solved = Seq.filter (fn st' => Thm.nprems_of st' < Thm.nprems_of st) res
-      val _ = case (Seq.pull res, Seq.pull solved) of
-                (_,SOME _) => ()
-              | (NONE,NONE) => (exn goal []; raise ERROR "impossible")
-              | (SOME(st',_),NONE) => (exn goal (Thm.prems_of st'); raise ERROR "impossible")
-  in res end)
 
 fun hoare_obseq_replace_tac ctx redex obseq_tac =
   SUBGOAL (fn (goal,i) =>

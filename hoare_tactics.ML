@@ -54,10 +54,19 @@ fun decide_var_eq ctx v w =
   end
 *)
 
+(* TODO: 
+  - add lookup_update for patterns
+  - update_pattern (variable_pattern)
+  - update_pattern (pair_pattern)
+*)
+
 fun simp_memory_updates_tac ctx =
   let val simpset = (Raw_Simplifier.clear_simpset ctx) 
                     addsimps @{thms e_fun_const_expression
                                     e_fun_apply_expression
+                                    memory_update_variable_pattern
+                                    memory_update_pair_pattern
+                                    memory_update_unit_pattern
                                     memory_lookup_update_notsame
                                     memory_lookup_update_same'}
       val simpset = Simplifier.set_subgoaler (fn _ => asm_simp_tac ctx) simpset

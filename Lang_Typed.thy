@@ -184,6 +184,11 @@ lemma e_fun_const_expression [simp]: "e_fun (const_expression a) = (\<lambda>m. 
   by (subst Abs_expression_inverse, auto)
 lemma e_vars_const_expression [simp]: "e_vars (const_expression x) = []"
   by (simp add: e_vars_def const_expression_def Abs_expression_inverse) 
+lemma mk_expression_untyped_const_expression:
+  "mk_expression_untyped (const_expression (x::'a::prog_type)) = const_expression_untyped (Type TYPE('a)) (embedding x)"
+  unfolding const_expression_def const_expression_untyped_def mk_expression_untyped_def e_fun_def e_vars_def
+  by (subst Abs_expression_inverse, auto?)+
+
 
 definition apply_expression :: "('a\<Rightarrow>'b)expression \<Rightarrow> ('a::prog_type) variable \<Rightarrow> 'b expression" where
 "apply_expression e v = Abs_expression
@@ -279,6 +284,12 @@ lemma pu_type_mk_pattern_untyped [simp]: "pu_type (mk_pattern_untyped (p::'a pat
 definition "p_var_getters p = pu_var_getters (mk_pattern_untyped p)"
 
 definition "unit_pattern = (Abs_pattern (pattern_ignore unit_type) :: unit pattern)"
+lemma Rep_unit_pattern: "Rep_pattern_untyped (Rep_pattern unit_pattern) = \<lparr> pur_var_getters=[], pur_type=Type TYPE(unit) \<rparr>"
+  unfolding unit_pattern_def apply (subst Abs_pattern_inverse)
+   close (simp add: Type_def unit_type_def)
+  unfolding pattern_ignore_def apply (subst Abs_pattern_untyped_inverse)
+   by (simp_all add: Type_def unit_type_def)
+
 lemma vars_unit_pattern [simp]: "p_vars unit_pattern = []"
   unfolding p_vars_def unit_pattern_def apply (subst Abs_pattern_inverse) by (auto simp: Type_def unit_type_def)
 definition "pair_pattern (p1::'a pattern) (p2::'b pattern) = (Abs_pattern (Abs_pattern_untyped 
@@ -317,6 +328,42 @@ lemma vars_variable_pattern [simp]: "p_vars (variable_pattern v) = [mk_variable_
 definition "memory_update_pattern m (v::'a pattern) (a::'a::prog_type) =
   memory_update_untyped_pattern m (mk_pattern_untyped v) (embedding a)"
 
+lemma memory_update_unit_pattern [simp]: "memory_update_pattern m unit_pattern x = m"
+  unfolding memory_update_pattern_def memory_update_untyped_pattern_def pu_var_getters_def Rep_unit_pattern
+  by simp
+lemma memory_update_variable_pattern [simp]: "memory_update_pattern m (variable_pattern v) x = memory_update m v x"
+  unfolding memory_update_pattern_def memory_update_untyped_pattern_def variable_pattern_def
+  apply (subst Abs_pattern_inverse)
+   close simp
+  by (simp add: embedding_Type memory_update_def)
+lemma memory_update_pair_pattern [simp]:
+(*  fixes p1 p2 and m::memory and x1::"'a::prog_type" and x2::"'b::prog_type"
+  shows *) "memory_update_pattern m (pair_pattern p1 p2) (x1,x2) = memory_update_pattern (memory_update_pattern m p1 x1) p2 x2"
+proof -
+  def p1vg == "p_var_getters p1"
+  def p2vg == "p_var_getters p2"
+  have tmp: "inv embedding (embedding (x1, x2)) = (x1,x2)"
+    unfolding embedding_inv' ..
+note [[show_types,show_sorts,show_consts]]
+  have p2vg_nil: "foldl (\<lambda>m (v,f). memory_update_untyped m v (f (embedding (x1,x2)))) m
+             (map (\<lambda>(v,g). (v, g \<circ> embedding \<circ> fst \<circ> inv (embedding::'a*'b\<Rightarrow>_))) p1vg) =
+      (foldl (\<lambda>m (v,f). memory_update_untyped m v (f (embedding x1))) m p1vg)"
+    by (induct p1vg rule:rev_induct, auto)
+  have "foldl (\<lambda>m (v,f). memory_update_untyped m v (f (embedding (x1,x2)))) m
+             (map (\<lambda>(v,g). (v, g \<circ> embedding \<circ> fst \<circ> inv (embedding::'a*'b\<Rightarrow>_))) p1vg @
+              map (\<lambda>(v,g). (v, g \<circ> embedding \<circ> snd \<circ> inv (embedding::'a*'b\<Rightarrow>_))) p2vg) =
+    foldl (\<lambda>m (v,f). memory_update_untyped m v (f (embedding x2)))
+      (foldl (\<lambda>m (v,f). memory_update_untyped m v (f (embedding x1))) m p1vg) p2vg"
+    apply (induct p2vg rule:rev_induct)
+    using p2vg_nil unfolding embedding_inv' o_def by auto
+  thus ?thesis
+    unfolding memory_update_pattern_def memory_update_untyped_pattern_def p_var_getters_def[symmetric]
+      var_getters_pair_pattern p1vg_def p2vg_def
+    by auto
+qed
+lemma memory_update_pair_pattern':
+  "memory_update_pattern m (pair_pattern p1 p2) x = memory_update_pattern (memory_update_pattern m p1 (fst x)) p2 (snd x)"
+  by (cases x, simp)
 
 
 (*

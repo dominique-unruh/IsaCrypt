@@ -88,7 +88,61 @@ lemma assign_local_vars_typed_simp3 [simp]:
 unfolding assign_local_vars_typed_def skip_def by simp
 *)
 
+
 definition "assign_default_typed locals = Abs_program (assign_default locals)"
+
+definition "assign_default_typed_aux p0 vs = Abs_program (foldl (\<lambda>p v. Seq p (Assign (pattern_1var v) 
+                      (const_expression_untyped (vu_type v) (t_default (vu_type v))))) (mk_program_untyped p0) vs)"
+
+lemma assign_default_typed_aux: "assign_default_typed vs = assign_default_typed_aux Lang_Typed.skip vs"
+  unfolding assign_default_typed_aux_def assign_default_def assign_default_typed_def
+  by auto
+
+lemma assign_default_typed_aux_cons: "assign_default_typed_aux p0 (mk_variable_untyped v # vs) = 
+  assign_default_typed_aux (seq p0 (assign (variable_pattern v) (const_expression default))) vs"
+  unfolding assign_default_typed_def assign_default_typed_aux_def assign_default_def seq_def
+    assign_def variable_pattern_def mk_expression_untyped_const_expression
+  apply simp
+  apply (subst Abs_program_inverse)
+   using assign_default_def assign_default_welltyped close auto
+  apply (subst Abs_program_inverse)
+   close (simp add: embedding_Type eu_type_const_expression_untyped)
+  apply (subst Abs_pattern_inverse)
+   by auto
+
+lemma assign_default_typed_aux_nil: "assign_default_typed_aux p0 [] = p0"
+  unfolding assign_default_typed_def assign_default_typed_aux_def assign_default_def skip_def 
+  by (auto simp: Rep_program_inverse)
+
+
+(* 
+definition "assign_default_typed_rev vs = assign_default_typed (rev vs)"
+lemma assign_default_typed_rev: "assign_default_typed vs = assign_default_typed_rev (rev vs)"
+unfolding assign_default_typed_rev_def by auto
+
+lemma "assign_default_typed ([mk_variable_untyped a,mk_variable_untyped b,mk_variable_untyped c]) =
+  PROGRAM [ skip; a:=default; b:=default; c:=default ]"
+  unfolding assign_default_typed_def assign_default_def program_def seq_def assign_def
+      variable_pattern_def mk_expression_untyped_const_expression 
+  apply (subst Abs_program_inverse, tactic \<open>Skip_Proof.cheat_tac @{context} 1\<close>)+
+  apply (subst Abs_pattern_inverse, tactic \<open>Skip_Proof.cheat_tac @{context} 1\<close>)+
+  by simp
+
+lemma assign_default_typed_rev_cons: "assign_default_typed_rev (mk_variable_untyped v # vs) = seq (assign_default_typed_rev vs) (assign (variable_pattern v) (const_expression default))"
+  unfolding assign_default_typed_def assign_default_typed_rev_def assign_default_def seq_def
+    assign_def variable_pattern_def mk_expression_untyped_const_expression
+  apply simp
+  apply (subst Abs_program_inverse)
+   using assign_default_def assign_default_welltyped close auto
+  apply (subst Abs_program_inverse)
+   close (simp add: embedding_Type eu_type_const_expression_untyped)
+  apply (subst Abs_pattern_inverse)
+   by auto
+
+lemma assign_default_typed_rev_nil: "assign_default_typed_rev [] = Lang_Typed.skip"
+  unfolding assign_default_typed_def assign_default_typed_rev_def assign_default_def skip_def
+  by auto
+*)
 
 (* If the number of subgoals change, inline_rule_conditions_tac must be adapted accordingly *)
 lemma callproc_rule:
@@ -106,21 +160,6 @@ lemma callproc_rule:
   assumes argvarsV: "set(e_vars args) \<subseteq> V"
   assumes non_parg_locals: "set non_parg_locals = set locals - set (p_vars pargs)"
 
-  (*assumes body_local: "\<And>x. x \<in> set (vars body) \<Longrightarrow> \<not> vu_global x \<Longrightarrow> x \<in> set locals"*)
-(*  assumes body_local: "\<And>x. x \<in> set (local_vars body) \<Longrightarrow> x \<in> set locals"
-  assumes pargs_local: "set (mk_procargvars_untyped pargs) \<subseteq> set locals"
-  assumes ret_local: "set (e_vars ret) \<subseteq> set locals"
-  assumes locals_local: "\<And>x. x\<in>set locals \<Longrightarrow> \<not>vu_global x"
-  assumes argvars_locals: "\<And>x. x\<in>set(vars_procargs args) \<Longrightarrow> x\<notin>set locals"
-  assumes localsV: "V \<inter> set locals \<subseteq> {mk_variable_untyped x}"
-  assumes globalsVbody: "\<And>x. x\<in>set(vars body) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
-  assumes globalsVret: "\<And>x. x\<in>set(e_vars ret) \<Longrightarrow> vu_global x \<Longrightarrow> x\<in>V"
-  assumes argvarsV: "set(vars_procargs args) \<subseteq> V" *)
-
-(*
-  defines "unfolded == Seq (Seq (Seq (Assign pargs args) (assign_default non_parg_locals)) body)
-                           (Assign x ret)"
-*)
   defines "unfolded == seq (seq (seq (assign pargs args) (assign_default_typed non_parg_locals)) body) (assign x ret)"
   shows "obs_eq' V (callproc x p args) unfolded"
 proof -
@@ -153,9 +192,12 @@ proof -
   show "obs_eq' V (callproc x p args) unfolded"
     unfolding obs_eq'_def obs_eq_obs_eq_untyped callproc unfolded unfolded'_def p'_def 
     apply (rule callproc_rule) 
-    unfolding body'_def x'_def vars_def[symmetric] e_vars_def[symmetric] p_vars_def[symmetric] pargs'_def ret'_def args'_def
-    using assms by auto
+    unfolding body'_def x'_def vars_def[symmetric] e_vars_def[symmetric] p_vars_def[symmetric] pargs'_def ret'_def args'_def 
+    using assms local_vars_def by auto
 qed
+
+(* Outputs the list of parameters of callproc_rule, ordered like the arguments to Drule.instantiate' *)
+ML {* Term.add_vars (Thm.prop_of @{thm callproc_rule}) [] |> rev |> map Var |> map (Syntax.string_of_term @{context}) |> String.concatWith "\n" |> writeln *}
 
 print_theorems
 
