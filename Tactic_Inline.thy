@@ -12,7 +12,7 @@ lemma HIDDEN_EQ_ok:
 unfolding HIDDEN_EQ_def by simp_all *)
  
 ML_file "tactic_inline.ML"
-                                                                                                          
+                                                                    
 method_setup inline = {*
   Args.term >> (fn proc => fn ctx => (METHOD (fn facts => Tactic_Inline.inline_tac ctx facts proc 1)))
 *} "inlines procedure body"
