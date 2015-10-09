@@ -105,29 +105,30 @@ typedef memory = "{(m::variable_untyped\<Rightarrow>val). (\<forall>v. m v \<in>
   by (metis Rep_type mem_Collect_eq t_default_def t_domain_def)
 *)
 
-definition "memory_lookup_untyped m v = (if vu_global v then mem_globals (Rep_memory m) v else mem_locals (Rep_memory m) v)"
+definition "memory_lookup_untyped m v = Rep_memory m v"
 lemma memory_lookup_untyped_type: "memory_lookup_untyped m v \<in> t_domain (vu_type v)"
   unfolding memory_lookup_untyped_def using Rep_memory by auto
 
 definition "memory_update_untyped m v x = 
-  (let m = Rep_memory m in
-   let varval = if x\<in>t_domain(vu_type v) then x else t_default(vu_type v) in
-   if vu_global v then
-    Abs_memory (m\<lparr>mem_globals := (mem_globals m)(v:=varval)\<rparr>)
-   else
-    Abs_memory (m\<lparr>mem_locals := (mem_locals m)(v:=varval)\<rparr>))"
+    Abs_memory ((Rep_memory m)(v:=if x\<in>t_domain(vu_type v) then x else t_default(vu_type v)))"
+lemma Rep_memory_update_untyped: "Rep_memory (memory_update_untyped m v x) 
+        = ((Rep_memory m)(v:=if x\<in>t_domain(vu_type v) then x else t_default(vu_type v)))"
+  unfolding memory_update_untyped_def apply (subst Abs_memory_inverse)
+  using Rep_memory by auto
 lemma memory_lookup_update_same_untyped: "a \<in> t_domain (vu_type v) \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) v = a"
-  unfolding memory_lookup_untyped_def memory_update_untyped_def Let_def
+  unfolding memory_lookup_untyped_def memory_update_untyped_def 
   apply auto
   apply (subst Abs_memory_inverse, auto)
-  using Rep_memory apply auto
-  by (subst Abs_memory_inverse, auto)
+  using Rep_memory by auto
 
 
 lemma memory_lookup_update_notsame_untyped: 
   "v \<noteq> w \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) w = memory_lookup_untyped m w"
-  SORRY
-
+  unfolding memory_lookup_untyped_def memory_update_untyped_def 
+  apply auto
+  apply (subst Abs_memory_inverse, auto)
+  using Rep_memory Abs_memory_inverse Rep_type t_default_def t_domain_def by auto
+  
 (*
 lemma memory_lookup_update_same_untyped_bad: "a \<notin> t_domain (vu_type v) \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) v = t_default (vu_type v)"
   unfolding memory_lookup_untyped_def memory_update_untyped_def Let_def
@@ -321,9 +322,12 @@ fun while_iter :: "nat \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> d
       compose_distr (\<lambda>m. if e m then p m else 0)
                     (while_iter n e p m)"
 
-definition "init_locals m = Abs_memory (Rep_memory m\<lparr> mem_locals := (\<lambda>v. t_default (vu_type v)) \<rparr>)"
-definition "restore_locals oldmem newmem = Abs_memory (Rep_memory newmem \<lparr> mem_locals := mem_locals (Rep_memory oldmem) \<rparr>)"
-
+definition "init_locals m = Abs_memory (\<lambda>x. if vu_global x then Rep_memory m x else t_default (vu_type x))"
+lemma Rep_init_locals: "Rep_memory (init_locals m) = (\<lambda>x. if vu_global x then Rep_memory m x else t_default (vu_type x))"
+  unfolding init_locals_def apply (subst Abs_memory_inverse) using Rep_memory by auto
+definition "restore_locals oldmem newmem = Abs_memory (\<lambda>x. if vu_global x then Rep_memory newmem x else Rep_memory oldmem x)"
+lemma Rep_restore_locals: "Rep_memory (restore_locals oldmem newmem) = (\<lambda>x. if vu_global x then Rep_memory newmem x else Rep_memory oldmem x)"
+  unfolding restore_locals_def apply (subst Abs_memory_inverse) using Rep_memory by auto
 
 (*
 definition "init_locals pargs args m = 

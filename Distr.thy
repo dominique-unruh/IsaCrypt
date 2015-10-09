@@ -451,4 +451,14 @@ proof -
     by (metis compose_distr_assoc compose_point_distr_l)
 qed
 
+
+lemma distr_pr_0 [simp]: "distr_pr 0 = (\<lambda>x. 0)"
+  unfolding zero_distr_def apply (subst Abs_distr_inverse) apply auto
+  by (metis ereal_zero_times zero_ereal_def zero_less_one_ereal)
+
+lemma apply_to_distr_0 [simp]: "apply_to_distr f 0 = 0"
+  unfolding apply_to_distr_def apply simp
+  unfolding zero_distr_def by auto
+
+
 end

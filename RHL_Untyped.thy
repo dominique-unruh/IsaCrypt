@@ -533,8 +533,7 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
         hence "x \<in> V" using G_def by auto
         from `x \<in> G` have "vu_global x" by (simp add: G_def)
         have init: "memory_lookup_untyped (init_locals m1) x = memory_lookup_untyped m1 x"
-          unfolding init_locals_def memory_lookup_untyped_def apply (simp add: `vu_global x`)
-          apply (subst Abs_memory_inverse) using Rep_memory by auto
+          unfolding memory_lookup_untyped_def Rep_init_locals by (simp add: `vu_global x`)
         have cp: "memory_lookup_untyped cp1mem x = memory_lookup_untyped m1 x" 
           unfolding cp1mem_def apply (subst memory_lookup_update_pattern_notsame)
           using not_pargs init .
@@ -556,8 +555,7 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
         have "\<not> vu_global x"
           using locals_local `x \<in> set locals` unfolding GL_def by auto
         have init: "memory_lookup_untyped (init_locals m1) x = t_default (vu_type x)"
-          unfolding init_locals_def memory_lookup_untyped_def using `\<not> vu_global x` apply auto
-          apply (subst Abs_memory_inverse) using Rep_memory by auto
+          unfolding memory_lookup_untyped_def Rep_init_locals using `\<not> vu_global x` by auto
         have cp: "memory_lookup_untyped cp1mem x = t_default (vu_type x)"
           unfolding cp1mem_def 
           apply (subst memory_lookup_update_pattern_notsame) using x_nin_pargs init .
@@ -762,8 +760,7 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
       assume y_co_locals: "y \<in> co_locals" and y_nin_pu_vars: "y\<notin>set(pu_vars x)"
       hence y_local: "\<not> vu_global y" by (simp add: co_locals_def)
       have restore_locals: "memory_lookup_untyped (restore_locals m1 m1') y = memory_lookup_untyped m1 y"
-        unfolding restore_locals_def memory_lookup_untyped_def apply (simp add: y_local)
-        apply (subst Abs_memory_inverse) using Rep_memory by auto
+        unfolding memory_lookup_untyped_def Rep_restore_locals by (simp add: y_local)
       have "memory_lookup_untyped (uf3mem m2') y = memory_lookup_untyped m2' y" 
         unfolding uf3mem_def apply (subst memory_lookup_update_pattern_notsame) using y_co_locals y_nin_pu_vars by auto
       also have "\<dots> = memory_lookup_untyped m2 y"
@@ -777,8 +774,7 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
     next
       assume y_global: "vu_global y" and y_nin_pu_vars: "y \<notin> set (pu_vars x)"
       have restore_locals: "memory_lookup_untyped (restore_locals m1 m1') y = memory_lookup_untyped m1' y"
-        unfolding restore_locals_def memory_lookup_untyped_def apply (simp add: y_global)
-        apply (subst Abs_memory_inverse) using Rep_memory by auto
+        unfolding memory_lookup_untyped_def Rep_restore_locals by (simp add: y_global)
       have "memory_lookup_untyped (uf3mem m2') y = memory_lookup_untyped m2' y" 
         unfolding uf3mem_def apply (subst memory_lookup_update_pattern_notsame) using y_nin_pu_vars by auto
       also have "\<dots> = memory_lookup_untyped m1' y"
@@ -829,15 +825,13 @@ apply (subst Rep_rename_variables_pattern) close (fact assms)
 by auto
 
 definition rename_variables_memory where
-  "rename_variables_memory f m = Abs_memory \<lparr> mem_globals=\<lambda>x. mem_globals (Rep_memory m) (f x), mem_locals=\<lambda>x. mem_locals (Rep_memory m) (f x) \<rparr>"
+  "rename_variables_memory f m = Abs_memory (\<lambda>x. Rep_memory m (f x))"
 lemma Rep_rename_variables_memory: 
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
-  shows "Rep_memory (rename_variables_memory f m) =
-   \<lparr> mem_globals=\<lambda>x. mem_globals (Rep_memory m) (f x), mem_locals=\<lambda>x. mem_locals (Rep_memory m) (f x) \<rparr>"
+  shows "Rep_memory (rename_variables_memory f m) = (\<lambda>x. Rep_memory m (f x))"
     unfolding rename_variables_memory_def 
     apply (subst Abs_memory_inverse, auto)
-    close (metis (no_types, lifting) Rep_memory mem_Collect_eq type)
-    by (metis (mono_tags, lifting) Rep_memory mem_Collect_eq type)
+    by (metis (no_types, lifting) Rep_memory mem_Collect_eq type)
 
 lemma lookup_rename_variables_memory: 
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
@@ -955,7 +949,6 @@ lemma rename_variables_memory_compose:
   apply (subst Rep_rename_variables_memory) close (fact type2)
   apply (subst Rep_rename_variables_memory) using type1 type2 o_def close simp
   apply (subst Rep_rename_variables_memory) using type1 type2 o_def close simp
-  apply (subst Rep_rename_variables_memory) using type1 type2 o_def close simp
   by simp
 
 lemma rename_variables_pattern_compose: 
@@ -988,6 +981,26 @@ proof -
     apply simp
     apply (subst rename_variables_memory_compose) close (fact type) close (fact type')
     unfolding id eu_fun_def apply (subst rename_variables_memory_id) ..
+qed
+
+lemma rename_variables_expression_distr_memory:
+  assumes surj_f: "surj f"
+  assumes type: "\<And>x. vu_type (f x) = vu_type x"
+  assumes global: "\<And>x. vu_global (f x) = vu_global x"
+  shows "ed_fun (rename_variables_expression_distr (inv f) e) (rename_variables_memory f m) = ed_fun e m"
+proof -
+  have type': "\<And>x. vu_type (inv f x) = vu_type x"
+    by (metis surj_f surj_f_inv_f type)
+  have global': "\<And>x. vu_global (inv f x) = vu_global x"
+    by (metis surj_f surj_f_inv_f global)
+  have id: "f o inv f = id"
+    using surj_f surj_iff by blast
+  show ?thesis
+    unfolding ed_fun_def
+    apply (subst Rep_rename_variables_expression_distr) close (fact type') close (fact global')
+    apply simp
+    apply (subst rename_variables_memory_compose) close (fact type) close (fact type')
+    unfolding id ed_fun_def apply (subst rename_variables_memory_id) ..
 qed
 
 lemma rename_variables_expression_compose: 
@@ -1038,79 +1051,15 @@ lemma rename_variables_compose:
 lemma update_rename_variables_memory:
   assumes bij_f: "bij f"
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
-  assumes global: "\<And>x. vu_global (f x) = vu_global x"
-  shows "memory_update_untyped (rename_variables_memory f m) x a = rename_variables_memory f (memory_update_untyped m (f x) a)" (* or something like that *)
+  shows "memory_update_untyped (rename_variables_memory f m) x a = rename_variables_memory f (memory_update_untyped m (f x) a)"
 proof -
-  obtain mg ml where Rep_memory_m: "Rep_memory m = \<lparr> mem_globals=mg, mem_locals=ml \<rparr>" by (cases "Rep_memory m", simp)
-  have RepAbs1: "a \<in> t_domain (vu_type x) \<Longrightarrow> 
-              Rep_memory (Abs_memory \<lparr>mem_globals = (\<lambda>x. mg (f x))(x := a), mem_locals = \<lambda>x. ml (f x)\<rparr>)
-                                   = \<lparr>mem_globals = (\<lambda>x. mg (f x))(x := a), mem_locals = \<lambda>x. ml (f x)\<rparr>"
-    apply (subst Abs_memory_inverse) using Rep_memory_m apply auto
-     close (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(1) type)
-    by (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(2) type)
-  have RepAbs3: "a \<in> t_domain (vu_type x) \<Longrightarrow> 
-              Rep_memory (Abs_memory \<lparr>mem_globals = \<lambda>x. mg (f x), mem_locals = (\<lambda>x. ml (f x))(x := a)\<rparr>)
-            = \<lparr>mem_globals = \<lambda>x. mg (f x), mem_locals = (\<lambda>x. ml (f x))(x := a)\<rparr>"
-    apply (subst Abs_memory_inverse) using Rep_memory_m apply auto
-     close (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(1) type)
-    by (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(2) type)   
-  have RepAbs2: "a \<in> t_domain (vu_type x) \<Longrightarrow> Rep_memory (Abs_memory \<lparr>mem_globals = mg(f x := a), mem_locals = ml\<rparr>)
-               = \<lparr>mem_globals = mg(f x := a), mem_locals = ml\<rparr>"
-    apply (subst Abs_memory_inverse) using Rep_memory_m apply (auto simp: type)
-     close (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(1))
-    by (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(2))
-  have RepAbs4: "a \<in> t_domain (vu_type x) \<Longrightarrow> 
-          Rep_memory (Abs_memory \<lparr>mem_globals = mg, mem_locals = ml(f x := a)\<rparr>) =
-                                 \<lparr>mem_globals = mg, mem_locals = ml(f x := a)\<rparr>"
-    apply (subst Abs_memory_inverse) using Rep_memory_m apply (auto simp: type)
-     close (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(1))
-    by (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(2))
-  have RepAbs5: "
-      Rep_memory (Abs_memory \<lparr>mem_globals = mg(f x := t_default (vu_type x)), mem_locals = ml\<rparr>)
-                           = \<lparr>mem_globals = mg(f x := t_default (vu_type x)), mem_locals = ml\<rparr>"
-    apply (subst Abs_memory_inverse) using Rep_memory_m apply (auto simp: type)
-     close (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(1))
-    by (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(2))
-  have RepAbs6: "
-    Rep_memory (Abs_memory \<lparr>mem_globals = (\<lambda>x. mg (f x))(x := t_default (vu_type x)), mem_locals = \<lambda>x. ml (f x)\<rparr>)
-    = \<lparr>mem_globals = (\<lambda>x. mg (f x))(x := t_default (vu_type x)), mem_locals = \<lambda>x. ml (f x)\<rparr>"
-    apply (subst Abs_memory_inverse) using Rep_memory_m apply (auto simp: type)
-     close (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(1) type)
-    by (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(2) type)
-  have RepAbs7: "Rep_memory (Abs_memory \<lparr>mem_globals = mg, mem_locals = ml(f x := t_default (vu_type x))\<rparr>)
-                                      = \<lparr>mem_globals = mg, mem_locals = ml(f x := t_default (vu_type x))\<rparr>"
-    apply (subst Abs_memory_inverse) using Rep_memory_m apply (auto simp: type)
-     close (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(1))
-    by (metis (mono_tags, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(2))
-  have RepAbs8: "Rep_memory (Abs_memory \<lparr>mem_globals = \<lambda>x. mg (f x), mem_locals = (\<lambda>x. ml (f x))(x := t_default (vu_type x))\<rparr>) =
-      \<lparr>mem_globals = \<lambda>x. mg (f x), mem_locals = (\<lambda>x. ml (f x))(x := t_default (vu_type x))\<rparr>"
-    apply (subst Abs_memory_inverse) using Rep_memory_m apply (auto simp: type)
-     close (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(1) type)
-    by (metis (no_types, lifting) Rep_memory mem_Collect_eq memory_rep.select_convs(2) type)
-
  have bij_rw: "\<And>x y. f x = f y == x = y" using bij_f
     by (smt bij_inv_eq_iff)
     
   show ?thesis
   apply (subst Rep_memory_inject[symmetric])
-  unfolding memory_update_untyped_def Rep_rename_variables_memory[OF type] Rep_memory_m
-  apply (auto simp: type global Let_def)
-     apply (subst RepAbs1) close assumption
-     apply (subst RepAbs2) close assumption
-     apply (subst RepAbs2) close assumption
-     close (auto simp: bij_rw)
-    apply (subst RepAbs3) close assumption
-    apply (subst RepAbs4) close assumption
-    apply (subst RepAbs4) close assumption
-    close (auto simp: bij_rw)
-   apply (subst RepAbs5)
-   apply (subst RepAbs5) 
-   apply (subst RepAbs6) 
-   close (auto simp: bij_rw)
-  apply (subst RepAbs7)
-  apply (subst RepAbs7)
-  apply (subst RepAbs8)
-  by (auto simp: bij_rw)
+  unfolding Rep_memory_update_untyped Rep_rename_variables_memory[OF type]
+  using bij_rw type by auto
 qed
 
 lemma update_pattern_rename_variables_memory:
@@ -1127,9 +1076,8 @@ proof -
      close simp
     apply auto
     apply (subst update_rename_variables_memory)
-       using bij_f close assumption
-      using type close assumption
-     using global close assumption
+      using bij_f close assumption
+     using type close assumption
     by auto
   thus ?thesis
     unfolding memory_update_untyped_pattern_def
@@ -1138,36 +1086,27 @@ proof -
 qed
 
 
-(* TODO: move *)
-lemma distr_pr_0 [simp]: "distr_pr 0 = (\<lambda>x. 0)"
-  unfolding zero_distr_def apply (subst Abs_distr_inverse) apply auto
-  by (metis ereal_zero_times zero_ereal_def zero_less_one_ereal)
-(* TODO: move *)
-lemma apply_to_distr_0 [simp]: "apply_to_distr f 0 = 0"
-  unfolding apply_to_distr_def apply simp
-  unfolding zero_distr_def by auto
-
 lemma rename_variables_restore_locals:   
   assumes fix_globals: "\<And>x. vu_global x \<Longrightarrow> f x = x"
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
+  assumes global: "\<And>x. vu_global (f x) = vu_global x"
   shows "rename_variables_memory f (restore_locals old new) = restore_locals (rename_variables_memory f old) new"
-proof -
-  obtain mg ml where Rep_old: "Rep_memory old = \<lparr> mem_globals=mg, mem_locals=ml \<rparr>"
-    by (metis (full_types) memory_rep.surjective old.unit.exhaust) 
-  obtain mgn mln where Rep_new: "Rep_memory new = \<lparr> mem_globals=mgn, mem_locals=mln \<rparr>"
-    by (metis (full_types) memory_rep.surjective old.unit.exhaust) 
-  show ?thesis
-    unfolding restore_locals_def rename_variables_memory_def Rep_old apply simp
-    apply (subst Abs_memory_inverse)
-     close (simp, metis (no_types, lifting) Rep_memory Rep_old mem_Collect_eq memory_rep.select_convs(2))
-    apply (subst Abs_memory_inverse)
-     close (simp, metis (no_types, lifting) Rep_memory Rep_old mem_Collect_eq memory_rep.select_convs(2))
-    apply (subst Abs_memory_inverse)
-     close (simp, metis (no_types, lifting) Rep_memory Rep_old mem_Collect_eq memory_rep.select_convs(1) memory_rep.select_convs(2) type)
-    apply (simp add: Rep_new)
-    
+    apply (subst Rep_memory_inject[symmetric])
+    unfolding Rep_rename_variables_memory[OF type] Rep_restore_locals
+    using fix_globals global by auto
 
+lemma rename_variables_init_locals:
+  assumes fix_globals: "\<And>x. vu_global x \<Longrightarrow> f x = x"
+  assumes type: "\<And>x. vu_type (f x) = vu_type x"
+  shows "init_locals (rename_variables_memory f m) = init_locals m"
+    apply (subst Rep_memory_inject[symmetric])
+    unfolding Rep_rename_variables_memory[OF type] Rep_init_locals
+    using fix_globals Rep_memory by auto    
 
+(* TODO Move *)
+lemma apply_to_distr_compose_distr:
+  shows "apply_to_distr f (compose_distr g h) = compose_distr (\<lambda>m. apply_to_distr f (g m)) h"
+by later
 
 lemma denotation_rename_variables:
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
@@ -1180,8 +1119,8 @@ proof -
   from bij_f have "inj f" by (simp add: bij_betw_def)
   from bij_f have "surj f" by (simp add: bij_betw_def) 
   from bij_f have "bij (inv f)" by (simp add: bij_betw_inv_into)
-  from `inj f` have "inv f o f = id" by simp
-  from `surj f` have "f o inv f = id" using surj_iff by auto 
+  from `inj f` have inv_f_f: "inv f o f = id" by simp
+  from `surj f` have f_inv_f: "f o inv f = id" using surj_iff by auto 
 
   have global: "\<And>x. vu_global (f x) = vu_global x" using fix_global by (metis `inj f` inv_f_eq)
   
@@ -1189,17 +1128,43 @@ proof -
     by (metis `surj f` surj_f_inv_f)
   from global have global': "\<And>x. vu_global (inv f x) = vu_global x"
     by (metis `surj f` surj_f_inv_f)
+  from fix_global have fix_global': "\<And>x. vu_global x \<Longrightarrow> inv f x = x"
+    by (simp add: fix_global `inj f` inv_f_eq)
 
   def p' == "rename_variables f p"
   have "denotation_untyped p' m = 
     apply_to_distr (rename_variables_memory (inv f)) (denotation_untyped (rename_variables (inv f) p') (rename_variables_memory f m))"
   proof (induct p' arbitrary: m rule:program_rep.induct[of _ "\<lambda>p. True"])
-    case Assign show ?case by later
-    next case Sample show ?case by later
+    case Assign show ?case 
+                  apply simp
+                  apply (subst update_pattern_rename_variables_memory[OF `bij f` type global])
+                  unfolding rename_variables_memory_compose[OF type type'] f_inv_f rename_variables_memory_id
+                            rename_variables_pattern_compose[OF type' type]
+                            rename_variables_expression_memory[OF `surj f` type global]
+                            rename_variables_pattern_id ..
+    next case Sample show ?case
+                  apply simp
+                  apply (subst update_pattern_rename_variables_memory[OF `bij f` type global])
+                  unfolding rename_variables_memory_compose[OF type type'] f_inv_f rename_variables_memory_id
+                            rename_variables_pattern_compose[OF type' type]
+                            rename_variables_expression_distr_memory[OF `surj f` type global]
+                            rename_variables_pattern_id ..
     next case Skip thus ?case 
                       apply simp apply (subst rename_variables_memory_compose) close (fact type) close (fact type')
                       unfolding `f o inv f = id` apply (subst rename_variables_memory_id)..
-    next case Seq show ?case by later
+    next case (Seq p1 p2)
+      show ?case
+        apply simp
+        unfolding Seq.hyps[THEN ext]
+        unfolding compose_distr_apply_to_distr apply_to_distr_compose_distr
+        unfolding o_def
+        apply (tactic \<open>cong_tac @{context} 1\<close>; simp?)
+        apply (tactic \<open>cong_tac @{context} 1\<close>; simp?)
+        apply (tactic \<open>cong_tac @{context} 1\<close>; simp?)
+        close simp
+        
+        find_theorems "apply_to_distr _ (compose_distr _ _)"
+ by later
     next case While show ?case by later
     next case IfTE show ?case by later
     next case (CallProc x p a) 
@@ -1218,11 +1183,13 @@ proof -
                show ?thesis
                  unfolding p
                  apply simp 
-                 apply (subst update_pattern_rename_variables_memory[symmetric])
-                    close (fact `bij (inv f)`) close (fact type') close (fact global')
-                 apply (subst rename_variables_expression_memory)
-                    close (fact `surj f`) close (fact type) close (fact global)
-                 by later
+                 apply (subst update_pattern_rename_variables_memory[OF `bij (inv f)` type' global', symmetric])
+                 apply (subst rename_variables_expression_memory[OF `surj f` type global])
+                 apply (subst rename_variables_restore_locals[OF fix_global' type' global']) close simp
+                 apply (subst rename_variables_memory_compose[OF type type'])
+                 unfolding f_inv_f
+                 apply (subst rename_variables_memory_id)
+                 apply (subst rename_variables_init_locals[OF fix_global type]) by auto
            qed
   qed auto
   thus ?thesis
