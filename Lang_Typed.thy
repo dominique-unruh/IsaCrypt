@@ -1,5 +1,5 @@
 theory Lang_Typed
-imports Lang_Untyped TermX_Antiquot
+imports Lang_Untyped TermX_Antiquot 
 begin
 
 subsection {* Types *}
@@ -526,7 +526,10 @@ lemma mk_untyped_while [simp]: "mk_program_untyped (while e p) =
 
 definition callproc :: "'a::prog_type pattern \<Rightarrow> ('b::prog_type,'a) procedure \<Rightarrow> 'b expression \<Rightarrow> program" where
   "callproc v proc args = Abs_program (CallProc (mk_pattern_untyped v) (mk_procedure_untyped proc) (mk_expression_untyped args))"
-
+lemma Rep_callproc: "Rep_program (callproc v p a) = CallProc (mk_pattern_untyped v) (mk_procedure_untyped p) (mk_expression_untyped a)"
+  unfolding callproc_def apply (subst Abs_program_inverse)
+  by (auto simp: mk_procedure_untyped_def)
+  
 lemma list_all2_swap: "list_all2 P x y = list_all2 (\<lambda>x y. P y x) y x"
   by (metis list_all2_conv_all_nth)
 
@@ -698,5 +701,102 @@ lemma mk_variable_untyped_distinct2 [simp]: "mk_variable_untyped (LVariable a) \
   by (simp add: mk_variable_untyped_def)
 lemma mk_variable_untyped_distinct3 [simp]: "mk_variable_untyped (Variable a) \<noteq> mk_variable_untyped (LVariable b)"
   by (simp add: mk_variable_untyped_def)
+
+subsection {* Variable renaming *}
+
+type_synonym variable_name_renaming = "(string * string) list"
+definition local_variable_name_renaming :: "variable_name_renaming \<Rightarrow> variable_untyped \<Rightarrow> variable_untyped" where
+  "local_variable_name_renaming ren x = 
+  (if vu_global x then x
+  else x \<lparr> vu_name := (fold (\<lambda>(a,b) f. Fun.swap a b f) ren id) (vu_name x) \<rparr>)"
+lemma local_variable_name_renaming_type [simp]: "vu_type (local_variable_name_renaming ren x) = vu_type x"
+  by (simp add: local_variable_name_renaming_def)
+lemma local_variable_name_renaming_global [simp]: "vu_global (local_variable_name_renaming ren x) = vu_global x"
+  by (simp add: local_variable_name_renaming_def)
+lemma local_variable_name_renaming_fix_globals: "vu_global x \<Longrightarrow> local_variable_name_renaming ren x = x"
+  by (simp add: local_variable_name_renaming_def)
+lemma local_variable_name_renaming_fix_bij: "bij (local_variable_name_renaming ren)"
+proof -
+  def f == "fold (\<lambda>(a,b) f. Fun.swap a b f) ren id"
+  have "bij f"
+    unfolding f_def by (induct ren rule:rev_induct, auto simp: bij_id[unfolded id_def])
+  have "surj (local_variable_name_renaming ren)"
+  proof (unfold surj_def, rule allI)
+    fix x::variable_untyped
+    obtain y' where y': "f y' = vu_name x"
+      by (meson `bij f` bij_iff)
+    def y == "if vu_global x then x else x \<lparr> vu_name:=y' \<rparr>"
+    show "\<exists>y. x = local_variable_name_renaming ren y"
+      apply (rule exI[of _ y]) unfolding local_variable_name_renaming_def f_def[symmetric] y_def
+      using y' by auto
+  qed
+  moreover have "inj (local_variable_name_renaming ren)"
+  proof (rule injI)
+    fix x y
+    assume eq: "local_variable_name_renaming ren x = local_variable_name_renaming ren y"
+    hence "vu_type x = vu_type y" unfolding local_variable_name_renaming_def
+      by (metis eq local_variable_name_renaming_type)
+    moreover from eq have gl: "vu_global x = vu_global y" unfolding local_variable_name_renaming_def
+      by (metis eq local_variable_name_renaming_global)
+    moreover 
+    have "\<not> vu_global x \<Longrightarrow> vu_name x = vu_name y"
+      using eq unfolding local_variable_name_renaming_def f_def[symmetric]
+      apply (cases "vu_global y") apply auto
+      by (smt `bij f` bij_imp_bij_inv bij_is_surj inv_inv_eq surj_f_inv_f variable_untyped.surjective variable_untyped.update_convs(1))
+    hence "vu_name x = vu_name y"
+      apply (cases "vu_global x")
+      using gl eq local_variable_name_renaming_def by auto
+    ultimately show "x=y" by auto
+  qed
+  ultimately show "bij (local_variable_name_renaming ren)"
+    by (rule_tac bijI)
+qed
+
+definition rename_local_variables_proc :: "variable_name_renaming \<Rightarrow> ('a::prog_type,'b::prog_type)procedure \<Rightarrow> ('a,'b)procedure" where
+  "rename_local_variables_proc ren p = mk_procedure_typed (rename_variables_proc 
+      (local_variable_name_renaming ren) (mk_procedure_untyped p))"
+lemma Rep_rename_local_variables_proc: "mk_procedure_untyped (rename_local_variables_proc ren p) = 
+  rename_variables_proc (local_variable_name_renaming ren) (mk_procedure_untyped p)"
+proof -
+  obtain body pargs ret where p: "mk_procedure_untyped p = Proc body pargs ret" 
+      and pu_type_pargs: "pu_type pargs = Type TYPE('a)" and eu_type_ret: "eu_type ret = Type TYPE('b)" 
+      and wt_body: "well_typed body"
+    by (simp add: mk_procedure_untyped_def) 
+  def f == "(local_variable_name_renaming ren)"
+  def body' == "rename_variables f body"
+  def pargs' == "rename_variables_pattern f pargs"
+  def ret' == "rename_variables_expression f ret"
+  have type: "\<And>x. vu_type (f x) = vu_type x" unfolding f_def by simp
+  have global: "\<And>x. vu_global (f x) = vu_global x" unfolding f_def by simp
+  have wt_body': "well_typed body'"
+    unfolding body'_def apply (rule well_typed_rename_variables)
+    close (fact type) close (fact global) by (fact wt_body)
+  have pu_type_pargs': "pu_type pargs' = Type TYPE('a)"
+    unfolding pu_type_def pargs'_def Rep_rename_variables_pattern[OF type]
+    apply simp unfolding pu_type_def[symmetric] pu_type_pargs ..
+  have eu_type_ret': "eu_type ret' = Type TYPE('b)"
+    unfolding ret'_def eu_type_def Rep_rename_variables_expression[OF type global]
+    apply simp unfolding eu_type_def[symmetric] eu_type_ret ..
+  have p': "rename_variables_proc (local_variable_name_renaming ren) (mk_procedure_untyped p) = Proc body' pargs' ret'"
+    unfolding p f_def body'_def pargs'_def ret'_def by simp
+  show ?thesis
+    unfolding rename_local_variables_proc_def p' 
+    apply (subst mk_procedure_typed_inverse[OF wt_body' pu_type_pargs' eu_type_ret'])..
+qed
+
+lemma denotation_callproc_rename_local_variable_proc: "denotation (callproc x (rename_local_variables_proc ren p) a) = denotation (callproc x p a)"
+proof -
+  def f == "local_variable_name_renaming ren"
+  def x' == "mk_pattern_untyped x"
+  def a' == "mk_expression_untyped a"
+  have type: "\<And>x. vu_type (f x) = vu_type x" unfolding f_def by simp
+  have global: "\<And>x. vu_global (f x) = vu_global x" unfolding f_def by simp
+  have fix_global: "\<And>x. vu_global x \<Longrightarrow> f x = x" unfolding f_def by (rule local_variable_name_renaming_fix_globals)
+  have "bij f" unfolding f_def by (fact local_variable_name_renaming_fix_bij)
+  show ?thesis
+    unfolding denotation_def Rep_callproc x'_def[symmetric] a'_def[symmetric]
+    unfolding Rep_rename_local_variables_proc f_def[symmetric]
+    by (subst denotation_rename_variables_proc[OF type global fix_global `bij f`], simp_all)
+qed
 
 end

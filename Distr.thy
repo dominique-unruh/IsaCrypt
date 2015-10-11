@@ -460,5 +460,8 @@ lemma apply_to_distr_0 [simp]: "apply_to_distr f 0 = 0"
   unfolding apply_to_distr_def apply simp
   unfolding zero_distr_def by auto
 
+lemma apply_to_distr_compose_distr:
+  shows "apply_to_distr f (compose_distr g h) = compose_distr (\<lambda>m. apply_to_distr f (g m)) h"
+  by (metis (no_types, lifting) compose_distr_assoc compose_distr_cong compose_point_distr_l)
 
 end
