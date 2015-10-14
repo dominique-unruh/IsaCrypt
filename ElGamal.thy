@@ -80,12 +80,12 @@ definition (in group) ElGamal :: "('G,nat,'G,'G\<times>'G) EncScheme" where
 
 
 procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
-  "Correctness <$> E = LOCAL m1 m2 succ pk0 sk0 c1.
-  proc(m1) {
-    (pk0,sk0) := call keygen<$>E ();
-    c1 := call enc<$>E (pk0, m1);
-    m2 := call dec<$>E (sk0, c1);
-    succ := (m2 = Some m1);
+  "Correctness <$> E = LOCAL m m2 succ pk sk c.
+  proc(m) {
+    (pk,sk) := call keygen<$>E ();
+    c := call enc<$>E (pk, m);
+    m2 := call dec<$>E (sk, c);
+    succ := (m2 = Some m);
     return succ
   }"
 
@@ -117,7 +117,7 @@ Procs_Typed.get_procedure_info @{context} true @{term "Correctness<$>ElGamal"}
 lemma correctness:
   shows "LOCAL succ0. hoare {True} succ0 := call Correctness <$> ElGamal(m) {succ0}"
 apply (inline "Correctness<$>ElGamal")
-apply (inline "keygen<$>ElGamal")
+apply (inline "keygen<$>ElGamal") (* Arguments to 
 apply (inline "dec<$>ElGamal")
 apply (inline "enc<$>ElGamal")
 apply (wp sample) apply skip apply auto

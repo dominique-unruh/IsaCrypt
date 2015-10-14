@@ -132,6 +132,35 @@ fun procedure_local_vars ctx proc (procthms:Procs_Typed.procedure_info) =
       val non_parg_locals = subtract (op aconv) args local_vars
    in (local_vars,non_parg_locals) end
 
+
+(* Transforms a goal of the form
+     "obs_eq' V (callproc x proc args) ?body"
+   where ?body is instantiated to be the unfolding of the procedure call
+   into
+     "obs_eq' V (callproc x (rename_local_variables_proc ren proc) args) ?body"
+   where ren is a renaming that renames the local variables "to_rename" into fresh names, avoiding the names in "dont_use".
+
+   Duplicates in to_rename and dont_use are silently ignored
+*)
+fun obs_eq'_rename_variables_proc _ [] _ = all_tac
+  | obs_eq'_rename_variables_proc ctx to_rename dont_use =
+  let fun var_to_name (Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name Variable},_) $ _)) = NONE
+        | var_to_name (v as Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name LVariable},_) $ n)) =
+            SOME (HOLogic.dest_string n) handle TERM _ => raise (TERM ("Variable name is not a string",[v,n]))
+      val to_rename = map_filter var_to_name to_rename
+      val dont_use = map_filter var_to_name dont_use
+      val to_rename = distinct (op=) to_rename
+      val newnames = Name.variant_list dont_use to_rename
+      val renaming = ListPair.zip (to_rename, newnames)
+      val renaming_term = renaming |> map (fn (x,y) => HOLogic.mk_prod (HOLogic.mk_string x, HOLogic.mk_string y))
+                                   |> HOLogic.mk_list @{typ "string * string"}
+val _ = writeln (Syntax.string_of_term ctx renaming_term)
+  in
+  (* TODO: use rule obs_eq'_rename_variables_proc[of _ _ renaming_term] *)
+  rtac (Drule.instantiate' [] [NONE, NONE, SOME (Thm.cterm_of ctx renaming_term)] @{thm obs_eq'_rename_variables_proc}) 1
+  end
+
+
 (* Solves a goal of the form
      "obs_eq' V (callproc x proc args) ?body"
    where ?body is instantiated to be the unfolding of the procedure call.
@@ -159,15 +188,18 @@ fun callproc_rule_tac ctx _ forbidden =
                      Procs_Typed.get_procedure_info ctx false proc
       val (locals,non_parg_locals) = procedure_local_vars ctx proc procthms
       val forbidden_inter = inter (fn (x,y) => (map_types (K dummyT) x) aconv (map_types (K dummyT) y)) locals forbidden
-      val _ = if forbidden_inter = [] then () else
-        raise TERM("callproc_rule_tac: locals and forbidden vars have nonempty intersection",
+(*      val _ = if forbidden_inter = [] then () else
+        raise TERM("callproc_rule_tac: locals (2) and forbidden vars (3) have nonempty intersection (1)",
                    [forbidden_inter |> HOLogic.mk_list @{typ variable_untyped},
                     locals |> HOLogic.mk_list @{typ variable_untyped},
-                    forbidden |> HOLogic.mk_list @{typ variable_untyped}])
-      val locals = HOLogic.mk_list @{typ variable_untyped} locals
+                    forbidden |> HOLogic.mk_list @{typ variable_untyped}]) *)
+      val locals' = HOLogic.mk_list @{typ variable_untyped} locals
       val non_parg_locals = HOLogic.mk_list @{typ variable_untyped} non_parg_locals
   in
-    callproc_rule_tac' ctx procthms locals non_parg_locals i
+    obs_eq'_rename_variables_proc ctx forbidden_inter (forbidden@locals)
+    THEN
+    (* TODO: callproc_rule_tac' needs renamed procthms, locals' non_parg_locals *)
+    callproc_rule_tac' ctx procthms locals' non_parg_locals i
   end)
 
 (* TODO use a more efficient data structure than lists for collecting variables *)

@@ -196,6 +196,29 @@ proof -
     using assms local_vars_def by auto
 qed
 
+(* If the number of subgoals change, inline_rule_conditions_tac must be adapted accordingly *)
+lemma callproc_rule_renamed:
+  fixes p::"('a::prog_type,'b::prog_type) procedure" and x::"'b pattern" and args::"'a expression"
+    and locals::"variable_untyped list" and V::"variable_untyped set"
+    and non_parg_locals::"variable_untyped list"
+    and renaming::"variable_name_renaming"
+  defines "body == p_body p"
+  defines "ret == p_return p"
+  defines "pargs == p_args p"
+  defines "GL == {x. vu_global x}"
+  assumes proc_locals: "(set(local_vars body) \<union> set(p_vars pargs) \<union> set(e_vars ret)) - GL \<subseteq> set locals"
+  assumes locals_local: "GL \<inter> set locals = {}"
+  assumes localsV: "V \<inter> set locals \<subseteq> set (p_vars x)"
+  assumes proc_globals: "(set(vars body) \<union> set(e_vars ret)) \<inter> GL \<subseteq> V"
+  assumes argvarsV: "set(e_vars args) \<subseteq> V"
+  assumes non_parg_locals: "set non_parg_locals = set locals - set (p_vars pargs)"
+
+  defines "unfolded == seq (seq (seq (assign (rename_local_variables_pattern renaming pargs) args)
+                                     (assign_default_typed (map rename_local_variables_var non_parg_locals)))
+                                     (rename_local_variables renaming body))
+                                     (assign x (rename_local_variables_expression renaming ret))"
+  shows "obs_eq' V (callproc x p args) unfolded"
+
 (* Outputs the list of parameters of callproc_rule, ordered like the arguments to Drule.instantiate' *)
 ML {* Term.add_vars (Thm.prop_of @{thm callproc_rule}) [] |> rev |> map Var |> map (Syntax.string_of_term @{context}) |> String.concatWith "\n" |> writeln *}
 
