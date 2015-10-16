@@ -99,6 +99,14 @@ definition "mk_expression_untyped (e::('a::prog_type)expression) =
 definition "mk_expression_typed (e::expression_untyped) = 
   Abs_expression \<lparr> er_fun=\<lambda>m. inv embedding (eu_fun e m),
                    er_vars=eu_vars e \<rparr>"
+lemma Rep_mk_expression_typed: "Rep_expression (mk_expression_typed e) =
+  \<lparr> er_fun=\<lambda>m. inv embedding (eu_fun e m), er_vars=eu_vars e \<rparr>"
+      unfolding mk_expression_typed_def
+      apply (subst Abs_expression_inverse, auto)
+      using eu_fun_footprint by fastforce
+
+
+
 lemma mk_expression_typed_inverse:
   assumes "eu_type e=Type TYPE('a)"
   shows "mk_expression_untyped (mk_expression_typed e :: 'a::prog_type expression) = e"
@@ -160,6 +168,46 @@ definition "mk_expression_distr (e::('a::prog_type)distr expression) =
   Abs_expression_distr \<lparr> edr_fun=\<lambda>m. apply_to_distr embedding (e_fun e m),
                          edr_type=Type TYPE('a),
                          edr_vars=e_vars e \<rparr>"
+lemma Rep_mk_expression_distr: "Rep_expression_distr (mk_expression_distr (e::('a::prog_type)distr expression)) =
+  \<lparr> edr_fun=\<lambda>m. apply_to_distr embedding (e_fun e m),
+    edr_type=Type TYPE('a),
+    edr_vars=e_vars e \<rparr>"
+      unfolding mk_expression_distr_def
+      apply (subst Abs_expression_distr_inverse, auto)
+       using embedding_Type_range close blast
+      by (metis embedding_inv' eu_fun_footprint mk_expression_untyped_fun mk_expression_untyped_vars)
+
+definition mk_expression_distr_typed :: "expression_distr \<Rightarrow> 'a::prog_type distr expression" where
+  "mk_expression_distr_typed e = 
+      Abs_expression \<lparr> er_fun=\<lambda>m. apply_to_distr (inv embedding) (ed_fun e m),
+                     er_vars=ed_vars e \<rparr>"
+lemma Rep_mk_expression_distr_typed: "Rep_expression (mk_expression_distr_typed e) =
+  \<lparr> er_fun=\<lambda>m. apply_to_distr (inv embedding) (ed_fun e m), er_vars=ed_vars e \<rparr>"
+      unfolding mk_expression_distr_typed_def
+      apply (subst Abs_expression_inverse, auto)
+      using ed_fun_footprint by fastforce
+
+lemma mk_expression_distr_typed_inverse:
+  assumes "ed_type e=Type TYPE('a::prog_type)"
+  shows "mk_expression_distr (mk_expression_distr_typed e :: 'a distr expression) = e"
+proof -
+  obtain f t v where e_parts: "Rep_expression_distr e = \<lparr>edr_fun=f, edr_type=t, edr_vars=v\<rparr>" 
+      and f_supp: "\<And>m. support_distr (f m) \<subseteq> t_domain t"
+        by (metis (mono_tags, lifting) Rep_expression_distr expression_distr_rep.surjective mem_Collect_eq old.unit.exhaust) 
+  hence t: "t = Type TYPE('a)" using assms by (simp add: ed_type_def) 
+  have F: "\<And>F \<mu>. (\<forall>x\<in>support_distr \<mu>. F x = x) \<Longrightarrow> apply_to_distr F \<mu> = \<mu>"
+    using apply_to_distr_cong by fastforce
+  have f: "\<And>m. apply_to_distr (\<lambda>x\<Colon>val. embedding (inv embedding x :: 'a)) (f m) = f m"
+    apply (rule F) using f_supp t
+    by (metis embedding_Type_range f_inv_into_f subsetCE)
+  show ?thesis
+    apply (rule Rep_expression_distr_inject[THEN iffD1])
+    apply (subst Rep_mk_expression_distr)
+    unfolding e_fun_def e_vars_def
+    apply (subst Rep_mk_expression_distr_typed)+
+    unfolding ed_vars_def ed_fun_def e_parts t
+    using f by auto
+qed
 
 lemma mk_expression_distr_fun [simp]: "ed_fun (mk_expression_distr (e::'a::prog_type distr expression)) m = apply_to_distr embedding (e_fun e m)"
   unfolding mk_expression_distr_def ed_fun_def
@@ -773,12 +821,40 @@ lemma Rep_rename_local_variables_expression: "mk_expression_untyped (rename_loca
       apply (subst mk_expression_typed_inverse)
       by (simp_all add: eu_type_rename_variables)
 
+
+(* TODO move up *)
+lemma mk_expression_distr_mk_expression_typed:
+  fixes e :: expression_untyped
+  assumes "eu_type e = Type TYPE('a distr)"
+  shows "Rep_expression_distr (mk_expression_distr (mk_expression_typed e :: 'a::prog_type distr expression)) = 
+    \<lparr> edr_fun = (\<lambda>x. apply_to_distr embedding (inv embedding x :: 'a distr)) o (eu_fun e), 
+      edr_type=Type TYPE('a), edr_vars=eu_vars e \<rparr>"
+apply (subst Rep_mk_expression_distr, auto simp: e_vars_def)
+unfolding e_fun_def o_def
+close (subst Rep_mk_expression_typed, simp)
+by (subst Rep_mk_expression_typed, simp)
+
 lemma Rep_rename_local_variables_expression_distr: "mk_expression_distr (rename_local_variables_expression ren e) =
   rename_variables_expression_distr (local_variable_name_renaming ren) (mk_expression_distr e)"
-      unfolding rename_local_variables_expression_def 
-      apply (subst mk_expression_typed_inverse)
-      by (simp_all add: eu_type_rename_variables)
+proof -
+  have vars: "eu_vars (rename_variables_expression (local_variable_name_renaming ren) (mk_expression_untyped e)) =
+    map (local_variable_name_renaming ren) (e_vars e)"
+    by later
+  have fn: "(\<lambda>x\<Colon>val. apply_to_distr embedding (inv embedding x)) \<circ>
+    eu_fun (rename_variables_expression (local_variable_name_renaming ren) (mk_expression_untyped e)) =
+    (\<lambda>m\<Colon>memory. apply_to_distr embedding (e_fun e (rename_variables_memory (local_variable_name_renaming ren) m)))"
+    by later
+  show ?thesis
+    unfolding rename_local_variables_expression_def 
+    apply (rule Rep_expression_distr_inject[THEN iffD1])
+    apply (subst mk_expression_distr_mk_expression_typed)
+     close (metis Rep_rename_local_variables_expression mk_expression_untyped_type)
+    apply (subst Rep_rename_variables_expression_distr)
+      close simp close simp
+      using fn vars by auto
+qed
 
+find_theorems "eu_fun (rename_variables_expression _ _)"
 
 definition rename_local_variables_pattern :: "variable_name_renaming \<Rightarrow> 'a::prog_type pattern \<Rightarrow> 'a pattern" where
   "rename_local_variables_pattern ren p = Abs_pattern (rename_variables_pattern
