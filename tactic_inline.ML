@@ -73,16 +73,20 @@ fun some _ (SOME x) = x : thm
 (* If the number of precondition of "callproc_rule" changed, need to change the number after NGOALS accordingly.
    callproc_rule_conditions_tac is supposed to solve all subgoals of "callproc_rule" except the last one. *) 
 fun callproc_rule_conditions_tac ctx (procthms:Procs_Typed.procedure_info) i =
+  let val simp = Raw_Simplifier.rewrite_goal_tac ctx 
+         ([#body_local_vars procthms |> some procthms, 
+           #return_vars procthms |> some procthms, 
+           #args procthms |> some procthms] @ 
+         @{thms local_variable_name_renaming1}) in
   NGOALS i 6 (fn i =>
-  Raw_Simplifier.rewrite_goal_tac ctx                                                 
-        [#body_local_vars procthms |> some procthms, 
-         #return_vars procthms |> some procthms, 
-         #args procthms |> some procthms] i
+    simp i
+    (* THEN print_tac ctx ("condition "^string_of_int i) *)
     THEN (ASSERT_SUCCESS' (fast_force_tac ctx) (fn t => TERM("callproc_rule_conditions_tac, goal "^string_of_int i, [t])) i))
+  end
 
-fun callproc_rule_tac' ctx (procthms:Procs_Typed.procedure_info) locals non_parg_locals i =
-  let val callproc_rule = @{thm callproc_rule} |> Drule.instantiate' []
-        [NONE, SOME (Thm.cterm_of ctx locals), NONE, NONE, NONE, SOME (Thm.cterm_of ctx non_parg_locals)]
+fun callproc_rule_tac' ctx (procthms:Procs_Typed.procedure_info) renaming locals non_parg_locals i =
+  let val callproc_rule = @{thm callproc_rule_renamed} |> Drule.instantiate' []
+        [SOME (Thm.cterm_of ctx renaming), NONE, SOME (Thm.cterm_of ctx locals), NONE, NONE, NONE, SOME (Thm.cterm_of ctx non_parg_locals)]
       val simp_rules = @{thms vars_variable_pattern[THEN eq_reflection] 
         assign_default_typed_aux[THEN eq_reflection] assign_default_typed_aux_cons[THEN eq_reflection]
         assign_default_typed_aux_nil[THEN eq_reflection]} 
@@ -133,6 +137,36 @@ fun procedure_local_vars ctx proc (procthms:Procs_Typed.procedure_info) =
    in (local_vars,non_parg_locals) end
 
 
+fun make_renaming ctx to_rename dont_use : (string*string) list * term =
+  let fun var_to_name (Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name Variable},_) $ _)) = NONE
+        | var_to_name (v as Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name LVariable},_) $ n)) =
+            SOME (HOLogic.dest_string n) handle TERM _ => raise (TERM ("Variable name is not a string",[v,n]))
+      val to_rename = map_filter var_to_name to_rename
+      val dont_use = map_filter var_to_name dont_use
+      val to_rename = distinct (op=) to_rename
+      val newnames = Name.variant_list dont_use to_rename
+      val renaming = ListPair.zip (to_rename, newnames)
+      val renaming_term = renaming |> map (fn (x,y) => HOLogic.mk_prod (HOLogic.mk_string x, HOLogic.mk_string y))
+                                   |> HOLogic.mk_list @{typ "string * string"}
+val _ = writeln (Syntax.string_of_term ctx renaming_term)
+  in
+    (renaming,renaming_term)
+  end
+
+(* This assumes a renaming that has no overlapping transposition *)
+fun apply_local_var_renaming ctx renaming var =
+  let val f = AList.lookup (op=) renaming
+      fun ren (v as Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name Variable},_) $ _)) = v
+        | ren (v as (c1 as Const(@{const_name mk_variable_untyped},_)) $ ((c2 as Const(@{const_name LVariable},_)) $ n)) =
+            (case f (HOLogic.dest_string n) of
+              SOME n' => c1 $ (c2 $ HOLogic.mk_string n')
+            | NONE => v)
+            handle TERM _ => raise (TERM ("Variable name is not a string",[v,n]))
+  in
+    ren var
+  end
+
+(*
 (* Transforms a goal of the form
      "obs_eq' V (callproc x proc args) ?body"
    where ?body is instantiated to be the unfolding of the procedure call
@@ -159,7 +193,7 @@ val _ = writeln (Syntax.string_of_term ctx renaming_term)
   (* TODO: use rule obs_eq'_rename_variables_proc[of _ _ renaming_term] *)
   rtac (Drule.instantiate' [] [NONE, NONE, SOME (Thm.cterm_of ctx renaming_term)] @{thm obs_eq'_rename_variables_proc}) 1
   end
-
+*)
 
 (* Solves a goal of the form
      "obs_eq' V (callproc x proc args) ?body"
@@ -188,18 +222,19 @@ fun callproc_rule_tac ctx _ forbidden =
                      Procs_Typed.get_procedure_info ctx false proc
       val (locals,non_parg_locals) = procedure_local_vars ctx proc procthms
       val forbidden_inter = inter (fn (x,y) => (map_types (K dummyT) x) aconv (map_types (K dummyT) y)) locals forbidden
-(*      val _ = if forbidden_inter = [] then () else
+      val (renaming,renaming_term) = make_renaming ctx forbidden_inter (forbidden@locals)
+(*       val _ = if forbidden_inter = [] then () else
         raise TERM("callproc_rule_tac: locals (2) and forbidden vars (3) have nonempty intersection (1)",
                    [forbidden_inter |> HOLogic.mk_list @{typ variable_untyped},
                     locals |> HOLogic.mk_list @{typ variable_untyped},
                     forbidden |> HOLogic.mk_list @{typ variable_untyped}]) *)
-      val locals' = HOLogic.mk_list @{typ variable_untyped} locals
-      val non_parg_locals = HOLogic.mk_list @{typ variable_untyped} non_parg_locals
+      val locals' = HOLogic.mk_list @{typ variable_untyped} (map (apply_local_var_renaming ctx renaming) locals)
+      val non_parg_locals = HOLogic.mk_list @{typ variable_untyped} (map (apply_local_var_renaming ctx renaming) non_parg_locals)
   in
-    obs_eq'_rename_variables_proc ctx forbidden_inter (forbidden@locals)
+(*    obs_eq'_rename_variables_proc ctx forbidden_inter (forbidden@locals)
     THEN
-    (* TODO: callproc_rule_tac' needs renamed procthms, locals' non_parg_locals *)
-    callproc_rule_tac' ctx procthms locals' non_parg_locals i
+    (* TODO: callproc_rule_tac' needs renamed procthms, locals' non_parg_locals *) *)
+    callproc_rule_tac' ctx procthms renaming_term locals' non_parg_locals i
   end)
 
 (* TODO use a more efficient data structure than lists for collecting variables *)

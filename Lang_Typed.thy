@@ -834,16 +834,54 @@ unfolding e_fun_def o_def
 close (subst Rep_mk_expression_typed, simp)
 by (subst Rep_mk_expression_typed, simp)
 
+(* TODO move after rename_variables_expression *)
+lemma eu_vars_rename_variables_expression: 
+  assumes type: "\<And>x. vu_type (f x) = vu_type x"
+  assumes global: "\<And>x. vu_global (f x) = vu_global x"
+  shows "eu_vars (rename_variables_expression f e) = map f (eu_vars e)"
+apply (subst eu_vars_def)
+apply (subst Rep_rename_variables_expression)
+using assms by simp_all
+
+(* TODO move after rename_variables_expression *)
+lemma eu_fun_rename_variables_expression: 
+  assumes type: "\<And>x. vu_type (f x) = vu_type x"
+  assumes global: "\<And>x. vu_global (f x) = vu_global x"
+  shows "eu_fun (rename_variables_expression f e) = (\<lambda> m. eu_fun e (rename_variables_memory f m))"
+apply (subst eu_fun_def)
+apply (subst Rep_rename_variables_expression)
+using assms by simp_all
+
+(* TODO move after rename_variables_expression_distr *)
+lemma ed_vars_rename_variables_expression_distr: 
+  assumes type: "\<And>x. vu_type (f x) = vu_type x"
+  assumes global: "\<And>x. vu_global (f x) = vu_global x"
+  shows "ed_vars (rename_variables_expression_distr f e) = map f (ed_vars e)"
+apply (subst ed_vars_def)
+apply (subst Rep_rename_variables_expression_distr)
+using assms by simp_all
+
+(* TODO move after rename_variables_expression *)
+lemma ed_fun_rename_variables_expression_distr: 
+  assumes type: "\<And>x. vu_type (f x) = vu_type x"
+  assumes global: "\<And>x. vu_global (f x) = vu_global x"
+  shows "ed_fun (rename_variables_expression_distr f e) = (\<lambda> m. ed_fun e (rename_variables_memory f m))"
+apply (subst ed_fun_def)
+apply (subst Rep_rename_variables_expression_distr)
+using assms by simp_all
+
+
 lemma Rep_rename_local_variables_expression_distr: "mk_expression_distr (rename_local_variables_expression ren e) =
   rename_variables_expression_distr (local_variable_name_renaming ren) (mk_expression_distr e)"
 proof -
   have vars: "eu_vars (rename_variables_expression (local_variable_name_renaming ren) (mk_expression_untyped e)) =
     map (local_variable_name_renaming ren) (e_vars e)"
-    by later
-  have fn: "(\<lambda>x\<Colon>val. apply_to_distr embedding (inv embedding x)) \<circ>
+    apply (subst eu_vars_rename_variables_expression) by simp_all
+  have fn: "(\<lambda>x\<Colon>val. apply_to_distr embedding (inv embedding x :: 'a distr)) \<circ>
     eu_fun (rename_variables_expression (local_variable_name_renaming ren) (mk_expression_untyped e)) =
-    (\<lambda>m\<Colon>memory. apply_to_distr embedding (e_fun e (rename_variables_memory (local_variable_name_renaming ren) m)))"
-    by later
+    (\<lambda>m\<Colon>memory. apply_to_distr (embedding::'a\<Rightarrow>_) (e_fun e (rename_variables_memory (local_variable_name_renaming ren) m)))"
+    apply (subst eu_fun_rename_variables_expression)
+    unfolding mk_expression_untyped_fun[THEN ext] o_def by simp_all
   show ?thesis
     unfolding rename_local_variables_expression_def 
     apply (rule Rep_expression_distr_inject[THEN iffD1])
@@ -854,17 +892,39 @@ proof -
       using fn vars by auto
 qed
 
-find_theorems "eu_fun (rename_variables_expression _ _)"
 
 definition rename_local_variables_pattern :: "variable_name_renaming \<Rightarrow> 'a::prog_type pattern \<Rightarrow> 'a pattern" where
   "rename_local_variables_pattern ren p = Abs_pattern (rename_variables_pattern
       (local_variable_name_renaming ren) (mk_pattern_untyped p))"
 lemma Rep_rename_local_variables_pattern: "mk_pattern_untyped (rename_local_variables_pattern ren p) =
-  rename_variables_pattern (local_variable_name_renaming ren) (mk_pattern_untyped p)"
-by later
+        rename_variables_pattern (local_variable_name_renaming ren) (mk_pattern_untyped p)"
+  unfolding rename_local_variables_pattern_def
+  apply (subst Abs_pattern_inverse)
+  by (simp_all add: pu_type_rename_variables)
 
+(* TODO: move after pu_var_getters_rename_variables_pattern *)
+lemma pu_vars_rename_variables_pattern:
+  assumes "\<And>x. vu_type (f x) = vu_type x"
+  shows "pu_vars (rename_variables_pattern f p) = map f (pu_vars p)"
+unfolding pu_vars_def
+apply (subst pu_var_getters_rename_variables_pattern[OF assms])
+by simp
+
+
+lemma p_vars_rename_local_variables_pattern: "p_vars (rename_local_variables_pattern ren p) = 
+  map (local_variable_name_renaming ren) (p_vars p)"
+unfolding p_vars_def Rep_rename_local_variables_pattern
+by (subst pu_vars_rename_variables_pattern, simp_all)
+
+lemma e_vars_rename_local_variables_expression: "e_vars (rename_local_variables_expression ren e) = 
+  map (local_variable_name_renaming ren) (e_vars e)"
+unfolding mk_expression_untyped_vars[symmetric] Rep_rename_local_variables_expression
+by (subst eu_vars_rename_variables_expression, simp_all)
+
+(*
 definition rename_local_variables_var :: "variable_name_renaming \<Rightarrow> 'a::prog_type variable \<Rightarrow> 'a::prog_type variable" where
   "rename_local_variables_var ren v = mk_variable_typed (local_variable_name_renaming ren (mk_variable_untyped v))"
+*)
 
 definition rename_local_variables_proc :: "variable_name_renaming \<Rightarrow> ('a::prog_type,'b::prog_type)procedure \<Rightarrow> ('a,'b)procedure" where
   "rename_local_variables_proc ren p = mk_procedure_typed (rename_variables_proc 
@@ -898,6 +958,52 @@ proof -
     apply (subst mk_procedure_typed_inverse[OF wt_body' pu_type_pargs' eu_type_ret'])..
 qed
 
+lemma p_body_rename_local_variables_proc: 
+  shows "p_body (rename_local_variables_proc ren p) = rename_local_variables ren (p_body p)"
+proof -
+  obtain body' pargs' ret' where as_Proc: "mk_procedure_untyped (rename_local_variables_proc ren p) = Proc body' pargs' ret'"
+      and rename: "Proc body' pargs' ret' = rename_variables_proc (local_variable_name_renaming ren) (mk_procedure_untyped p)"
+    by (metis Rep_rename_local_variables_proc mk_procedure_untyped_def)
+  have p_body: "p_body (rename_local_variables_proc ren p) = Abs_program body'"
+    by (metis as_Proc mk_procedure_typed.simps(1) mk_procedure_untyped_inverse procedure.ext_inject procedure.surjective)
+  have "body' = rename_variables (local_variable_name_renaming ren) (mk_program_untyped (p_body p))"
+    using rename unfolding mk_procedure_untyped_def by auto
+  hence "Abs_program body' = rename_local_variables ren (p_body p)"
+    by (simp add: rename_local_variables_def)
+  with p_body show ?thesis by simp
+qed
+
+lemma p_args_rename_local_variables_proc: 
+  shows "p_args (rename_local_variables_proc ren p) = rename_local_variables_pattern ren (p_args p)"
+proof -
+  obtain body' pargs' ret' where as_Proc: "mk_procedure_untyped (rename_local_variables_proc ren p) = Proc body' pargs' ret'"
+      and rename: "Proc body' pargs' ret' = rename_variables_proc (local_variable_name_renaming ren) (mk_procedure_untyped p)"
+    by (metis Rep_rename_local_variables_proc mk_procedure_untyped_def)
+  have p_args: "p_args (rename_local_variables_proc ren p) = Abs_pattern pargs'"
+    by (metis as_Proc mk_procedure_typed.simps(1) mk_procedure_untyped_inverse procedure.select_convs(2))
+  have "pargs' = rename_variables_pattern (local_variable_name_renaming ren) (mk_pattern_untyped (p_args p))"
+    using rename unfolding mk_procedure_untyped_def by auto
+  hence "Abs_pattern pargs' = rename_local_variables_pattern ren (p_args p)"
+    by (simp add: rename_local_variables_pattern_def)
+  with p_args show ?thesis by simp
+qed
+
+lemma p_ret_rename_local_variables_proc: 
+  shows "p_return (rename_local_variables_proc ren p) = rename_local_variables_expression ren (p_return p)"
+proof -
+  obtain body' pargs' ret' where as_Proc: "mk_procedure_untyped (rename_local_variables_proc ren p) = Proc body' pargs' ret'"
+      and rename: "Proc body' pargs' ret' = rename_variables_proc (local_variable_name_renaming ren) (mk_procedure_untyped p)"
+    by (metis Rep_rename_local_variables_proc mk_procedure_untyped_def)
+  have p_ret: "p_return (rename_local_variables_proc ren p) = mk_expression_typed ret'"
+    by (metis mk_procedure_typed.simps(1) procedure.select_convs(3) rename rename_local_variables_proc_def)
+  have "ret' = rename_variables_expression (local_variable_name_renaming ren) (mk_expression_untyped (p_return p))"
+    using rename unfolding mk_procedure_untyped_def by auto
+  hence "mk_expression_typed ret' = rename_local_variables_expression ren (p_return p)"
+    by (simp add: rename_local_variables_expression_def)
+  with p_ret show ?thesis by simp
+qed
+
+
 lemma denotation_callproc_rename_local_variables_proc: "denotation (callproc x (rename_local_variables_proc ren p) a) = denotation (callproc x p a)"
 proof -
   def f == "local_variable_name_renaming ren"
@@ -928,6 +1034,78 @@ proof -
     apply auto by (rule mk_procedure_untyped_inverse)
 qed
 
+(* TODO: move after def vars_proc_untyped *)
+lemma vars_proc_untyped_global: "x\<in>set(vars_proc_untyped q) \<Longrightarrow> vu_global x"
+proof -
+  def p == "undefined :: program_rep"
+  have True and "x\<in>set(vars_proc_untyped q) \<Longrightarrow> vu_global x"
+    by (induct p and q, auto)
+  thus "x\<in>set(vars_proc_untyped q) \<Longrightarrow> vu_global x" by simp
+qed
+
+lemma vars_rename_local_variables: "vars (rename_local_variables ren p)
+                           = map (local_variable_name_renaming ren) (vars p)"
+proof -
+  def p' == "mk_program_untyped p"
+  have pu_vars: "\<And>x. pu_vars (rename_variables_pattern (local_variable_name_renaming ren) x) =
+                map (local_variable_name_renaming ren) (pu_vars x)"
+    unfolding Rep_rename_local_variables_pattern
+    by (subst pu_vars_rename_variables_pattern, simp_all)
+  have eu_vars: "\<And>x. eu_vars (rename_variables_expression (local_variable_name_renaming ren) x) =
+       map (local_variable_name_renaming ren) (eu_vars x)"
+    unfolding Rep_rename_local_variables_expression
+    by (subst eu_vars_rename_variables_expression, simp_all)
+  have ed_vars: "\<And>x. ed_vars (rename_variables_expression_distr (local_variable_name_renaming ren) x) =
+       map (local_variable_name_renaming ren) (ed_vars x)"
+    unfolding Rep_rename_local_variables_expression_distr
+    by (subst ed_vars_rename_variables_expression_distr, simp_all)
+  have proc_vars: "\<And>q. map (local_variable_name_renaming ren) (vars_proc_untyped q) = vars_proc_untyped q"
+    by (simp add: vars_proc_untyped_global local_variable_name_renaming_fix_globals map_idI)
+  def q == "undefined :: procedure_rep"
+  have "vars_untyped (rename_variables (local_variable_name_renaming ren) p') = map (local_variable_name_renaming ren) (vars_untyped p')"
+    and True
+    apply (induct p' and q)
+    by (auto simp: eu_vars pu_vars ed_vars proc_vars)
+  thus ?thesis
+    unfolding vars_def Rep_rename_local_variables p'_def by simp
+qed
+  
+lemma local_vars_rename_local_variables: "local_vars (rename_local_variables ren p)
+                            = map (local_variable_name_renaming ren) (local_vars p)"
+  unfolding local_vars_def vars_rename_local_variables
+  by (metis (mono_tags, lifting) comp_apply filter_cong filter_map local_variable_name_renaming_global)
+
+(* TODO Move after def rename_variables_pattern *)
+lemma rename_variables_pattern_id: "rename_variables_pattern id p = p" 
+  apply (induct p)
+  by (auto simp: id_def rename_variables_pattern_id[unfolded id_def])
+
+lemma rename_local_variables_pattern_id [simp]: "rename_local_variables_pattern [] p = p"
+proof -
+  have upd: "\<And>x. x \<lparr> vu_name := vu_name x \<rparr> = x" by (case_tac x, auto)
+  show ?thesis
+    unfolding rename_local_variables_pattern_def local_variable_name_renaming_def[THEN ext] fold_Nil id_def upd
+    using rename_variables_pattern_id[unfolded id_def]
+    apply auto by (rule Rep_pattern_inverse)
+qed
+
+lemma rename_local_variables_id [simp]: "rename_local_variables [] p = p"
+proof -
+  have upd: "\<And>x. x \<lparr> vu_name := vu_name x \<rparr> = x" by (case_tac x, auto)
+  show ?thesis
+    unfolding rename_local_variables_def local_variable_name_renaming_def[THEN ext] fold_Nil id_def upd
+    using rename_variables_id[unfolded id_def]
+    apply auto by (rule Rep_program_inverse)
+qed
+
+lemma rename_local_variables_expression_id [simp]: "rename_local_variables_expression [] e = e"
+proof -
+  have upd: "\<And>x. x \<lparr> vu_name := vu_name x \<rparr> = x" by (case_tac x, auto)
+  show ?thesis
+    unfolding rename_local_variables_expression_def local_variable_name_renaming_def[THEN ext] fold_Nil id_def upd
+    using rename_variables_expression_id[unfolded id_def]
+    apply auto by (rule mk_expression_untyped_inverse)
+qed
 
 
 end

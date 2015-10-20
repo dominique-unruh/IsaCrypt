@@ -112,12 +112,11 @@ Procs_Typed.get_procedure_info @{context} true @{term "Correctness<$>ElGamal"}
 *}
 
 
-
-
 lemma correctness:
   shows "LOCAL succ0. hoare {True} succ0 := call Correctness <$> ElGamal(m) {succ0}"
 apply (inline "Correctness<$>ElGamal")
-apply (inline "keygen<$>ElGamal") (* Arguments to 
+apply (simp) (* TODO get rid of this *)
+apply (inline "keygen<$>ElGamal")
 apply (inline "dec<$>ElGamal")
 apply (inline "enc<$>ElGamal")
 apply (wp sample) apply skip apply auto

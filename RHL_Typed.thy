@@ -196,7 +196,11 @@ proof -
     using assms local_vars_def by auto
 qed
 
+(* Outputs the list of parameters of callproc_rule, ordered like the arguments to Drule.instantiate' *)
+ML {* Term.add_vars (Thm.prop_of @{thm callproc_rule}) [] |> rev |> map Var |> map (Syntax.string_of_term @{context}) |> String.concatWith "\n" |> writeln *}
+
 (* If the number of subgoals change, inline_rule_conditions_tac must be adapted accordingly *)
+(* locals and non_parg_locals have to be already renamed *)
 lemma callproc_rule_renamed:
   fixes p::"('a::prog_type,'b::prog_type) procedure" and x::"'b pattern" and args::"'a expression"
     and locals::"variable_untyped list" and V::"variable_untyped set"
@@ -206,23 +210,49 @@ lemma callproc_rule_renamed:
   defines "ret == p_return p"
   defines "pargs == p_args p"
   defines "GL == {x. vu_global x}"
-  assumes proc_locals: "(set(local_vars body) \<union> set(p_vars pargs) \<union> set(e_vars ret)) - GL \<subseteq> set locals"
+  assumes proc_locals: "(local_variable_name_renaming renaming ` (set(local_vars body) \<union> set(p_vars pargs) \<union> set(e_vars ret))) - GL \<subseteq> set locals"
   assumes locals_local: "GL \<inter> set locals = {}"
   assumes localsV: "V \<inter> set locals \<subseteq> set (p_vars x)"
-  assumes proc_globals: "(set(vars body) \<union> set(e_vars ret)) \<inter> GL \<subseteq> V"
+  assumes proc_globals: "local_variable_name_renaming renaming ` (set(vars body) \<union> set(e_vars ret)) \<inter> GL \<subseteq> V"
   assumes argvarsV: "set(e_vars args) \<subseteq> V"
-  assumes non_parg_locals: "set non_parg_locals = set locals - set (p_vars pargs)"
+  assumes non_parg_locals: "set non_parg_locals = set locals - local_variable_name_renaming renaming ` set (p_vars pargs)"
 
   defines "unfolded == seq (seq (seq (assign (rename_local_variables_pattern renaming pargs) args)
-                                     (assign_default_typed (map rename_local_variables_var non_parg_locals)))
+                                     (assign_default_typed non_parg_locals))
                                      (rename_local_variables renaming body))
                                      (assign x (rename_local_variables_expression renaming ret))"
   shows "obs_eq' V (callproc x p args) unfolded"
+proof -
+  def body' == "p_body (rename_local_variables_proc renaming p)"
+  def ret' == "p_return (rename_local_variables_proc renaming p)"
+  def pargs' == "p_args (rename_local_variables_proc renaming p)"
+  def unfolded' == "seq (seq (seq (assign pargs' args) (assign_default_typed non_parg_locals)) body') (assign x ret')"
+  have "unfolded = unfolded'"
+    unfolding unfolded_def unfolded'_def pargs'_def pargs_def p_args_rename_local_variables_proc
+              body'_def body_def p_body_rename_local_variables_proc ret'_def ret_def
+              p_ret_rename_local_variables_proc by simp
+  have obseq: "obs_eq' V (callproc x (rename_local_variables_proc renaming p) args) unfolded'"
+    unfolding unfolded'_def pargs'_def ret'_def body'_def
+    apply (rule callproc_rule[where locals=locals])
+    unfolding p_body_rename_local_variables_proc body_def[symmetric]
+    unfolding p_args_rename_local_variables_proc pargs_def[symmetric]
+    unfolding p_ret_rename_local_variables_proc ret_def[symmetric]
+    unfolding local_vars_rename_local_variables
+    unfolding p_vars_rename_local_variables_pattern
+    unfolding e_vars_rename_local_variables_expression
+    unfolding vars_rename_local_variables
+    using assms by auto
+  hence obseq: "obs_eq' V (callproc x (rename_local_variables_proc renaming p) args) unfolded"
+    unfolding `unfolded=unfolded'` by assumption
+  then show ?thesis
+    unfolding obs_eq'_def obs_eq_def rhoare_def denotation_callproc_rename_local_variables_proc 
+    by assumption
+qed
 
 (* Outputs the list of parameters of callproc_rule, ordered like the arguments to Drule.instantiate' *)
-ML {* Term.add_vars (Thm.prop_of @{thm callproc_rule}) [] |> rev |> map Var |> map (Syntax.string_of_term @{context}) |> String.concatWith "\n" |> writeln *}
+ML {* Term.add_vars (Thm.prop_of @{thm callproc_rule_renamed}) [] |> rev |> map Var |> map (Syntax.string_of_term @{context}) |> String.concatWith "\n" |> writeln *}
 
-print_theorems
+
 
 (*
 definition "blockassign (xs::'a::procargs procargvars) (es::'a procargs) == 

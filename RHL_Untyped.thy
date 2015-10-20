@@ -403,24 +403,24 @@ proof -
 qed
 *)
 
-lemma foldr_commute:  (* TODO used? *)
+(* lemma foldr_commute:  (* TODO used? *)
   assumes "\<And>x y. f (g x y) = g' x (f y)"
   shows "f (foldr g l a) = foldr g' l (f a)"
     apply (induction l)
     using assms by auto
-
 lemma foldl_commute: 
   assumes "\<And>x y. f (g x y) = g' (f x) y"
   shows "f (foldl g a l) = foldl g' (f a) l"
     apply (induction l rule:rev_induct)
     using assms by auto
+ *)
 
-lemma foldr_o:  (* TODO used? *)
+(* lemma foldr_o:  (* TODO used? *)
   shows "(foldr (\<lambda>x. op o (f x)) l a) m = foldr f l (a m)"
   by (induction l, auto)
-
+ *)
 (* TODO need? *)
-lemma zip_hd: 
+(* lemma zip_hd: 
   assumes "(a, b) # x = zip as bs"
   shows "as = a#tl as" and "bs = b#tl bs"
 apply (insert assms)
@@ -428,7 +428,7 @@ apply (induction bs, auto)
 apply (metis list.exhaust list.sel(1) list.sel(3) prod.sel(1) zip_Cons_Cons zip_Nil)
 apply (induction bs arbitrary: as, auto)
 by (metis Pair_inject list.distinct(2) list.exhaust list.inject zip_Cons_Cons zip_Nil)
-
+ *)
 definition "assign_default = foldl (\<lambda>p v. Seq p (Assign (pattern_1var v) 
                       (const_expression_untyped (vu_type v) (t_default (vu_type v))))) Skip"
 
@@ -437,20 +437,6 @@ lemma assign_default_welltyped: "well_typed (assign_default locals)"
   unfolding assign_default_def 
   using Rep_type eu_type_const_expression_untyped t_default_def t_domain_def by auto
 
-(* TODO move *)
-lemma memory_lookup_update_pattern_notsame:
-  assumes "x \<notin> set (pu_vars p)"
-  shows "memory_lookup_untyped (memory_update_untyped_pattern m p a) x = memory_lookup_untyped m x"
-proof -
-  def vg == "pu_var_getters p"
-  hence vg: "x \<notin> fst ` set vg"
-    using assms pu_var_getters_def pu_vars_def by auto
-  show ?thesis
-    unfolding memory_update_untyped_pattern_def  vg_def[symmetric]
-    apply (insert vg)
-    apply (induct vg rule:rev_induct)
-     by (auto simp: memory_lookup_update_notsame_untyped)
-qed
 
 
 lemma callproc_rule:

@@ -247,6 +247,21 @@ definition memory_update_untyped_pattern :: "memory \<Rightarrow> pattern_untype
   "memory_update_untyped_pattern m p x = 
   foldl (\<lambda>m (v,f). memory_update_untyped m v (f x)) m (pu_var_getters p)"
 
+lemma memory_lookup_update_pattern_notsame:
+  assumes "x \<notin> set (pu_vars p)"
+  shows "memory_lookup_untyped (memory_update_untyped_pattern m p a) x = memory_lookup_untyped m x"
+proof -
+  def vg == "pu_var_getters p"
+  hence vg: "x \<notin> fst ` set vg"
+    using assms pu_var_getters_def pu_vars_def by auto
+  show ?thesis
+    unfolding memory_update_untyped_pattern_def  vg_def[symmetric]
+    apply (insert vg)
+    apply (induct vg rule:rev_induct)
+     by (auto simp: memory_lookup_update_notsame_untyped)
+qed
+
+
 lemma memory_update_untyped_pattern_1var [simp]: 
   assumes "z \<in> t_domain (vu_type x)"
   shows "memory_update_untyped_pattern m (pattern_1var x) z = memory_update_untyped m x z"
@@ -483,7 +498,6 @@ proof -
     using Rep_expression_untyped eu_fun_def eu_type_def close auto
     using t by simp
 qed
-
 
 
 definition "rename_variables_expression_distr f e = Abs_expression_distr 
