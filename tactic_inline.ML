@@ -77,11 +77,14 @@ fun callproc_rule_conditions_tac ctx (procthms:Procs_Typed.procedure_info) i =
          ([#body_local_vars procthms |> some procthms, 
            #return_vars procthms |> some procthms, 
            #args procthms |> some procthms] @ 
-         @{thms local_variable_name_renaming1}) in
+         @{thms callproc_conditions_simp.callproc_conditions_simp}) in
   NGOALS i 6 (fn i =>
-    simp i
-    (* THEN print_tac ctx ("condition "^string_of_int i) *)
-    THEN (ASSERT_SUCCESS' (fast_force_tac ctx) (fn t => TERM("callproc_rule_conditions_tac, goal "^string_of_int i, [t])) i))
+    if i=4 then ASSERT_SUCCESS' (solve_tac ctx @{thms callproc_conditions_simp.callproc_goal4})
+                  (fn t => TERM("callproc_rule_conditions_tac, goal 4", [t])) 4
+    else
+      simp i
+      (* THEN print_tac ctx ("condition "^string_of_int i) *)
+      THEN (ASSERT_SUCCESS' (fast_force_tac ctx) (fn t => TERM("callproc_rule_conditions_tac, goal "^string_of_int i, [t])) i))
   end
 
 fun callproc_rule_tac' ctx (procthms:Procs_Typed.procedure_info) renaming locals non_parg_locals i =

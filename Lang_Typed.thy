@@ -756,18 +756,77 @@ lemma mk_variable_untyped_distinct3 [simp]: "mk_variable_untyped (Variable a) \<
 subsection {* Variable renaming *}
 
 type_synonym variable_name_renaming = "(string * string) list"
-definition local_variable_name_renaming :: "variable_name_renaming \<Rightarrow> variable_untyped \<Rightarrow> variable_untyped" where
+(*definition local_variable_name_renaming :: "variable_name_renaming \<Rightarrow> variable_untyped \<Rightarrow> variable_untyped" where
   "local_variable_name_renaming ren x = 
   (if vu_global x then x
-  else x \<lparr> vu_name := (fold (\<lambda>(a,b) f. Fun.swap a b f) ren id) (vu_name x) \<rparr>)"
+  else x \<lparr> vu_name := (fold (\<lambda>(a,b) f. Fun.swap a b f) ren id) (vu_name x) \<rparr>)"*)
+definition local_variable_name_renaming1 :: "(string * string) \<Rightarrow> variable_untyped \<Rightarrow> variable_untyped" where
+  "local_variable_name_renaming1 = (\<lambda>(a,b) x.
+  (if vu_global x then x
+  else x \<lparr> vu_name := if vu_name x = a then b else if vu_name x = b then a else vu_name x \<rparr>))"
+definition local_variable_name_renaming :: "variable_name_renaming \<Rightarrow> variable_untyped \<Rightarrow> variable_untyped" where
+  "local_variable_name_renaming ren = fold local_variable_name_renaming1 ren"
+(*lemma local_variable_name_renaming1:
+  "local_variable_name_renaming ren x = fold local_variable_name_renaming1 ren x"
+proof (induct ren)
+  show "local_variable_name_renaming [] x = fold local_variable_name_renaming1 [] x"
+    unfolding local_variable_name_renaming_def local_variable_name_renaming1_def by simp
+next
+  fix ab::"string * string" and ren obtain a b where ab: "ab=(a,b)" by (cases ab, simp)
+  assume ih: "local_variable_name_renaming ren x = fold local_variable_name_renaming1 ren x"
+  show "local_variable_name_renaming (ab # ren) x = fold local_variable_name_renaming1 (ab # ren) x"
+  proof (cases "vu_global x")
+    assume "vu_global x"
+    have "local_variable_name_renaming (ab # ren) x = x"
+      by (simp add: `vu_global x` local_variable_name_renaming_def)
+    also have "local_variable_name_renaming ren x = x"
+      by (simp add: `vu_global x` local_variable_name_renaming_def)
+    hence "fold local_variable_name_renaming1 (ab # ren) x = x"
+      apply simp apply (subst (2) local_variable_name_renaming1_def) unfolding ab using `vu_global x` ih by auto
+    ultimately show "local_variable_name_renaming (ab # ren) x = fold local_variable_name_renaming1 (ab # ren) x"
+      by simp
+  next
+    assume "\<not> vu_global x"
+    have swap: "(Fun.swap a b id) (vu_name x) = (if vu_name x = a then b else if vu_name x = b then a else vu_name x)"
+      by auto
+    have "local_variable_name_renaming (ab # ren) x = undefined"
+      unfolding local_variable_name_renaming_def apply (simp add: `\<not> vu_global x` ab swap)
+    show "local_variable_name_renaming (ab # ren) x = fold local_variable_name_renaming1 (ab # ren) x"
+      by later
+  qed
+qed*)
+
+lemma local_variable_name_renaming1_type: "vu_type (local_variable_name_renaming1 ren x) = vu_type x"
+  by (cases ren, simp add: local_variable_name_renaming1_def)
 lemma local_variable_name_renaming_type [simp]: "vu_type (local_variable_name_renaming ren x) = vu_type x"
-  by (simp add: local_variable_name_renaming_def)
+  unfolding local_variable_name_renaming_def apply (induct ren rule:rev_induct)
+  using local_variable_name_renaming1_type by auto
+lemma local_variable_name_renaming1_global: "vu_global (local_variable_name_renaming1 ren x) = vu_global x"
+  by (cases ren, simp add: local_variable_name_renaming1_def)
 lemma local_variable_name_renaming_global [simp]: "vu_global (local_variable_name_renaming ren x) = vu_global x"
-  by (simp add: local_variable_name_renaming_def)
+  unfolding local_variable_name_renaming_def apply (induct ren rule:rev_induct)
+  using local_variable_name_renaming1_global by auto
+lemma local_variable_name_renaming1_fix_globals: "vu_global x \<Longrightarrow> local_variable_name_renaming1 ren x = x"
+  by (cases ren, simp add: local_variable_name_renaming1_def)
 lemma local_variable_name_renaming_fix_globals: "vu_global x \<Longrightarrow> local_variable_name_renaming ren x = x"
-  by (simp add: local_variable_name_renaming_def)
-lemma local_variable_name_renaming_fix_bij: "bij (local_variable_name_renaming ren)"
+  unfolding local_variable_name_renaming_def apply (induct ren rule:rev_induct)
+  using local_variable_name_renaming1_fix_globals by auto
+lemma local_variable_name_renaming1_bij: "bij (local_variable_name_renaming1 ren)"
 proof -
+  obtain a b where ren:"ren = (a,b)" by (cases ren, simp)
+  have "local_variable_name_renaming1 ren o local_variable_name_renaming1 ren = id"
+    unfolding ren id_def o_def local_variable_name_renaming1_def by auto
+  thus "bij (local_variable_name_renaming1 ren)"
+    using o_bij by blast
+qed
+
+lemma local_variable_name_renaming_bij: "bij (local_variable_name_renaming ren)"
+  unfolding local_variable_name_renaming_def
+  apply (induct ren rule:rev_induct)
+  using o_bij close force
+  apply simp unfolding o_def[symmetric]
+  by (simp add: bij_comp local_variable_name_renaming1_bij)
+(* proof -
   def f == "fold (\<lambda>(a,b) f. Fun.swap a b f) ren id"
   have "bij f"
     unfolding f_def by (induct ren rule:rev_induct, auto simp: bij_id[unfolded id_def])
@@ -802,6 +861,7 @@ proof -
   ultimately show "bij (local_variable_name_renaming ren)"
     by (rule_tac bijI)
 qed
+ *)
 
 definition rename_local_variables :: "variable_name_renaming \<Rightarrow> program \<Rightarrow> program" where
   "rename_local_variables ren p = Abs_program (rename_variables 
@@ -892,7 +952,6 @@ proof -
       using fn vars by auto
 qed
 
-
 definition rename_local_variables_pattern :: "variable_name_renaming \<Rightarrow> 'a::prog_type pattern \<Rightarrow> 'a pattern" where
   "rename_local_variables_pattern ren p = Abs_pattern (rename_variables_pattern
       (local_variable_name_renaming ren) (mk_pattern_untyped p))"
@@ -916,15 +975,30 @@ lemma p_vars_rename_local_variables_pattern: "p_vars (rename_local_variables_pat
 unfolding p_vars_def Rep_rename_local_variables_pattern
 by (subst pu_vars_rename_variables_pattern, simp_all)
 
+lemma rename_local_variables_pair_pattern [simp]: 
+  "rename_local_variables_pattern R (pair_pattern p1 p2)
+  = pair_pattern (rename_local_variables_pattern R p1) (rename_local_variables_pattern R p2)"
+  by later
+
+
 lemma e_vars_rename_local_variables_expression: "e_vars (rename_local_variables_expression ren e) = 
   map (local_variable_name_renaming ren) (e_vars e)"
 unfolding mk_expression_untyped_vars[symmetric] Rep_rename_local_variables_expression
 by (subst eu_vars_rename_variables_expression, simp_all)
 
-(*
 definition rename_local_variables_var :: "variable_name_renaming \<Rightarrow> 'a::prog_type variable \<Rightarrow> 'a::prog_type variable" where
   "rename_local_variables_var ren v = mk_variable_typed (local_variable_name_renaming ren (mk_variable_untyped v))"
-*)
+lemma Rep_rename_local_variables_var: "mk_variable_untyped (rename_local_variables_var ren v) 
+        = local_variable_name_renaming ren (mk_variable_untyped v)"
+  by later        
+
+lemma rename_local_variables_var_id [simp]: "rename_local_variables_var [] x = x"
+proof -
+  show ?thesis
+    unfolding rename_local_variables_var_def local_variable_name_renaming_def[THEN ext] 
+    by auto
+qed
+
 
 definition rename_local_variables_proc :: "variable_name_renaming \<Rightarrow> ('a::prog_type,'b::prog_type)procedure \<Rightarrow> ('a,'b)procedure" where
   "rename_local_variables_proc ren p = mk_procedure_typed (rename_variables_proc 
@@ -1012,7 +1086,7 @@ proof -
   have type: "\<And>x. vu_type (f x) = vu_type x" unfolding f_def by simp
   have global: "\<And>x. vu_global (f x) = vu_global x" unfolding f_def by simp
   have fix_global: "\<And>x. vu_global x \<Longrightarrow> f x = x" unfolding f_def by (rule local_variable_name_renaming_fix_globals)
-  have "bij f" unfolding f_def by (fact local_variable_name_renaming_fix_bij)
+  have "bij f" unfolding f_def by (fact local_variable_name_renaming_bij)
   show ?thesis
     unfolding denotation_def Rep_callproc x'_def[symmetric] a'_def[symmetric]
     unfolding Rep_rename_local_variables_proc f_def[symmetric]
@@ -1102,7 +1176,7 @@ lemma rename_local_variables_expression_id [simp]: "rename_local_variables_expre
 proof -
   have upd: "\<And>x. x \<lparr> vu_name := vu_name x \<rparr> = x" by (case_tac x, auto)
   show ?thesis
-    unfolding rename_local_variables_expression_def local_variable_name_renaming_def[THEN ext] fold_Nil id_def upd
+    unfolding rename_local_variables_expression_def local_variable_name_renaming_def[THEN ext] fold_Nil id_def 
     using rename_variables_expression_id[unfolded id_def]
     apply auto by (rule mk_expression_untyped_inverse)
 qed

@@ -111,14 +111,40 @@ ML {*
 Procs_Typed.get_procedure_info @{context} true @{term "Correctness<$>ElGamal"}
 *}
 
+(* TODO move *)
+lemma rename_local_variables_unit_pattern [simp]: "rename_local_variables_pattern ren unit_pattern = unit_pattern"
+  by later
+
+lemma rename_local_variables_variable_pattern [simp]: "rename_local_variables_pattern ren (variable_pattern v) = variable_pattern (rename_local_variables_var ren v)"
+  by later
+
+lemma rename_local_variables_sample [simp]: "rename_local_variables ren (sample x e) = sample (rename_local_variables_pattern ren x) (rename_local_variables_expression ren e)"
+  by later
+
+lemma rename_local_variables_apply_expression [simp]: "rename_local_variables_expression ren (apply_expression e v)
+     = apply_expression (rename_local_variables_expression ren e) (rename_local_variables_var ren v)"
+  by later
+
+lemma rename_local_variables_var_same [simp]: "rename_local_variables_var ((n,m)#X) (LVariable n) = rename_local_variables_var X (LVariable m)"
+  by later
+
+lemma rename_local_variables_var_notsame [simp]: "n\<noteq>x \<Longrightarrow> m\<noteq>x \<Longrightarrow> rename_local_variables_var ((n,m)#X) (LVariable x) = LVariable x"
+  by later
+
+lemma rename_local_variables_const_expression [simp]:
+  "rename_local_variables_expression X (const_expression e) = const_expression e"
+  by later
 
 lemma correctness:
   shows "LOCAL succ0. hoare {True} succ0 := call Correctness <$> ElGamal(m) {succ0}"
 apply (inline "Correctness<$>ElGamal")
 apply (simp) (* TODO get rid of this *)
 apply (inline "keygen<$>ElGamal")
+apply (simp) (* TODO get rid of this *)
 apply (inline "dec<$>ElGamal")
+apply (simp) (* TODO get rid of this *)
 apply (inline "enc<$>ElGamal")
+apply (simp) (* TODO get rid of this *)
 apply (wp sample) apply skip apply auto
 unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat]) 
 apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp

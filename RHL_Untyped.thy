@@ -438,6 +438,9 @@ lemma assign_default_welltyped: "well_typed (assign_default locals)"
   using Rep_type eu_type_const_expression_untyped t_default_def t_domain_def by auto
 
 
+definition "filter_global X = {x\<in>X. vu_global x}"
+definition "filter_local X = {x\<in>X. \<not> vu_global x}"
+
 
 lemma callproc_rule:
   fixes body pargs ret x args
@@ -445,36 +448,34 @@ lemma callproc_rule:
     and locals -- "(superset of) local variables of the procedure"
     and non_parg_locals -- "locals without variables from pargs"
   defines "p == Proc body pargs ret"
-  defines "GL == {x. vu_global x}"
-  assumes proc_locals: "(set(vars_untyped body) \<union> set(pu_vars pargs) \<union> set(eu_vars ret)) - GL \<subseteq> set locals"
-  assumes locals_local: "GL \<inter> set locals = {}"
+  (* defines "GL == {x. vu_global x}" *)
+  assumes proc_locals: "filter_local (set(vars_untyped body) \<union> set(pu_vars pargs) \<union> set(eu_vars ret)) \<subseteq> set locals"
+  assumes locals_local: "filter_global (set locals) = {}"
   assumes localsV: "V \<inter> set locals \<subseteq> set (pu_vars x)"
-  assumes proc_globals: "(set(vars_untyped body) \<union> set(eu_vars ret)) \<inter> GL \<subseteq> V"
+  assumes proc_globals: "filter_global (set(vars_untyped body) \<union> set(eu_vars ret)) \<subseteq> V"
   assumes argvarsV: "set(eu_vars args) \<subseteq> V"
   assumes non_parg_locals: "set non_parg_locals = set locals - set (pu_vars pargs)"
   defines "unfolded == Seq (Seq (Seq (Assign pargs args) (assign_default non_parg_locals)) body)
                            (Assign x ret)"
   shows "obs_eq_untyped V V (CallProc x p args) unfolded"
 proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_denotation_post_eq)
+  def GL == "{x. vu_global x} :: variable_untyped set"
+  have fl_GL: "\<And>X. filter_local X = X - GL"
+    unfolding GL_def filter_local_def by auto
+  have fg_GL: "\<And>X. filter_global X = X \<inter> GL"
+    unfolding GL_def filter_global_def by auto
   have body_locals: "set(vars_untyped body) - GL \<subseteq> set locals" 
    and pargs_locals: "set(pu_vars pargs) - GL \<subseteq> set locals"
    and ret_locals: "set(eu_vars ret) - GL \<subseteq> set locals"
-     using proc_locals by auto
+     using proc_locals unfolding fl_GL by auto
   have globalsVbody: "set(vars_untyped body) \<inter> GL \<subseteq> V"
    and globalsVret: "set(eu_vars ret) \<inter> GL \<subseteq> V"
-     using proc_globals by auto
+     using proc_globals unfolding fg_GL by auto
 
   fix m1 m2 assume eq_init: "\<forall>x\<in>V. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
 
   def eq == "\<lambda>V \<mu> \<nu>. apply_to_distr (\<lambda>m x. if x \<in> V then memory_lookup_untyped m x else undefined) \<mu>
                    = apply_to_distr (\<lambda>m x. if x \<in> V then memory_lookup_untyped m x else undefined) \<nu>" 
-(*  have "eq = (\<lambda>V \<mu> \<nu>. apply_to_distr (\<lambda>m x. if x \<in> V then memory_lookup_untyped m x else undefined) \<mu>
-                   = apply_to_distr (\<lambda>m x. if x \<in> V then memory_lookup_untyped m x else undefined) \<nu>)" *)
-(*  def eq == "\<lambda>X c1 c2. rhoare_denotation (\<lambda>m1 m2. \<forall>x\<in>V. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)
-                                         c1 c2
-                                         (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)" 
-  have eq_mono: "\<And>A B c1 c2. A \<subseteq> B \<Longrightarrow> eq B c1 c2 \<Longrightarrow> eq A c1 c2" 
-    unfolding eq_def rhoare_denotation_def by blast *)
 
   def argvars == "set (eu_vars args)"
 
@@ -485,7 +486,6 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
   def cp1 == "point_distr (memory_update_untyped_pattern (init_locals m1) pargs (eu_fun args m1))"
   def uf1 == "denotation_untyped (Seq (Assign pargs args) (assign_default non_parg_locals)) m2"
 
-(*  def uf1_1 == "foldl (\<lambda>m (v, f). memory_update_untyped m v (f (eu_fun args m2))) m2 (pu_var_getters pargs)" *)
   def uf1_1 == "memory_update_untyped_pattern m2 pargs (eu_fun args m2)"
   def uf1_2 == "\<lambda>m2. foldl (\<lambda>m v. (\<lambda>m x. memory_update_untyped m x
                (eu_fun (const_expression_untyped (vu_type x) (t_default (vu_type x))) m)) m v) m2 non_parg_locals"
@@ -504,8 +504,6 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
 
   have eq1: "eq (G\<union>set locals) cp1 uf1"
   proof (unfold eq_def)
-(*  proof (unfold eq_def, rule rhoare_denotation_post_eq) *)
-(*    assume init_eqV: "\<forall>x\<in>V. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x" *)
     def cp1mem == "memory_update_untyped_pattern (init_locals m1) pargs (eu_fun args m1)"
     have cp1mem_uf: "\<forall>x\<in>(G\<union>set locals). memory_lookup_untyped cp1mem x = memory_lookup_untyped (uf1_2 (uf1_1)) x"
     proof
@@ -527,7 +525,7 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
           unfolding uf1_1_def apply (subst memory_lookup_update_pattern_notsame)
           using not_pargs by blast
         have "x \<notin> set non_parg_locals"
-          using `vu_global x` locals_local GL_def non_parg_locals by auto
+          using `vu_global x` locals_local filter_global_def non_parg_locals by auto
         have uf: "memory_lookup_untyped (uf1_2 (uf1_1)) x = memory_lookup_untyped m2 x"
           unfolding uf1_2_def apply (insert `x \<notin> set non_parg_locals`)
           apply (induct non_parg_locals rule:rev_induct)
@@ -539,7 +537,7 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
         hence x_parg_non_locals: "x \<in> set non_parg_locals"
           by (simp add: non_parg_locals)
         have "\<not> vu_global x"
-          using locals_local `x \<in> set locals` unfolding GL_def by auto
+          using locals_local `x \<in> set locals` unfolding filter_global_def by auto
         have init: "memory_lookup_untyped (init_locals m1) x = t_default (vu_type x)"
           unfolding memory_lookup_untyped_def Rep_init_locals using `\<not> vu_global x` by auto
         have cp: "memory_lookup_untyped cp1mem x = t_default (vu_type x)"

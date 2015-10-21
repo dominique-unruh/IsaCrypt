@@ -499,6 +499,15 @@ proof -
     using t by simp
 qed
 
+lemma rename_local_variables_expression_id [simp]: "rename_local_variables_expression [] e = e"
+proof -
+  have upd: "\<And>x. x \<lparr> vu_name := vu_name x \<rparr> = x" by (case_tac x, auto)
+  show ?thesis
+    unfolding rename_local_variables_expression_def local_variable_name_renaming_def[THEN ext] fold_Nil id_def upd
+    using rename_variables_expression_id[unfolded id_def]
+    apply auto by (rule Rep_expression_inverse)
+qed
+
 
 definition "rename_variables_expression_distr f e = Abs_expression_distr 
   \<lparr> edr_fun=(\<lambda>m. ed_fun e (rename_variables_memory f m)), edr_type=ed_type e, edr_vars=map f (ed_vars e) \<rparr>"
