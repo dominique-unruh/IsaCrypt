@@ -227,6 +227,9 @@ definition "pu_vars p = map fst (pu_var_getters p)"
 definition "pu_type p = pur_type (Rep_pattern_untyped p)"
 
 definition "pattern_1var v = Abs_pattern_untyped \<lparr> pur_var_getters=[(v, \<lambda>x. if x\<in>t_domain(vu_type v) then x else t_default(vu_type v))], pur_type=vu_type v \<rparr>"
+lemma Rep_pattern_1var: "Rep_pattern_untyped (pattern_1var v) = \<lparr> pur_var_getters=[(v, \<lambda>x. if x\<in>t_domain(vu_type v) then x else t_default(vu_type v))], pur_type=vu_type v \<rparr>"
+  unfolding  pu_var_getters_def pattern_1var_def 
+  apply (subst Abs_pattern_untyped_inverse) by auto
 lemma p_var_getters_pattern_1var [simp]: "pu_var_getters (pattern_1var v) = [(v, \<lambda>x. if x\<in>t_domain(vu_type v) then x else t_default(vu_type v))]"
   unfolding  pu_var_getters_def pattern_1var_def 
   apply (subst Abs_pattern_untyped_inverse) by auto
@@ -440,6 +443,14 @@ definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"
 
 definition "local_vars prog = filter (\<lambda>x. \<not>vu_global x) (vars prog)"
 
+lemma vars_proc_untyped_global: "x\<in>set(vars_proc_untyped q) \<Longrightarrow> vu_global x"
+proof -
+  def p == "undefined :: program_rep"
+  have True and "x\<in>set(vars_proc_untyped q) \<Longrightarrow> vu_global x"
+    by (induct p and q, auto)
+  thus "x\<in>set(vars_proc_untyped q) \<Longrightarrow> vu_global x" by simp
+qed
+
 subsection {* Variables renaming *}
 
 definition "rename_variables_pattern f p = Abs_pattern_untyped
@@ -458,6 +469,14 @@ apply (subst pu_var_getters_def)
 apply (subst Rep_rename_variables_pattern) close (fact assms)
 by auto
 
+lemma pu_vars_rename_variables_pattern:
+  assumes "\<And>x. vu_type (f x) = vu_type x"
+  shows "pu_vars (rename_variables_pattern f p) = map f (pu_vars p)"
+unfolding pu_vars_def
+apply (subst pu_var_getters_rename_variables_pattern[OF assms])
+by simp
+
+
 definition rename_variables_memory where
   "rename_variables_memory f m = Abs_memory (\<lambda>x. Rep_memory m (f x))"
 lemma Rep_rename_variables_memory: 
@@ -475,7 +494,7 @@ unfolding memory_lookup_untyped_def Rep_rename_variables_memory[OF type] global 
 
 definition "rename_variables_expression f e = Abs_expression_untyped 
   \<lparr> eur_fun=(\<lambda>m. eu_fun e (rename_variables_memory f m)), eur_type=eu_type e, eur_vars=map f (eu_vars e) \<rparr>"
-lemma Rep_rename_variables_expression:  
+lemma Rep_rename_variables_expression [simp]:  
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
   assumes global: "\<And>x. vu_global (f x) = vu_global x"
   shows "Rep_expression_untyped (rename_variables_expression f e) =
@@ -499,14 +518,23 @@ proof -
     using t by simp
 qed
 
-lemma rename_local_variables_expression_id [simp]: "rename_local_variables_expression [] e = e"
-proof -
-  have upd: "\<And>x. x \<lparr> vu_name := vu_name x \<rparr> = x" by (case_tac x, auto)
-  show ?thesis
-    unfolding rename_local_variables_expression_def local_variable_name_renaming_def[THEN ext] fold_Nil id_def upd
-    using rename_variables_expression_id[unfolded id_def]
-    apply auto by (rule Rep_expression_inverse)
-qed
+
+(* TODO move after rename_variables_expression *)
+lemma eu_vars_rename_variables_expression: 
+  assumes type: "\<And>x. vu_type (f x) = vu_type x"
+  assumes global: "\<And>x. vu_global (f x) = vu_global x"
+  shows "eu_vars (rename_variables_expression f e) = map f (eu_vars e)"
+apply (subst eu_vars_def)
+apply (subst Rep_rename_variables_expression)
+using assms by simp_all
+
+lemma eu_fun_rename_variables_expression: 
+  assumes type: "\<And>x. vu_type (f x) = vu_type x"
+  assumes global: "\<And>x. vu_global (f x) = vu_global x"
+  shows "eu_fun (rename_variables_expression f e) = (\<lambda> m. eu_fun e (rename_variables_memory f m))"
+apply (subst eu_fun_def)
+apply (subst Rep_rename_variables_expression)
+using assms by simp_all
 
 
 definition "rename_variables_expression_distr f e = Abs_expression_distr 
@@ -534,6 +562,22 @@ proof -
     using Rep_expression_distr ed_fun_def ed_type_def close auto
     using t by simp
 qed
+
+lemma ed_vars_rename_variables_expression_distr: 
+  assumes type: "\<And>x. vu_type (f x) = vu_type x"
+  assumes global: "\<And>x. vu_global (f x) = vu_global x"
+  shows "ed_vars (rename_variables_expression_distr f e) = map f (ed_vars e)"
+apply (subst ed_vars_def)
+apply (subst Rep_rename_variables_expression_distr)
+using assms by simp_all
+
+lemma ed_fun_rename_variables_expression_distr: 
+  assumes type: "\<And>x. vu_type (f x) = vu_type x"
+  assumes global: "\<And>x. vu_global (f x) = vu_global x"
+  shows "ed_fun (rename_variables_expression_distr f e) = (\<lambda> m. ed_fun e (rename_variables_memory f m))"
+apply (subst ed_fun_def)
+apply (subst Rep_rename_variables_expression_distr)
+using assms by simp_all
 
 
 (* Note: does not rename recursively within procedures *)
@@ -866,6 +910,12 @@ fun rename_variables_proc where
 | "rename_variables_proc f (ProcPair p1 p2) = ProcPair (rename_variables_proc f p1) (rename_variables_proc f p2)"
 | "rename_variables_proc f (ProcUnpair b p) = ProcUnpair b (rename_variables_proc f p)"
 | "rename_variables_proc f (ProcAppl p1 p2) = ProcAppl (rename_variables_proc f p1) (rename_variables_proc f p2)"
+
+
+lemma rename_variables_proc_id: "rename_variables_proc id p = p" 
+  apply (induct p)
+  by (auto simp: id_def rename_variables_pattern_id[unfolded id_def] 
+        rename_variables_expression_id[unfolded id_def] rename_variables_expression_distr_id[unfolded id_def])
 
 
 lemma denotation_rename_variables_proc:

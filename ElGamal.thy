@@ -73,20 +73,19 @@ procedure CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) CPA_Adv =proc
 subsection {* ElGamal *}
 
 definition (in group) ElGamal :: "('G,nat,'G,'G\<times>'G) EncScheme" where
- "ElGamal = LOCAL pk m0 c1x c2x sk sk' y gm gy.
+ "ElGamal = LOCAL pk m c1 c2 sk sk' y gm gy.
    Abs_EncScheme (proc() { sk <- uniform {0..<q}; return (g^sk, sk) },
-                  proc(pk,m0) { y <- uniform {0..<q}; return (g^y, pk^y * m0) },
-                  proc(sk',(c1x,c2x)) { gy := c1x; gm := c2x; return Some (gm * inverse (gy^sk')) })"
+                  proc(pk,m) { y <- uniform {0..<q}; return (g^y, pk^y * m) },
+                  proc(sk,(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk)) })" (* TODO: sk' \<rightarrow> sk *)
 
 
 procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
-  "Correctness <$> E = LOCAL m m2 succ pk sk c.
+  "Correctness <$> E = LOCAL m m2 pk sk c.
   proc(m) {
     (pk,sk) := call keygen<$>E ();
     c := call enc<$>E (pk, m);
     m2 := call dec<$>E (sk, c);
-    succ := (m2 = Some m);
-    return succ
+    return (m2 = Some m)
   }"
 
 
@@ -111,29 +110,6 @@ ML {*
 Procs_Typed.get_procedure_info @{context} true @{term "Correctness<$>ElGamal"}
 *}
 
-(* TODO move *)
-lemma rename_local_variables_unit_pattern [simp]: "rename_local_variables_pattern ren unit_pattern = unit_pattern"
-  by later
-
-lemma rename_local_variables_variable_pattern [simp]: "rename_local_variables_pattern ren (variable_pattern v) = variable_pattern (rename_local_variables_var ren v)"
-  by later
-
-lemma rename_local_variables_sample [simp]: "rename_local_variables ren (sample x e) = sample (rename_local_variables_pattern ren x) (rename_local_variables_expression ren e)"
-  by later
-
-lemma rename_local_variables_apply_expression [simp]: "rename_local_variables_expression ren (apply_expression e v)
-     = apply_expression (rename_local_variables_expression ren e) (rename_local_variables_var ren v)"
-  by later
-
-lemma rename_local_variables_var_same [simp]: "rename_local_variables_var ((n,m)#X) (LVariable n) = rename_local_variables_var X (LVariable m)"
-  by later
-
-lemma rename_local_variables_var_notsame [simp]: "n\<noteq>x \<Longrightarrow> m\<noteq>x \<Longrightarrow> rename_local_variables_var ((n,m)#X) (LVariable x) = LVariable x"
-  by later
-
-lemma rename_local_variables_const_expression [simp]:
-  "rename_local_variables_expression X (const_expression e) = const_expression e"
-  by later
 
 lemma correctness:
   shows "LOCAL succ0. hoare {True} succ0 := call Correctness <$> ElGamal(m) {succ0}"

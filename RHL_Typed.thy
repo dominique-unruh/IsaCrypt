@@ -207,17 +207,18 @@ qed
 (* Outputs the list of parameters of callproc_rule, ordered like the arguments to Drule.instantiate' *)
 ML {* Term.add_vars (Thm.prop_of @{thm callproc_rule}) [] |> rev |> map Var |> map (Syntax.string_of_term @{context}) |> String.concatWith "\n" |> writeln *}
 
-(* If the number of subgoals change, inline_rule_conditions_tac must be adapted accordingly *)
+(* If the subgoals change, inline_rule_conditions_tac must be adapted accordingly *)
 (* locals and non_parg_locals have to be already renamed *)
 lemma callproc_rule_renamed:
   fixes p::"('a::prog_type,'b::prog_type) procedure" and x::"'b pattern" and args::"'a expression"
     and locals::"variable_untyped list" and V::"variable_untyped set"
     and non_parg_locals::"variable_untyped list"
     and renaming::"variable_name_renaming"
+
   defines "body == p_body p"
   defines "ret == p_return p"
   defines "pargs == p_args p"
-(*  defines "GL == {x. vu_global x}" *)
+
   assumes proc_locals: "local_variable_name_renaming renaming ` (set(local_vars body) \<union> filter_local (set(p_vars pargs) \<union> set(e_vars ret))) \<subseteq> set locals"
   assumes locals_local: "filter_global (set locals) = {}"
   assumes localsV: "V \<inter> set locals \<subseteq> set (p_vars x)"

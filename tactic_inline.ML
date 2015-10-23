@@ -70,21 +70,40 @@ fun some _ (SOME x) = x : thm
      error ("Could not access body etc. of "^ppat)
      end
 
+val callproc_rule_conditions_tac_simpset =
+  let val subgoaler_ss = 
+            (put_simpset HOL_basic_ss @{context})
+              addsimps @{thms List.list.inject String.char.inject String.nibble.distinct HOL.simp_thms}
+            |> Raw_Simplifier.simpset_of
+  in
+  (put_simpset HOL_basic_ss @{context})
+    addsimps @{thms callproc_conditions_simp.callproc_conditions_simp}
+  |> Simplifier.set_subgoaler (fn ctx => (@{print} "init_subgoaler"; simp_tac (put_simpset subgoaler_ss ctx)))
+  |> Raw_Simplifier.simpset_of
+  end;;
+
 (* If the number of precondition of "callproc_rule" changed, need to change the number after NGOALS accordingly.
    callproc_rule_conditions_tac is supposed to solve all subgoals of "callproc_rule" except the last one. *) 
 fun callproc_rule_conditions_tac ctx (procthms:Procs_Typed.procedure_info) i =
-  let val simp = Raw_Simplifier.rewrite_goal_tac ctx 
+  let (*val simp = Raw_Simplifier.rewrite_goal_tac ctx 
          ([#body_local_vars procthms |> some procthms, 
            #return_vars procthms |> some procthms, 
            #args procthms |> some procthms] @ 
-         @{thms callproc_conditions_simp.callproc_conditions_simp}) in
+         @{thms callproc_conditions_simp.callproc_conditions_simp})*)
+      val _ = @{print} "callproc_rule_conditions_tac"
+      val simpset = (put_simpset callproc_rule_conditions_tac_simpset ctx)
+            addsimps [#body_local_vars procthms |> some procthms, 
+                      #return_vars procthms |> some procthms, 
+                      #args procthms |> some procthms]
+  in
   NGOALS i 6 (fn i =>
     if i=4 then ASSERT_SUCCESS' (solve_tac ctx @{thms callproc_conditions_simp.callproc_goal4})
                   (fn t => TERM("callproc_rule_conditions_tac, goal 4", [t])) 4
     else
-      simp i
+      simp_tac simpset i
       (* THEN print_tac ctx ("condition "^string_of_int i) *)
-      THEN (ASSERT_SUCCESS' (fast_force_tac ctx) (fn t => TERM("callproc_rule_conditions_tac, goal "^string_of_int i, [t])) i))
+      (* TODO: what is the fasted tactic for set equalities? *)
+      THEN (ASSERT_SUCCESS' (simp_tac ctx) (fn t => TERM("callproc_rule_conditions_tac, goal "^string_of_int i, [t])) i))
   end
 
 fun callproc_rule_tac' ctx (procthms:Procs_Typed.procedure_info) renaming locals non_parg_locals i =
