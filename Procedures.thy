@@ -166,17 +166,17 @@ where
 | subst_proc_ProcAbs: "subst_proc k s (ProcAbs t) = ProcAbs (subst_proc (Suc k) (lift_proc s 0) t)"
 
 (* TODO remove? Try (seems to be handled automatically by simp anyway) *)
-lemma subst_eq [simp]: "subst_proc k u (ProcRef k) = u"
+(* lemma subst_eq [simp]: "subst_proc k u (ProcRef k) = u"
   by simp
-
+ *)
 (* TODO remove? Try (seems to be handled automatically by simp anyway) *)
-lemma subst_gt [simp]: "i < j ==> subst_proc i u (ProcRef j) = ProcRef (j - 1)"
+(* lemma subst_gt [simp]: "i < j ==> subst_proc i u (ProcRef j) = ProcRef (j - 1)"
   by (simp)
-
+ *)
 (* TODO remove? Try (seems to be handled automatically by simp anyway) *)
-lemma subst_lt [simp]: "j < i ==> subst_proc i u (ProcRef j) = ProcRef j"
+(* lemma subst_lt [simp]: "j < i ==> subst_proc i u (ProcRef j) = ProcRef j"
   by (simp)
-
+ *)
 lemma lift_lift:
   shows "i < k + 1 \<Longrightarrow> lift_proc_in_prog (lift_proc_in_prog p i) (Suc k) = lift_proc_in_prog (lift_proc_in_prog p k) i"
   and   "i < k + 1 \<Longrightarrow> lift_proc (lift_proc t i) (Suc k) = lift_proc (lift_proc t k) i"
@@ -256,6 +256,12 @@ and brc_ProcPair: "beta_reduce_proc (ProcPair p1 p2) u"
 and brc_ProcUnpair: "beta_reduce_proc (ProcUnpair b p) u"
 and brc_ProcRef: "beta_reduce_proc (ProcRef i) u"
 
+lemma subst_well_typed_id:
+  shows "well_typed p' \<Longrightarrow> subst_proc_in_prog n q p' = p'"
+    and "well_typed_proc p \<Longrightarrow> subst_proc n q p = p"
+apply (induction p' and p)
+apply auto apply (rename_tac x p a)
+by (case_tac p, auto)
 
 
 locale beta_reduce_proofs begin
@@ -1129,6 +1135,32 @@ qed
 
 lemmas well_typed_beta_reduce = beta_reduce_proofs.well_typed_beta_reduce
 
+lemma beta_reduce_subst_proc1:
+  shows "beta_reduce_prog p p' \<Longrightarrow> beta_reduce_prog (subst_proc_in_prog i s p) (subst_proc_in_prog i s p')"
+    and "beta_reduce_proc q q' \<Longrightarrow> beta_reduce_proc (subst_proc i s q) (subst_proc i s q')"
+proof (induct arbitrary: s i and s i rule:beta_reduce_prog_beta_reduce_proc.inducts)
+print_cases
+  case (br_Seq1 a b u) thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_Seq1)
+  next case (br_Seq2 a b u) thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_Seq2)
+  next case br_While thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_While)
+  next case br_IfTE1 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_IfTE1)
+  next case br_IfTE2 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_IfTE2)
+  next case br_CallProc thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_CallProc)
+  next case br_Proc thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_Proc)
+  next case br_ProcAppl1 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcAppl1)
+  next case br_ProcAppl2 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcAppl2)
+  next case (br_beta a b) show ?case apply simp
+    by (metis Procedures.subst_subst(2) beta_reduce_prog_beta_reduce_proc.br_beta zero_less_Suc)
+  next case (br_ProcAbs a b) show ?case apply simp
+    apply (rule beta_reduce_prog_beta_reduce_proc.br_ProcAbs)
+    by (rule br_ProcAbs.hyps)
+  next case br_ProcPair1 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcPair1)
+  next case br_ProcPair2 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcPair2)
+  next case br_ProcUnpair thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcUnpair)
+  next case br_ProcUnpairPair thus ?case apply simp
+    using beta_reduce_prog_beta_reduce_proc.br_ProcUnpairPair by presburger
+qed
+
 lemma beta_reduce_preserves_well_typed:
   shows "well_typed'' E p' \<Longrightarrow> well_typed'' E (beta_reduce' p')" (is "?assm' \<Longrightarrow> ?goal'")
     and "well_typed_proc'' E p T \<Longrightarrow> well_typed_proc'' E (beta_reduce p) T" (is "?assm \<Longrightarrow> ?goal")
@@ -1347,33 +1379,6 @@ apply (subst beta_reduce_ProcAppl1) close (fact assms) close (fact assms)
 apply (subst beta_reduce_ProcAppl2) apply (rule beta_reduce_preserves_well_typed) close (fact assms) close (fact assms)
 by simp
 
-
-(* TODO move *)
-lemma beta_reduce_subst_proc1:
-  shows "beta_reduce_prog p p' \<Longrightarrow> beta_reduce_prog (subst_proc_in_prog i s p) (subst_proc_in_prog i s p')"
-    and "beta_reduce_proc q q' \<Longrightarrow> beta_reduce_proc (subst_proc i s q) (subst_proc i s q')"
-proof (induct arbitrary: s i and s i rule:beta_reduce_prog_beta_reduce_proc.inducts)
-print_cases
-  case (br_Seq1 a b u) thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_Seq1)
-  next case (br_Seq2 a b u) thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_Seq2)
-  next case br_While thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_While)
-  next case br_IfTE1 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_IfTE1)
-  next case br_IfTE2 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_IfTE2)
-  next case br_CallProc thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_CallProc)
-  next case br_Proc thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_Proc)
-  next case br_ProcAppl1 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcAppl1)
-  next case br_ProcAppl2 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcAppl2)
-  next case (br_beta a b) show ?case apply simp
-    by (metis Procedures.subst_subst(2) beta_reduce_prog_beta_reduce_proc.br_beta zero_less_Suc)
-  next case (br_ProcAbs a b) show ?case apply simp
-    apply (rule beta_reduce_prog_beta_reduce_proc.br_ProcAbs)
-    by (rule br_ProcAbs.hyps)
-  next case br_ProcPair1 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcPair1)
-  next case br_ProcPair2 thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcPair2)
-  next case br_ProcUnpair thus ?case by (simp add: beta_reduce_prog_beta_reduce_proc.br_ProcUnpair)
-  next case br_ProcUnpairPair thus ?case apply simp
-    using beta_reduce_prog_beta_reduce_proc.br_ProcUnpairPair by presburger
-qed
   
 lemma subst_proc_beta_reduce':
   assumes wt_p: "well_typed'' (F@U#E) p"

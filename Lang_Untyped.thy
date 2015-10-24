@@ -111,10 +111,18 @@ lemma memory_lookup_untyped_type: "memory_lookup_untyped m v \<in> t_domain (vu_
 
 definition "memory_update_untyped m v x = 
     Abs_memory ((Rep_memory m)(v:=if x\<in>t_domain(vu_type v) then x else t_default(vu_type v)))"
-lemma Rep_memory_update_untyped: "Rep_memory (memory_update_untyped m v x) 
+
+lemma Rep_memory_update_untyped': "Rep_memory (memory_update_untyped m v x) 
         = ((Rep_memory m)(v:=if x\<in>t_domain(vu_type v) then x else t_default(vu_type v)))"
   unfolding memory_update_untyped_def apply (subst Abs_memory_inverse)
   using Rep_memory by auto
+
+lemma Rep_memory_update_untyped:
+  assumes "v \<in> t_domain (vu_type x)" 
+  shows "Rep_memory (memory_update_untyped m x v) = (Rep_memory m)(x := v)"
+  unfolding memory_update_untyped_def apply (subst Abs_memory_inverse)
+  using Rep_memory assms by auto
+
 lemma memory_lookup_update_same_untyped: "a \<in> t_domain (vu_type v) \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) v = a"
   unfolding memory_lookup_untyped_def memory_update_untyped_def 
   apply auto
@@ -129,15 +137,6 @@ lemma memory_lookup_update_notsame_untyped:
   apply (subst Abs_memory_inverse, auto)
   using Rep_memory Abs_memory_inverse Rep_type t_default_def t_domain_def by auto
   
-(*
-lemma memory_lookup_update_same_untyped_bad: "a \<notin> t_domain (vu_type v) \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) v = t_default (vu_type v)"
-  unfolding memory_lookup_untyped_def memory_update_untyped_def Let_def
-  apply auto
-  apply (subst Abs_memory_inverse, auto)
-  using Rep_memory apply auto
-  by (subst Abs_memory_inverse, auto)
-*)
-
 lemma memory_lookup_update_untyped: "memory_lookup_untyped (memory_update_untyped m v a) w = 
   (if v=w then (if a \<in> t_domain (vu_type v) then a else t_default (vu_type v)) else memory_lookup_untyped m w)"
   apply (cases "v=w")
@@ -148,6 +147,11 @@ lemma memory_lookup_update_untyped: "memory_lookup_untyped (memory_update_untype
   unfolding memory_lookup_untyped_def memory_update_untyped_def Let_def
   using Abs_memory_inverse Rep_memory Rep_type t_default_def t_domain_def by auto
 
+lemma memory_update_lookup_untyped: "memory_update_untyped m x (memory_lookup_untyped m x) = m"
+  apply (rule Rep_memory_inject[THEN iffD1])
+  apply (subst Rep_memory_update_untyped)
+  using memory_lookup_untyped_type close auto
+  unfolding memory_lookup_untyped_def by auto
 
 subsection {* Expressions *}
 
@@ -518,8 +522,6 @@ proof -
     using t by simp
 qed
 
-
-(* TODO move after rename_variables_expression *)
 lemma eu_vars_rename_variables_expression: 
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
   assumes global: "\<And>x. vu_global (f x) = vu_global x"
@@ -527,6 +529,7 @@ lemma eu_vars_rename_variables_expression:
 apply (subst eu_vars_def)
 apply (subst Rep_rename_variables_expression)
 using assms by simp_all
+
 
 lemma eu_fun_rename_variables_expression: 
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
@@ -739,7 +742,7 @@ proof -
     
   show ?thesis
   apply (subst Rep_memory_inject[symmetric])
-  unfolding Rep_memory_update_untyped Rep_rename_variables_memory[OF type]
+  unfolding Rep_memory_update_untyped' Rep_rename_variables_memory[OF type]
   using bij_rw type by auto
 qed
 

@@ -52,10 +52,15 @@ apply (rule liftproc_wt_id[where E="[]"])
 apply (rule procedure_functor_welltyped)
 by simp
 
+
 lemma subst_proc_procedure_functor_mk_untyped [simp]:
   fixes p::"'a::procedure_functor"
   shows "subst_proc i q (procedure_functor_mk_untyped p) = procedure_functor_mk_untyped p"
 by (metis Procedures.subst_lift(2) lift_proc_procedure_functor_mk_untyped)
+
+lemma beta_reduce_procedure_functor_mk_untyped [simp]:
+  "beta_reduce (procedure_functor_mk_untyped x) = procedure_functor_mk_untyped x"
+by (simp add: beta_reduced_beta_reduce_id)
 
 subsubsection "Procedure functions"
 
@@ -131,10 +136,6 @@ qed
 end
 
 
-(* TODO move *)
-lemma beta_reduce_procedure_functor_mk_untyped [simp]:
-  "beta_reduce (procedure_functor_mk_untyped x) = procedure_functor_mk_untyped x"
-by (simp add: beta_reduced_beta_reduce_id)
 
 
 definition fst_procfun :: "('a::procedure_functor*'b::procedure_functor) =proc=> 'a" where
@@ -570,13 +571,6 @@ proof -
     unfolding subst_prog1_def q_def program_def seq_def by auto
 qed
 
-(* TODO: move *)
-lemma subst_well_typed_id:
-  shows "well_typed p' \<Longrightarrow> subst_proc_in_prog n q p' = p'"
-    and "well_typed_proc p \<Longrightarrow> subst_proc n q p = p"
-apply (induction p' and p)
-apply auto apply (rename_tac x p a)
-by (case_tac p, auto)
 
 
 lemma closed:

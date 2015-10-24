@@ -72,6 +72,11 @@ subsection {* Memories *}
 definition "memory_lookup m (v::'a variable) :: ('a::prog_type) == inv embedding (memory_lookup_untyped m (mk_variable_untyped v))"
 definition "memory_update m (v::'a variable) (a::'a::prog_type) =
   memory_update_untyped m (mk_variable_untyped v) (embedding a)"
+
+lemma Rep_memory_update [simp]:
+  shows "Rep_memory (memory_update m x v) = (Rep_memory m)(mk_variable_untyped x := embedding v)"
+  unfolding memory_update_def by (subst Rep_memory_update_untyped', auto simp: embedding_Type)
+
 lemma memory_lookup_update_same [simp]: "memory_lookup (memory_update m v a) v = a"
   unfolding memory_lookup_def memory_update_def
   apply (subst memory_lookup_update_same_untyped)
@@ -99,6 +104,14 @@ proof -
   thus ?thesis unfolding v_def memory_lookup_def .
 qed
 
+lemma memory_update_lookup: "memory_update m x (memory_lookup m x) = m"
+  unfolding memory_update_def memory_lookup_def
+  apply (rule Rep_memory_inject[THEN iffD1], simp)
+  unfolding  memory_lookup_def
+  apply (subst embedding_inv_embedding)
+   close (simp add: embedding_Type)
+  apply (subst memory_update_lookup_untyped)
+  by rule
 
 subsection {* Expressions *}
 
@@ -629,8 +642,8 @@ lemma Rep_callproc: "Rep_program (callproc v p a) = CallProc (mk_pattern_untyped
   by (auto simp: mk_procedure_untyped_def)
   
 (* TODO remove? *)
-lemma list_all2_swap: "list_all2 P x y = list_all2 (\<lambda>x y. P y x) y x"
-  by (metis list_all2_conv_all_nth)
+(* lemma list_all2_swap: "list_all2 P x y = list_all2 (\<lambda>x y. P y x) y x"
+  by (metis list_all2_conv_all_nth) *)
 
 lemma mk_untyped_callproc [simp]: "mk_program_untyped (callproc v proc args) =
   CallProc (mk_pattern_untyped v) (mk_procedure_untyped proc) (mk_expression_untyped args)"
@@ -681,8 +694,6 @@ lemma denotation_skip_seq [simp]: "denotation (seq c Lang_Typed.skip) = denotati
 
 lemmas denotation_simp = denotation_seq denotation_skip denotation_assign denotation_sample denotation_ifte denotation_while denotation_callproc
 
-(* TODO: goes in the wrong direction for nice formatting.
-  We want left parenthized denotations! *)
 lemma denotation_seq_assoc: "denotation (seq (seq x y) z) = denotation (seq x (seq y z))"
   unfolding denotation_seq[THEN ext] 
   unfolding compose_distr_assoc ..

@@ -14,6 +14,18 @@ lemma hoare_untyped_hoare_denotation: "hoare_untyped pre c post = hoare_denotati
   unfolding hoare_untyped_def hoare_denotation_def ..
 
 
+lemma readonly_notin_vars: 
+  fixes x::variable_untyped and a::val and c::program_rep
+  assumes "x\<notin>set(vars_untyped c)"
+  shows "hoare_untyped (\<lambda>m. memory_lookup_untyped m x = a) c (\<lambda>m. memory_lookup_untyped m x = a)"
+SORRY
+
+lemma readonly_assign: 
+  fixes x::pattern_untyped and y::variable_untyped and e::expression_untyped and a::val
+  assumes "y\<notin>set(p_vars x)"
+  shows "hoare_untyped (\<lambda>m. memory_lookup_untyped m y = a) (Assign x e) (\<lambda>m. memory_lookup_untyped m y = a)"
+SORRY
+
 
 lemma seq_rule:
   fixes P Q R c d
@@ -74,20 +86,6 @@ lemma case_rule:
   assumes "\<And>x. hoare_untyped (\<lambda>m. P m \<and> f m = x) c Q"
   shows "hoare_untyped P c Q"
 using assms unfolding hoare_untyped_def by metis
-
-(* TODO move *)
-lemma readonly_notin_vars: 
-  fixes x::variable_untyped and a::val and c::program_rep
-  assumes "x\<notin>set(vars_untyped c)"
-  shows "hoare_untyped (\<lambda>m. memory_lookup_untyped m x = a) c (\<lambda>m. memory_lookup_untyped m x = a)"
-SORRY
-
-(* TODO move *)
-lemma readonly_assign: 
-  fixes x::pattern_untyped and y::variable_untyped and e::expression_untyped and a::val
-  assumes "y\<notin>set(p_vars x)"
-  shows "hoare_untyped (\<lambda>m. memory_lookup_untyped m y = a) (Assign x e) (\<lambda>m. memory_lookup_untyped m y = a)"
-SORRY
 
 
 end
