@@ -37,15 +37,48 @@ lemma lang_simp_skip_Seq [lang_simp]: "fun_equiv denotation (seq Lang_Typed.skip
 lemma lang_simp_seq_skip [lang_simp]: "fun_equiv denotation (seq x Lang_Typed.skip) x"
   unfolding fun_equiv_def by (fact denotation_skip_seq)
 lemma lang_simp_iftrue [lang_simp]: "(\<And>m. e_fun e m) \<Longrightarrow> fun_equiv denotation (ifte e c d) c"
-  SORRY
+  unfolding fun_equiv_def by (subst denotation_ifte[THEN ext], simp)
 lemma lang_simp_iffalse [lang_simp]: "(\<And>m. \<not> e_fun e m) \<Longrightarrow> fun_equiv denotation (ifte e c d) d"
-  SORRY
+  unfolding fun_equiv_def by (subst denotation_ifte[THEN ext], simp)
 lemma lang_simp_whilefalse [lang_simp]: "(\<And>m. \<not> e_fun e m) \<Longrightarrow> fun_equiv denotation (Lang_Typed.while e c) Lang_Typed.skip"
+  (* unfolding fun_equiv_def by (subst denotation_while[THEN ext], simp) *)
   SORRY
+
+(* TODO move *)
+lemma Rep_memory_update_untyped':
+  assumes "v \<in> t_domain (vu_type x)" 
+  shows "Rep_memory (memory_update_untyped m x v) = (Rep_memory m)(x := v)"
+  unfolding memory_update_untyped_def apply (subst Abs_memory_inverse)
+  using Rep_memory assms by auto
+
+(* TODO move *)
+lemma Rep_memory_update [simp]:
+  shows "Rep_memory (memory_update m x v) = (Rep_memory m)(mk_variable_untyped x := embedding v)"
+  unfolding memory_update_def by (subst Rep_memory_update_untyped', auto simp: embedding_Type)
+
+(* TODO move *)
+lemma memory_update_lookup_untyped: "memory_update_untyped m x (memory_lookup_untyped m x) = m"
+  apply (rule Rep_memory_inject[THEN iffD1])
+  apply (subst Rep_memory_update_untyped')
+  using memory_lookup_untyped_type close auto
+  unfolding memory_lookup_untyped_def by auto
+
+(* TODO move *)
+lemma memory_update_lookup: "memory_update m x (memory_lookup m x) = m"
+  unfolding memory_update_def memory_lookup_def
+  apply (rule Rep_memory_inject[THEN iffD1], simp)
+  unfolding  memory_lookup_def
+  apply (subst embedding_inv_embedding)
+   close (simp add: embedding_Type)
+  apply (subst memory_update_lookup_untyped)
+  by rule
+
 lemma lang_simp_ifsame [lang_simp]: "fun_equiv denotation c d \<Longrightarrow> fun_equiv denotation (ifte e c d) c"
-  SORRY
-lemma lang_simp_selfassign [lang_simp]: "e_fun e m = memory_lookup m x \<Longrightarrow> fun_equiv denotation (assign (variable_pattern x) e) Lang_Typed.skip"
-  SORRY
+  unfolding fun_equiv_def by (subst denotation_ifte[THEN ext], auto)
+lemma lang_simp_selfassign [lang_simp]: "(\<And>m. e_fun e m = memory_lookup m x) \<Longrightarrow> fun_equiv denotation (assign (variable_pattern x) e) Lang_Typed.skip"
+  unfolding fun_equiv_def denotation_assign[THEN ext] denotation_skip[THEN ext] apply auto
+  by (subst memory_update_lookup, simp)
+
 
 experiment begin
 

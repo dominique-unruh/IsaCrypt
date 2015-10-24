@@ -8,4 +8,7 @@ if [ "$1" = "x" ]; then
     shift
 fi
 
-"$ISADIR"/bin/isabelle jedit -l "$HEAP" -d . "$@" &
+( 
+    "$ISADIR"/bin/isabelle jedit -l "$HEAP" -d . "$@"
+    git-gui
+) &

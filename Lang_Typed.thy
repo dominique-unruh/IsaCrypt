@@ -21,6 +21,12 @@ lemma embedding_Type_range: "range (embedding::'a\<Rightarrow>val) = t_domain (T
 lemma t_default_Type [simp]: "t_default (Type TYPE('a::prog_type)) = embedding (default::'a)"
   by (simp add: Abs_type_inverse t_default_def Type_def)
 
+lemma embedding_inv_embedding:
+  assumes "x \<in> t_domain (Type TYPE('a::prog_type))"
+  shows "embedding (inv embedding x :: 'a) = x"
+unfolding inv_def apply (rule exE_some[where P="\<lambda>y. embedding y = x"])
+using assms unfolding embedding_Type_range[symmetric] by auto
+
 
 subsection {* Variables *}
 
