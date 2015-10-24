@@ -311,6 +311,36 @@ fun hoare_obseq_replace_tac ctx redex obseq_tac =
                         (ERROR "obseq_tac failed"))
   end)
 
+(* Simpset that does the following simplifications:
+
+1. simplifies away occurrences of rename_local_variables
+*)  
+val after_inline_simpset =
+  let val subgoaler_ss = 
+            (put_simpset HOL_basic_ss @{context})
+              addsimps @{thms List.list.inject String.char.inject String.nibble.distinct HOL.simp_thms}
+            |> Raw_Simplifier.simpset_of
+  in
+  (put_simpset HOL_basic_ss @{context})
+    addsimps @{thms 
+Lang_Typed.rename_local_variables_variable_pattern
+Lang_Typed.rename_local_variables_var_id
+Lang_Typed.rename_local_variables_seq
+Lang_Typed.rename_local_variables_sample
+Lang_Typed.rename_local_variables_assign
+Lang_Typed.rename_local_variables_callproc
+Lang_Typed.rename_local_variables_pair_pattern
+Lang_Typed.rename_local_variables_unit_pattern
+Lang_Typed.rename_local_variables_const_expression
+Lang_Typed.rename_local_variables_apply_expression
+rename_local_variables_var_same
+rename_local_variables_var_notsame
+}
+  |> Simplifier.set_subgoaler (fn ctx => (@{print} "init_subgoaler"; simp_tac (put_simpset subgoaler_ss ctx)))
+  |> Raw_Simplifier.simpset_of
+  end;;
+
+
 (* Inlines the procedure "proc" (one occurrence only) in the current goal.
 
   It is roughly equivalent to: 
@@ -337,6 +367,7 @@ fun inline_tac ctx facts proc =
         (* val pattern = Drule.instantiate' [] [] callproc_pattern *)
         val callproc = callproc_rule_tac ctx facts
         val obseq = hoare_obseq_replace_tac ctx pattern (SOME callproc) i
-     in obseq end)
+        val simp = simp_tac (put_simpset after_inline_simpset ctx) i
+     in obseq THEN simp end)
 
 end

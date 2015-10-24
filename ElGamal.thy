@@ -106,23 +106,14 @@ schematic_lemma dec_def': "dec<$>ElGamal = ?x"
   unfolding ElGamal_def by simp
 local_setup {* Procs_Typed.register_procedure_thm @{thm dec_def'} *}
 
-ML {* 
-Procs_Typed.get_procedure_info @{context} true @{term "Correctness<$>ElGamal"}
-*}
-
-
 lemma correctness:
   shows "LOCAL succ0. hoare {True} succ0 := call Correctness <$> ElGamal(m) {succ0}"
 apply (inline "Correctness<$>ElGamal")
-apply (simp) (* TODO get rid of this *)
 apply (inline "keygen<$>ElGamal")
-apply (simp) (* TODO get rid of this *)
 apply (inline "dec<$>ElGamal")
-apply (simp) (* TODO get rid of this *)
 apply (inline "enc<$>ElGamal")
-apply (simp) (* TODO get rid of this *)
 apply (wp sample) apply skip apply auto
-unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat]) 
+unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat])
 apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
 
 end (* context: group *)
