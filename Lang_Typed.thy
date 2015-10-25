@@ -1192,6 +1192,12 @@ lemma rename_local_variables_var_notsame [simp]: "n\<noteq>x \<Longrightarrow> m
   unfolding local_variable_name_renaming1_def 
   by (simp add: mk_variable_untyped_def)
 
+lemma rename_local_variables_var_global [simp]: "rename_local_variables_var X (Variable x) = Variable x"
+  apply (rule mk_variable_untyped_inject[THEN iffD1], simp)
+  unfolding local_variable_name_renaming_def
+  apply (induct X, simp)
+  unfolding local_variable_name_renaming1_def by auto
+
 
 lemma rename_local_variables_const_expression [simp]:
   "rename_local_variables_expression X (const_expression e) = const_expression e"

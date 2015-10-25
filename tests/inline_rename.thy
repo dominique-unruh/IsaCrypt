@@ -13,8 +13,8 @@ procedure proc1 :: "(int,int) procedure" where
 local_setup {* Procs_Typed.register_procedure_thm @{thm proc1_def} *}
 
 lemma 
-  assumes "LOCAL x a a'. hoare { True } a:=1; a' := z; x := default; x := a'; z := x; z := z+a' { z=undefined }"
-  shows "LOCAL a. hoare { True } a:=1; z:=call proc1(z) { z=undefined }"
+  assumes "LOCAL x a aa. hoare { True } a:=(1::int); aa := z; x := default; x := aa; z := x; z := z+aa { z=undefined }"
+  shows "LOCAL a. hoare { True } a:=(1::int); z:=call proc1(z) { z=undefined }"
 apply (inline proc1)
 apply simp
 by (fact assms)

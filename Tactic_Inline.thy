@@ -93,6 +93,10 @@ lemma filter_local_insert1: "filter_local (insert (mk_variable_untyped (LVariabl
       insert (mk_variable_untyped (LVariable n :: 'a::prog_type variable)) (filter_local X)"
   apply (rule eq_reflection) unfolding filter_local_def by auto
   
+lemma filter_local_insert2: "filter_local (insert (mk_variable_untyped (Variable n)) X) == 
+      filter_local X"
+  apply (rule eq_reflection) unfolding filter_local_def by auto
+  
 lemma filter_local_empty: "filter_local {} == {}"
   apply (rule eq_reflection) unfolding filter_local_def by auto
 
@@ -113,7 +117,7 @@ lemma local_variable_name_renaming_notsame:
   apply (subst rename_local_variables_var_notsame)
   using assms by simp_all
 
-lemmas callproc_conditions_simp =  
+(* lemmas callproc_conditions_simp =  
   filter_global' filter_global'_cons1 filter_global'_cons2
   filter_global'_nil filter_local_union filter_local' vars_variable_pattern[THEN eq_reflection]
   filter_local'_cons1 filter_local'_cons2 filter_local'_nil filter_local_insert1
@@ -124,6 +128,8 @@ lemmas callproc_conditions_simp =
   rename_local_variables_pattern_id[THEN eq_reflection] local_variable_name_renaming_id
   local_variable_name_renaming_set local_variable_name_renaming_cons 
   local_variable_name_renaming_nil2 local_variable_name_renaming_notsame
+
+ *)
 
 (* TODO remove *)
 ML {*

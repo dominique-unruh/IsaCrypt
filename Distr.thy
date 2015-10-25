@@ -28,7 +28,7 @@ lemma scaleR_one_distr: "1 *\<^sub>R (\<mu>::'a distr) = \<mu>"
 
 definition "weight_distr \<mu> = real (\<integral>\<^sup>+x. Rep_distr \<mu> x \<partial>count_space UNIV)"
 
-lemma ereal_indicator: "\<And>x. ereal (indicator {a} x) = indicator {a} x" unfolding indicator_def by auto
+(* lemma ereal_indicator: "\<And>x. ereal (indicator {a} x) = indicator {a} x" unfolding indicator_def by auto *)
 
 
 definition point_distr :: "'a \<Rightarrow> 'a distr" where "point_distr a = Abs_distr (indicator {a})"
@@ -330,6 +330,34 @@ qed
 
 definition apply_to_distr :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
   "apply_to_distr f \<mu> = Abs_distr (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
+lemma Rep_apply_to_distr [simp]: "Rep_distr (apply_to_distr f \<mu>)
+  = (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
+proof -
+  def d == "\<lambda>x. ereal (Rep_distr \<mu> x)"
+  have dpos: "\<And>x. d x \<ge> 0" and d_int: "(\<integral>\<^sup>+ y. d y \<partial>count_space UNIV) \<le> 1" 
+    unfolding d_def using Rep_distr Rep_distr_geq0 by auto
+  have "\<And>x. (\<integral>\<^sup>+ xa. d xa * indicator {f xa} x \<partial>count_space UNIV) \<le> (\<integral>\<^sup>+ y. d y \<partial>count_space UNIV)"
+    apply (rule nn_integral_mono)
+    by (simp add: dpos indicator_def)
+  also note d_int
+  also have "(1::ereal) < \<infinity>" by auto
+  finally have finite: "\<And>x. (\<integral>\<^sup>+ xa. d xa * indicator {f xa} x \<partial>count_space UNIV) < \<infinity>" by assumption
+  have leq1: "(\<integral>\<^sup>+ x. (\<integral>\<^sup>+ xa. (d xa * indicator {f xa} x) \<partial>count_space UNIV) \<partial>count_space UNIV) \<le> 1"
+    apply (subst Fubini_count_space)
+    apply (subst nn_integral_cmult_indicator)
+      close (fact dpos)
+     close simp
+    using d_int by (auto simp: one_ereal_def[symmetric])
+  hence leq1': "(\<integral>\<^sup>+ x. ereal (real (\<integral>\<^sup>+ xa. (d xa * indicator {f xa} x) \<partial>count_space UNIV)) \<partial>count_space UNIV) \<le> 1"
+    apply (subst ereal_real') using finite by auto
+  show ?thesis
+    unfolding apply_to_distr_def
+    apply (rule Abs_distr_inverse, auto)
+    using nn_integral_nonneg real_of_ereal_pos close blast
+    apply (subst times_ereal.simps(1)[symmetric], simp)
+    using leq1' unfolding d_def
+    by (metis (no_types, lifting) ereal_mult_indicator nn_integral_cong) 
+qed
 
 lemma compose_point_distr_r [simp]: "compose_distr f (point_distr x) = f x"
 proof -
@@ -351,6 +379,8 @@ lemma compose_point_distr_l [simp]: "compose_distr (\<lambda>x. point_distr (f x
   by (subst ereal_indicator, auto)
 
 lemma apply_to_distr_twice [simp]: "apply_to_distr f (apply_to_distr g \<mu>) = apply_to_distr (\<lambda>x. f (g x)) \<mu>"
+  apply (rule Rep_distr_inject[THEN iffD1])
+  apply simp
   SORRY
 
 lemma apply_to_distr_id [simp]: "apply_to_distr (\<lambda>x. x) \<mu> = \<mu>"

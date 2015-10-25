@@ -77,7 +77,18 @@ val callproc_rule_conditions_tac_simpset =
             |> Raw_Simplifier.simpset_of
   in
   (put_simpset HOL_basic_ss @{context})
-    addsimps @{thms callproc_conditions_simp.callproc_conditions_simp}
+    addsimps @{thms callproc_conditions_simp.filter_global' callproc_conditions_simp.filter_global'_cons1 callproc_conditions_simp.filter_global'_cons2
+  callproc_conditions_simp.filter_global'_nil callproc_conditions_simp.filter_local_union callproc_conditions_simp.filter_local' vars_variable_pattern[THEN eq_reflection]
+  callproc_conditions_simp.filter_local'_cons1 callproc_conditions_simp.filter_local'_cons2 callproc_conditions_simp.filter_local'_nil callproc_conditions_simp.filter_local_insert1
+  callproc_conditions_simp.filter_local_empty callproc_conditions_simp.local_variable_name_renaming_insert callproc_conditions_simp.local_variable_name_renaming_union
+  callproc_conditions_simp.local_variable_name_renaming_nil callproc_conditions_simp.local_variable_name_renaming_same image_empty[THEN eq_reflection]
+  vars_unit_pattern[THEN eq_reflection] vars_pair_pattern[THEN eq_reflection] 
+  append_Cons[THEN eq_reflection] append_Nil[THEN eq_reflection]
+  rename_local_variables_pattern_id[THEN eq_reflection] callproc_conditions_simp.local_variable_name_renaming_id
+  callproc_conditions_simp.local_variable_name_renaming_set callproc_conditions_simp.local_variable_name_renaming_cons 
+  callproc_conditions_simp.local_variable_name_renaming_nil2 callproc_conditions_simp.local_variable_name_renaming_notsame
+  callproc_conditions_simp.filter_local_insert2
+  }
   |> Simplifier.set_subgoaler (fn ctx => (@{print} "init_subgoaler"; simp_tac (put_simpset subgoaler_ss ctx)))
   |> Raw_Simplifier.simpset_of
   end;;
@@ -103,22 +114,24 @@ fun callproc_rule_conditions_tac ctx (procthms:Procs_Typed.procedure_info) i =
       simp_tac simpset i
       (* THEN print_tac ctx ("condition "^string_of_int i) *)
       (* TODO: what is the fasted tactic for set equalities? *)
-      THEN (ASSERT_SUCCESS' (simp_tac ctx) (fn t => TERM("callproc_rule_conditions_tac, goal "^string_of_int i, [t])) i))
+      THEN (ASSERT_SOLVED' (simp_tac ctx) 
+         (fn goal => fn subgoals => raise TERM("callproc_rule_conditions_tac, goal "^string_of_int i,[nth subgoals (i-1)])) i))
+  THEN print_tac ctx "after conds"
   end
 
 fun callproc_rule_tac' ctx (procthms:Procs_Typed.procedure_info) renaming locals non_parg_locals i =
   let val callproc_rule = @{thm callproc_rule_renamed} |> Drule.instantiate' []
         [SOME (Thm.cterm_of ctx renaming), NONE, SOME (Thm.cterm_of ctx locals), NONE, NONE, NONE, SOME (Thm.cterm_of ctx non_parg_locals)]
-      val simp_rules = @{thms vars_variable_pattern[THEN eq_reflection] 
+(*       val simp_rules = @{thms vars_variable_pattern[THEN eq_reflection] 
         assign_default_typed_aux[THEN eq_reflection] assign_default_typed_aux_cons[THEN eq_reflection]
-        assign_default_typed_aux_nil[THEN eq_reflection]} 
+        assign_default_typed_aux_nil[THEN eq_reflection]} *) 
   in rtac callproc_rule i
      (* THEN print_tac ctx "callproc_rule subgoals" *)
      THEN callproc_rule_conditions_tac ctx procthms i
      (* THEN print_tac ctx "conditions done" *)
      THEN Raw_Simplifier.rewrite_goal_tac ctx [#args procthms |> some procthms] i
 (*     THEN print_tac ctx "step1"*)
-     THEN Raw_Simplifier.rewrite_goal_tac ctx simp_rules i
+     (* THEN Raw_Simplifier.rewrite_goal_tac ctx simp_rules i *)
 (*     THEN print_tac ctx "step2"*)
      THEN Raw_Simplifier.rewrite_goal_tac ctx [#return procthms |> some procthms] i
 (*     THEN print_tac ctx "step3"*)
@@ -170,7 +183,7 @@ fun make_renaming ctx to_rename dont_use : (string*string) list * term =
       val renaming = ListPair.zip (to_rename, newnames)
       val renaming_term = renaming |> map (fn (x,y) => HOLogic.mk_prod (HOLogic.mk_string x, HOLogic.mk_string y))
                                    |> HOLogic.mk_list @{typ "string * string"}
-val _ = writeln (Syntax.string_of_term ctx renaming_term)
+(* val _ = writeln (Syntax.string_of_term ctx renaming_term) *)
   in
     (renaming,renaming_term)
   end
@@ -335,6 +348,10 @@ Lang_Typed.rename_local_variables_const_expression
 Lang_Typed.rename_local_variables_apply_expression
 rename_local_variables_var_same
 rename_local_variables_var_notsame
+rename_local_variables_var_global
+vars_variable_pattern[THEN eq_reflection] 
+assign_default_typed_aux[THEN eq_reflection] assign_default_typed_aux_cons[THEN eq_reflection]
+assign_default_typed_aux_nil[THEN eq_reflection]
 }
   |> Simplifier.set_subgoaler (fn ctx => (@{print} "init_subgoaler"; simp_tac (put_simpset subgoaler_ss ctx)))
   |> Raw_Simplifier.simpset_of
@@ -368,6 +385,8 @@ fun inline_tac ctx facts proc =
         val callproc = callproc_rule_tac ctx facts
         val obseq = hoare_obseq_replace_tac ctx pattern (SOME callproc) i
         val simp = simp_tac (put_simpset after_inline_simpset ctx) i
-     in obseq THEN simp end)
+     in obseq THEN 
+print_tac ctx "bla" THEN
+simp end)
 
 end
