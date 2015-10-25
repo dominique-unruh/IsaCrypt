@@ -40,7 +40,7 @@ procedure testproc :: "(unit,unit) procedure \<Rightarrow> (int*unit,int)procedu
   "testproc f = LOCAL x y a z. proc(a) {x:=a; z:=call f(); y:=(1::int); globVar:=x; return x+y;}"
 schematic_lemma testproc_body [procedure_info]: "p_body (testproc f) == ?b" unfolding testproc_def by simp
 schematic_lemma testproc_return [procedure_info]: "p_return (testproc f) == ?b" unfolding testproc_def by simp
-schematic_lemma testproc_args [procedure_info]: "p_args (testproc f) == ?b" unfolding testproc_def by simp
+schematic_lemma testproc_args [procedure_info]: "p_arg (testproc f) == ?b" unfolding testproc_def by simp
 schematic_lemma testproc_body_vars [procedure_info]: "set (vars_proc_global f) == fv \<Longrightarrow> set (vars (p_body (testproc f))) == ?b" unfolding testproc_body by simp
 schematic_lemma testproc_body_local_vars [procedure_info]: "set (local_vars (p_body (testproc f))) == ?b" 
  apply (rule HIDDEN_EQ_I')

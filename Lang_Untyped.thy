@@ -333,9 +333,9 @@ fun well_typed_proc :: "procedure_rep \<Rightarrow> bool" where
 
 typedef program = "{prog. well_typed prog}"
   apply (rule exI[where x=Skip]) by simp
-abbreviation "mk_program_untyped == Rep_program"
+(* abbreviation "mk_program_untyped == Rep_program" *)
 
-lemma well_typed_mk_program_untyped [simp]: "well_typed (mk_program_untyped x)" 
+lemma well_typed_Rep_program [simp]: "well_typed (Rep_program x)" 
   using Rep_program by simp
 
 subsection {* Denotational semantics *}
@@ -411,7 +411,7 @@ fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
 *)
 
 | denotation_untyped_CallProc_bad: "denotation_untyped (CallProc v _ args) m = 0" (* Cannot happen for well-typed programs *)
-definition "denotation prog = denotation_untyped (mk_program_untyped prog)"
+definition "denotation prog = denotation_untyped (Rep_program prog)"
 
 lemma denotation_untyped_assoc: "denotation_untyped (Seq (Seq x y) z) = denotation_untyped (Seq x (Seq y z))"
   unfolding denotation_untyped_Seq[THEN ext] 
@@ -439,7 +439,7 @@ and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" whe
 | "vars_proc_untyped (ProcPair p q) = vars_proc_untyped p @ vars_proc_untyped q"
 | "vars_proc_untyped (ProcUnpair _ p) = vars_proc_untyped p"
 
-definition "vars prog = vars_untyped (mk_program_untyped prog)"
+definition "vars prog = vars_untyped (Rep_program prog)"
 
 definition "lossless_untyped p = (\<forall>m. weight_distr (denotation_untyped p m) = 1)"
 definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"
@@ -698,8 +698,8 @@ lemma rename_variables_expression_compose:
   apply (subst Rep_rename_variables_expression) using type1 type2 o_def close auto using global1 global2 o_def close auto
   apply (subst rename_variables_memory_compose[symmetric]) close (fact type2) close (fact type1)
   apply auto
-  close (simp add: Rep_rename_variables_expression eu_fun_def global1 type1)
-  close (simp add: Rep_rename_variables_expression eu_type_def global1 type1)
+  close (simp add: eu_fun_def global1 type1)
+  close (simp add: eu_type_def global1 type1)
   unfolding eu_vars_def
   apply (subst Rep_rename_variables_expression) close (fact type1) close (fact global1)
   unfolding eu_vars_def by auto

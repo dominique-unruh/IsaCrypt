@@ -109,9 +109,9 @@ fun register_procedure_thm thm lthy =
                       where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
             |> (unfold thm' then_conv unfold @{thm p_body_simp})
 
-      val args = @{termx "p_args (?pattern::(?'a::prog_type, ?'b::prog_type) procedure)"
+      val args = @{termx "p_arg (?pattern::(?'a::prog_type, ?'b::prog_type) procedure)"
                       where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
-            |> (unfold thm' then_conv unfold @{thm p_args_simp})
+            |> (unfold thm' then_conv unfold @{thm p_arg_simp})
 
       val return_vars = @{termx "set (e_vars (p_return (?pattern::(?'a::prog_type, ?'b::prog_type) procedure)))"
                           where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy

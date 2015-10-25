@@ -455,18 +455,18 @@ lemma apply1:
   fixes p::"('b::prog_type,'c::prog_type)procedure" and body body0 and retval::"'c expression"
     and args::"'b pattern" and arg_proc::"'a::procedure_functor"
   assumes subst: "subst_prog1 arg_proc body PROGRAM[\<guillemotleft>body0\<guillemotright>]"
-  defines "p0==procedure_functor_mk_typed (ProcAbs (Proc body (mk_pattern_untyped args) (mk_expression_untyped retval)))"
-  shows "procfun_apply p0 arg_proc = \<lparr> p_body=body0, p_args=args, p_return=retval \<rparr>"
+  defines "p0==procedure_functor_mk_typed (ProcAbs (Proc body (Rep_pattern args) (mk_expression_untyped retval)))"
+  shows "procfun_apply p0 arg_proc = \<lparr> p_body=body0, p_arg=args, p_return=retval \<rparr>"
 proof -
-  have args_type: "Type TYPE('b) = pu_type (mk_pattern_untyped args)"
+  have args_type: "Type TYPE('b) = pu_type (Rep_pattern args)"
     by (metis (mono_tags, lifting) Rep_pattern mem_Collect_eq)
   have wt1: "well_typed_proc'' [procedure_functor_type TYPE('a)]
-     (Proc body (mk_pattern_untyped args) (mk_expression_untyped retval))
+     (Proc body (Rep_pattern args) (mk_expression_untyped retval))
      (ProcTSimple (procedure_type TYPE(('b, 'c) procedure)))"
     apply (subst wt_Proc_iff, auto simp: procedure_type_def)
     using assms unfolding subst_prog1_def args_type by auto
 
-  have wt2: "well_typed_proc'' [] (ProcAbs (Proc body (mk_pattern_untyped args) (mk_expression_untyped retval)))
+  have wt2: "well_typed_proc'' [] (ProcAbs (Proc body (Rep_pattern args) (mk_expression_untyped retval)))
         (procedure_functor_type TYPE('a =proc=> ('b, 'c) procedure))" 
     apply simp apply (rule wt_ProcAbs) by (fact wt1)
 
@@ -483,7 +483,7 @@ proof -
              (procedure_functor_mk_untyped arg_proc) (beta_reduce' body)))) = Rep_program body0"
     using subst unfolding subst_prog1_def program_def by auto
   have subst': "beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped arg_proc)
-                    (beta_reduce' body)) = mk_program_untyped body0"
+                    (beta_reduce' body)) = Rep_program body0"
     apply (subst Abs_program_inverse[symmetric], auto)
     apply (rule well_typed''_well_typed)
     close (metis beta_reduce_preserves_well_typed(1) wt_subst)
@@ -540,7 +540,7 @@ proof -
       apply (rule beta_reduce_preserves_well_typed)
       by (fact wt_q2)
   have q1_c1: "beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' q1)) =
-    mk_program_untyped c1"
+    Rep_program c1"
     apply (subst Abs_program_inject[symmetric], auto)
       apply (rule well_typed''_well_typed)
       apply (rule beta_reduce_preserves_well_typed)
@@ -549,7 +549,7 @@ proof -
       apply (subst Rep_program_inverse)
       using assms(1) unfolding subst_prog1_def program_def by auto
   have q2_c2: "beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' q2)) =
-    mk_program_untyped c2"
+    Rep_program c2"
     apply (subst Abs_program_inject[symmetric], auto)
       apply (rule well_typed''_well_typed)
       apply (rule beta_reduce_preserves_well_typed)
@@ -559,7 +559,7 @@ proof -
       using assms(2) unfolding subst_prog1_def program_def by auto
   have eq: "Abs_program
      (beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' (Seq q1 q2)))) =
-    Abs_program (Seq (mk_program_untyped c1) (mk_program_untyped c2))"
+    Abs_program (Seq (Rep_program c1) (Rep_program c2))"
     apply (tactic "cong_tac @{context} 1", fact refl)
     apply (subst beta_reduce_Seq)
       close (fact wt_q1) close (fact wt_q2)
@@ -575,19 +575,19 @@ qed
 
 lemma closed:
   fixes q c p
-  defines "q == mk_program_untyped c"
+  defines "q == Rep_program c"
   shows "subst_prog1 p q PROGRAM[\<guillemotleft>c\<guillemotright>]"
 unfolding q_def subst_prog1_def program_def apply auto
 apply (metis Rep_program mem_Collect_eq well_typed_extend(1) well_typed_well_typed'')
 apply (subst beta_reduced_beta_reduce_id')
 apply (subst subst_well_typed_id)
-close (metis beta_reduce_preserves_well_typed(1) beta_reduced_beta_reduce' well_typed''_well_typed(1) well_typed_mk_program_untyped well_typed_well_typed'')
+close (metis beta_reduce_preserves_well_typed(1) beta_reduced_beta_reduce' well_typed''_well_typed(1) well_typed_Rep_program well_typed_well_typed'')
 close (rule beta_reduced_beta_reduce')
 apply (subst subst_well_typed_id)
-apply (metis beta_reduce_preserves_well_typed(1) beta_reduced_beta_reduce' well_typed''_well_typed(1) well_typed_mk_program_untyped well_typed_well_typed'')
+apply (metis beta_reduce_preserves_well_typed(1) beta_reduced_beta_reduce' well_typed''_well_typed(1) well_typed_Rep_program well_typed_well_typed'')
 apply (subst beta_reduced_beta_reduce_id')
 apply (rule well_typed_proc_beta_reduced)
-close (fact well_typed_mk_program_untyped)
+close (fact well_typed_Rep_program)
 by (fact Rep_program_inverse)
 
 (*
@@ -606,7 +606,7 @@ lemma callproc:
   fixes p::"'mod::procedure_functor" and q::"'mod =proc=> ('in::prog_type,'out::prog_type)procedure"
         and r::"('in,'out)procedure" and a::"'in expression" and v::"'out pattern"
   assumes qpr: "q <$> p = r"
-  defines "q0 == CallProc (mk_pattern_untyped v) (ProcAppl (procedure_functor_mk_untyped q) (ProcRef 0)) (mk_expression_untyped a)"
+  defines "q0 == CallProc (Rep_pattern v) (ProcAppl (procedure_functor_mk_untyped q) (ProcRef 0)) (mk_expression_untyped a)"
   shows "subst_prog1 p q0 PROGRAM[ \<guillemotleft>callproc v r a\<guillemotright> ]"
 proof (unfold subst_prog1_def, rule conjI)
   let ?E = "[procedure_functor_type TYPE('mod)]"
@@ -702,23 +702,23 @@ end
 lemma vars_proc_global_locals: "{x \<in> set (vars_proc_global p). \<not> vu_global x} = {}"
   unfolding vars_proc_global_def by auto
 lemma mk_procthm_body:
-  assumes "p = \<lparr>p_body = body, p_args = x, p_return = y\<rparr>"
+  assumes "p = \<lparr>p_body = body, p_arg = x, p_return = y\<rparr>"
   shows "p_body p == body" 
 using assms by simp
 
 lemma mk_procthm_return:
-  assumes "p = \<lparr>p_body = body, p_args = x, p_return = ret\<rparr>"
+  assumes "p = \<lparr>p_body = body, p_arg = x, p_return = ret\<rparr>"
   shows "p_return p == ret" 
 using assms by simp
 
 lemma mk_procthm_args:
-  assumes "p = \<lparr>p_body = body, p_args = args, p_return = ret\<rparr>"
-  shows "p_args p == args" 
+  assumes "p = \<lparr>p_body = body, p_arg = args, p_return = ret\<rparr>"
+  shows "p_arg p == args" 
 using assms by simp
 
-lemma p_return_simp: "p_return \<lparr> p_body=body, p_args=args, p_return=ret \<rparr> == ret" by simp
-lemma p_args_simp: "p_args \<lparr> p_body=body, p_args=args, p_return=ret \<rparr> == args" by simp
-lemma p_body_simp: "p_body \<lparr> p_body=body, p_args=args, p_return=ret \<rparr> == body" by simp
+lemma p_return_simp: "p_return \<lparr> p_body=body, p_arg=args, p_return=ret \<rparr> == ret" by simp
+lemma p_arg_simp: "p_arg \<lparr> p_body=body, p_arg=args, p_return=ret \<rparr> == args" by simp
+lemma p_body_simp: "p_body \<lparr> p_body=body, p_arg=args, p_return=ret \<rparr> == body" by simp
 
 subsection {* Support for automatic module type creation *}
 

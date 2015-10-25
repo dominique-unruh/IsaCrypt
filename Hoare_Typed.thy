@@ -8,7 +8,7 @@ definition hoare :: "(memory \<Rightarrow> bool) \<Rightarrow> program \<Rightar
   "hoare pre prog post =
   (\<forall>m. pre m \<longrightarrow> (\<forall>m'. m' \<in> support_distr (denotation prog m) \<longrightarrow> post m'))"
 
-lemma hoare_untyped: "hoare P c Q = hoare_untyped P (mk_program_untyped c) Q"
+lemma hoare_untyped: "hoare P c Q = hoare_untyped P (Rep_program c) Q"
   unfolding denotation_def hoare_def hoare_untyped_def by simp
 
 
@@ -36,13 +36,13 @@ lemma seq_rule:
   fixes P Q R c d
   assumes "hoare {P &m} \<guillemotleft>c\<guillemotright> {Q &m}" and "hoare {Q &m} \<guillemotleft>d\<guillemotright> {R &m}"
   shows "hoare {P &m} \<guillemotleft>c\<guillemotright>;\<guillemotleft>d\<guillemotright> {R &m}"
-  using assms seq_rule unfolding hoare_untyped mk_untyped_seq by auto
+  using assms seq_rule unfolding hoare_untyped by auto
 
 lemma assign_rule:
   fixes P Q x e
   assumes "\<forall>m. P m \<longrightarrow> Q (memory_update_pattern m x (e_fun e m))"
   shows "hoare {P &m} \<guillemotleft>assign x e\<guillemotright> {Q &m}"
-  unfolding hoare_untyped mk_untyped_assign
+  unfolding hoare_untyped Rep_assign
   apply (rule assign_rule)
   using assms unfolding memory_update_pattern_def by auto
 
@@ -56,7 +56,7 @@ lemma sample_rule:
   fixes P Q x e
   assumes "\<forall>m. P m \<longrightarrow> (\<forall>v\<in>support_distr (e_fun e m). Q (memory_update_pattern m x v))"
   shows "hoare {P &m} \<guillemotleft>sample x e\<guillemotright> {Q &m}"
-  unfolding hoare_untyped mk_untyped_sample 
+  unfolding hoare_untyped Rep_sample 
   apply (rule sample_rule)
   using assms unfolding memory_update_pattern_def by auto
 
@@ -72,7 +72,7 @@ lemma while_rule:
           "\<forall>m. P m \<longrightarrow> I m"
           "\<forall>m. \<not> e_fun e m \<longrightarrow> I m \<longrightarrow> Q m"
   shows "hoare {P &m} while (\<guillemotleft>e\<guillemotright>) \<guillemotleft>c\<guillemotright> {Q &m}"
-  unfolding hoare_untyped mk_untyped_while
+  unfolding hoare_untyped Rep_while
   apply (rule while_rule[where I=I])
   using assms unfolding hoare_untyped e_fun_bool_untyped.
 
@@ -89,7 +89,7 @@ lemma iftrue_rule:
   assumes "hoare {P &m} \<guillemotleft>c1\<guillemotright> {Q &m}"
           "\<forall>m. P m \<longrightarrow> e_fun e m"
   shows "hoare {P &m} if (\<guillemotleft>e\<guillemotright>) \<guillemotleft>c1\<guillemotright> else \<guillemotleft>c2\<guillemotright> {Q &m}"
-  unfolding hoare_untyped mk_untyped_ifte
+  unfolding hoare_untyped Rep_ifte
   apply (rule iftrue_rule)
   using assms unfolding hoare_untyped by auto
 
@@ -98,7 +98,7 @@ lemma iffalse_rule:
   assumes "hoare {P &m} \<guillemotleft>p2\<guillemotright> {Q &m}"
           "\<forall>m. P m \<longrightarrow> \<not> e_fun e m"
   shows "hoare {P &m}   if (\<guillemotleft>e\<guillemotright>) \<guillemotleft>p1\<guillemotright> else \<guillemotleft>p2\<guillemotright>   {Q &m}"
-  unfolding hoare_untyped mk_untyped_ifte
+  unfolding hoare_untyped Rep_ifte
   apply (rule iffalse_rule)
   using assms unfolding hoare_untyped by auto
 
@@ -151,7 +151,7 @@ lemma seq_rule_lastfirst:
   fixes P Q R c d
   assumes "hoare {Q &m} \<guillemotleft>d\<guillemotright> {R &m}" and "hoare {P &m} \<guillemotleft>c\<guillemotright> {Q &m}"
   shows "hoare {P &m} \<guillemotleft>c\<guillemotright>;\<guillemotleft>d\<guillemotright> {R &m}"
-  using assms seq_rule unfolding hoare_untyped mk_untyped_seq by auto
+  using assms seq_rule unfolding hoare_untyped Rep_seq by auto
 
 lemma assign_rule_strict:
   fixes Q x e

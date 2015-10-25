@@ -6,8 +6,8 @@ typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. (\<mu> x)\<ge>0) \
   apply (rule exI[where x="\<lambda>x. 0"], auto)
   by (metis ereal_eq_0(2) ereal_less_eq(6) ereal_zero_mult zero_le_one)
 
-abbreviation "distr_pr == Rep_distr"
-lemma distr_pr_geq0: "distr_pr \<mu> x \<ge> 0"
+(* abbreviation "Rep_distr == Rep_distr" *)
+lemma Rep_distr_geq0: "Rep_distr \<mu> x \<ge> 0"
   using Rep_distr[of \<mu>] by auto 
 
 definition support_distr :: "'a distr \<Rightarrow> 'a set" where
@@ -43,7 +43,7 @@ proof -
     by (subst Abs_distr_inverse, auto simp: sum1)
 qed
 
-lemma point_distr_pr [simp]: "distr_pr (point_distr a) x = (if x=a then 1 else 0)"
+lemma Rep_point_distr [simp]: "Rep_distr (point_distr a) x = (if x=a then 1 else 0)"
 proof -
   have sum1: "(\<integral>\<^sup>+ x. ereal (indicator {a} x) \<partial>count_space UNIV) = 1"
     unfolding ereal_indicator
@@ -125,10 +125,10 @@ qed
 
 lemma support_countable: "countable (support_distr \<mu>)"
   unfolding support_distr_def
-  apply (rule integral_count_space_countable[where A=UNIV and f="distr_pr \<mu>", simplified])
+  apply (rule integral_count_space_countable[where A=UNIV and f="Rep_distr \<mu>", simplified])
 proof -
-  have "\<And>x\<^sub>1. (\<forall>R. 0 \<le> ereal (distr_pr x\<^sub>1 R)) \<and> (\<integral>\<^sup>+ R. ereal (distr_pr x\<^sub>1 R) \<partial>count_space UNIV) \<le> 1" using Rep_distr by auto
-  thus "(\<integral>\<^sup>+ x. ereal (distr_pr \<mu> x) \<partial>count_space UNIV) \<noteq> \<infinity>" by (metis (no_types) ereal_infty_less_eq(1) ereal_times(1))
+  have "\<And>x\<^sub>1. (\<forall>R. 0 \<le> ereal (Rep_distr x\<^sub>1 R)) \<and> (\<integral>\<^sup>+ R. ereal (Rep_distr x\<^sub>1 R) \<partial>count_space UNIV) \<le> 1" using Rep_distr by auto
+  thus "(\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x) \<partial>count_space UNIV) \<noteq> \<infinity>" by (metis (no_types) ereal_infty_less_eq(1) ereal_times(1))
 qed
 
 lemma Fubini_count_space_leq:
@@ -292,31 +292,31 @@ qed
 
 definition compose_distr :: "('a \<Rightarrow> 'b distr) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
   "compose_distr f \<mu> == Abs_distr (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV))"
-lemma compose_distr_pr: "distr_pr (compose_distr f \<mu>) b =
-  real (\<integral>\<^sup>+a. distr_pr \<mu> a * distr_pr (f a) b \<partial>count_space UNIV)"
+lemma compose_Rep_distr: "Rep_distr (compose_distr f \<mu>) b =
+  real (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV)"
 proof -
   have aux1: "\<And>a b::ereal. a\<ge>0 \<Longrightarrow> b\<le>1 \<Longrightarrow> a*b \<le> a"
     by (metis ereal_mult_right_mono monoid_mult_class.mult.left_neutral mult.commute) 
   have nn_integral_counting_single_aux: "\<And>x X f. x\<in>X \<Longrightarrow> (\<integral>\<^sup>+x. f x \<partial>count_space X) < \<infinity> \<Longrightarrow> f x < \<infinity>"
     by (metis ereal_infty_less(1) nn_integral_counting_single not_less)
     
-  have "(\<integral>\<^sup>+ b. \<integral>\<^sup>+ a. ereal (distr_pr \<mu> a * distr_pr (f a) b)
+  have "(\<integral>\<^sup>+ b. \<integral>\<^sup>+ a. ereal (Rep_distr \<mu> a * Rep_distr (f a) b)
             \<partial>count_space UNIV \<partial>count_space UNIV) =
-        (\<integral>\<^sup>+ a. \<integral>\<^sup>+ b. ereal (distr_pr \<mu> a * distr_pr (f a) b)
+        (\<integral>\<^sup>+ a. \<integral>\<^sup>+ b. ereal (Rep_distr \<mu> a * Rep_distr (f a) b)
             \<partial>count_space UNIV \<partial>count_space UNIV)" (is "?int_ba = ?int_ab")
     by (rule Fubini_count_space)
-  also have "... = (\<integral>\<^sup>+ a. ereal (distr_pr \<mu> a) * \<integral>\<^sup>+ b. ereal (distr_pr (f a) b)
+  also have "... = (\<integral>\<^sup>+ a. ereal (Rep_distr \<mu> a) * \<integral>\<^sup>+ b. ereal (Rep_distr (f a) b)
             \<partial>count_space UNIV \<partial>count_space UNIV)"
-    by (subst nn_integral_cmult[symmetric], auto simp: distr_pr_geq0)
-  also have "... \<le> (\<integral>\<^sup>+ a. ereal (distr_pr \<mu> a) \<partial>count_space UNIV)"
+    by (subst nn_integral_cmult[symmetric], auto simp: Rep_distr_geq0)
+  also have "... \<le> (\<integral>\<^sup>+ a. ereal (Rep_distr \<mu> a) \<partial>count_space UNIV)"
     apply (rule nn_integral_mono, auto, rule aux1)
-    close (metis distr_pr_geq0 ereal_less_eq(5))
+    close (metis Rep_distr_geq0 ereal_less_eq(5))
     using Rep_distr by auto
   also have "\<dots> \<le> 1"
     using Rep_distr by auto
   finally have "?int_ba \<le> 1" by simp
   with `?int_ba = ?int_ab` have "?int_ab \<le> 1" by simp
-  have int_b:"\<And>a. (\<integral>\<^sup>+ b. ereal (distr_pr \<mu> b * distr_pr (f b) a) \<partial>count_space UNIV) < \<infinity>"
+  have int_b:"\<And>a. (\<integral>\<^sup>+ b. ereal (Rep_distr \<mu> b * Rep_distr (f b) a) \<partial>count_space UNIV) < \<infinity>"
     apply (rule_tac x=a and X=UNIV in nn_integral_counting_single_aux, auto)
     using `?int_ba \<le> 1`
     by (metis PInfty_neq_ereal(1) ereal_infty_less_eq(1) one_ereal_def)
@@ -333,14 +333,14 @@ definition apply_to_distr :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a distr \<Rig
 
 lemma compose_point_distr_r [simp]: "compose_distr f (point_distr x) = f x"
 proof -
-  have rw: "\<And>y b. ereal ((if y = x then 1 else 0) * distr_pr (f y) b) =
-                  ereal (distr_pr (f x) b) * indicator {x} y"
+  have rw: "\<And>y b. ereal ((if y = x then 1 else 0) * Rep_distr (f y) b) =
+                  ereal (Rep_distr (f x) b) * indicator {x} y"
     by simp
   show ?thesis
     unfolding compose_distr_def 
     apply simp unfolding rw
     apply (subst nn_integral_cmult_indicator)
-    close (simp add: distr_pr_geq0)
+    close (simp add: Rep_distr_geq0)
     close simp
     by (simp add: Rep_distr_inverse)
 qed
@@ -355,12 +355,12 @@ lemma apply_to_distr_twice [simp]: "apply_to_distr f (apply_to_distr g \<mu>) = 
 
 lemma apply_to_distr_id [simp]: "apply_to_distr (\<lambda>x. x) \<mu> = \<mu>"
 proof -
-  have rew1: "\<And>x b. ereal (distr_pr \<mu> x) * indicator {x} b = ereal (distr_pr \<mu> b) * indicator {b} x"
+  have rew1: "\<And>x b. ereal (Rep_distr \<mu> x) * indicator {x} b = ereal (Rep_distr \<mu> b) * indicator {b} x"
     by (case_tac "x=b", auto)
   show ?thesis
-    unfolding apply_to_distr_def compose_distr_def point_distr_pr
+    unfolding apply_to_distr_def compose_distr_def Rep_point_distr
     unfolding ereal_mult_indicator rew1 
-    apply (subst nn_integral_cmult_indicator, auto simp: distr_pr_geq0)
+    apply (subst nn_integral_cmult_indicator, auto simp: Rep_distr_geq0)
     by (rule Rep_distr_inverse)
 qed
 
@@ -374,7 +374,7 @@ lemma support_point_distr [simp]: "support_distr (point_distr x) = {x}"
   unfolding support_distr_def by simp
 
 definition "product_distr \<mu> \<nu> = Abs_distr (\<lambda>(x,y). Rep_distr \<mu> x * Rep_distr \<nu> y)"
-lemma product_distr_pr: "distr_pr (product_distr \<mu> \<nu>) (x,y) = distr_pr \<mu> x * distr_pr \<nu> y"
+lemma product_Rep_distr: "Rep_distr (product_distr \<mu> \<nu>) (x,y) = Rep_distr \<mu> x * Rep_distr \<nu> y"
   SORRY
 lemma fst_product_distr [simp]: "apply_to_distr fst (product_distr \<mu> \<nu>) = weight_distr \<nu> *\<^sub>R \<mu>"
   SORRY
@@ -382,9 +382,9 @@ lemma snd_product_distr [simp]: "apply_to_distr snd (product_distr \<mu> \<nu>) 
   SORRY
 lemma support_product_distr [simp]: "support_distr (product_distr \<mu> \<nu>) = support_distr \<mu> \<times> support_distr \<nu>"
   unfolding support_distr_def
-  apply auto unfolding product_distr_pr
-  close (metis distr_pr_geq0 less_eq_real_def mult_zero_left)
-  close (metis distr_pr_geq0 less_eq_real_def mult_zero_right)
+  apply auto unfolding product_Rep_distr
+  close (metis Rep_distr_geq0 less_eq_real_def mult_zero_left)
+  close (metis Rep_distr_geq0 less_eq_real_def mult_zero_right)
   by simp
 lemma product_distr_sym: "apply_to_distr (\<lambda>(x,y). (y,x)) (product_distr \<mu> \<nu>) = product_distr \<nu> \<mu>"
   SORRY
@@ -452,7 +452,7 @@ proof -
 qed
 
 
-lemma distr_pr_0 [simp]: "distr_pr 0 = (\<lambda>x. 0)"
+lemma Rep_distr_0 [simp]: "Rep_distr 0 = (\<lambda>x. 0)"
   unfolding zero_distr_def apply (subst Abs_distr_inverse) apply auto
   by (metis ereal_zero_times zero_ereal_def zero_less_one_ereal)
 

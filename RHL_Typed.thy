@@ -11,8 +11,8 @@ definition rhoare :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightar
         \<and> apply_to_distr snd \<mu> = denotation c2 m2
         \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> post m1' m2')))"
 
-lemma rhoare_untyped: "rhoare P c1 c2 Q = rhoare_untyped P (mk_program_untyped c1) (mk_program_untyped c2) Q"
-  unfolding rhoare_def rhoare_untyped_def denotation_def ..
+lemma rhoare_untyped: "rhoare P c1 c2 Q = rhoare_untyped P (Rep_program c1) (Rep_program c2) Q"
+  unfolding rhoare_def rhoare_untyped_def denotation_def by rule
 
 
 definition "obs_eq X Y c1 c2 ==
@@ -92,7 +92,7 @@ unfolding assign_local_vars_typed_def skip_def by simp
 definition "assign_default_typed locals = Abs_program (assign_default locals)"
 
 definition "assign_default_typed_aux p0 vs = Abs_program (foldl (\<lambda>p v. Seq p (Assign (pattern_1var v) 
-                      (const_expression_untyped (vu_type v) (t_default (vu_type v))))) (mk_program_untyped p0) vs)"
+                      (const_expression_untyped (vu_type v) (t_default (vu_type v))))) (Rep_program p0) vs)"
 
 lemma assign_default_typed_aux: "assign_default_typed vs = assign_default_typed_aux Lang_Typed.skip vs"
   unfolding assign_default_typed_aux_def assign_default_def assign_default_typed_def
@@ -152,7 +152,7 @@ lemma callproc_rule:
     and non_parg_locals::"variable_untyped list"
   defines "body == p_body p"
   defines "ret == p_return p"
-  defines "pargs == p_args p"
+  defines "pargs == p_arg p"
 (*  defines "GL == {x. vu_global x}" *)
   assumes proc_locals: "set(local_vars body) \<union> filter_local (set(p_vars pargs) \<union> set(e_vars ret)) \<subseteq> set locals"
   assumes locals_local: "filter_global (set locals) = {}"
@@ -169,25 +169,25 @@ proof -
     unfolding GL_def filter_local_def by auto
   have fg_GL: "\<And>X. filter_global X = X \<inter> GL"
     unfolding GL_def filter_global_def by auto*)
-  def body' \<equiv> "mk_program_untyped (p_body p)"
-  def pargs' \<equiv> "mk_pattern_untyped (p_args p)"
+  def body' \<equiv> "Rep_program (p_body p)"
+  def pargs' \<equiv> "Rep_pattern (p_arg p)"
   def ret' \<equiv> "mk_expression_untyped (p_return p)"
   def p' \<equiv>  "Proc body' pargs' ret'"
   have p': "mk_procedure_untyped p = p'"
     unfolding mk_procedure_untyped_def p'_def body'_def pargs'_def ret'_def ..
-  def x' \<equiv> "mk_pattern_untyped x"
+  def x' \<equiv> "Rep_pattern x"
   def args' \<equiv> "mk_expression_untyped args"
-  have callproc: "mk_program_untyped (callproc x p args) == CallProc x' p' args'"
-    unfolding mk_untyped_callproc x'_def[symmetric] p' args'_def[symmetric] .
+  have callproc: "Rep_program (callproc x p args) == CallProc x' p' args'"
+    unfolding Rep_callproc x'_def[symmetric] p' args'_def[symmetric] by assumption
   def unfolded' \<equiv> "Seq (Seq (Seq (Assign pargs' args') (assign_default non_parg_locals)) body')
                            (Assign x' ret')"
-  have assign: "mk_program_untyped (assign_default_typed locals) == assign_default locals"
+  have assign: "Rep_program (assign_default_typed locals) == assign_default locals"
       unfolding assign_default_typed_def 
       apply (subst Abs_program_inverse, auto)
       by (rule assign_default_welltyped)
   have unfolded: "Rep_program unfolded = unfolded'"
     unfolding unfolded'_def unfolded_def program_def pargs'_def pargs_def args'_def
-    mk_untyped_seq assign body'_def body_def mk_untyped_assign ret_def
+    Rep_seq assign body'_def body_def Rep_assign ret_def
     x'_def[symmetric] ret'_def[symmetric] assign_default_typed_def
    apply (subst Abs_program_inverse)
    using assign_default_welltyped by auto
@@ -195,7 +195,7 @@ proof -
     unfolding local_vars_def filter_local_def by auto
   have fl_union: "\<And>A B. filter_local (A \<union> B) = filter_local A \<union> filter_local B"
     unfolding filter_local_def by auto
-  have proc_locals': "filter_local (set (vars (p_body p)) \<union> set (p_vars (p_args p)) \<union> set (eu_vars (mk_expression_untyped (p_return p)))) \<subseteq> set locals"
+  have proc_locals': "filter_local (set (vars (p_body p)) \<union> set (p_vars (p_arg p)) \<union> set (eu_vars (mk_expression_untyped (p_return p)))) \<subseteq> set locals"
     using proc_locals unfolding fl_union pargs_def ret_def body_def fl_loc_var by auto
   show "obs_eq' V (callproc x p args) unfolded"
     unfolding obs_eq'_def obs_eq_obs_eq_untyped callproc unfolded unfolded'_def p'_def 
@@ -217,7 +217,7 @@ lemma callproc_rule_renamed:
 
   defines "body == p_body p"
   defines "ret == p_return p"
-  defines "pargs == p_args p"
+  defines "pargs == p_arg p"
 
   assumes proc_locals: "local_variable_name_renaming renaming ` (set(local_vars body) \<union> filter_local (set(p_vars pargs) \<union> set(e_vars ret))) \<subseteq> set locals"
   assumes locals_local: "filter_global (set locals) = {}"
@@ -234,19 +234,19 @@ lemma callproc_rule_renamed:
 proof -
   def body' == "p_body (rename_local_variables_proc renaming p)"
   def ret' == "p_return (rename_local_variables_proc renaming p)"
-  def pargs' == "p_args (rename_local_variables_proc renaming p)"
+  def pargs' == "p_arg (rename_local_variables_proc renaming p)"
   def unfolded' == "seq (seq (seq (assign pargs' args) (assign_default_typed non_parg_locals)) body') (assign x ret')"
   have filter_renaming: "\<And>X. filter_local (local_variable_name_renaming renaming ` X) = local_variable_name_renaming renaming ` filter_local X"
     unfolding filter_local_def using local_variable_name_renaming_global by auto
   have "unfolded = unfolded'"
-    unfolding unfolded_def unfolded'_def pargs'_def pargs_def p_args_rename_local_variables_proc
+    unfolding unfolded_def unfolded'_def pargs'_def pargs_def p_arg_rename_local_variables_proc
               body'_def body_def p_body_rename_local_variables_proc ret'_def ret_def
               p_ret_rename_local_variables_proc by simp
   have obseq: "obs_eq' V (callproc x (rename_local_variables_proc renaming p) args) unfolded'"
     unfolding unfolded'_def pargs'_def ret'_def body'_def
     apply (rule callproc_rule[where locals=locals])
     unfolding p_body_rename_local_variables_proc body_def[symmetric]
-    unfolding p_args_rename_local_variables_proc pargs_def[symmetric]
+    unfolding p_arg_rename_local_variables_proc pargs_def[symmetric]
     unfolding p_ret_rename_local_variables_proc ret_def[symmetric]
     unfolding local_vars_rename_local_variables
     unfolding p_vars_rename_local_variables_pattern

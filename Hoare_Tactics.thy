@@ -31,10 +31,10 @@ lemma split_program_untyped_welltyped: "well_typed p \<Longrightarrow> well_type
 definition "rev_program p q = Abs_program (rev_program_untyped (Rep_program p) (Rep_program q))"
 lemma rev_program_seq: "rev_program p (seq q r) == rev_program (seq p q) r"
   apply (rule eq_reflection)
-  by (metis rev_program_def mk_untyped_seq rev_program_untyped.simps(1))
+  by (metis rev_program_def Rep_seq rev_program_untyped.simps(1))
 lemma rev_program_skip: "rev_program p Lang_Typed.skip == p"
   apply (rule eq_reflection)
-  by (metis Rep_program_inverse mk_untyped_skip rev_program_def rev_program_untyped.simps(2)) 
+  by (metis Rep_program_inverse Rep_skip rev_program_def rev_program_untyped.simps(2)) 
   
 
 definition "split_program n m p q = Abs_program (split_program_untyped n m (Rep_program p) (Rep_program q))"
@@ -43,7 +43,7 @@ lemma split_program_0_seq: "split_program 0 m p (seq q r) == seq p (rev_program 
   apply (subst Abs_program_inverse, auto)
   by (subst Abs_program_inverse, auto simp: rev_program_untyped_welltyped)
 lemma split_program_0_skip: "split_program 0 m p Lang_Typed.skip == seq p Lang_Typed.skip"
-  unfolding split_program_def mk_untyped_skip mk_untyped_seq seq_def by simp
+  unfolding split_program_def seq_def by simp
 lemma split_program_suc: "split_program (Suc n) m (seq p q) r == split_program n m p (seq q r)"
   unfolding split_program_def seq_def rev_program_def 
   apply (subst Abs_program_inverse, auto)
@@ -52,7 +52,7 @@ lemma split_program_suc: "split_program (Suc n) m (seq p q) r == split_program n
 definition "split_program_start n p == split_program n n p Lang_Typed.skip"
 
 lemma denotation_split_program_start: "denotation (split_program_start n p) = denotation p"
-  unfolding split_program_start_def denotation_def split_program_def seq_def mk_untyped_skip
+  unfolding split_program_start_def denotation_def split_program_def seq_def Rep_skip
   apply (subst Abs_program_inverse, auto simp: split_program_untyped_welltyped split_program_untyped_denotation)
   unfolding denotation_untyped_Seq[THEN ext] denotation_untyped_Skip[THEN ext]  
   by auto
