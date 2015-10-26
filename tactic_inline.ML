@@ -115,8 +115,7 @@ fun callproc_rule_conditions_tac ctx (procthms:Procs_Typed.procedure_info) i =
       (* THEN print_tac ctx ("condition "^string_of_int i) *)
       (* TODO: what is the fasted tactic for set equalities? *)
       THEN (ASSERT_SOLVED' (simp_tac ctx) 
-         (fn goal => fn subgoals => raise TERM("callproc_rule_conditions_tac, goal "^string_of_int i,[nth subgoals (i-1)])) i))
-  THEN print_tac ctx "after conds"
+         (fn _ => fn subgoals => raise TERM("callproc_rule_conditions_tac, goal "^string_of_int i,[nth subgoals (i-1)])) i))
   end
 
 fun callproc_rule_tac' ctx (procthms:Procs_Typed.procedure_info) renaming locals non_parg_locals i =
@@ -172,10 +171,11 @@ fun procedure_local_vars ctx proc (procthms:Procs_Typed.procedure_info) =
    in (local_vars,non_parg_locals) end
 
 
-fun make_renaming ctx to_rename dont_use : (string*string) list * term =
+fun make_renaming (_:Proof.context) to_rename dont_use : (string*string) list * term =
   let fun var_to_name (Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name Variable},_) $ _)) = NONE
         | var_to_name (v as Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name LVariable},_) $ n)) =
-            SOME (HOLogic.dest_string n) handle TERM _ => raise (TERM ("Variable name is not a string",[v,n]))
+            (SOME (HOLogic.dest_string n) handle TERM _ => raise (TERM ("Variable name is not a string",[v,n])))
+        | var_to_name v = raise (TERM ("Expecting a variable (mk_variable_untyped ([L]Variable str))",[v]))
       val to_rename = map_filter var_to_name to_rename
       val dont_use = map_filter var_to_name dont_use
       val to_rename = distinct (op=) to_rename
@@ -189,7 +189,7 @@ fun make_renaming ctx to_rename dont_use : (string*string) list * term =
   end
 
 (* This assumes a renaming that has no overlapping transposition *)
-fun apply_local_var_renaming ctx renaming var =
+(*fun apply_local_var_renaming (_:Proof.context) renaming var =
   let val f = AList.lookup (op=) renaming
       fun ren (v as Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name Variable},_) $ _)) = v
         | ren (v as (c1 as Const(@{const_name mk_variable_untyped},_)) $ ((c2 as Const(@{const_name LVariable},_)) $ n)) =
@@ -199,6 +199,18 @@ fun apply_local_var_renaming ctx renaming var =
             handle TERM _ => raise (TERM ("Variable name is not a string",[v,n]))
   in
     ren var
+  end*)
+fun apply_local_var_renaming (_:Proof.context) renaming var = 
+  let fun ren1 _ (v as Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name Variable},_) $ _)) = v
+        | ren1 (a,b) (v as (c1 as Const(@{const_name mk_variable_untyped},_)) $ ((c2 as Const(@{const_name LVariable},_)) $ n)) =
+            (let val n' = HOLogic.dest_string n in
+              if n'=a then c1 $ (c2 $ HOLogic.mk_string b)
+              else if n'=b then c1 $ (c2 $ HOLogic.mk_string a)
+              else v
+            end handle TERM _ => raise (TERM ("Variable name is not a string",[v,n])))
+        | ren1 _ v = raise (TERM ("Expecting a variable (mk_variable_untyped ([L]Variable str))",[v]))
+  in
+  fold ren1 renaming var
   end
 
 (*
@@ -385,8 +397,6 @@ fun inline_tac ctx facts proc =
         val callproc = callproc_rule_tac ctx facts
         val obseq = hoare_obseq_replace_tac ctx pattern (SOME callproc) i
         val simp = simp_tac (put_simpset after_inline_simpset ctx) i
-     in obseq THEN 
-print_tac ctx "bla" THEN
-simp end)
+     in obseq THEN simp end)
 
 end

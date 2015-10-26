@@ -93,8 +93,7 @@ lemma filter_local_insert1: "filter_local (insert (mk_variable_untyped (LVariabl
       insert (mk_variable_untyped (LVariable n :: 'a::prog_type variable)) (filter_local X)"
   apply (rule eq_reflection) unfolding filter_local_def by auto
   
-lemma filter_local_insert2: "filter_local (insert (mk_variable_untyped (Variable n)) X) == 
-      filter_local X"
+lemma filter_local_insert2: "filter_local (insert (mk_variable_untyped (Variable n)) X) == filter_local X"
   apply (rule eq_reflection) unfolding filter_local_def by auto
   
 lemma filter_local_empty: "filter_local {} == {}"
@@ -131,42 +130,7 @@ lemma local_variable_name_renaming_notsame:
 
  *)
 
-(* TODO remove *)
-ML {*
-@{context} |> Raw_Simplifier.simpset_of |> dest_ss
-*}
 
-(* TODO remove *)
-ML {*
-val subgoaler_simpset = @{context} 
-|> put_simpset HOL_basic_ss
-|> (fn x => x addsimps @{thms List.list.inject String.char.inject String.nibble.distinct HOL.simp_thms})
-|> Raw_Simplifier.simpset_of
-
-val ss = @{context} 
-|> put_simpset HOL_basic_ss 
-|> (fn x => x addsimps @{thms filter_global' filter_global'_cons1 filter_global'_cons2
-  filter_global'_nil filter_local_union filter_local' vars_variable_pattern[THEN eq_reflection]
-  filter_local'_cons1 filter_local'_cons2 filter_local'_nil filter_local_insert1
-  filter_local_empty local_variable_name_renaming_insert local_variable_name_renaming_union
-  local_variable_name_renaming_nil local_variable_name_renaming_same image_empty[THEN eq_reflection]
-  vars_unit_pattern[THEN eq_reflection] vars_pair_pattern[THEN eq_reflection] 
-  append_Cons[THEN eq_reflection] append_Nil[THEN eq_reflection]
-  rename_local_variables_pattern_id[THEN eq_reflection] local_variable_name_renaming_id
-  local_variable_name_renaming_set local_variable_name_renaming_cons 
-  local_variable_name_renaming_nil2 local_variable_name_renaming_notsame
-})
-|> Simplifier.set_subgoaler (fn ctx => (@{print} "init_subgoaler"; simp_tac (put_simpset subgoaler_simpset ctx)))
-|> Raw_Simplifier.simpset_of
-*}
-
-
-(* TODO remove *)
-lemma 
-  "local_variable_name_renaming [(''a'',''b'')] (mk_variable_untyped (LVariable ''x'' :: int variable))
-  = mk_variable_untyped (LVariable ''x'' :: int variable)"
-using[[simp_trace, simp_trace_depth_limit=4]]
-by (tactic \<open>simp_tac (put_simpset ss @{context}) 1\<close>) 
 
 end
 

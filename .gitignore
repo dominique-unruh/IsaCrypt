@@ -3,3 +3,4 @@
 __pycache__
 .isabelle-test-server
 .isabelle-server-out.log
+testsuite.py
