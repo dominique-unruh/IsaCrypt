@@ -23,12 +23,12 @@ typedef x = "{1::int}" by auto
 print_theorems
 end
 
-ML {* 
+(*ML {* 
 val ctx = Proof_Context.set_mode Proof_Context.mode_schematic @{context}
 val (_$((Const(_,t))$(_$_))) = Syntax.parse_term ctx "x::?'b==x::?'a"
 val (Type(_,[TVar (_,[t,_]),_])) = t
 val _ = writeln t
-*}
+*}*)
 
 
 

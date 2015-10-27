@@ -448,14 +448,23 @@ definition "subst_prog1 (p::'a::procedure_functor) q pr ==
 
 locale reduce_procfun begin
 
-lemma proc: shows "p = (p::('a,'b)procedure)" ..
+(* Each of the lemmas must be of the form:
+  q = xxx \<Longrightarrow> ... \<Longrightarrow> C[q] = D[q]
+  and then the goal will be matched with C[q] = D[q]
+  and only in the q-part of the goal schematics will be initialized.
+  (See Procs_Typed.match_inst_tac)
+*)
 
+lemma proc: 
+  assumes "p = q"
+  shows "p = (q::('a,'b)procedure)" 
+using assms by assumption
 
 lemma apply1:
   fixes p::"('b::prog_type,'c::prog_type)procedure" and body body0 and retval::"'c expression"
     and args::"'b pattern" and arg_proc::"'a::procedure_functor"
+  assumes p0_def: "p0 = procedure_functor_mk_typed (ProcAbs (Proc body (Rep_pattern args) (mk_expression_untyped retval)))"
   assumes subst: "subst_prog1 arg_proc body PROGRAM[\<guillemotleft>body0\<guillemotright>]"
-  defines "p0==procedure_functor_mk_typed (ProcAbs (Proc body (Rep_pattern args) (mk_expression_untyped retval)))"
   shows "procfun_apply p0 arg_proc = \<lparr> p_body=body0, p_arg=args, p_return=retval \<rparr>"
 proof -
   have args_type: "Type TYPE('b) = pu_type (Rep_pattern args)"
@@ -519,9 +528,9 @@ proof -
 qed
 
 lemma seq:
+  assumes q_def: "q = Seq q1 q2"
   assumes "subst_prog1 p q1 PROGRAM[\<guillemotleft>c1\<guillemotright>]"
   assumes "subst_prog1 p q2 PROGRAM[\<guillemotleft>c2\<guillemotright>]"
-  defines "q == Seq q1 q2"
   shows "subst_prog1 p q PROGRAM[\<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>]"
 proof - 
   have wt_q1: "well_typed'' [procedure_functor_type TYPE('a)] q1" 
@@ -547,7 +556,7 @@ proof -
         close (fact wt_subst_q1)
       apply (rule beta_reduced_beta_reduce')
       apply (subst Rep_program_inverse)
-      using assms(1) unfolding subst_prog1_def program_def by auto
+      using assms(2) unfolding subst_prog1_def program_def by auto
   have q2_c2: "beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' q2)) =
     Rep_program c2"
     apply (subst Abs_program_inject[symmetric], auto)
@@ -556,7 +565,7 @@ proof -
         close (fact wt_subst_q2)
       apply (rule beta_reduced_beta_reduce')
       apply (subst Rep_program_inverse)
-      using assms(2) unfolding subst_prog1_def program_def by auto
+      using assms(3) unfolding subst_prog1_def program_def by auto
   have eq: "Abs_program
      (beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' (Seq q1 q2)))) =
     Abs_program (Seq (Rep_program c1) (Rep_program c2))"
@@ -571,11 +580,9 @@ proof -
     unfolding subst_prog1_def q_def program_def seq_def by auto
 qed
 
-
-
 lemma closed:
   fixes q c p
-  defines "q == Rep_program c"
+  assumes q_def: "q = Rep_program c"
   shows "subst_prog1 p q PROGRAM[\<guillemotleft>c\<guillemotright>]"
 unfolding q_def subst_prog1_def program_def apply auto
 apply (metis Rep_program mem_Collect_eq well_typed_extend(1) well_typed_well_typed'')
@@ -590,23 +597,11 @@ apply (rule well_typed_proc_beta_reduced)
 close (fact well_typed_Rep_program)
 by (fact Rep_program_inverse)
 
-(*
-lemma callproc:
-  fixes v args q a
-  assumes "subst_proc1 p q r"
-  defines "q0==CallProc (mk_variable_untyped v) q (mk_procargs_untyped a)"
-  shows "subst_prog1 p q0  PROGRAM[ \<guillemotleft>callproc v r a\<guillemotright> ]"
-SORRY
-*)
-
-
-
-
 lemma callproc:
   fixes p::"'mod::procedure_functor" and q::"'mod =proc=> ('in::prog_type,'out::prog_type)procedure"
         and r::"('in,'out)procedure" and a::"'in expression" and v::"'out pattern"
+  assumes q0_def: "q0 = CallProc (Rep_pattern v) (ProcAppl (procedure_functor_mk_untyped q) (ProcRef 0)) (mk_expression_untyped a)"
   assumes qpr: "q <$> p = r"
-  defines "q0 == CallProc (Rep_pattern v) (ProcAppl (procedure_functor_mk_untyped q) (ProcRef 0)) (mk_expression_untyped a)"
   shows "subst_prog1 p q0 PROGRAM[ \<guillemotleft>callproc v r a\<guillemotright> ]"
 proof (unfold subst_prog1_def, rule conjI)
   let ?E = "[procedure_functor_type TYPE('mod)]"
@@ -642,62 +637,61 @@ proof (unfold subst_prog1_def, rule conjI)
     by (simp add: procedure_functor_mk_untyped_procedure_ext_def qpr')
 qed
 
-(*
-lemma left: 
-  assumes "subst_proc1 l q p"
-  defines "q0 == ProcAppl (ProcAbs q) (ProcUnpair True (ProcRef 0))"
-  shows "subst_proc1 (l, r) q0 p"
-SORRY
-
-lemma procref: 
-  defines "q0 == ProcRef 0"
-  shows "subst_proc1 p q0 p"
-SORRY
-
-lemma right: 
-  assumes "subst_proc1 r q p"
-  defines "q0 == ProcAppl (ProcAbs q) (ProcUnpair False (ProcRef 0))"
-  shows "subst_proc1 (l, r) q0 p"
-SORRY
-*)
-
 lemma procfun_apply:
   fixes q0 a b r a0 b0
+  assumes q0_def: "q0 = procfun_S <$> a0 <$> b0"
   assumes "a0 <$> r = a"
   assumes "b0 <$> r = b"
-  defines "q0 == procfun_S <$> a0 <$> b0"
   shows "q0 <$> r = a <$> b"
 unfolding procfun_S assms..
 
 lemma left:
+  assumes q0_def: "q0 = procfun_compose <$> q <$> fst_procfun"
   assumes "q <$> l = a"
-  defines "q0 == procfun_compose <$> q <$> fst_procfun"
   shows "q0 <$> (l,r) = a"
-by (smt assms(1) fst_conv fst_procfun procfun_compose q0_def)
+by (smt assms fst_conv fst_procfun procfun_compose)
 
 lemma right:
+  assumes q0_def: "q0 = procfun_compose <$> q <$> snd_procfun"
   assumes "q <$> r = a"
-  defines "q0 == procfun_compose <$> q <$> snd_procfun"
   shows "q0 <$> (l,r) = a"
-by (smt assms(1) procfun_compose q0_def sndI snd_procfun)
+by (smt assms procfun_compose sndI snd_procfun)
 
 lemma procfun_closed:
   fixes a r q0
-  defines "q0 == procfun_K <$> a"
+  assumes q0_def: "q0 = procfun_K <$> a"
   shows "q0 <$> r = a"
 by (smt procfun_K q0_def)
 
 lemma procfun_id:
-  defines "q0 == procfun_id"
+  assumes q0_def: "q0 = procfun_id"
   shows "q0 <$> r = r"
 by (smt procfun_id q0_def)
 
-lemmas safe = proc apply1 closed seq (*procref*) callproc
+(* lemmas safe = proc apply1 closed seq (*procref*) callproc
               procfun_id procfun_closed procfun_apply
 lemmas unsafe = left right
-lemmas reduce = safe unsafe
+lemmas reduce = safe unsafe *)
+
+named_theorems safe
+named_theorems unsafe
 
 end
+
+lemmas reduce_procfun.proc [reduce_procfun.safe]
+lemmas reduce_procfun.apply1 [reduce_procfun.safe] 
+lemmas reduce_procfun.closed [reduce_procfun.safe]
+lemmas reduce_procfun.seq [reduce_procfun.safe]
+lemmas reduce_procfun.callproc [reduce_procfun.safe]
+lemmas reduce_procfun.procfun_id [reduce_procfun.safe]
+lemmas reduce_procfun.procfun_closed [reduce_procfun.safe]
+lemmas reduce_procfun.procfun_apply [reduce_procfun.safe]
+        
+lemmas reduce_procfun.left [reduce_procfun.unsafe]
+lemmas reduce_procfun.right [reduce_procfun.unsafe]
+
+ML {* Named_Theorems.get @{context} "Procs_Typed.reduce_procfun.unsafe" *}
+
 
 lemma vars_proc_global_locals: "{x \<in> set (vars_proc_global p). \<not> vu_global x} = {}"
   unfolding vars_proc_global_def by auto

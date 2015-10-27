@@ -22,6 +22,10 @@ subsection {* DDH *}
 type_synonym 'g DDH_Adv = "('g*'g*'g,bool) procedure"
 type_synonym 'g DDH_Game = "(unit,bool) procedure"
 
+ML {*
+Named_Theorems.get @{context} "Procs_Typed.reduce_procfun.safe"
+*}
+
 procedure (in group) DDH0 :: "'G DDH_Adv =proc=> 'G DDH_Game" where
   "DDH0 <$> A = 
     LOCAL x y b.
@@ -72,12 +76,41 @@ procedure CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) CPA_Adv =proc
 
 subsection {* ElGamal *}
 
-definition (in group) ElGamal :: "('G,nat,'G,'G\<times>'G) EncScheme" where
+(* definition (in group) ElGamal :: "('G,nat,'G,'G\<times>'G) EncScheme" where
  "ElGamal = LOCAL pk m c1 c2 sk sk' y gm gy.
    Abs_EncScheme (proc() { sk <- uniform {0..<q}; return (g^sk, sk) },
                   proc(pk,m) { y <- uniform {0..<q}; return (g^y, pk^y * m) },
-                  proc(sk,(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk)) })" (* TODO: sk' \<rightarrow> sk *)
+                  proc(sk,(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk)) })" *)
 
+lemma aux1 [reduce_procfun.safe]:
+  assumes "schematic=Abs_EncScheme(A,B,C)"
+  assumes "A=Y"
+  shows "keygen<$>schematic = Y"
+using assms by simp
+
+lemma aux2 [reduce_procfun.safe]:
+  assumes "schematic=Abs_EncScheme(A,B,C)"
+  assumes "B=Y"
+  shows "enc<$>schematic = Y"
+using assms by simp
+
+lemma aux3 [reduce_procfun.safe]:
+  assumes "schematic=Abs_EncScheme(A,B,C)"
+  assumes "C=Y"
+  shows "dec<$>schematic = Y"
+using assms by simp
+
+procedure (in group) ElGamal :: "('G, nat, 'G, 'G\<times>'G) EncScheme" where
+    "keygen<$>ElGamal = LOCAL sk. proc() { sk <- uniform {0..<q}; return (g^sk, sk) }"
+and "enc<$>ElGamal = LOCAL pk m y. proc(pk,m) { y <- uniform {0..<q}; return (g^y, pk^y * m) }"
+and "dec<$>ElGamal = LOCAL sk c1 c2 gy gm. proc(sk,(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk)) }"
+
+
+print_theorems
+
+local_setup (in group) {* Procs_Typed.register_procedure_thm @{thm keygen_ElGamal_def} *}
+local_setup (in group) {* Procs_Typed.register_procedure_thm @{thm enc_ElGamal_def} *}
+local_setup (in group) {* Procs_Typed.register_procedure_thm @{thm dec_ElGamal_def} *}
 
 procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
   "Correctness <$> E = LOCAL m m2 pk sk c.
@@ -88,12 +121,13 @@ procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
     return (m2 = Some m)
   }"
 
+print_theorems
 
 local_setup {* Procs_Typed.register_procedure_thm @{thm Correctness_def} *}
 
 context group begin
 
-schematic_lemma keygen_def': "keygen<$>ElGamal = ?x"
+(* schematic_lemma keygen_def': "keygen<$>ElGamal = ?x"
   unfolding ElGamal_def by simp
 local_setup {* Procs_Typed.register_procedure_thm @{thm keygen_def'} *}
 
@@ -104,7 +138,7 @@ local_setup {* Procs_Typed.register_procedure_thm @{thm enc_def'} *}
 
 schematic_lemma dec_def': "dec<$>ElGamal = ?x"
   unfolding ElGamal_def by simp
-local_setup {* Procs_Typed.register_procedure_thm @{thm dec_def'} *}
+local_setup {* Procs_Typed.register_procedure_thm @{thm dec_def'} *} *)
 
 lemma correctness:
   shows "LOCAL succ0. hoare {True} succ0 := call Correctness <$> ElGamal(m) {succ0}"
