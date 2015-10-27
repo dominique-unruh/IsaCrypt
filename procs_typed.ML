@@ -12,11 +12,13 @@ type procedure_info = {
   return_vars : thm option
 };
 
+fun procedure_info_same_pattern (a,b) = Thm.term_of (#pattern a) aconv Thm.term_of (#pattern b)
+
 structure ProcedureData = Generic_Data
-  (type T = procedure_info Symtab.table
-   val empty = Symtab.empty
+  (type T = procedure_info Net.net
+   val empty = Net.empty
    val extend = I
-   val merge = Symtab.merge (K true));
+   val merge = Net.merge procedure_info_same_pattern)
 
 fun morphism_procedure_info phi ({args,body,return,body_local_vars,return_vars,pattern} : procedure_info) =
   let val f = Option.map (Morphism.thm phi)
@@ -27,9 +29,12 @@ fun morphism_procedure_info phi ({args,body,return,body_local_vars,return_vars,p
   } : procedure_info
   end
 
-fun register_procedure name info =
+fun register_procedure info =
   Local_Theory.declaration {pervasive=true, syntax=false}
-  (fn phi => ProcedureData.map (Symtab.update (name,morphism_procedure_info phi info)));
+  (fn phi => 
+    let val info' = morphism_procedure_info phi info
+        val pattern = Thm.term_of (#pattern info')
+    in ProcedureData.map (Net.insert_term procedure_info_same_pattern (pattern,info')) end);
 
 
 fun trivial_procedure_info (ctx:Proof.context) (p:term) : procedure_info =
@@ -42,13 +47,13 @@ fun trivial_procedure_info (ctx:Proof.context) (p:term) : procedure_info =
   };
 
 
-fun procedure_head_of (Const(@{const_name procfun_apply},_) $ p $ _) = procedure_head_of p
-  | procedure_head_of (p $ _) = procedure_head_of p
-  | procedure_head_of (Const(name,_)) = name
-  | procedure_head_of (Abs _) = error "procedure_head_of Abs"
-  | procedure_head_of (Var _) = error "procedure_head_of Var"
-  | procedure_head_of (Free _) = error "procedure_head_of Free"
-  | procedure_head_of (Bound _) = error "procedure_head_of Bound"
+(* fun procedure_head_of ctx (Const(@{const_name procfun_apply},_) $ p $ _) = procedure_head_of ctx p
+  | procedure_head_of ctx (p $ _) = procedure_head_of ctx p
+  | procedure_head_of _ (Const(name,_)) = name
+  | procedure_head_of _ (Abs _) = error "procedure_head_of Abs"
+  | procedure_head_of _ (Var _) = error "procedure_head_of Var"
+  | procedure_head_of _ (Free _) = error "procedure_head_of Free"
+  | procedure_head_of _ (Bound _) = error "procedure_head_of Bound" *)
 
 fun assert_procedure_info_complete ctx ({args=_,body=_,body_local_vars, pattern=_, return=_, return_vars} : procedure_info) = 
   let fun is_string_literal n = (HOLogic.dest_string n; true) handle TERM _ => false
@@ -70,16 +75,25 @@ fun assert_procedure_info_complete ctx ({args=_,body=_,body_local_vars, pattern=
 
 fun get_procedure_info lthy partial proc = 
   let val _ = tracing ("Constructing procedure info for "^Syntax.string_of_term lthy proc)
-      val name = procedure_head_of proc
+      (* val name : string = procedure_head_of lthy proc *)
       val cproc = Thm.cterm_of lthy proc
-      val info = Symtab.lookup (ProcedureData.get (Context.Proof lthy)) name
-      val info = case info of SOME info => info 
+      val infos = Net.match_term (ProcedureData.get (Context.Proof lthy)) proc
+                  |> map_filter (fn info => SOME (info,Thm.first_order_match (#pattern info, cproc))
+                    handle Pattern.MATCH => NONE)
+(*       val info = case info of SOME info => info 
                             | NONE => if partial then trivial_procedure_info lthy proc
                                       else error ("Could not find procedure_info for procedure "^name)
       val matcher = Thm.first_order_match (#pattern info, cproc)
                     handle Pattern.MATCH => error ("get_procedure_info: cannot match "
                       ^Pretty.string_of (Syntax.pretty_term lthy proc)^" with "
-                      ^Pretty.string_of (Syntax.pretty_term lthy (Thm.term_of (#pattern info))))
+                      ^Pretty.string_of (Syntax.pretty_term lthy (Thm.term_of (#pattern info)))) *)
+      val _ = if null infos then error ("Could not find procedure_info for procedure pattern "^Syntax.string_of_term lthy proc) else ()
+      val (info,matcher) = hd infos
+      val _ = if not (null (tl infos)) then warning ("Several matchin procedure infos for "^ 
+                                               Syntax.string_of_term lthy proc^
+                                               ": "^String.concatWith ", " (map (Syntax.string_of_term lthy o Thm.term_of o #pattern o fst) infos)^
+                                               ". Picking first one.")
+              else ()
       fun inst thm = Option.map (Thm.instantiate matcher) thm handle Match => error "Match"
       val info : procedure_info = {
         pattern = #pattern info |> Thm.instantiate_cterm matcher,
@@ -100,6 +114,8 @@ fun register_procedure_thm thm lthy =
                  | _ => thm RS @{thm eq_reflection}
       fun unfold th = top_sweep_conv (K (rewr_conv th)) lthy (* TODO: should fail if no occurrence *)
       val pattern = thm' |> Thm.concl_of |> Logic.dest_equals |> fst
+
+      val _ = writeln ("Registering procedure "^Syntax.string_of_term lthy pattern)
 
       val return = @{termx "p_return (?pattern::(?'a::prog_type, ?'b::prog_type) procedure)"
                       where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
@@ -127,9 +143,9 @@ fun register_procedure_thm thm lthy =
             |> (unfold body
                 then_conv unfold @{thm local_vars_def[THEN eq_reflection]} 
                 then_conv Simplifier.rewrite simpset)
-      val name = procedure_head_of pattern
+      (* val name = procedure_head_of lthy pattern *)
   in
-  register_procedure name {
+  register_procedure {
     pattern=Thm.cterm_of lthy pattern,
     body=SOME body, return=SOME return, args=SOME args,
     body_local_vars=SOME body_local_vars, return_vars=SOME return_vars
@@ -232,7 +248,10 @@ let val schema_eqs = consts |> map (fn ((b,T),_) =>
       val final_thms = map (fold (fn def => fn thm => thm OF [def]) raw_thms) def_thms
       (* val bind_thm = consts |> hd |> fst |> fst |> Thm.def_binding *)
       val final_thms_bindings = map (fn (thm,bind) => (thm,get_binding thm bind)) (ListPair.zip (final_thms,bindings))
+      (* Declare the specification terms as lemmas *)
       val lthy = fold (fn (thm,bind) => snd o Local_Theory.note ((bind,[]), [thm])) final_thms_bindings lthy 
+      (* Register procedure infos for the generated declarations *)
+      val lthy = fold register_procedure_thm final_thms lthy
     in lthy end
 
     val method : Method.text = tac lthy
