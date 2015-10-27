@@ -266,24 +266,31 @@ fun definition_via_specification_solve tac consts prop lthy =
       val lthy = Proof.global_done_proof state
   in lthy end
 
-val definition_via_specification_parser =
-  Parse.fixes -- (Parse.$$$ "where" |-- Parse.!!! (Parse.and_list1
+(* val variables_parser : (binding * string option * mixfix) list parser =
+    Scan.optional (Parse.$$$ "(" |--
+      Scan.optional (Parse.reserved "globals" |-- Parse.fixes) []
+    --| Parse.$$$ ")") [] *)
+
+val procedure_parser =
+  Parse.fixes --
+  (Parse.$$$ "where" |-- 
+    Parse.!!! (Parse.and_list1
       (Parse_Spec.opt_thm_name ":" -- Parse.prop)))
 
-fun definition_via_specification_cmd dvs (consts,props) ctx =
+fun procedure_cmd dvs (consts,props) ctx =
   let val ((consts,props),_) = Specification.read_free_spec consts props ctx
   in dvs consts props ctx end;
 
 val _ = Outer_Syntax.local_theory @{command_keyword procedure}
-"definition of simple inductive predicates"
-(definition_via_specification_parser >>
-   definition_via_specification_cmd (definition_via_specification_solve 
+"definition of procedures / modules"
+(procedure_parser >>
+   procedure_cmd (definition_via_specification_solve 
       (definition_via_specification_tac procedure_existence_tac)))
 
 val _ = Outer_Syntax.local_theory_to_proof @{command_keyword procedure'}
-"definition of simple inductive predicates (with proof obligation)"
-(definition_via_specification_parser >>
-   definition_via_specification_cmd (definition_via_specification 
+"definition of procedures / modules (with proof obligation)"
+(procedure_parser >>
+   procedure_cmd (definition_via_specification 
       (definition_via_specification_tac procedure_existence_tac)))
 
 (** Definition of module types **)

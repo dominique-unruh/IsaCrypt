@@ -455,6 +455,11 @@ locale reduce_procfun begin
   (See Procs_Typed.match_inst_tac)
 *)
 
+lemma unit:
+  assumes "p = ()"
+  shows "p = ()"
+using assms by assumption
+
 lemma proc: 
   assumes "p = q"
   shows "p = (q::('a,'b)procedure)" 
@@ -679,6 +684,7 @@ named_theorems unsafe
 end
 
 lemmas reduce_procfun.proc [reduce_procfun.safe]
+lemmas reduce_procfun.unit [reduce_procfun.safe]
 lemmas reduce_procfun.apply1 [reduce_procfun.safe] 
 lemmas reduce_procfun.closed [reduce_procfun.safe]
 lemmas reduce_procfun.seq [reduce_procfun.safe]
