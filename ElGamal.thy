@@ -1,5 +1,5 @@
 theory ElGamal
-imports Hoare_Tactics Procs_Typed Tactic_Inline Lang_Simplifier
+imports Hoare_Tactics Procs_Typed Tactic_Inline Lang_Simplifier RHL_Typed
 begin
 
 subsection {* General setup *}
@@ -19,10 +19,10 @@ locale group =
 
 subsection {* DDH *}
 
+type_synonym Game = "(unit,bool) procedure"
 type_synonym 'g DDH_Adv = "('g*'g*'g,bool) procedure"
-type_synonym 'g DDH_Game = "(unit,bool) procedure"
 
-procedure (in group) DDH0 :: "'G DDH_Adv =proc=> 'G DDH_Game" where
+procedure (in group) DDH0 :: "'G DDH_Adv =proc=> Game" where
   "DDH0 <$> A = 
     LOCAL x y b.
     proc () {
@@ -32,7 +32,7 @@ procedure (in group) DDH0 :: "'G DDH_Adv =proc=> 'G DDH_Game" where
       return True
     }"
 
-procedure (in group) DDH1 :: "'G DDH_Adv =proc=> 'G DDH_Game" where
+procedure (in group) DDH1 :: "'G DDH_Adv =proc=> Game" where
   "DDH1 <$> A = 
     LOCAL x y z b.
     proc () {
@@ -43,7 +43,7 @@ procedure (in group) DDH1 :: "'G DDH_Adv =proc=> 'G DDH_Game" where
       return True
     }"
 
-subsection {* Declaring module type EncScheme *}
+subsection {* PKE definitions *}
 
 
 module_type ('pk,'sk,'m,'c) EncScheme =
@@ -51,6 +51,19 @@ module_type ('pk,'sk,'m,'c) EncScheme =
   enc :: "('pk*'m, 'c) procedure"
   dec :: "('sk*'c, 'm option) procedure"
 
+(*module_type ('pk,'sk,'m,'c) Adversary =
+  choos :: "('pk,'m*'m)procedure" 
+  "guess" :: "('c,bool)procedure"
+
+procedure CPA :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) Adversary =proc=> Game" where
+  "CPA<$>(E,A) = LOCAL pk sk m0 m1 c b b'. proc() {
+    (pk, sk) := call keygen<$>E();
+    (m0, m1) := call choos<$>A(pk);
+    b        <- uniform UNIV;
+    c        := call enc<$>E(pk, if b then m1 else m0);
+    b'       := call guess<$>A(c);
+    return (b' = b)
+  }"*)
 
 subsection {* Declaring CPA game *}
 
@@ -97,16 +110,8 @@ procedure (in group) ElGamal :: "('G, nat, 'G, 'G\<times>'G) EncScheme" where
 and "enc<$>ElGamal = LOCAL pk m y. proc(pk,m) { y <- uniform {0..<q}; return (g^y, pk^y * m) }"
 and "dec<$>ElGamal = LOCAL sk c1 c2 gy gm. proc(sk,(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk)) }"
 
-(* ML {*
-Procs_Typed.ProcedureData.get (Context.Proof @{context}) |> Net.content |> map #pattern
-*} *)
-
 thm group.keygen_ElGamal_def
 print_theorems
-
-(* local_setup (in group) {* Procs_Typed.register_procedure_thm @{thm keygen_ElGamal_def} *} *)
-(* local_setup (in group) {* Procs_Typed.register_procedure_thm @{thm enc_ElGamal_def} *} *)
-(* local_setup (in group) {* Procs_Typed.register_procedure_thm @{thm dec_ElGamal_def} *} *)
 
 procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
   "Correctness <$> E = LOCAL m m2 pk sk c.
@@ -117,24 +122,7 @@ procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
     return (m2 = Some m)
   }"
 
-print_theorems
-
-(* local_setup {* Procs_Typed.register_procedure_thm @{thm Correctness_def} *} *)
-
 context group begin
-
-(* schematic_lemma keygen_def': "keygen<$>ElGamal = ?x"
-  unfolding ElGamal_def by simp
-local_setup {* Procs_Typed.register_procedure_thm @{thm keygen_def'} *}
-
-
-schematic_lemma enc_def': "enc<$>ElGamal = ?x"
-  unfolding ElGamal_def by simp
-local_setup {* Procs_Typed.register_procedure_thm @{thm enc_def'} *}
-
-schematic_lemma dec_def': "dec<$>ElGamal = ?x"
-  unfolding ElGamal_def by simp
-local_setup {* Procs_Typed.register_procedure_thm @{thm dec_def'} *} *)
 
 lemma correctness:
   shows "LOCAL succ0. hoare {True} succ0 := call Correctness <$> ElGamal(m) {succ0}"
@@ -146,6 +134,95 @@ apply (wp sample) apply skip apply auto
 unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat])
 apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
 
+type_synonym 'g ElGamal_Adv = "('g, nat, 'g, 'g\<times>'g) CPA_Adv"
+
+procedure DDHAdv :: "'G ElGamal_Adv =proc=> 'G DDH_Adv" where
+  "DDHAdv <$> A = LOCAL gx gy gz m0 m1 b b'. 
+    proc (gx, gy, gz) {
+      (m0, m1) := call pick<$>A(gx);
+      b  <- uniform UNIV;
+      b' := call guess<$>A(gy, gz * (if b then m1 else m0));
+      return b' = b
+  }"
+
+
+
+(* TODO move, add syntax *)
+definition "game_probability game args mem E == 
+  LOCAL res. 
+  probability 
+    (denotation (callproc (variable_pattern res) game (const_expression args)) mem)
+    (\<lambda>m. E (memory_lookup m res))"
+
+(* TODO move *)
+lemma byequiv_rule:
+  assumes "hoare {&1=&2} (res := call p1(a1)) ~ (res := call p2(a2)) {E res\<^sub>1 = F res\<^sub>2}"
+  shows "game_probability p1 a1 m E = game_probability p2 a2 m F" 
+SORRY
+
+lemma cpa_ddh0:
+  "game_probability (CPA_main<$>(ElGamal,A)) () m (\<lambda>res. res)
+ = game_probability (DDH0<$>(DDHAdv<$>A)) () m (\<lambda>res. res)" 
+apply (rule byequiv_rule)
+apply (inline "CPA_main<$>(ElGamal,A)")
+apply (inline "DDH0<$>(DDHAdv<$>A)")
+
+(* 
+  local lemma cpa_ddh0 &m: 
+      Pr[CPA(ElGamal,A).main() @ &m : res] =
+      Pr[DDH0(DDHAdv(A)).main() @ &m : res].
+  proof.
+    byequiv => //;proc;inline *.
+    swap{1} 7 -5.
+    auto;call (_:true);auto;call (_:true);auto;progress;smt.
+  qed.
+
+  local module Gb = {
+    proc main () : bool = {
+      var x, y, z, m0, m1, b, b';
+      x  = $FDistr.dt;
+      y  = $FDistr.dt;
+      (m0,m1) = A.choose(g^x);
+      z  = $FDistr.dt;
+      b' = A.guess(g^y, g^z);
+      b  = ${0,1};
+      return b' = b;
+    }
+  }.
+
+  local lemma ddh1_gb &m: 
+      Pr[DDH1(DDHAdv(A)).main() @ &m : res] = 
+      Pr[Gb.main() @ &m : res].
+  proof.
+    byequiv => //;proc;inline *.
+    swap{1} 3 2;swap{1} [5..6] 2;swap{2} 6 -2.
+    auto;call (_:true);wp.
+    rnd (fun z, z + log(if b then m1 else m0){2}) 
+        (fun z, z - log(if b then m1 else m0){2}).
+    auto;call (_:true);auto;progress; (algebra || smt).
+  qed.
+
+  axiom Ac_l : islossless A.choose.
+  axiom Ag_l : islossless A.guess.
+
+  local lemma Gb_half &m: 
+     Pr[Gb.main()@ &m : res] = 1%r/2%r.
+  proof.
+    byphoare => //;proc.
+    rnd  ((=) b')=> //=.
+    call Ag_l;auto;call Ac_l;auto;progress;smt. 
+  qed.
+
+  lemma conclusion &m :
+    `| Pr[CPA(ElGamal,A).main() @ &m : res] - 1%r/2%r | =
+    `| Pr[DDH0(DDHAdv(A)).main() @ &m : res] -  
+         Pr[DDH1(DDHAdv(A)).main() @ &m : res] |. 
+  proof.
+   by rewrite (cpa_ddh0 &m) (ddh1_gb &m) (Gb_half &m).
+  qed.
+*)
+
 end (* context: group *)
+
 
 end (* theory *)

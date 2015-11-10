@@ -26,6 +26,8 @@ end
 lemma scaleR_one_distr: "1 *\<^sub>R (\<mu>::'a distr) = \<mu>"
   unfolding scaleR_distr_def using Rep_distr_inverse by auto  
 
+definition "probability \<mu> E = real (\<integral>\<^sup>+x. Rep_distr \<mu> x * (if E x then 1 else 0) \<partial>count_space UNIV)" 
+
 definition "weight_distr \<mu> = real (\<integral>\<^sup>+x. Rep_distr \<mu> x \<partial>count_space UNIV)"
 
 (* lemma ereal_indicator: "\<And>x. ereal (indicator {a} x) = indicator {a} x" unfolding indicator_def by auto *)
