@@ -294,6 +294,23 @@ lemma assertion_footprint_lookup: "mk_variable_untyped x \<in> X \<Longrightarro
 lemma assertion_footprint_app: "assertion_footprint X P \<Longrightarrow> assertion_footprint X Q \<Longrightarrow> assertion_footprint X (\<lambda>m. (P m) (Q m))"
   unfolding assertion_footprint_def by auto
 
+definition "assertion_footprint_left X P == (\<forall>m1 m1' m2 m2'. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m1' x) \<longrightarrow> (m2::memory)=m2' \<longrightarrow> P m1 m2 = P m1' m2')"
+lemma assertion_footprint_left_const: "assertion_footprint_left X (\<lambda>m. P)"
+  unfolding assertion_footprint_left_def by simp
+lemma assertion_footprint_left_lookup: "mk_variable_untyped x \<in> X \<Longrightarrow> assertion_footprint_left X (\<lambda>m1 m2. memory_lookup m1 x)"
+  unfolding assertion_footprint_left_def by auto
+lemma assertion_footprint_left_app: "assertion_footprint_left X P \<Longrightarrow> assertion_footprint_left X Q \<Longrightarrow> assertion_footprint_left X (\<lambda>m m'. (P m m') (Q m m'))"
+  unfolding assertion_footprint_left_def by auto
+
+definition "assertion_footprint_right X P == (\<forall>m1 m1' m2 m2'. (\<forall>x\<in>X. memory_lookup_untyped m2 x = memory_lookup_untyped m2' x)\<longrightarrow> (m1::memory)=m1' \<longrightarrow> P m1 m2 = P m1' m2')"
+lemma assertion_footprint_right_const: "assertion_footprint_right X (\<lambda>m m'. P m)"
+  unfolding assertion_footprint_right_def by simp
+lemma assertion_footprint_right_lookup: "mk_variable_untyped x \<in> X \<Longrightarrow> assertion_footprint_right X (\<lambda>m1 m2. memory_lookup m2 x)"
+  unfolding assertion_footprint_right_def by auto
+lemma assertion_footprint_right_app: "assertion_footprint_right X P \<Longrightarrow> assertion_footprint_right X Q \<Longrightarrow> assertion_footprint_right X (\<lambda>m m'. (P m m') (Q m m'))"
+  unfolding assertion_footprint_right_def by auto
+
+
 lemma obseq_context_seq:                                        
   assumes "obseq_context X C1"
   assumes "obseq_context X C2"
@@ -341,6 +358,12 @@ lemma obseq_context_callproc_allglobals:
   shows "obseq_context X (\<lambda>c. callproc x p a)"
 SORRY
 
+lemma rsymmetric_rule:
+  assumes "hoare {P &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
+  shows "hoare {P &2 &1} \<guillemotleft>d\<guillemotright> ~ \<guillemotleft>c\<guillemotright> {Q &2 &1}"
+using assms rhoare_untyped rsymmetric_rule by auto
+  
+
 lemma hoare_obseq_replace: 
   assumes "obseq_context X C"
   assumes "assertion_footprint X Q"
@@ -349,7 +372,27 @@ lemma hoare_obseq_replace:
   shows "hoare {P &m} \<guillemotleft>C c\<guillemotright> {Q &m}"
 SORRY "check assumptions carefully!"
 
+lemma rhoare_left_obseq_replace: 
+  assumes "obseq_context X C"
+  assumes "assertion_footprint_left X Q"
+  assumes "obs_eq' X c d"
+  assumes "hoare {P &1 &2} \<guillemotleft>C d\<guillemotright> ~ \<guillemotleft>c'\<guillemotright> {Q &1 &2}"
+  shows "hoare {P &1 &2} \<guillemotleft>C c\<guillemotright> ~ \<guillemotleft>c'\<guillemotright> {Q &1 &2}"
+by (smt assertion_footprint_left_def assms obs_eq'_def obs_eq_def obseq_context_def rhoare_untyped rtrans_rule)
 
+lemma rhoare_right_obseq_replace: 
+  assumes "obseq_context X C"
+  assumes "assertion_footprint_right X Q"
+  assumes "obs_eq' X c d"
+  assumes "hoare {P &1 &2}  \<guillemotleft>c'\<guillemotright> ~ \<guillemotleft>C d\<guillemotright> {Q &1 &2}"
+  shows "hoare {P &1 &2}  \<guillemotleft>c'\<guillemotright> ~ \<guillemotleft>C c\<guillemotright> {Q &1 &2}"
+apply (rule rsymmetric_rule)
+apply (rule rhoare_left_obseq_replace[where C=C])
+   close (fact assms(1))
+  using assms(2) unfolding assertion_footprint_left_def assertion_footprint_right_def close auto
+ close (fact assms(3))
+apply (rule rsymmetric_rule)
+by (fact assms(4))
 
 
 end

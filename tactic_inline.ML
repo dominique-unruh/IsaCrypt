@@ -1,43 +1,7 @@
 structure Tactic_Inline =
 struct
 
-fun has_Bound0 t =
-  let fun h (Bound i) j = i=j
-        | h (Free _) _ = false
-        | h (Var _) _ = false
-        | h (a$b) i = h a i orelse h b i
-        | h (Abs(_,_,t)) i = h t (i+1)
-        | h (Const _) _ = false
-  in h t 0 end
-
-fun assertion_footprint_tac ctx = SUBGOAL (fn (goal,i) =>
-  case goal of
-    Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint},_) $ X $ (Abs(v,T,t))) => 
-      if not (has_Bound0 t) then solve_tac ctx @{thms assertion_footprint_const} i
-      else (case t of
-             Const(@{const_name memory_lookup},_) $ Bound 0 $ _ =>
-               rtac @{thm assertion_footprint_lookup} i
-           | t1 $ t2 => 
-                let val ct1 = Abs(v,T,t1) |> Thm.cterm_of ctx
-                    val ct2 = Abs(v,T,t2) |> Thm.cterm_of ctx
-                    val ctX = X |> Thm.cterm_of ctx
-                    val cts = Thm.ctyp_of_cterm ct1 |> Thm.dest_ctyp |> (fn x => nth x 1) |> Thm.dest_ctyp
-                in
-                  (rtac (Drule.instantiate' [SOME (hd cts), SOME (hd (tl cts))] [SOME ctX,SOME ct1,SOME ct2]
-                    @{thm assertion_footprint_app}) THEN_ALL_NEW assertion_footprint_tac ctx) i
-                end
-           | _ => raise (TERM( "nyi",[t])))
-  | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint},_) $ _ $ _) => 
-    raise (TERM ("handle this case!", [goal]))
-  | _ => raise (TERM ("write real error message", [goal])))
-
-
 datatype no_return = NoReturn of no_return
-
-fun string_of_varlist ctx vs =
-  (String.concatWith "\n" 
-  (map (fn t => case t of _$v => Syntax.string_of_term ctx t ^ " (" ^ Syntax.string_of_typ ctx (fastype_of v) ^ ")"
-                        | _ => Syntax.string_of_term ctx t)  vs))
 
 fun ASSERT_SUCCESS (tac:tactic) exn st = 
   let val res = tac st 
@@ -57,6 +21,116 @@ fun ASSERT_SOLVED' (tac:int->tactic) (exn:term->term list->no_return) =
               | (NONE,NONE) => (exn goal []; raise ERROR "impossible")
               | (SOME(st',_),NONE) => (exn goal (Thm.prems_of st'); raise ERROR "impossible")
   in res end)
+
+fun has_Bound i t =
+  let fun h (Bound i) j = i=j
+        | h (Free _) _ = false
+        | h (Var _) _ = false
+        | h (a$b) i = h a i orelse h b i
+        | h (Abs(_,_,t)) i = h t (i+1)
+        | h (Const _) _ = false
+  in h t i end
+
+fun dest_funCT ct = 
+  let val t = Thm.typ_of ct
+      val _ = case t of Type("fun",_) => () | _ => raise TYPE("dest_funcT",[t],[])
+  in case Thm.dest_ctyp ct of [dom,rng] => (dom,rng) | _ => raise TYPE("dest_funcT",[t],[]) end
+
+val range_funCT = snd o dest_funCT
+
+fun DETERM' tac i = DETERM (tac i)
+
+fun assertion_footprint_tac ctx = SUBGOAL (fn (goal,i) =>
+  ((* @{print} (Thm.cterm_of ctx goal); *)
+  case goal of
+    Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint},_) $ X $ (Abs(v,T,t))) => 
+      if not (has_Bound 0 t) then solve_tac ctx @{thms assertion_footprint_const} i
+      else (case t of
+             Const(@{const_name memory_lookup},_) $ Bound 0 $ _ => rtac @{thm assertion_footprint_lookup} i
+           | t1 $ t2 => 
+                let val ct1 = Abs(v,T,t1) |> Thm.cterm_of ctx
+                    val ct2 = Abs(v,T,t2) |> Thm.cterm_of ctx
+                    val ctX = X |> Thm.cterm_of ctx
+                    val (a,b) = Thm.ctyp_of_cterm ct1 |> range_funCT |> dest_funCT
+                in
+                  (rtac (Drule.instantiate' [SOME a, SOME b] [SOME ctX,SOME ct1,SOME ct2]
+                    @{thm assertion_footprint_app}) THEN_ALL_NEW assertion_footprint_tac ctx) i
+                end
+           | _ => raise (TERM( "nyi",[t])))
+    | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint_left},_) $ X $ (Abs(v1,T1,Abs(v2,T2,t)))) => 
+      if not (has_Bound 1 t) then ASSERT_SUCCESS' (solve_tac ctx @{thms assertion_footprint_left_const})
+                                  (fn t => TERM ("solve_tac assertion_footprint_left_const failed",[t])) i
+      else (case t of
+             Const(@{const_name memory_lookup},_) $ Bound 1 $ _ => rtac @{thm assertion_footprint_left_lookup} i
+           | t1 $ t2 => 
+                let val ct1 = Abs(v1,T1,Abs(v2,T2,t1)) |> Thm.cterm_of ctx
+                    val ct2 = Abs(v1,T1,Abs(v2,T2,t2)) |> Thm.cterm_of ctx
+                    val ctX = X |> Thm.cterm_of ctx
+                    val (a,b) = Thm.ctyp_of_cterm ct1 |> range_funCT |> range_funCT |> dest_funCT
+                    val rule = Drule.instantiate' [SOME a, SOME b] [SOME ctX,SOME ct1,SOME ct2] @{thm assertion_footprint_left_app}
+                in
+                  (ASSERT_SUCCESS' (rtac rule) (fn t => TERM ("rtac assertion_footprint_left_app failed",[t]))
+                   THEN_ALL_NEW assertion_footprint_tac ctx) i
+                end
+           | _ => raise (TERM( "nyi",[t])))
+    | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint_right},_) $ X $ (Abs(v1,T1,Abs(v2,T2,t)))) => 
+      if not (has_Bound 0 t) then ASSERT_SUCCESS' (solve_tac ctx @{thms assertion_footprint_right_const})
+                                  (fn t => TERM ("solve_tac assertion_footprint_right_const failed",[t])) i
+      else (case t of
+             Const(@{const_name memory_lookup},_) $ Bound 0 $ _ => rtac @{thm assertion_footprint_right_lookup} i
+           | t1 $ t2 => 
+                let val ct1 = Abs(v1,T1,Abs(v2,T2,t1)) |> Thm.cterm_of ctx
+                    val ct2 = Abs(v1,T1,Abs(v2,T2,t2)) |> Thm.cterm_of ctx
+                    val ctX = X |> Thm.cterm_of ctx
+                    val (a,b) = Thm.ctyp_of_cterm ct1 |> range_funCT |> range_funCT |> dest_funCT
+                    val rule = Drule.instantiate' [SOME a, SOME b] [SOME ctX,SOME ct1,SOME ct2] @{thm assertion_footprint_right_app}
+                in
+                  (ASSERT_SUCCESS' (rtac rule) (fn t => TERM ("rtac assertion_footprint_right_app failed",[t]))
+                   THEN_ALL_NEW assertion_footprint_tac ctx) i
+                end
+           | _ => raise (TERM( "nyi",[t])))
+  | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint},_) $ _ $ _) => raise (TERM ("handle this case!", [goal]))
+  | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint_left},_) $ _ $ _) => raise (TERM ("handle this case!", [goal]))
+  | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint_right},_) $ _ $ _) => raise (TERM ("handle this case!", [goal]))
+  | _ => raise (TERM ("assertion_footprint_tac: expecting a subgoal of the form 'assertion_footprint/assertion_footprint_left/assertion_footprint_right ...'", [goal]))))
+
+
+(* fun assertion_footprint_tac ctx = 
+  let fun app (const,lookup0,lookup1,appl) X (Abs(v,T,t)) i = 
+      (if not (has_Bound0 t) then solve_tac ctx [const] i
+      else (case t of
+             Const(@{const_name memory_lookup},_) $ Bound 0 $ _ => rtac lookup0 i
+           | t1 $ t2 => 
+                let val ct1 = Abs(v,T,t1) |> Thm.cterm_of ctx
+                    val ct2 = Abs(v,T,t2) |> Thm.cterm_of ctx
+                    val ctX = X |> Thm.cterm_of ctx
+                    val cts = Thm.ctyp_of_cterm ct1 |> Thm.dest_ctyp |> (fn x => nth x 1) |> Thm.dest_ctyp
+                in
+                  (rtac (Drule.instantiate' [SOME (hd cts), SOME (hd (tl cts))] [SOME ctX,SOME ct1,SOME ct2]
+                    appl) THEN_ALL_NEW assertion_footprint_tac ctx) i
+                end
+           | _ => raise (TERM( "nyi",[t]))))
+        | app _ _ _ _ = raise Match (* Cannot happen *)
+      val rules = (@{thm assertion_footprint_const},@{thm assertion_footprint_lookup},@{thm refl} (* not used *),@{thm assertion_footprint_app})
+      val rules_left = (@{thm assertion_footprint_left_const},@{thm assertion_footprint_left_lookup'},@{thm assertion_footprint_left_lookup},@{thm assertion_footprint_left_app})
+  in 
+    SUBGOAL (fn (goal,i) =>
+      case goal of
+        Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint},_) $ X $ (abs as Abs _)) => app rules X abs i
+      | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint_left},_) $ X $ (abs as Abs _)) => app rules_left X abs i
+      (* | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint_right},_) $ X $ (abs as Abs _)) => app rules_right X abs i *)
+      | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint},_) $ _ $ _) => raise (TERM ("handle this case!", [goal]))
+      | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint_left},_) $ _ $ _) => raise (TERM ("handle this case!", [goal]))
+      | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint_right},_) $ _ $ _) => raise (TERM ("handle this case!", [goal]))
+      | _ => raise (TERM ("assertion_footprint_tac: expecting a subgoal of the form 'assertion_footprint/assertion_footprint_left/assertion_footprint_right ...'", [goal])))
+  end
+ *)
+
+fun string_of_varlist ctx vs =
+  (String.concatWith "\n" 
+  (map (fn t => case t of _$v => Syntax.string_of_term ctx t ^ " (" ^ Syntax.string_of_typ ctx (fastype_of v) ^ ")"
+                        | _ => Syntax.string_of_term ctx t)  vs))
+
 
 (* "NGOALS i n tac" applies tac to goals i+n-1,...,n *)
 fun NGOALS _ 0 _ st = all_tac st
@@ -330,23 +404,23 @@ fun contains_pattern ctx pattern term =
 fun hoare_obseq_replace_tac ctx redex obseq_tac =
   SUBGOAL (fn (goal,i) =>
   let 
-      fun hoare_obseq_replace vars redex = @{thm hoare_obseq_replace} |> Drule.instantiate' [] [SOME vars(*X*),NONE,NONE,SOME redex(*c*)]
+(*      fun hoare_obseq_replace vars redex = @{thm hoare_obseq_replace} |> Drule.instantiate' [] [SOME vars(*X*),NONE,NONE,SOME redex(*c*)]
+      fun rhoare_obseq_replace_left vars redex = @{thm rhoare_left_obseq_replace} |> Drule.instantiate' [] [SOME vars(*X*),NONE,NONE,SOME redex(*c*)]*)
       val concl = Logic.strip_assums_concl goal
       val (obseq_rule,program) = case concl of @{termx "Trueprop (Hoare_Typed.hoare ?P ?c ?Q)"} => 
                                                  let val _ = (P,Q) (* Avoids ML warning *)
                                                      val _ = if contains_pattern ctx redex c then () else raise TERM("hoare_obseq_replace_tac: Hoare triple does not contain pattern",[concl,redex])
-                                                 in (hoare_obseq_replace,c) end
+                                                 in (@{thm hoare_obseq_replace},c) end
                                              | @{termx "Trueprop (rhoare ?P ?c ?c' ?Q)"} => 
-                                                 if contains_pattern ctx redex c then raise TERM("hoare_obseq_replace_tac: replacing in left side of RHL tuple not supported",[concl])
-                                                 else if contains_pattern ctx redex c' then raise TERM("hoare_obseq_replace_tac: replacing in right side of RHL tuple not supported",[concl])
+                                                 if contains_pattern ctx redex c then (@{thm rhoare_left_obseq_replace},c)
+                                                 else if contains_pattern ctx redex c' then (@{thm rhoare_right_obseq_replace},c')
                                                  else raise K (TERM("hoare_obseq_replace_tac: RHL tuple (1) does not contain pattern (2)",[concl,redex])) (P,Q)
                                              | t => raise TERM("hoare_obseq_replace_tac: goal not a Hoare tuple",[t])
       val program_locals = program_local_vars_untyped program
       val program_locals_set = program_locals |> HOLogic.mk_set @{typ variable_untyped} 
       val obs_eq_vars = @{termx "?program_locals_set \<union> Collect (vu_global::variable_untyped\<Rightarrow>_)"} |> Thm.cterm_of ctx
       val redex = Thm.cterm_of ctx redex
-      val obseq_rule = (*@{thm hoare_obseq_replace} |> Drule.instantiate' [] [SOME obs_eq_vars(*X*),NONE,NONE,SOME redex(*c*)]*)
-                       obseq_rule obs_eq_vars redex
+      val obseq_rule = obseq_rule |> Drule.instantiate' [] [SOME obs_eq_vars(*X*),NONE,NONE,SOME redex(*c*)]
   in
     ASSERT_SUCCESS (rtac obseq_rule i) (THM("Could not apply hoare_obseq_replace",i,[obseq_rule]))
     THEN ASSERT_SOLVED' (fast_force_tac (ctx addSIs @{thms obseq_context_empty obseq_context_seq obseq_context_assign obseq_context_sample  obseq_context_ifte obseq_context_while obseq_context_skip obseq_context_callproc_allglobals}))
