@@ -164,8 +164,9 @@ lemma cpa_ddh0:
   "game_probability (CPA_main<$>(ElGamal,A)) () m (\<lambda>res. res)
  = game_probability (DDH0<$>(DDHAdv<$>A)) () m (\<lambda>res. res)" 
 apply (rule byequiv_rule)
-apply (inline "CPA_main<$>(ElGamal,A)")
-apply (inline "DDH0<$>(DDHAdv<$>A)")
+(* apply (inline "CPA_main<$>(ElGamal,A)") *)
+(* apply (inline "DDH0<$>(DDHAdv<$>A)") *)
+SORRY
 
 (* 
   local lemma cpa_ddh0 &m: 

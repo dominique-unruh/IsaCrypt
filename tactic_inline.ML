@@ -308,19 +308,45 @@ fun program_local_vars t = program_local_vars' t |> distinct (op aconv)
 fun program_local_vars_untyped t = program_local_vars t |> map (fn v =>
   @{termx "mk_variable_untyped (?v::?'w::prog_type variable)" where "?'v.1\<Rightarrow>?'w variable"})
 
+fun contains_pattern ctx pattern term =
+  let val thy = Proof_Context.theory_of ctx
+      fun match t : bool = (Pattern.first_order_match thy (pattern,t) (Vartab.empty, Vartab.empty); true)
+                           handle Pattern.MATCH => false
+  in
+    Term.exists_subterm match term
+  end
 
 
+(* Given a subgoal of the form
+   G := "hoare {P} p1 {Q}" or "hoare {P} p1 ~ p2 {Q}"
+   such that a subterm of p1 or p2 matches the pattern "redex",
+   transform it into the goals:
+
+   * obseq_context X C   // where C is the context of p1/p2 around the match for "redex"
+   * assertion_footprint X Q   // for suitable X Q
+   * obs_eq' X c ?d    // where c is the subterm of p1/p2 matching redex
+   * G with c replaced by ?d 
+*)
 fun hoare_obseq_replace_tac ctx redex obseq_tac =
   SUBGOAL (fn (goal,i) =>
   let 
+      fun hoare_obseq_replace vars redex = @{thm hoare_obseq_replace} |> Drule.instantiate' [] [SOME vars(*X*),NONE,NONE,SOME redex(*c*)]
       val concl = Logic.strip_assums_concl goal
-      val program = case concl of @{termx "Trueprop (Hoare_Typed.hoare ?P ?c ?Q)"} => K c (P,Q)
-                                | t => raise TERM("hoare_obseq_replace_tac: goal not a Hoare triple",[t])
+      val (obseq_rule,program) = case concl of @{termx "Trueprop (Hoare_Typed.hoare ?P ?c ?Q)"} => 
+                                                 let val _ = (P,Q) (* Avoids ML warning *)
+                                                     val _ = if contains_pattern ctx redex c then () else raise TERM("hoare_obseq_replace_tac: Hoare triple does not contain pattern",[concl,redex])
+                                                 in (hoare_obseq_replace,c) end
+                                             | @{termx "Trueprop (rhoare ?P ?c ?c' ?Q)"} => 
+                                                 if contains_pattern ctx redex c then raise TERM("hoare_obseq_replace_tac: replacing in left side of RHL tuple not supported",[concl])
+                                                 else if contains_pattern ctx redex c' then raise TERM("hoare_obseq_replace_tac: replacing in right side of RHL tuple not supported",[concl])
+                                                 else raise K (TERM("hoare_obseq_replace_tac: RHL tuple (1) does not contain pattern (2)",[concl,redex])) (P,Q)
+                                             | t => raise TERM("hoare_obseq_replace_tac: goal not a Hoare tuple",[t])
       val program_locals = program_local_vars_untyped program
       val program_locals_set = program_locals |> HOLogic.mk_set @{typ variable_untyped} 
       val obs_eq_vars = @{termx "?program_locals_set \<union> Collect (vu_global::variable_untyped\<Rightarrow>_)"} |> Thm.cterm_of ctx
       val redex = Thm.cterm_of ctx redex
-      val obseq_rule = @{thm hoare_obseq_replace} |> Drule.instantiate' [] [SOME obs_eq_vars(*X*),NONE,NONE,SOME redex(*c*)]
+      val obseq_rule = (*@{thm hoare_obseq_replace} |> Drule.instantiate' [] [SOME obs_eq_vars(*X*),NONE,NONE,SOME redex(*c*)]*)
+                       obseq_rule obs_eq_vars redex
   in
     ASSERT_SUCCESS (rtac obseq_rule i) (THM("Could not apply hoare_obseq_replace",i,[obseq_rule]))
     THEN ASSERT_SOLVED' (fast_force_tac (ctx addSIs @{thms obseq_context_empty obseq_context_seq obseq_context_assign obseq_context_sample  obseq_context_ifte obseq_context_while obseq_context_skip obseq_context_callproc_allglobals}))

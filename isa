@@ -3,6 +3,8 @@
 HEAP=IsaCrypt-Core
 ISADIR=/opt/Isabelle2015
 
+git pull 
+
 if [ "$1" = "x" ]; then
     HEAP=IsaCrypt-Prereqs
     shift
