@@ -1,26 +1,7 @@
 structure Tactic_Inline =
 struct
 
-datatype no_return = NoReturn of no_return
-
-fun ASSERT_SUCCESS (tac:tactic) exn st = 
-  let val res = tac st 
-      val _ = case Seq.pull res of NONE => raise exn | _ => ()
-  in res end
-fun ASSERT_SUCCESS' (tac:int->tactic) (exn:term->exn) = 
-  SUBGOAL (fn (goal,i) => fn st =>
-  let val res = tac i st
-      val _ = case Seq.pull res of NONE => raise (exn goal) | _ => ()
-  in res end)
-fun ASSERT_SOLVED' (tac:int->tactic) (exn:term->term list->no_return) = 
-  SUBGOAL (fn (goal,i) => fn st =>
-  let val res = tac i st
-      val solved = Seq.filter (fn st' => Thm.nprems_of st' < Thm.nprems_of st) res
-      val _ = case (Seq.pull res, Seq.pull solved) of
-                (_,SOME _) => ()
-              | (NONE,NONE) => (exn goal []; raise ERROR "impossible")
-              | (SOME(st',_),NONE) => (exn goal (Thm.prems_of st'); raise ERROR "impossible")
-  in res end)
+open Tools
 
 fun has_Bound i t =
   let fun h (Bound i) j = i=j

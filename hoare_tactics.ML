@@ -1,58 +1,14 @@
 structure Hoare_Tactics =
 struct
 
+datatype side = SideHoare | SideLeft | SideRight
+
 fun NGOALS n tac i st =
   tac i st |> Seq.filter (fn st' => Thm.nprems_of st' = Thm.nprems_of st - 1 + n);
 fun NGOALS_ERROR n tac i st =
   tac i st |> Seq.map (fn st' => if Thm.nprems_of st' = Thm.nprems_of st - 1 + n then st
                                  else raise (ERROR ("NGOALS_ERROR")));
 
-(*
-(* Don't forget: fact must have Trueprop in it *)
-fun prove_by_tactic ctx tac fact =
-  let val thms = Goal.init fact |> (tac THEN ALLGOALS (fn _ => no_tac))
-      val thm = (case Seq.pull thms of SOME (thm,_) => thm
-                   | NONE => raise (CTERM ("prove_by_tactic: could not prove fact",[fact])))
-  in Goal.finish ctx thm end;
-
-fun prove_by_simp ctx fact = 
-  prove_by_tactic ctx (simp_tac ctx 1) fact
-fun prove_by_asm_simp ctx fact = 
-  prove_by_tactic ctx (asm_simp_tac ctx 1) fact
-
-fun is_variable_literal (Const(@{const_name Variable},_)$n) = (HOLogic.dest_string n; true handle TERM _ => false)
-  | is_variable_literal (Const(@{const_name LVariable},_)$n) = (HOLogic.dest_string n; true handle TERM _ => false)
-  | is_variable_literal _ = false    
-
-fun distinct_types (Type(n1,ts1)) (Type(n2,ts2)) = n1<>n2 orelse distinct_typess ts1 ts2
-  | distinct_types _ _ = false
-and distinct_typess [] [] = false
-  | distinct_typess (t::ts) (u::us) = distinct_types t u orelse distinct_typess ts us
-  | distinct_typess _ _ = true (* Different lengths *)
-
-fun decide_var_eq ctx v w =
-  let val v' = term_of v
-      val w' = term_of w
-      val thy = Proof_Context.theory_of ctx
-(*      val tv = (case typ_of (ctyp_of_term v) of Type(@{type_name variable},[tv]) => tv | t => raise (TYPE ("decide_var_eq: first arg not type variable",[t],[term_of v])))
-      val tw = (case typ_of (ctyp_of_term w) of Type(@{type_name variable},[tw]) => tw | t => raise (TYPE ("decide_var_eq: second arg not type variable",[t],[term_of w])))*)
-      fun mk_vareq () = (Const(@{const_name var_eq},fastype_of v' --> fastype_of w' --> HOLogic.boolT)$v'$w')
-      fun mk_vareq_not () = cterm_of thy (HOLogic.mk_Trueprop (HOLogic.mk_not (mk_vareq())))
-      fun mk_vareq_yes () = cterm_of thy (HOLogic.mk_Trueprop (mk_vareq()))
-  in
-    (*if distinct_types tv tw then
-          SOME (false,@{thm refl}) (*  use typerep to prove inequality *)
-    else*) if v' aconv w' then 
-         SOME(true,Ctr_Sugar_Util.cterm_instantiate_pos [SOME v] @{thm var_eq_same})
-   else if is_variable_literal v' andalso is_variable_literal w' then 
-         (* If they were equal literals, they would have been caught by the aconv-check *)
-         SOME(false,prove_by_simp ctx (mk_vareq_not()))
-    else (* Try to run simplifier to show inequality *)
-      (SOME(false,prove_by_asm_simp ctx (mk_vareq_not()))
-       handle CTERM _ => (SOME(false,prove_by_asm_simp ctx (mk_vareq_yes()))
-                          handle CTERM _ => NONE))
-  end
-*)
 
 (* TODO: 
   - add lookup_update for patterns
@@ -74,32 +30,46 @@ fun simp_memory_updates_tac ctx =
     NGOALS 1 (simp_tac simpset)
   end
 
-fun last_step_tac_lax i : tactic = 
-  (REPEAT (rtac @{thm seq_assoc_rule} i)   THEN   rtac @{thm seq_rule_lastfirst} i)
-  ORELSE (rtac @{thm addskip_rule} i   THEN   rtac @{thm seq_rule_lastfirst} i)
+fun last_step_tac_lax side i : tactic = 
+  let val (assoc,lastfirst,addskip) =
+      case side of SideHoare => (@{thm seq_assoc_rule},@{thm seq_rule_lastfirst},@{thm addskip_rule})
+                 | SideLeft => (@{thm seq_assoc_left_rule},@{thm seq_rule_lastfirst_left},@{thm addskip_left_rule})
+  in    
+  (REPEAT (rtac assoc i)   THEN   rtac lastfirst i)
+  ORELSE (rtac addskip i   THEN   rtac lastfirst i)
+  end
 
-(* Produces two goals:
+(* 
+  Expects goal: hoare {...} ... {...}
+
+  Produces two goals:
   1. A hoare triple with the last statement
   2. A hoare triple with everything before (possibly skip) 
   (If the goal is of the form a;(b;c), it will make it into "c" and "a;b")
 
   Fails if the program is only a skip
 *)
-val last_step_tac : int -> tactic =
+fun last_step_tac side : int -> tactic =
   SUBGOAL (fn (goal,i) => 
     let val concl = Logic.strip_assums_concl goal
     in 
-    case concl of
-      Const(@{const_name Trueprop},_) $ 
-        (Const(@{const_name hoare},_) $ _ $ Const(@{const_name skip},_) $ _) => no_tac
-    | _ => last_step_tac_lax i
+    case (side,concl) of
+      (SideHoare, Const(@{const_name Trueprop},_) $ 
+        (Const(@{const_name hoare},_) $ _ $ Const(@{const_name skip},_) $ _)) => no_tac
+    | (SideLeft, Const(@{const_name Trueprop},_) $ 
+        (Const(@{const_name rhoare},_) $ _ $ Const(@{const_name skip},_) $ _ $ _)) => no_tac
+    | (SideRight, Const(@{const_name Trueprop},_) $ 
+        (Const(@{const_name rhoare},_) $ _ $ _ $ Const(@{const_name skip},_) $ _)) => no_tac
+    | _ => last_step_tac_lax side i
     end)
 
 type wp_config = {
-  nondeterministic_sample : bool (* Should wp/wp1 also remove "x <- e" statements (treated as nondeterministic assignments) *)
+  nondeterministic_sample : bool, (* Should wp/wp1 also remove "x <- e" statements (treated as nondeterministic assignments) *)
+  side : side (* where to apply wp *)
 }
-val wp_config_default = {nondeterministic_sample=false}
-fun wp_config_update_nondeterministic_sample {...} b = {nondeterministic_sample=b}
+val wp_config_default = {nondeterministic_sample=false, side=SideHoare}
+fun wp_config_update_nondeterministic_sample {side,...} b : wp_config = {nondeterministic_sample=b,side=side}
+fun wp_config_update_side ({nondeterministic_sample,...}:wp_config) b : wp_config = {nondeterministic_sample=nondeterministic_sample,side=b}
 
 local
 fun parse conf toks = 
@@ -111,25 +81,41 @@ end
 
 fun assert_tac b tac = if b then tac else no_tac
 
-fun wp_if_strict ctx (conf:wp_config) i : tactic =
-  rtac @{thm if_case_rule} i
-  THEN wp_total_strict_tac conf ctx i
-  THEN wp_total_strict_tac conf ctx i
-  THEN simp_memory_updates_tac ctx i
+(* Solves a goal of the form "hoare {?P} if e then p1 else p2 {...}" 
+   by instantiating ?P with the weakest precondition. *)
+fun wp_if_strict ctx (conf:wp_config) : int -> tactic =
+  let val if_case = case #side conf of SideHoare => @{thm if_case_rule}
+                                     | SideLeft => @{thm if_case_rule_left}
+  in
+    rtac if_case
+    THEN' wp_total_strict_tac conf ctx
+    THEN' wp_total_strict_tac conf ctx
+    THEN' simp_memory_updates_tac ctx
+  end
 
 (* Removes a hoare-triple goal. If the precondition is ?Q, ?Q will be instantiated with the wp *)
-and wp_total_strict_tac' ctx conf i : tactic = (REPEAT_DETERM (wp1_tac ctx conf i)) THEN (rtac @{thm skip_rule_strict} i)
+and wp_total_strict_tac' ctx conf i : tactic = 
+  let val skip_rule = case #side conf of SideHoare => @{thm skip_rule_strict}
+  in
+    REPEAT_DETERM (wp1_tac ctx conf i) THEN (rtac skip_rule i)
+  end
 and wp_total_strict_tac ctx conf = NGOALS 0 (wp_total_strict_tac' conf ctx)
 
 and wp1_tac ctx conf i st =
-  (last_step_tac i
-  THEN ((rtac @{thm assign_rule_strict} i THEN simp_memory_updates_tac ctx i)
-        ORELSE assert_tac (#nondeterministic_sample conf) (rtac @{thm sample_rule_strict} i THEN simp_memory_updates_tac ctx i)
-        ORELSE rtac @{thm skip_rule_strict} i
-        ORELSE wp_if_strict ctx conf i))
-  st
+  let val (assign,sample,skip) = case #side conf of SideHoare => (@{thm assign_rule_strict},@{thm sample_rule_strict},@{thm skip_rule_strict})
+                                                  | SideLeft => (@{thm assign_rule_left_strict},@{thm refl}(*not used*),@{thm rskip_rule_strict})
+  in
+    (last_step_tac (#side conf) i
+THEN print_tac ctx "bla"
+    THEN ((rtac assign i THEN simp_memory_updates_tac ctx i)
+          ORELSE assert_tac (#nondeterministic_sample conf) (case #side conf of SideHoare => rtac sample i THEN simp_memory_updates_tac ctx i
+                                                                              | _ => fn _ => error "wp1_tac: nondeterministic_sample not supported for RHL")
+          ORELSE rtac skip i
+          ORELSE wp_if_strict ctx conf i))
+    st
+  end
 
-fun skip_tac i : tactic = Tactic.rtac @{thm skip_rule} i
+fun skip_tac SideHoare = Tactic.rtac @{thm skip_rule}
 
 fun wp_tac ctx conf i : tactic = REPEAT_DETERM1 (wp1_tac ctx conf i)
 
@@ -172,7 +158,7 @@ fun seq_tac ctx n I i =
                         | SOME I => Ctr_Sugar_Util.cterm_instantiate_pos [NONE,NONE,SOME (Thm.cterm_of ctx I)] 
                                     @{thm seq_rule})
   in
-  rtac @{thm denotation_eq_rule} i  
+  rtac @{thm denotation_eq_rule} i
   THEN  seq_deno_tac ctx n i
   THEN  rtac seq_rule_Q i
   end

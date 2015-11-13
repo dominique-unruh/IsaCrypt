@@ -155,7 +155,7 @@ definition "game_probability game args mem E ==
     (\<lambda>m. E (memory_lookup m res))"
 
 (* TODO move *)
-(* TODO: correct precondition *)
+(* TODO: correct precondition (refer only to globals of p1,p2) *)
 lemma byequiv_rule:
   assumes "LOCAL res. hoare {&1=m \<and> &2=m} (res := call p1(a1)) ~ (res := call p2(a2)) {E (res)\<^sub>1 = F (res)\<^sub>2}"
   shows "game_probability p1 a1 m E = game_probability p2 a2 m F" 
@@ -167,7 +167,12 @@ lemma cpa_ddh0:
 apply (rule byequiv_rule)
 apply (inline "CPA_main<$>(ElGamal,A)")
 apply (inline "DDH0<$>(DDHAdv<$>A)")
-apply wp
+apply simp
+apply (tactic \<open>Hoare_Tactics.wp_tac @{context} 
+               (Hoare_Tactics.wp_config_update_side Hoare_Tactics.wp_config_default Hoare_Tactics.SideLeft) 1\<close>)
+apply (tactic \<open>Hoare_Tactics.wp_tac @{context} 
+               (Hoare_Tactics.wp_config_update_side Hoare_Tactics.wp_config_default Hoare_Tactics.SideRight) 1\<close>)
+(* apply wp *)
 SORRY
 
 (* 

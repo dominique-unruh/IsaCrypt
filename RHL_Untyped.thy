@@ -135,36 +135,6 @@ proof -
     unfolding \<mu>'_def map_def using post by auto
 qed
 
-(* TODO remove 
-lemma rnd_rule:
-  assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow> apply_to_distr fst (\<mu> m1 m2) = ed_fun d m1"
-      and "\<And>m1 m2. P m1 m2 \<Longrightarrow> apply_to_distr snd (\<mu> m1 m2) = ed_fun e m2"
-      and "\<And>m1 m2. P m1 m2 \<Longrightarrow> \<forall>(xval,yval)\<in>support_distr (\<mu> m1 m2). 
-           Q (memory_update_untyped m1 x xval) (memory_update_untyped m2 y yval)"
-  shows "rhoare_untyped P (Sample x d) (Sample y e) Q"
-  unfolding rhoare_untyped_def apply rule+ defer apply rule
-proof -
-  fix m1 m2 assume "P m1 m2"
-  def map == "\<lambda>(xval,yval). (memory_update_untyped m1 x xval, memory_update_untyped m2 y yval)"
-  def \<mu>' == "apply_to_distr map (\<mu> m1 m2)"
-  have mu1: "apply_to_distr fst (\<mu> m1 m2) = ed_fun d m1" using assms `P m1 m2` by simp
-  have mu2: "apply_to_distr snd (\<mu> m1 m2) = ed_fun e m2" using assms `P m1 m2` by simp
-  have post: "\<forall>(xval,yval)\<in>support_distr (\<mu> m1 m2). Q (memory_update_untyped m1 x xval) (memory_update_untyped m2 y yval)"
-    using assms `P m1 m2` by simp
-  show "apply_to_distr fst \<mu>' = denotation_untyped (Sample x d) m1"
-    unfolding \<mu>'_def apply simp
-    unfolding mu1[symmetric] apply simp
-    apply (rule cong_middle[where f=apply_to_distr])
-    unfolding map_def by auto
-  show "apply_to_distr snd \<mu>' = denotation_untyped (Sample y e) m2" 
-    unfolding \<mu>'_def apply simp
-    unfolding mu2[symmetric] apply simp
-    apply (rule cong_middle[where f=apply_to_distr])
-    unfolding map_def by auto
-  show "\<forall>m1' m2'. (m1', m2') \<in> support_distr \<mu>' \<longrightarrow> Q m1' m2'" 
-    unfolding \<mu>'_def map_def using post by auto
-qed
-*)
 
 lemma rtrans_rule:
   assumes p:"\<And>m1 m2. P m1 m2 \<Longrightarrow> \<exists>m. P1 m1 m \<and> P2 m m2"
@@ -791,6 +761,35 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
         apply_to_distr (\<lambda>m x. if x \<in> V then memory_lookup_untyped m x else undefined) (denotation_untyped unfolded m2)" 
     unfolding eq_def by simp
 qed
+
+
+lemma iftrue_rule_left:
+  fixes P Q I c p1 p2
+  assumes "rhoare_untyped P p1 q Q"
+          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m = embedding True"
+  shows "rhoare_untyped P (IfTE e p1 p2) q Q"
+  using assms unfolding rhoare_untyped_def by auto
+
+lemma iffalse_rule_left:
+  fixes P Q I c p1 p2
+  assumes "rhoare_untyped P p2 q Q"
+          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m \<noteq> embedding True"
+  shows "rhoare_untyped P (IfTE e p1 p2) q Q"
+  using assms unfolding rhoare_untyped_def by auto
+
+lemma iftrue_rule_right:
+  fixes P Q I c p1 p2
+  assumes "rhoare_untyped P q p1 Q"
+          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m' = embedding True"
+  shows "rhoare_untyped P q (IfTE e p1 p2) Q"
+  using assms unfolding rhoare_untyped_def by auto
+
+lemma iffalse_rule_right:
+  fixes P Q I c p1 p2
+  assumes "rhoare_untyped P q p2 Q"
+          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m' \<noteq> embedding True"
+  shows "rhoare_untyped P q (IfTE e p1 p2) Q"
+  using assms unfolding rhoare_untyped_def by auto
 
 
 

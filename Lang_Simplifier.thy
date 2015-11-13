@@ -14,7 +14,11 @@ lemma lang_simp_start_hoare [lang_simp_start]:
   "fun_equiv denotation c c' \<Longrightarrow> Hoare_Typed.hoare P c Q == Hoare_Typed.hoare P c' Q"
 unfolding fun_equiv_def hoare_def by simp
 
-simproc_setup hoare_simproc ("denotation c" | "Hoare_Typed.hoare P c Q") = {* 
+lemma lang_simp_start_rhoare [lang_simp_start]: 
+  "fun_equiv denotation c c' \<Longrightarrow> fun_equiv denotation d d' \<Longrightarrow> rhoare P c d Q == rhoare P c' d' Q"
+unfolding fun_equiv_def rhoare_def by simp
+
+simproc_setup hoare_simproc ("denotation c" | "Hoare_Typed.hoare P c Q" | "rhoare P' c d Q'") = {* 
   Tools.fun_equiv_simproc_named 
     @{named_theorems lang_simp_start}
     @{named_theorems lang_cong}
