@@ -126,13 +126,15 @@ context group begin
 
 lemma correctness:
   shows "LOCAL succ0. hoare {True} succ0 := call Correctness <$> ElGamal(m) {succ0}"
-apply (inline "Correctness<$>ElGamal")
+(* apply (inline "Correctness<$>ElGamal")
 apply (inline "keygen<$>ElGamal")
 apply (inline "dec<$>ElGamal")
 apply (inline "enc<$>ElGamal")
 apply (wp sample) apply skip apply auto
 unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat])
 apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
+ *)
+SORRY "uncommented for speed"
 
 type_synonym 'g ElGamal_Adv = "('g, nat, 'g, 'g\<times>'g) CPA_Adv"
 
@@ -168,11 +170,7 @@ apply (rule byequiv_rule)
 apply (inline "CPA_main<$>(ElGamal,A)")
 apply (inline "DDH0<$>(DDHAdv<$>A)")
 apply simp
-apply (tactic \<open>Hoare_Tactics.wp_tac @{context} 
-               (Hoare_Tactics.wp_config_update_side Hoare_Tactics.wp_config_default Hoare_Tactics.SideLeft) 1\<close>)
-apply (tactic \<open>Hoare_Tactics.wp_tac @{context} 
-               (Hoare_Tactics.wp_config_update_side Hoare_Tactics.wp_config_default Hoare_Tactics.SideRight) 1\<close>)
-(* apply wp *)
+apply wp
 SORRY
 
 (* 

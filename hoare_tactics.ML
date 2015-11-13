@@ -1,13 +1,13 @@
 structure Hoare_Tactics =
 struct
 
-datatype side = SideHoare | SideLeft | SideRight
+datatype side = SideHoare | SideLeft | SideRight | SideBoth
 
 fun NGOALS n tac i st =
   tac i st |> Seq.filter (fn st' => Thm.nprems_of st' = Thm.nprems_of st - 1 + n);
-fun NGOALS_ERROR n tac i st =
+(* fun NGOALS_ERROR n tac i st =
   tac i st |> Seq.map (fn st' => if Thm.nprems_of st' = Thm.nprems_of st - 1 + n then st
-                                 else raise (ERROR ("NGOALS_ERROR")));
+                                 else raise (ERROR ("NGOALS_ERROR"))); *)
 
 
 (* TODO: 
@@ -35,6 +35,7 @@ fun last_step_tac_lax side i : tactic =
       case side of SideHoare => (@{thm seq_assoc_rule},@{thm seq_rule_lastfirst},@{thm addskip_rule})
                  | SideLeft => (@{thm seq_assoc_left_rule},@{thm seq_rule_lastfirst_left},@{thm addskip_left_rule})
                  | SideRight => (@{thm seq_assoc_right_rule},@{thm seq_rule_lastfirst_right},@{thm addskip_right_rule})
+                 | SideBoth => error "last_step_tac_lax: SideBoth not supported"
   in    
   (REPEAT (rtac assoc i)   THEN   rtac lastfirst i)
   ORELSE (rtac addskip i   THEN   rtac lastfirst i)
@@ -68,17 +69,28 @@ type wp_config = {
   nondeterministic_sample : bool, (* Should wp/wp1 also remove "x <- e" statements (treated as nondeterministic assignments) *)
   side : side (* where to apply wp *)
 }
-val wp_config_default = {nondeterministic_sample=false, side=SideHoare}
+val wp_config_default = {nondeterministic_sample=false, side=SideBoth}
 fun wp_config_update_nondeterministic_sample {side,...} b : wp_config = {nondeterministic_sample=b,side=side}
 fun wp_config_update_side ({nondeterministic_sample,...}:wp_config) b : wp_config = {nondeterministic_sample=nondeterministic_sample,side=b}
 
-local
+fun update_parser (parser:'a context_parser) (update:'b->'a->'b) (state:'b) : ('b context_parser) =
+(*  prev :|-- (fn state =>*)
+    (parser >> update state) || Scan.succeed state
+
+(* local
 fun parse conf toks = 
+  
   ((Scan.lift (Parse.reserved "sample") |-- parse (wp_config_update_nondeterministic_sample conf true)) ||
   Scan.succeed conf) toks
-in
-val wp_config_parser : wp_config context_parser = parse wp_config_default
-end
+in *)
+val wp_config_parser : wp_config context_parser = 
+  Scan.lift (Scan.succeed wp_config_default)
+  :|--
+  update_parser (Scan.lift (Parse.reserved "sample")) (fn conf => fn _ => wp_config_update_nondeterministic_sample conf true)
+  :|--
+  update_parser (Scan.lift (Parse.reserved "left")) (fn conf => fn _ => wp_config_update_side conf SideLeft) 
+  :|--
+  update_parser (Scan.lift (Parse.reserved "right")) (fn conf => fn _ => wp_config_update_side conf SideRight) 
 
 fun assert_tac b tac = if b then tac else no_tac
 
@@ -88,6 +100,7 @@ fun wp_if_strict ctx (conf:wp_config) : int -> tactic =
   let val if_case = case #side conf of SideHoare => @{thm if_case_rule}
                                      | SideLeft => @{thm if_case_rule_left}
                                      | SideRight => @{thm if_case_rule_right}
+                                     | SideBoth => error "wp_if_strict: SideBoth not supported"
   in
     rtac if_case
     THEN' wp_total_strict_tac conf ctx
@@ -100,15 +113,17 @@ and wp_total_strict_tac' ctx conf i : tactic =
   let val skip_rule = case #side conf of SideHoare => @{thm skip_rule_strict}
                                        | SideLeft => @{thm rskip_rule_strict}
                                        | SideRight => @{thm rskip_rule_strict}
+                                       | SideBoth => error "wp_total_strict_tac': SideBoth not supported"
   in
-    REPEAT_DETERM (wp1_tac ctx conf i) THEN (rtac skip_rule i)
+    REPEAT_DETERM (wp1_tac' ctx conf i) THEN (rtac skip_rule i)
   end
 and wp_total_strict_tac ctx conf = NGOALS 0 (wp_total_strict_tac' conf ctx)
 
-and wp1_tac ctx conf i st =
+and wp1_tac' ctx conf i st =
   let val (assign,sample,skip) = case #side conf of SideHoare => (@{thm assign_rule_strict},@{thm sample_rule_strict},@{thm skip_rule_strict})
                                                   | SideLeft => (@{thm assign_rule_left_strict},@{thm refl}(*not used*),@{thm rskip_rule_strict})
                                                   | SideRight => (@{thm assign_rule_right_strict},@{thm refl}(*not used*),@{thm rskip_rule_strict})
+                                                  | SideBoth => error "wp1_tac': SideBoth not supported"
   in
     (last_step_tac (#side conf) i
     THEN ((rtac assign i THEN simp_memory_updates_tac ctx i)
@@ -119,9 +134,31 @@ and wp1_tac ctx conf i st =
     st
   end
 
-fun skip_tac SideHoare = Tactic.rtac @{thm skip_rule}
+val skip_tac = resolve0_tac @{thms skip_rule rskip_rule}
 
-fun wp_tac ctx conf i : tactic = REPEAT_DETERM1 (wp1_tac ctx conf i)
+datatype hoare_kind = HoareRHL | HoarePossibilistic | HoareInvalid
+
+fun hoare_kind (Const(@{const_name Trueprop},_) $ (Const(@{const_name Hoare_Typed.hoare},_) $ _ $ _ $ _)) = HoarePossibilistic
+  | hoare_kind (Const(@{const_name Trueprop},_) $ (Const(@{const_name rhoare},_) $ _ $ _ $ _ $ _)) = HoareRHL
+  | hoare_kind _ = HoareInvalid
+
+fun wp_tac ctx conf : int -> tactic = 
+  case #side conf of
+    SideBoth => SUBGOAL (fn (goal,i) => case hoare_kind goal of
+      HoarePossibilistic => wp_tac ctx (wp_config_update_side conf SideHoare) i
+    | HoareRHL => CHANGED ((TRY (wp_tac ctx (wp_config_update_side conf SideLeft) i))
+                      THEN (TRY (wp_tac ctx (wp_config_update_side conf SideRight) i)))
+    | HoareInvalid => error "wp_tac: HoareInvalid")
+  | _ => fn i => REPEAT_DETERM1 (wp1_tac' ctx conf i)
+
+fun wp1_tac ctx conf : int -> tactic =
+  case #side conf of
+    SideBoth => SUBGOAL (fn (goal,i) => case hoare_kind goal of
+      HoarePossibilistic => wp1_tac' ctx (wp_config_update_side conf SideHoare) i
+    | HoareRHL => wp1_tac' ctx (wp_config_update_side conf SideLeft) i
+                  ORELSE wp1_tac' ctx (wp_config_update_side conf SideRight) i
+    | HoareInvalid => error "wp1_tac: HoareInvalid")
+  | _ => wp1_tac' ctx conf
 
 fun mk_suc_nat n = if n<=0 then @{term "0::nat"} else @{const Suc} $ mk_suc_nat (n-1);
 
