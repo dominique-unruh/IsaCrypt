@@ -77,11 +77,26 @@ lemma assign_left_rule:
   apply (rule rassign_rule1)
   using assms unfolding memory_update_pattern_def by auto
 
+lemma assign_right_rule:
+  fixes P Q x e
+  assumes "\<forall>m m'. P m m' \<longrightarrow> Q m (memory_update_pattern m' x (e_fun e m'))"
+  shows "hoare {P &1 &2} skip ~ \<guillemotleft>assign x e\<guillemotright> {Q &1 &2}"
+  unfolding rhoare_untyped Rep_skip Rep_assign
+  apply (rule rassign_rule2)
+  using assms unfolding memory_update_pattern_def by auto
+
 lemma assign_rule_left_strict:
   fixes Q x e
   defines "Q' == \<lambda>m m'. Q (memory_update_pattern m x (e_fun e m)) m'"
   shows "hoare {Q' &1 &2} \<guillemotleft>assign x e\<guillemotright> ~ skip {Q &1 &2}"
   apply (rule assign_left_rule)
+  unfolding Q'_def by simp
+
+lemma assign_rule_right_strict:
+  fixes Q x e
+  defines "Q' == \<lambda>m m'. Q m (memory_update_pattern m' x (e_fun e m'))"
+  shows "hoare {Q' &1 &2} skip ~ \<guillemotleft>assign x e\<guillemotright> {Q &1 &2}"
+  apply (rule assign_right_rule)
   unfolding Q'_def by simp
 
 (*lemma sample_rule_left_strict:
@@ -165,6 +180,11 @@ lemma seq_assoc_left_rule:
   shows "hoare {P &1 &2} \<guillemotleft>a\<guillemotright>;{\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright>} ~ \<guillemotleft>d\<guillemotright> {R &1 &2}"
 using assms denotation_seq_assoc rhoare_def by auto
 
+lemma seq_assoc_right_rule: 
+  assumes "hoare {P &1 &2} \<guillemotleft>d\<guillemotright> ~ \<guillemotleft>a\<guillemotright>;\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright> {R &1 &2}"
+  shows "hoare {P &1 &2} \<guillemotleft>d\<guillemotright> ~ \<guillemotleft>a\<guillemotright>;{\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright>} {R &1 &2}"
+using assms denotation_seq_assoc rhoare_def by auto
+
 
 lemma addskip_left_rule:
   assumes "hoare {P &1 &2} skip; \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
@@ -183,6 +203,18 @@ lemma seq_rule_lastfirst_left:
   shows "hoare {P &1 &2} \<guillemotleft>c\<guillemotright>;\<guillemotleft>d\<guillemotright> ~ \<guillemotleft>e\<guillemotright> {R &1 &2}"
 proof -
   have "hoare {P &1 &2} \<guillemotleft>c\<guillemotright>;\<guillemotleft>d\<guillemotright> ~ \<guillemotleft>e\<guillemotright>;skip {R &1 &2}"
+    apply (rule rseq_rule) using assms by simp_all
+  thus ?thesis
+    unfolding rhoare_def denotation_skip_seq by assumption
+qed
+
+(* Ordering of subgoals for certain tactics *)
+lemma seq_rule_lastfirst_right:
+  fixes P Q R c d e
+  assumes "hoare {Q &1 &2} skip ~ \<guillemotleft>d\<guillemotright> {R &1 &2}" and "hoare {P &1 &2} \<guillemotleft>e\<guillemotright> ~ \<guillemotleft>c\<guillemotright> {Q &1 &2}"
+  shows "hoare {P &1 &2} \<guillemotleft>e\<guillemotright> ~ \<guillemotleft>c\<guillemotright>;\<guillemotleft>d\<guillemotright> {R &1 &2}"
+proof -
+  have "hoare {P &1 &2} \<guillemotleft>e\<guillemotright>;skip ~ \<guillemotleft>c\<guillemotright>;\<guillemotleft>d\<guillemotright> {R &1 &2}"
     apply (rule rseq_rule) using assms by simp_all
   thus ?thesis
     unfolding rhoare_def denotation_skip_seq by assumption

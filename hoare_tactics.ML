@@ -34,6 +34,7 @@ fun last_step_tac_lax side i : tactic =
   let val (assoc,lastfirst,addskip) =
       case side of SideHoare => (@{thm seq_assoc_rule},@{thm seq_rule_lastfirst},@{thm addskip_rule})
                  | SideLeft => (@{thm seq_assoc_left_rule},@{thm seq_rule_lastfirst_left},@{thm addskip_left_rule})
+                 | SideRight => (@{thm seq_assoc_right_rule},@{thm seq_rule_lastfirst_right},@{thm addskip_right_rule})
   in    
   (REPEAT (rtac assoc i)   THEN   rtac lastfirst i)
   ORELSE (rtac addskip i   THEN   rtac lastfirst i)
@@ -86,6 +87,7 @@ fun assert_tac b tac = if b then tac else no_tac
 fun wp_if_strict ctx (conf:wp_config) : int -> tactic =
   let val if_case = case #side conf of SideHoare => @{thm if_case_rule}
                                      | SideLeft => @{thm if_case_rule_left}
+                                     | SideRight => @{thm if_case_rule_right}
   in
     rtac if_case
     THEN' wp_total_strict_tac conf ctx
@@ -96,6 +98,8 @@ fun wp_if_strict ctx (conf:wp_config) : int -> tactic =
 (* Removes a hoare-triple goal. If the precondition is ?Q, ?Q will be instantiated with the wp *)
 and wp_total_strict_tac' ctx conf i : tactic = 
   let val skip_rule = case #side conf of SideHoare => @{thm skip_rule_strict}
+                                       | SideLeft => @{thm rskip_rule_strict}
+                                       | SideRight => @{thm rskip_rule_strict}
   in
     REPEAT_DETERM (wp1_tac ctx conf i) THEN (rtac skip_rule i)
   end
@@ -104,9 +108,9 @@ and wp_total_strict_tac ctx conf = NGOALS 0 (wp_total_strict_tac' conf ctx)
 and wp1_tac ctx conf i st =
   let val (assign,sample,skip) = case #side conf of SideHoare => (@{thm assign_rule_strict},@{thm sample_rule_strict},@{thm skip_rule_strict})
                                                   | SideLeft => (@{thm assign_rule_left_strict},@{thm refl}(*not used*),@{thm rskip_rule_strict})
+                                                  | SideRight => (@{thm assign_rule_right_strict},@{thm refl}(*not used*),@{thm rskip_rule_strict})
   in
     (last_step_tac (#side conf) i
-THEN print_tac ctx "bla"
     THEN ((rtac assign i THEN simp_memory_updates_tac ctx i)
           ORELSE assert_tac (#nondeterministic_sample conf) (case #side conf of SideHoare => rtac sample i THEN simp_memory_updates_tac ctx i
                                                                               | _ => fn _ => error "wp1_tac: nondeterministic_sample not supported for RHL")
@@ -118,8 +122,6 @@ THEN print_tac ctx "bla"
 fun skip_tac SideHoare = Tactic.rtac @{thm skip_rule}
 
 fun wp_tac ctx conf i : tactic = REPEAT_DETERM1 (wp1_tac ctx conf i)
-
-(*fun wp_total_tac i : tactic = (REPEAT_DETERM (wp1_tac i)) THEN (skip_tac i)*)
 
 fun mk_suc_nat n = if n<=0 then @{term "0::nat"} else @{const Suc} $ mk_suc_nat (n-1);
 
