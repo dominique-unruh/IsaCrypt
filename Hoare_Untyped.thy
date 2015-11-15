@@ -87,5 +87,4 @@ lemma case_rule:
   shows "hoare_untyped P c Q"
 using assms unfolding hoare_untyped_def by metis
 
-
 end

@@ -819,42 +819,6 @@ lemma local_variable_name_renaming_bij: "bij (local_variable_name_renaming ren)"
   using o_bij close force
   apply simp unfolding o_def[symmetric]
   by (simp add: bij_comp local_variable_name_renaming1_bij)
-(* proof -
-  def f == "fold (\<lambda>(a,b) f. Fun.swap a b f) ren id"
-  have "bij f"
-    unfolding f_def by (induct ren rule:rev_induct, auto simp: bij_id[unfolded id_def])
-  have "surj (local_variable_name_renaming ren)"
-  proof (unfold surj_def, rule allI)
-    fix x::variable_untyped
-    obtain y' where y': "f y' = vu_name x"
-      by (meson `bij f` bij_iff)
-    def y == "if vu_global x then x else x \<lparr> vu_name:=y' \<rparr>"
-    show "\<exists>y. x = local_variable_name_renaming ren y"
-      apply (rule exI[of _ y]) unfolding local_variable_name_renaming_def f_def[symmetric] y_def
-      using y' by auto
-  qed
-  moreover have "inj (local_variable_name_renaming ren)"
-  proof (rule injI)
-    fix x y
-    assume eq: "local_variable_name_renaming ren x = local_variable_name_renaming ren y"
-    hence "vu_type x = vu_type y" unfolding local_variable_name_renaming_def
-      by (metis eq local_variable_name_renaming_type)
-    moreover from eq have gl: "vu_global x = vu_global y" unfolding local_variable_name_renaming_def
-      by (metis eq local_variable_name_renaming_global)
-    moreover 
-    have "\<not> vu_global x \<Longrightarrow> vu_name x = vu_name y"
-      using eq unfolding local_variable_name_renaming_def f_def[symmetric]
-      apply (cases "vu_global y") apply auto
-      by (smt `bij f` bij_imp_bij_inv bij_is_surj inv_inv_eq surj_f_inv_f variable_untyped.surjective variable_untyped.update_convs(1))
-    hence "vu_name x = vu_name y"
-      apply (cases "vu_global x")
-      using gl eq local_variable_name_renaming_def by auto
-    ultimately show "x=y" by auto
-  qed
-  ultimately show "bij (local_variable_name_renaming ren)"
-    by (rule_tac bijI)
-qed
- *)
 
 
 definition rename_local_variables :: "variable_name_renaming \<Rightarrow> program \<Rightarrow> program" where
@@ -1204,5 +1168,12 @@ lemma rename_local_variables_const_expression [simp]:
   apply (rule mk_expression_untyped_inject[THEN iffD1]) 
   apply (rule Rep_expression_untyped_inject[THEN iffD1])
   by auto
+
+(** Misc rules **)
+
+(*lemma swap_denotation:
+  assumes "set(vars a) \<inter> set(vars b) = {}"
+  shows "denotation (seq a b) = denotation (seq b a)"*)
+
 
 end
