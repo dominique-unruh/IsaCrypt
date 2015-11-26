@@ -32,7 +32,16 @@ lemma denotation_footprint_readonly:
   assumes "R\<inter>X={}"
   assumes "denotation_footprint X d"
   shows "denotation_readonly R d"
-by later
+proof (auto simp: denotation_readonly_def)
+  fix m m' x assume "x\<in>R" assume "m' \<in> support_distr (d m)"
+  hence "Rep_distr (d m) m' \<noteq> 0" by (simp add: support_distr_def)
+  hence "Rep_distr (d (memory_combine X m z)) (memory_combine X m' z) 
+      * (if memory_combine X default m = memory_combine X default m' then 1 else 0) \<noteq> 0"
+    using assms(2) denotation_footprint_def by auto
+  hence "memory_combine X default m = memory_combine X default m'" by (metis (full_types) mult_zero_right)
+  thus "Rep_memory m x = Rep_memory m' x"
+    by (metis (full_types) Rep_memory_combine `x\<in>R` assms(1) disjoint_iff_not_equal)
+qed
 
 lemma program_untyped_footprint_readonly:
   assumes "R\<inter>X={}"
@@ -68,7 +77,7 @@ lemma nn_integral_singleton_indicator:
   shows "(\<integral>\<^sup>+x. f x * indicator {y} x \<partial>\<mu>) = f y * emeasure \<mu> {y}"
 proof -
   have "(\<integral>\<^sup>+x. f x * indicator {y} x \<partial>\<mu>) = (\<integral>\<^sup>+x. f y * indicator {y} x \<partial>\<mu>)"
-    by (metis ereal_zero_times indicator_simps(2) nn_integral_cong singletonD)
+    by (metis ereal_zero_times indicator_simps(2) singletonD)
   also have "... = f y * emeasure \<mu> {y}"
     apply (rule nn_integral_cmult_indicator)  
     using assms by auto
@@ -83,7 +92,7 @@ apply (subst nn_integral_singleton_indicator)
   by (metis mult.comm_neutral one_ereal_def)
 
 
-lemma 
+lemma swap:
   fixes A B R
   assumes a_ro: "program_untyped_readonly R a"
   assumes b_ro: "program_untyped_readonly R b"
@@ -207,21 +216,6 @@ proof -
     by (rule_tac Rep_distr_inject[THEN iffD1], auto)
 qed
 
-
-find_theorems "indicator {_}"
-find_theorems "\<integral>\<^sup>+x. _ \<partial>_"
-
-  fix y
-  have "\<And>y.  (\<integral>\<^sup>+x. ereal (aa m x * bb x y) \<partial>count_space UNIV) =  (\<integral>\<^sup>+x. ereal (bb m x * aa x y) \<partial>count_space UNIV)"
-    sorry
-  hence "Abs_distr (\<lambda>ba\<Colon>memory. real (\<integral>\<^sup>+x. ereal (aa m x * bb x ba) \<partial>count_space UNIV)) =
-         Abs_distr (\<lambda>ba\<Colon>memory. real (\<integral>\<^sup>+x. ereal (bb m x * aa x ba) \<partial>count_space UNIV))"
-    by simp
-  thus ?thesis
-    apply simp
-    unfolding compose_distr_def aa_def bb_def 
-    by simp
-qed
     
 
 print_commands
@@ -314,48 +308,9 @@ end_module
 end_module
 
 
-end
-
-thm hello_def
+thm bla_def
 
 module_type MT =
   proc1 :: "(unit,unit) procedure"
-
-
-
-locale module =
-  fixes M :: MT
-begin
-
-definition test1 where
-  "test1 = LOCAL (x::unit variable). proc () { x := call proc1<$>M (); return () }"
-
-term test1
-
-ML {* @{term "Scratch.module.test1"} *}
-
-ML {* Syntax.string_of_term @{context} (Const(@{const_name Scratch.module.test1},
-  @{typ "(unit, unit) procedure \<Rightarrow> (unit, unit) procedure"}))
-|> writeln *}
-
-thm test1_def
-
-find_theorems test1
-
-ML Specification.definition_cmd
-
-ML {* @{term test1} *}
-
-procedure test where
-  "test <$> MX = LOCAL x. proc () { x := call proc1<$>MX(); return () }"
-
-term Scratch.module.test
-term local.test
-
-end
-
-
-thm module.test1_def
-thm module.test_def
 
 end
