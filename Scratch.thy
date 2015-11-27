@@ -243,6 +243,7 @@ ML {*
 
 fun split_with_seq_tac ctx n =
   if n=0 then rtac @{thm denotation_seq_skip[symmetric]} 
+  else if n<0 then error "split_with_seq_tac: n<0"
   else
   SUBGOAL (fn (goal,i) => 
   let
@@ -258,10 +259,29 @@ fun split_with_seq_tac ctx n =
 
 *}
 
+ML {*
+fun extract_range_tac _   ([],_)   = error "empty range given"
+  | extract_range_tac ctx ([a],len) =
+      split_with_seq_tac ctx (a-1)
+      THEN' rtac @{thm denotation_eq_seq_snd}
+      THEN' split_with_seq_tac ctx len
+      THEN' rtac @{thm denotation_eq_seq_fst}
+  | extract_range_tac _   (_::_::_,_) = error "extract_range_tac: extracting nested ranges not supported"
+*}
+
+thm seq_swap
+
+ML {*
+fun swap_tac ctx range len1 (*(A,B,R)*) =
+  extract_range_tac ctx range
+  THEN' split_with_seq_tac ctx len1
+  THEN' rtac @{thm seq_swap} (*(Drule.instantiate' [] [R,NONE,NONE,A,B] @{thm seq_swap})*)
+*}
+
+
 lemma program_footprint_seq:
-  assumes "program_footprint A a"
-  assumes "program_footprint B b"
-  assumes "X \<supseteq> A" and "X \<supseteq> B"
+  assumes "program_footprint X a"
+  assumes "program_footprint X b"
   shows "program_footprint X (seq a b)"
 SORRY
 
@@ -270,26 +290,16 @@ lemma
   assumes "program_footprint {} c4"
   assumes "program_footprint {} c5"
   assumes "hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; \<guillemotleft>c4\<guillemotright>; \<guillemotleft>c5\<guillemotright>; \<guillemotleft>c3\<guillemotright>; \<guillemotleft>c6\<guillemotright> {Q &m}"
-  shows  "hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; \<guillemotleft>c3\<guillemotright>; \<guillemotleft>c4\<guillemotright>; \<guillemotleft>c5\<guillemotright>; \<guillemotleft>c6\<guillemotright> {Q &m}"
+  shows   "hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; \<guillemotleft>c3\<guillemotright>; \<guillemotleft>c4\<guillemotright>; \<guillemotleft>c5\<guillemotright>; \<guillemotleft>c6\<guillemotright> {Q &m}"
 apply (rule denotation_eq_rule)
- (* Select 3-5  *)
- apply (tactic \<open>split_with_seq_tac @{context} 2 1\<close>)
- apply (rule denotation_eq_seq_snd)
- apply (tactic \<open>split_with_seq_tac @{context} 3 1\<close>)
- apply (rule denotation_eq_seq_fst)
- (* Split 3 / 4-5 *)
- apply (tactic \<open>split_with_seq_tac @{context} 1 1\<close>)
- apply (rule seq_swap[where R=UNIV])
-     close (simp add: assms program_footprint_readonly)
-    apply (rule program_footprint_readonly)
-     close simp
-    apply (rule program_footprint_seq)
-       close (fact assms) close (fact assms)
-     close simp close simp
-   close (fact assms) 
+apply (tactic \<open>swap_tac @{context} ([3],3) 1 (*(NONE,NONE,NONE)*) 1\<close>)
+     apply (rule program_footprint_readonly[where R="{}"]) close simp close (fact assms)
+    apply (rule program_footprint_readonly) close simp
+    apply (rule program_footprint_seq) close (fact assms) close (fact assms)
+   close (fact assms)
   apply (rule program_footprint_seq)
-     close (fact assms) close (fact assms)
-   close simp close simp close simp
+    close (fact assms) close (fact assms)
+ close simp
 apply simp
 by (fact assms)
 
