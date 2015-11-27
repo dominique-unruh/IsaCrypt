@@ -1,5 +1,5 @@
 theory Scratch
-imports Procs_Typed Rewrite
+imports Procs_Typed Rewrite Hoare_Typed Hoare_Tactics Lang_Simplifier
 keywords "module" :: thy_decl
      and "end_module" :: thy_decl
 begin
@@ -60,7 +60,7 @@ lemma denotation_readonly_union:
   assumes "denotation_readonly Y c"
   shows "denotation_readonly (X\<union>Y) c"
 using assms unfolding denotation_readonly_def
-apply auto by blast
+by auto
 
 lemma program_untyped_readonly_union:
   assumes "program_untyped_readonly X c"
@@ -92,7 +92,7 @@ apply (subst nn_integral_singleton_indicator)
   by (metis mult.comm_neutral one_ereal_def)
 
 
-lemma swap:
+lemma seq_swap_untyped:
   fixes A B R
   assumes a_ro: "program_untyped_readonly R a"
   assumes b_ro: "program_untyped_readonly R b"
@@ -216,10 +216,84 @@ proof -
     by (rule_tac Rep_distr_inject[THEN iffD1], auto)
 qed
 
-    
+lemma seq_swap:
+  fixes A B R
+  assumes a_ro: "program_readonly R a"
+  assumes b_ro: "program_readonly R b"
+  assumes foot_a: "program_footprint A a"
+  assumes foot_b: "program_footprint B b"
+  assumes ABR: "A\<inter>B\<subseteq>R"
+  shows "denotation (seq a b) = denotation (seq b a)"
+unfolding denotation_def apply simp apply (rule seq_swap_untyped[THEN ext])
+using assms
+unfolding program_readonly_def program_untyped_readonly_def denotation_def program_footprint_def program_untyped_footprint_def
+by auto
 
-print_commands
+lemma denotation_eq_seq_snd:
+  assumes "denotation b = denotation b'"
+  shows "denotation (seq a b) = denotation (seq a b')"
+unfolding denotation_seq[THEN ext] using assms by simp
     
+lemma denotation_eq_seq_fst:
+  assumes "denotation a = denotation a'"
+  shows "denotation (seq a b) = denotation (seq a' b)"
+unfolding denotation_seq[THEN ext] using assms by simp
+    
+ML {*
+
+fun split_with_seq_tac ctx n =
+  if n=0 then rtac @{thm denotation_seq_skip[symmetric]} 
+  else
+  SUBGOAL (fn (goal,i) => 
+  let
+      val concl = Logic.strip_assums_concl goal
+      val lhsprog = Hoare_Tactics.dest_denotation (fst (HOLogic.dest_eq (HOLogic.dest_Trueprop concl)))
+      val proglen = Hoare_Tactics.program_length lhsprog
+      val n' = Thm.cterm_of ctx (Hoare_Tactics.mk_suc_nat (proglen - n))
+      val insert_split_n = Ctr_Sugar_Util.cterm_instantiate_pos [SOME n'] @{thm insert_split}
+  in
+    rtac insert_split_n i  
+    THEN Raw_Simplifier.rewrite_goal_tac ctx @{thms split_program_simps} i
+  end)
+
+*}
+
+lemma program_footprint_seq:
+  assumes "program_footprint A a"
+  assumes "program_footprint B b"
+  assumes "X \<supseteq> A" and "X \<supseteq> B"
+  shows "program_footprint X (seq a b)"
+SORRY
+
+lemma
+  assumes "program_footprint {} c3"
+  assumes "program_footprint {} c4"
+  assumes "program_footprint {} c5"
+  assumes "hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; \<guillemotleft>c4\<guillemotright>; \<guillemotleft>c5\<guillemotright>; \<guillemotleft>c3\<guillemotright>; \<guillemotleft>c6\<guillemotright> {Q &m}"
+  shows  "hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; \<guillemotleft>c3\<guillemotright>; \<guillemotleft>c4\<guillemotright>; \<guillemotleft>c5\<guillemotright>; \<guillemotleft>c6\<guillemotright> {Q &m}"
+apply (rule denotation_eq_rule)
+ (* Select 3-5  *)
+ apply (tactic \<open>split_with_seq_tac @{context} 2 1\<close>)
+ apply (rule denotation_eq_seq_snd)
+ apply (tactic \<open>split_with_seq_tac @{context} 3 1\<close>)
+ apply (rule denotation_eq_seq_fst)
+ (* Split 3 / 4-5 *)
+ apply (tactic \<open>split_with_seq_tac @{context} 1 1\<close>)
+ apply (rule seq_swap[where R=UNIV])
+     close (simp add: assms program_footprint_readonly)
+    apply (rule program_footprint_readonly)
+     close simp
+    apply (rule program_footprint_seq)
+       close (fact assms) close (fact assms)
+     close simp close simp
+   close (fact assms) 
+  apply (rule program_footprint_seq)
+     close (fact assms) close (fact assms)
+   close simp close simp close simp
+apply simp
+by (fact assms)
+
+
 ML {*
 type module = {
   name : string list
