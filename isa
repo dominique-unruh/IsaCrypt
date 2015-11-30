@@ -13,4 +13,5 @@ fi
 ( 
     "$ISADIR"/bin/isabelle jedit -l "$HEAP" -d . "$@"
     git-gui
+    git push
 ) &

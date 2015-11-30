@@ -28,6 +28,17 @@ definition "denotation_readonly X d = (\<forall>m. \<forall>m'\<in>support_distr
 definition "program_readonly X c = denotation_readonly X (denotation c)"
 definition "program_untyped_readonly X c = denotation_readonly X (denotation_untyped c)"
 
+lemma readonly_hoare_untyped:
+  shows "program_untyped_readonly X c = (\<forall>a. hoare_untyped (\<lambda>m. \<forall>x\<in>X. memory_lookup_untyped m x = a x) c (\<lambda>m. \<forall>x\<in>X. memory_lookup_untyped m x = a x))"
+unfolding program_untyped_readonly_def hoare_untyped_hoare_denotation hoare_denotation_def denotation_readonly_def memory_lookup_untyped_def
+by metis
+
+lemma readonly_hoare:
+  shows "program_readonly X c = (\<forall>a. hoare {\<forall>x\<in>X. memory_lookup_untyped &m x = a x} \<guillemotleft>c\<guillemotright> {\<forall>x\<in>X. memory_lookup_untyped &m x = a x})"
+using denotation_def hoare_untyped program_readonly_def program_untyped_readonly_def readonly_hoare_untyped by auto
+
+
+
 lemma denotation_footprint_readonly:
   assumes "R\<inter>X={}"
   assumes "denotation_footprint X d"
@@ -229,6 +240,152 @@ using assms
 unfolding program_readonly_def program_untyped_readonly_def denotation_def program_footprint_def program_untyped_footprint_def
 by auto
 
+(* TODO move Lang_Untyped *)
+fun write_vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
+and write_vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" where
+  "write_vars_untyped Skip = []"
+| "write_vars_untyped (Seq p1 p2) = (write_vars_untyped p1) @ (write_vars_untyped p2)"
+| "write_vars_untyped (Assign pat e) = pu_vars pat"
+| "write_vars_untyped (Sample pat e) = pu_vars pat"
+| "write_vars_untyped (IfTE e p1 p2) = write_vars_untyped p1 @ write_vars_untyped p2"
+| "write_vars_untyped (While e p) = write_vars_untyped p"
+| "write_vars_untyped (CallProc v prc args) = 
+      pu_vars v @ write_vars_proc_untyped prc"
+| "write_vars_proc_untyped (Proc body pargs ret) =
+      [v. v\<leftarrow>pu_vars pargs, vu_global v]
+      @ [v. v\<leftarrow>write_vars_untyped body, vu_global v]"
+| "write_vars_proc_untyped (ProcRef i) = []"
+| "write_vars_proc_untyped (ProcAppl p q) = (write_vars_proc_untyped p) @ (write_vars_proc_untyped q)"
+| "write_vars_proc_untyped (ProcAbs p) = write_vars_proc_untyped p"
+| "write_vars_proc_untyped (ProcPair p q) = write_vars_proc_untyped p @ write_vars_proc_untyped q"
+| "write_vars_proc_untyped (ProcUnpair _ p) = write_vars_proc_untyped p"
+definition "write_vars prog = write_vars_untyped (Rep_program prog)"
+
+lemma write_vars_seq [simp]: "write_vars (seq a b) = write_vars a @ write_vars b" by (simp add: write_vars_def)
+lemma write_vars_assign [simp]: "write_vars (assign x e) = p_vars x" by (simp add: p_vars_def write_vars_def)
+lemma write_vars_sample [simp]: "write_vars (sample x e) = p_vars x" by (simp add: p_vars_def write_vars_def)
+lemma write_vars_while [simp]: "write_vars (Lang_Typed.while e p) = write_vars p" by (simp add: write_vars_def)
+lemma write_vars_ifte [simp]: "write_vars (Lang_Typed.ifte e p1 p2) = write_vars p1 @ write_vars p2" by (simp add: write_vars_def)
+definition "write_vars_proc_global p == [v. v<-p_vars (p_arg p), vu_global v] @ [v. v<-write_vars (p_body p), vu_global v]"
+lemma vars_callproc [simp]: "write_vars (callproc x p a) = p_vars x @ write_vars_proc_global p"
+  unfolding write_vars_def write_vars_proc_global_def p_vars_def by (auto simp: mk_procedure_untyped_def)
+lemma write_vars_skip [simp]: "write_vars Lang_Typed.skip = []" by (simp add: write_vars_def)
+
+
+lemma program_untyped_readonly_write_vars: "program_untyped_readonly (- set(write_vars_untyped p)) p"
+proof -
+  have assign_aux: "\<And>x e m a y. y\<notin>set(pu_vars x) \<Longrightarrow> memory_lookup_untyped m y = a y \<Longrightarrow>
+             memory_lookup_untyped (memory_update_untyped_pattern m x (eu_fun e m)) y = a y"
+    proof -
+      fix x e m a y assume y: "y\<notin>set (pu_vars x)"
+      assume "memory_lookup_untyped m y = a y"
+      thus "memory_lookup_untyped (memory_update_untyped_pattern m x (eu_fun e m)) y = a y"
+        by (simp add: y memory_lookup_update_pattern_notsame)
+    qed
+
+
+  fix q
+  have "\<And>R. set (write_vars_untyped p) \<inter> R = {} \<Longrightarrow> program_untyped_readonly R p"
+    and "\<And>R. set (write_vars_proc_untyped q) \<inter> R = {} \<Longrightarrow> True" 
+  proof (induct p and q)
+  case (Assign x e)
+    show ?case  
+      apply (subst readonly_hoare_untyped, rule allI)
+      apply (rule Hoare_Untyped.assign_rule)
+      using assign_aux Assign.prems by fastforce
+  next
+  case (Sample x e)
+    show ?case  
+      apply (subst readonly_hoare_untyped, rule allI)
+      apply (rule Hoare_Untyped.sample_rule)
+      using assign_aux Sample.prems memory_lookup_update_pattern_notsame by fastforce
+  next
+  case (Seq p1 p2)
+    have p1: "\<And>a. hoare_untyped (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x) p1 (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x)"
+     and p2: "\<And>a. hoare_untyped (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x) p2 (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x)"
+      using Seq.hyps[where R=R] unfolding readonly_hoare_untyped using Seq.prems by auto
+    show ?case
+      apply (subst readonly_hoare_untyped, rule allI)
+      apply (rule Hoare_Untyped.seq_rule)
+      close (fact p1) by (fact p2)
+  next
+  case Skip show ?case
+    using denotation_readonly_def program_untyped_readonly_def by auto 
+  next
+  case (IfTE e p1 p2)
+    have p1: "\<And>a. hoare_untyped (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x) p1 (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x)"
+     and p2: "\<And>a. hoare_untyped (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x) p2 (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x)"
+      using IfTE.hyps[where R=R] unfolding readonly_hoare_untyped using IfTE.prems by auto
+    have t: "\<And>a. hoare_untyped (\<lambda>m. if eu_fun e m = embedding True then \<forall>x\<in>R. memory_lookup_untyped m x = a x else \<forall>x\<in>R. memory_lookup_untyped m x = a x)
+        (IfTE e p1 p2) (\<lambda>m\<Colon>memory. \<forall>x\<Colon>variable_untyped\<in>R. memory_lookup_untyped m x = a x)"
+      apply (rule Hoare_Untyped.if_case_rule) using p1 close simp using p2 by simp
+    show ?case
+      apply (subst readonly_hoare_untyped, rule allI)
+      using t by simp
+  next
+  case (While e p)
+    have p: "\<And>a. hoare_untyped (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x) p (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x)"
+      using While.hyps[where R=R] unfolding readonly_hoare_untyped using While.prems by auto
+    have p': "\<And>a. hoare_untyped (\<lambda>m. (\<forall>x\<in>R. memory_lookup_untyped m x = a x) \<and> eu_fun e m = embedding True)
+        p (\<lambda>m\<Colon>memory. \<forall>x\<Colon>variable_untyped\<in>R. memory_lookup_untyped m x = a x)"
+      apply (rule Hoare_Untyped.conseq_rule) defer defer close (fact p) by auto
+    show ?case
+      apply (subst readonly_hoare_untyped, rule allI)
+      apply (rule Hoare_Untyped.while_rule[where I="\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = _ x"])
+      using p' by auto
+  next 
+  case (CallProc x p a)
+    show ?case
+      apply (subst readonly_hoare_untyped, rule allI)
+      by later
+  next
+  case Proc show ?case by simp
+  next
+  case ProcRef show ?case by simp
+  next
+  case ProcAbs show ?case by simp
+  next
+  case ProcAppl show ?case by simp
+  next
+  case ProcPair show ?case by simp
+  next
+  case ProcUnpair show ?case by simp
+  qed
+  thus ?thesis by simp
+qed
+
+
+lemma program_readonly_write_vars: "program_readonly (- set(write_vars p)) p"
+SORRY
+
+lemma program_footprint_vars: "program_footprint (set(vars p)) p"
+SORRY
+
+
+lemma seq_swap2:
+  assumes "set (vars a) \<inter> set (write_vars b) = {}"
+  assumes "set (vars b) \<inter> set (write_vars a) = {}"
+  shows "denotation (seq a b) = denotation (seq b a)"
+proof -
+  def A == "set(vars a)"
+  def B == "set(vars b)"
+  def R == "UNIV - set(write_vars a) - set(write_vars b)"
+  have "program_readonly R a"
+    using R_def denotation_readonly_def program_readonly_def program_readonly_write_vars by auto
+  moreover have "program_readonly R b"
+    using R_def denotation_readonly_def program_readonly_def program_readonly_write_vars by auto
+  moreover have "program_footprint A a"
+    using A_def program_footprint_vars by auto
+  moreover have "program_footprint B b"
+    using B_def program_footprint_vars by auto
+  moreover have ABR: "A\<inter>B\<subseteq>R"
+    unfolding A_def B_def R_def using assms by auto
+  ultimately show ?thesis
+    by (rule seq_swap)
+qed    
+
+
+
 lemma denotation_eq_seq_snd:
   assumes "denotation b = denotation b'"
   shows "denotation (seq a b) = denotation (seq a b')"
@@ -275,33 +432,31 @@ ML {*
 fun swap_tac ctx range len1 (*(A,B,R)*) =
   extract_range_tac ctx range
   THEN' split_with_seq_tac ctx len1
-  THEN' rtac @{thm seq_swap} (*(Drule.instantiate' [] [R,NONE,NONE,A,B] @{thm seq_swap})*)
+  THEN' rtac @{thm seq_swap2} (*(Drule.instantiate' [] [R,NONE,NONE,A,B] @{thm seq_swap})*)
 *}
 
 
-lemma program_footprint_seq:
-  assumes "program_footprint X a"
-  assumes "program_footprint X b"
-  shows "program_footprint X (seq a b)"
-SORRY
-
 lemma
-  assumes "program_footprint {} c3"
+(*  assumes "program_footprint {} c3"
   assumes "program_footprint {} c4"
-  assumes "program_footprint {} c5"
-  assumes "hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; \<guillemotleft>c4\<guillemotright>; \<guillemotleft>c5\<guillemotright>; \<guillemotleft>c3\<guillemotright>; \<guillemotleft>c6\<guillemotright> {Q &m}"
-  shows   "hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; \<guillemotleft>c3\<guillemotright>; \<guillemotleft>c4\<guillemotright>; \<guillemotleft>c5\<guillemotright>; \<guillemotleft>c6\<guillemotright> {Q &m}"
+  assumes "program_footprint {} c5" *)
+  assumes "LOCAL c3 c4 c5 (x::int variable). hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; c4:=(1::int); c5:=x; c3:=x; \<guillemotleft>c6\<guillemotright> {Q &m}"
+  shows   "LOCAL c3 c4 c5 (x::int variable). hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; c3:=x; c4:=(1::int); c5:=x; \<guillemotleft>c6\<guillemotright> {Q &m}"
 apply (rule denotation_eq_rule)
 apply (tactic \<open>swap_tac @{context} ([3],3) 1 (*(NONE,NONE,NONE)*) 1\<close>)
-     apply (rule program_footprint_readonly[where R="{}"]) close simp close (fact assms)
-    apply (rule program_footprint_readonly) close simp
-    apply (rule program_footprint_seq) close (fact assms) close (fact assms)
-   close (fact assms)
-  apply (rule program_footprint_seq)
-    close (fact assms) close (fact assms)
- close simp
+close simp
+close simp
 apply simp
 by (fact assms)
+
+
+
+
+
+
+
+
+
 
 
 ML {*

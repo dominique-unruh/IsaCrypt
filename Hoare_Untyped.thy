@@ -14,13 +14,13 @@ lemma hoare_untyped_hoare_denotation: "hoare_untyped pre c post = hoare_denotati
   unfolding hoare_untyped_def hoare_denotation_def ..
 
 
-lemma readonly_notin_vars: 
+lemma readonly_notin_vars: (* TODO: rephrase using readonly_program_untyped or something, or drop *)
   fixes x::variable_untyped and a::val and c::program_rep
   assumes "x\<notin>set(vars_untyped c)"
   shows "hoare_untyped (\<lambda>m. memory_lookup_untyped m x = a) c (\<lambda>m. memory_lookup_untyped m x = a)"
 SORRY
 
-lemma readonly_assign: 
+lemma readonly_assign: (* TODO: rephrase using readonly_program_untyped or something, or drop *)
   fixes x::pattern_untyped and y::variable_untyped and e::expression_untyped and a::val
   assumes "y\<notin>set(p_vars x)"
   shows "hoare_untyped (\<lambda>m. memory_lookup_untyped m y = a) (Assign x e) (\<lambda>m. memory_lookup_untyped m y = a)"
@@ -86,5 +86,17 @@ lemma case_rule:
   assumes "\<And>x. hoare_untyped (\<lambda>m. P m \<and> f m = x) c Q"
   shows "hoare_untyped P c Q"
 using assms unfolding hoare_untyped_def by metis
+
+lemma if_case_rule:
+  assumes "hoare_untyped P1 c1 Q"
+  assumes "hoare_untyped P2 c2 Q"
+  shows "hoare_untyped (\<lambda>m. if eu_fun e m = embedding True then P1 m else P2 m) (IfTE e c1 c2) Q"
+  apply (rule case_rule[where f="\<lambda>m. (eu_fun e m = embedding True)"])
+  apply (case_tac x, auto)
+  apply (rule iftrue_rule)
+  apply (rule conseq_rule[where P'=P1 and Q'=Q], auto simp: assms)
+  apply (rule iffalse_rule)
+  by (rule conseq_rule[where P'=P2 and Q'=Q], auto simp: assms)
+
 
 end
