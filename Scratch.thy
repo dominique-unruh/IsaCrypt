@@ -388,6 +388,9 @@ lemma vars_callproc [simp]: "write_vars (callproc x p a) = p_vars x @ write_vars
   unfolding write_vars_def write_vars_proc_global_def p_vars_def by (auto simp: mk_procedure_untyped_def)
 lemma write_vars_skip [simp]: "write_vars Lang_Typed.skip = []" by (simp add: write_vars_def)
 
+lemma denotation_readonly_0 [simp]: "denotation_readonly X (\<lambda>m. 0)"
+  unfolding denotation_readonly_def
+  by (simp add: support_distr_def)
 
 lemma program_untyped_readonly_write_vars: "program_untyped_readonly (- set(write_vars_untyped p)) p"
 proof -
@@ -453,8 +456,10 @@ proof -
   next 
   case (CallProc x p a)
     show ?case
-      apply (subst readonly_hoare_untyped, rule allI)
-      by later
+    proof (cases p)
+    case (Proc body pargs ret)
+      show ?thesis by later
+    qed (auto simp: program_untyped_readonly_def denotation_untyped_CallProc_bad[THEN ext])
   next
   case Proc show ?case by simp
   next
