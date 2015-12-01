@@ -2,6 +2,26 @@ theory Distr
 imports Main Tools Extended_Sorry "~~/src/HOL/Probability/Binary_Product_Measure"
 begin
 
+lemma nn_integral_singleton_indicator:
+  assumes "f y \<ge> 0"
+  assumes "{y} \<in> sets \<mu>"
+  shows "(\<integral>\<^sup>+x. f x * indicator {y} x \<partial>\<mu>) = f y * emeasure \<mu> {y}"
+proof -
+  have "(\<integral>\<^sup>+x. f x * indicator {y} x \<partial>\<mu>) = (\<integral>\<^sup>+x. f y * indicator {y} x \<partial>\<mu>)"
+    by (metis ereal_zero_times indicator_simps(2) singletonD)
+  also have "... = f y * emeasure \<mu> {y}"
+    apply (rule nn_integral_cmult_indicator)  
+    using assms by auto
+  finally show ?thesis .
+qed
+
+lemma nn_integral_singleton_indicator_countspace:
+  assumes "f y \<ge> 0" and "y \<in> M"
+  shows "(\<integral>\<^sup>+x. f x * indicator {y} x \<partial>count_space M) = f y"
+apply (subst nn_integral_singleton_indicator)
+  using assms apply auto
+  by (metis mult.comm_neutral one_ereal_def)
+
 typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. (\<mu> x)\<ge>0) \<and> (\<integral>\<^sup>+x. \<mu> x \<partial>count_space UNIV) \<le> 1}"
   apply (rule exI[where x="\<lambda>x. 0"], auto)
   by (metis ereal_eq_0(2) ereal_less_eq(6) ereal_zero_mult zero_le_one)
@@ -495,5 +515,6 @@ lemma apply_to_distr_0 [simp]: "apply_to_distr f 0 = 0"
 lemma apply_to_distr_compose_distr:
   shows "apply_to_distr f (compose_distr g h) = compose_distr (\<lambda>m. apply_to_distr f (g m)) h"
   by (metis (no_types, lifting) compose_distr_assoc compose_distr_cong compose_point_distr_l)
+
 
 end

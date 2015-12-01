@@ -20,8 +20,83 @@ definition "restrict_memory X m = memory_combine X m default"
 definition "denotation_footprint X d = (\<forall>m m' z. Rep_distr (d m) m' 
     = Rep_distr (d (memory_combine X m z)) (memory_combine X m' z) 
       * (if memory_combine X default m = memory_combine X default m' then 1 else 0))"
+lemma denotation_footprint_mono:
+  assumes mono: "A \<ge> B"
+  assumes foot: "denotation_footprint B d"
+  shows "denotation_footprint A d"
+proof (unfold denotation_footprint_def, (rule allI)+)
+  fix m m' z
+  def dd == "\<lambda>m. Rep_distr (d m)"
+(*  have "\<And>m m' z. dd m m' = dd (memory_combine B m z) (memory_combine B m' z) 
+      * (if memory_combine B default m = memory_combine B default m' then 1 else 0)"
+    using foot unfolding denotation_footprint_def dd_def by simp*)
+  def z' == "memory_combine A m z"
+  have dd1: "dd m m' = dd (memory_combine B m z') (memory_combine B m' z') 
+      * (if memory_combine B default m = memory_combine B default m' then 1 else 0)"
+    using foot unfolding denotation_footprint_def dd_def by simp
+  have comb1: "memory_combine B m z' = memory_combine A m z"
+    unfolding z'_def apply (rule Rep_memory_inject[THEN iffD1])
+    unfolding Rep_memory_combine apply (rule ext) using mono by auto
+  have comb2: "memory_combine B default m = memory_combine B default m' \<Longrightarrow> memory_combine B m' z' = memory_combine A m' z"
+    unfolding z'_def apply (subst (asm) Rep_memory_inject[symmetric])
+    apply (subst Rep_memory_inject[symmetric]) 
+    unfolding Rep_memory_combine apply (rule ext) using mono apply auto by meson
+  have dd2: "dd m m' = dd (memory_combine A m z) (memory_combine A m' z) 
+      * (if memory_combine B default m = memory_combine B default m' then 1 else 0)"
+    using dd1 comb1 comb2 by auto
+  have "dd m m' = dd (memory_combine A m z) (memory_combine A m' z) 
+      * (if memory_combine A default m = memory_combine A default m' then 1 else 0)"
+  proof (cases "memory_combine A default m = memory_combine A default m'", 
+         cases "memory_combine B default m = memory_combine B default m'")
+    assume "memory_combine B default m = memory_combine B default m'" and "memory_combine A default m = memory_combine A default m'"
+    thus ?thesis using dd2 by auto
+  next
+    assume Aneq: "memory_combine A default m \<noteq> memory_combine A default m'"
+    then obtain x where x: "(if x \<in> A then Rep_memory default x else Rep_memory m x) \<noteq> (if x \<in> A then Rep_memory default x else Rep_memory m' x)"
+      apply (subst (asm) Rep_memory_inject[symmetric]) by auto
+    hence "x \<notin> A" by auto
+    with mono have "x\<notin>B" by auto
+    have "memory_combine B default m \<noteq> memory_combine B default m'"
+      apply (subst Rep_memory_inject[symmetric], simp)
+      apply (subst fun_eq_iff, auto, rule exI[of _ x])
+      using `x\<notin>B` `x\<notin>A` x by simp
+    with Aneq show ?thesis using dd2 by auto
+  next
+    assume Aeq: "memory_combine A default m = memory_combine A default m'"
+    hence Aeq': "\<And>x. x\<notin>A \<Longrightarrow> Rep_memory m x = Rep_memory m' x"
+      apply (subst (asm) Rep_memory_inject[symmetric]) apply auto by metis
+    assume Bneq: "memory_combine B default m \<noteq> memory_combine B default m'"
+    then obtain  x where x: "(if x \<in> B then Rep_memory default x else Rep_memory m x) \<noteq> (if x \<in> B then Rep_memory default x else Rep_memory m' x)"
+      apply (subst (asm) Rep_memory_inject[symmetric]) by auto
+    hence "x \<notin> B" by auto
+    with x have Bneq': "Rep_memory m x \<noteq> Rep_memory m' x" by auto
+    hence "x \<in> A" using Aeq' by auto
+    have dd_0: "dd m m' = 0"
+      unfolding dd1 using Bneq by simp
+    have neq: "memory_combine B default (memory_combine A m z) \<noteq> memory_combine B default (memory_combine A m' z)"
+      apply (subst Rep_memory_inject[symmetric], auto)
+      apply (drule fun_eq_iff[THEN iffD1]) apply (drule spec[of _ x])
+      using `x\<notin>B` `x\<in>A` Bneq' by auto
+    have "dd (memory_combine A m z) (memory_combine A m' z) = dd (memory_combine B (memory_combine A m z) xxx) (memory_combine B (memory_combine A m' z) xxx)
+        * (if memory_combine B default (memory_combine A m z) = memory_combine B default (memory_combine A m' z) then 1 else 0)"
+      using foot unfolding denotation_footprint_def dd_def by auto 
+    hence "dd (memory_combine A m z) (memory_combine A m' z) = 0"
+      using neq by auto
+    with dd_0 show ?thesis by simp
+  qed
+  thus "Rep_distr (d m) m' =
+       Rep_distr (d (memory_combine A m z)) (memory_combine A m' z) *
+       (if memory_combine A default m = memory_combine A default m' then 1\<Colon>real else (0\<Colon>real))"
+    unfolding dd_def by simp
+qed
 
 definition "program_untyped_footprint X c = denotation_footprint X (denotation_untyped c)"
+lemma program_untyped_footprint_mono:
+  assumes mono: "A \<ge> B"
+  assumes foot: "program_untyped_footprint B d"
+  shows "program_untyped_footprint A d"
+using assms unfolding program_untyped_footprint_def by (rule denotation_footprint_mono)
+
 definition "program_footprint X c = denotation_footprint X (denotation c)"
 
 definition "denotation_readonly X d = (\<forall>m. \<forall>m'\<in>support_distr (d m). \<forall>x\<in>X. Rep_memory m x = Rep_memory m' x)"
@@ -40,8 +115,8 @@ using denotation_def hoare_untyped program_readonly_def program_untyped_readonly
 
 
 lemma denotation_footprint_readonly:
-  assumes "R\<inter>X={}"
-  assumes "denotation_footprint X d"
+  assumes RX: "R\<inter>X={}"
+  assumes foot: "denotation_footprint X d"
   shows "denotation_readonly R d"
 proof (auto simp: denotation_readonly_def)
   fix m m' x assume "x\<in>R" assume "m' \<in> support_distr (d m)"
@@ -53,6 +128,21 @@ proof (auto simp: denotation_readonly_def)
   thus "Rep_memory m x = Rep_memory m' x"
     by (metis (full_types) Rep_memory_combine `x\<in>R` assms(1) disjoint_iff_not_equal)
 qed
+(*proof (rule ccontr)
+  assume "\<not> denotation_readonly R d"
+  then obtain x m m' where neq: "Rep_memory m x \<noteq> Rep_memory m' x" and pos: "Rep_distr (d m) m' > 0" and "x\<in>R"
+    unfolding denotation_readonly_def support_distr_def by auto
+  from `x\<in>R` have "x\<notin>X" using RX by auto
+  with neq have neqX: "memory_combine X default m \<noteq> memory_combine X default m'"
+    apply (subst Rep_memory_inject[symmetric]) apply auto by metis
+  fix z
+  from foot have "Rep_distr (d m) m' = Rep_distr (d (memory_combine X m z)) (memory_combine X m' z) *
+     (if memory_combine X default m = memory_combine X default m' then 1 else 0)"
+    unfolding denotation_footprint_def by auto
+  hence "Rep_distr (d m) m' = 0"
+    using neqX by auto
+  with pos show False by simp
+qed*)
 
 lemma program_untyped_footprint_readonly:
   assumes "R\<inter>X={}"
@@ -81,26 +171,6 @@ using assms unfolding program_untyped_readonly_def
 by (rule denotation_readonly_union)
 
 
-(* TODO move to Distr *)
-lemma nn_integral_singleton_indicator:
-  assumes "f y \<ge> 0"
-  assumes "{y} \<in> sets \<mu>"
-  shows "(\<integral>\<^sup>+x. f x * indicator {y} x \<partial>\<mu>) = f y * emeasure \<mu> {y}"
-proof -
-  have "(\<integral>\<^sup>+x. f x * indicator {y} x \<partial>\<mu>) = (\<integral>\<^sup>+x. f y * indicator {y} x \<partial>\<mu>)"
-    by (metis ereal_zero_times indicator_simps(2) singletonD)
-  also have "... = f y * emeasure \<mu> {y}"
-    apply (rule nn_integral_cmult_indicator)  
-    using assms by auto
-  finally show ?thesis .
-qed
-
-lemma nn_integral_singleton_indicator_countspace:
-  assumes "f y \<ge> 0" and "y \<in> M"
-  shows "(\<integral>\<^sup>+x. f x * indicator {y} x \<partial>count_space M) = f y"
-apply (subst nn_integral_singleton_indicator)
-  using assms apply auto
-  by (metis mult.comm_neutral one_ereal_def)
 
 
 lemma seq_swap_untyped:
@@ -122,12 +192,14 @@ proof -
     by (simp add: ereal_mult_indicator)
 
   def A' == "A-R"
-  def B' == "UNIV-A"
+  def B' == "-A-R"
+  have A'RB': "(A'\<union>R) = -B'" unfolding A'_def B'_def by auto
 
+  (* TODO: which of these have's are used? *)
   have "program_untyped_readonly B' a"
     apply (rule program_untyped_footprint_readonly)
     defer close (fact foot_a)
-    unfolding B'_def by (simp add: inf_sup_aci(1))
+    unfolding B'_def by auto
   hence "program_untyped_readonly (B'\<union>R) a"
     using a_ro unfolding program_untyped_readonly_def
     by (rule denotation_readonly_union)
@@ -144,6 +216,14 @@ proof -
     apply (rule program_untyped_footprint_readonly)
       defer close (fact foot_b) close (fact b_ro)
     using ABR by auto
+
+  have "program_untyped_footprint (A'\<union>R) a"
+    apply (rule program_untyped_footprint_mono) defer apply (fact foot_a)
+    unfolding A'_def by simp
+
+  have "program_untyped_footprint (B'\<union>R) b"
+    apply (rule program_untyped_footprint_mono) defer apply (fact foot_b)
+    unfolding B'_def using ABR by auto
 
   have "\<And>m2. Rep_distr (denotation_untyped (Seq a b) m) m2 = aa m (memory_combine A' m2 m) * bb (memory_combine A' m2 m) m2" 
   proof -
@@ -171,7 +251,7 @@ proof -
       have "m1 = ?mix"
         apply (rule Rep_memory_inject[THEN iffD1], rule ext, auto)
          using m1m2A' apply blast
-          by (metis A'_def B'_def DiffI UNIV_I UnI1 UnI2 mm1B'R)
+        by (metis A'_def B'_def ComplI Compl_Diff_eq Un_Diff_cancel2 mm1B'R)
       with `m1\<noteq>?mix` show "?thesis m1" by simp
     qed
     show "Rep_distr (denotation_untyped (Seq a b) m) m2 = aa m ?mix * bb ?mix m2" 
@@ -216,14 +296,51 @@ proof -
       using aa_pos bb_pos by auto
   qed
 
+  have aux: "\<And>X m m'. (memory_combine X default m = memory_combine X default m') = (\<forall>x\<in>-X. Rep_memory m x = Rep_memory m' x)"
+    apply (subst Rep_memory_inject[symmetric]) apply auto apply metis by (meson ComplI) 
+
+  have foot_aux_a: "\<And>m m' z. aa m m' =
+       aa (memory_combine (A'\<union>R) m z) (memory_combine (A'\<union>R) m' z) *
+       (if memory_combine (A'\<union>R) default m = memory_combine (A'\<union>R) default m' then 1 else 0)"
+    using `program_untyped_footprint (A'\<union>R) a` 
+    unfolding aa_def program_untyped_footprint_def denotation_footprint_def by simp
+    
+
+
   moreover
-  have "\<And>m2. aa m (memory_combine A' m2 m) * bb (memory_combine A' m2 m) m2
-            = aa (memory_combine B' m2 m) m2 * bb m (memory_combine B' m2 m)"
+  have "\<And>m2. \<forall>x\<in>B'. Rep_memory m2 x = Rep_memory m x \<Longrightarrow> aa m (memory_combine A' m2 m) = aa (memory_combine B' m2 m) m2" 
+  proof (case_tac "\<forall>x\<in>R. Rep_memory m2 x = Rep_memory m x")
+    fix m2 assume asm: "\<forall>x\<in>B'. Rep_memory m2 x = Rep_memory m x"
+    assume asmR: "\<forall>x\<in>R. Rep_memory m2 x = Rep_memory m x"
+    have l1: "memory_combine (-B') m m2 = memory_combine (-B') (memory_combine B' m2 m) m" 
+      apply (rule Rep_memory_inject[THEN iffD1])
+      apply (rule fun_eq_iff[THEN iffD2])
+      using asm by auto
+    have l2: "memory_combine (- B') (memory_combine A' m2 m) m2 = memory_combine (- B') m2 m"
+      apply (rule Rep_memory_inject[THEN iffD1])
+      apply (rule fun_eq_iff[THEN iffD2])
+      using asm A'RB' asmR by fastforce
+      
+    show "aa m (memory_combine A' m2 m) = aa (memory_combine B' m2 m) m2" 
+      apply (subst foot_aux_a[where z1=m2])
+      apply (subst (2) foot_aux_a[where z1=m])
+      apply (subst aux)+ 
+      unfolding A'RB' unfolding l1[symmetric] l2 
+      apply auto using asm by force
+  next
+    fix m2 assume asm: "\<not> (\<forall>x\<in>R. Rep_memory m2 x = Rep_memory m x)"
+    then obtain x where "x\<in>R" and "Rep_memory m2 x \<noteq> Rep_memory m x" by auto
+(*lhs,rhs=0 because aa readonly*)
+    show "aa m (memory_combine A' m2 m) = aa (memory_combine B' m2 m) m2" 
       by later
+  qed
+
+  moreover
+  have "\<And>m2. bb (memory_combine A' m2 m) m2 = bb m (memory_combine B' m2 m)" by later
 
   ultimately have "\<And>m2. Rep_distr (denotation_untyped (Seq a b) m) m2 = Rep_distr (denotation_untyped (Seq b a) m) m2"
     by simp
-  thus ?thesis
+  thus "?thesis"
     by (rule_tac Rep_distr_inject[THEN iffD1], auto)
 qed
 
