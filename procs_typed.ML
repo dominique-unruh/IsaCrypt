@@ -4,12 +4,14 @@ struct
 (** procedure_info **)
 
 type procedure_info = {
-  pattern : cterm,
-  args : thm option,
-  body : thm option,
-  return : thm option,
-  body_local_vars : thm option,
-  return_vars : thm option
+  pattern : cterm, (* The procedure for which the fields below give information. May contain schemantic variables. Called f in the following *)
+  args : thm option, (* "p_arg f == <pat>", with <pat> consisting of unit_pattern, pair_pattern, variable_pattern *)
+  body : thm option, (* "p_body f == <body>" with <body> constructed from "normal" program constructors *)
+  return : thm option, (* "p_return f == ..." *)
+  body_local_vars : thm option, (* "set (local_vars (p_body f)) = ..." *)
+  return_vars : thm option, (* "set (e_vars (p_return f)) = ..." *)
+  global_vars : thm option, (* "set (vars_proc_global f) = ..." *)
+  global_write_vars : thm option (* "set (write_vars_proc_global f) = ..." *)
 };
 
 fun procedure_info_same_pattern (a,b) = Thm.term_of (#pattern a) aconv Thm.term_of (#pattern b)
@@ -20,12 +22,12 @@ structure ProcedureData = Generic_Data
    val extend = I
    val merge = Net.merge procedure_info_same_pattern)
 
-fun morphism_procedure_info phi ({args,body,return,body_local_vars,return_vars,pattern} : procedure_info) =
+fun morphism_procedure_info phi ({args,body,return,body_local_vars,return_vars,pattern,global_vars,global_write_vars} : procedure_info) =
   let val f = Option.map (Morphism.thm phi)
       val f2 = Morphism.cterm phi
   in
   { args=f args, body=f body, body_local_vars=f body_local_vars, return_vars=f return_vars, 
-    return=f return, pattern=f2 pattern
+    return=f return, pattern=f2 pattern, global_write_vars=f global_write_vars, global_vars=f global_vars
   } : procedure_info
   end
 
@@ -43,7 +45,9 @@ fun trivial_procedure_info (ctx:Proof.context) (p:term) : procedure_info =
     body=NONE,
     body_local_vars=NONE,
     return=NONE,
-    return_vars=NONE
+    return_vars=NONE,
+    global_vars=NONE,
+    global_write_vars=NONE
   };
 
 
@@ -55,7 +59,7 @@ fun trivial_procedure_info (ctx:Proof.context) (p:term) : procedure_info =
   | procedure_head_of _ (Free _) = error "procedure_head_of Free"
   | procedure_head_of _ (Bound _) = error "procedure_head_of Bound" *)
 
-fun assert_procedure_info_complete ctx ({args=_,body=_,body_local_vars, pattern=_, return=_, return_vars} : procedure_info) = 
+fun assert_procedure_info_complete ctx ({args=_,body=_,body_local_vars, pattern=_, return=_, return_vars,global_write_vars,global_vars} : procedure_info) = 
   let fun is_string_literal n = (HOLogic.dest_string n; true) handle TERM _ => false
       fun is_var (v as (Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name LVariable},_) $ n))) =
               if is_string_literal n then () else error ("Not a variable: "^Syntax.string_of_term ctx v)
@@ -70,6 +74,8 @@ fun assert_procedure_info_complete ctx ({args=_,body=_,body_local_vars, pattern=
         | is_varset_thm (SOME thm) = is_varset (rhs thm)
       val _ = is_varset_thm body_local_vars
       val _ = is_varset_thm return_vars
+      val _ = is_varset_thm global_write_vars
+      val _ = is_varset_thm global_vars
   in ()
   end
 
@@ -80,13 +86,6 @@ fun get_procedure_info lthy partial proc =
       val infos = Net.match_term (ProcedureData.get (Context.Proof lthy)) proc
                   |> map_filter (fn info => SOME (info,Thm.first_order_match (#pattern info, cproc))
                     handle Pattern.MATCH => NONE)
-(*       val info = case info of SOME info => info 
-                            | NONE => if partial then trivial_procedure_info lthy proc
-                                      else error ("Could not find procedure_info for procedure "^name)
-      val matcher = Thm.first_order_match (#pattern info, cproc)
-                    handle Pattern.MATCH => error ("get_procedure_info: cannot match "
-                      ^Pretty.string_of (Syntax.pretty_term lthy proc)^" with "
-                      ^Pretty.string_of (Syntax.pretty_term lthy (Thm.term_of (#pattern info)))) *)
       val _ = if null infos then error ("Could not find procedure_info for procedure pattern "^Syntax.string_of_term lthy proc) else ()
       val (info,matcher) = hd infos
       val _ = if not (null (tl infos)) then warning ("Several matchin procedure infos for "^ 
@@ -97,16 +96,41 @@ fun get_procedure_info lthy partial proc =
       fun inst thm = Option.map (Thm.instantiate matcher) thm handle Match => error "Match"
       val info : procedure_info = {
         pattern = #pattern info |> Thm.instantiate_cterm matcher,
-        args = #args info |> inst, body = #body info |> inst,
+        args = #args info |> inst, 
+        body = #body info |> inst,
         body_local_vars = #body_local_vars info |> inst,
-        return_vars = #return_vars info |> inst, return = #return info |> inst }
+        return_vars = #return_vars info |> inst,
+        return = #return info |> inst,
+        global_write_vars = #global_write_vars info |> inst,
+        global_vars = #global_vars info |> inst
+        }
       val _ = if (Thm.term_of (#pattern info)) aconv proc then () else error "bad instatiation"
       val _ = if not partial then assert_procedure_info_complete lthy info else ()
   in
     info
   end
 
+
 open Conv
+
+(* TODO: all other fields, too *)
+fun procedure_info_conv partial : Proof.context -> conv =
+  let fun conv ctx ct = case Thm.term_of ct of
+
+            Const(@{const_name set},_) $ (Const(@{const_name vars_proc_global},_) $ f) => 
+              (case get_procedure_info ctx partial f |> #global_vars of
+                NONE => no_conv ct | SOME th => rewr_conv th ct)
+
+          | Const(@{const_name set},_) $ (Const(@{const_name write_vars_proc_global},_) $ f) => 
+              (case get_procedure_info ctx partial f |> #global_write_vars of
+                NONE => no_conv ct | SOME th => rewr_conv th ct)
+
+          | _ => no_conv ct
+      fun conv' ctx = conv ctx   then_conv  procedure_info_conv partial ctx
+  in
+    Conv.top_sweep_conv conv'
+  end
+
 
 fun register_procedure_thm thm lthy = 
   let val thm' = case Thm.concl_of thm of
@@ -133,22 +157,39 @@ fun register_procedure_thm thm lthy =
                           where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
             |> (unfold return then_conv Simplifier.rewrite lthy)
 
-(*      val body_vars = @{termx "set (vars (p_body (?pattern::(?'a::procargs, ?'b::prog_type) procedure)))"
-                          where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
-            |> (unfold body then_conv Simplifier.rewrite lthy) *)
-
       val simpset = lthy addsimps @{thms vars_proc_global_locals}
       val body_local_vars = @{termx "set (local_vars (p_body (?pattern::(?'a::prog_type, ?'b::prog_type) procedure)))"
                           where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
             |> (unfold body
                 then_conv unfold @{thm local_vars_def[THEN eq_reflection]} 
                 then_conv Simplifier.rewrite simpset)
-      (* val name = procedure_head_of lthy pattern *)
+                                                 
+      val global_vars = @{termx "set (vars_proc_global (?pattern::(?'a::prog_type, ?'b::prog_type) procedure))"
+                          where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
+            |> (unfold @{thm vars_proc_global_def}
+                then_conv unfold args
+                then_conv unfold return
+                then_conv unfold body
+                then_conv Simplifier.rewrite simpset
+                then_conv procedure_info_conv false lthy
+                then_conv Simplifier.rewrite simpset)
+
+      val global_write_vars = @{termx "set (write_vars_proc_global (?pattern::(?'a::prog_type, ?'b::prog_type) procedure))"
+                          where "?'pattern.1=>(?'a, ?'b) procedure"} |> Thm.cterm_of lthy
+            |> (unfold @{thm write_vars_proc_global_def}
+                then_conv unfold args
+                then_conv unfold return
+                then_conv unfold body
+                then_conv Simplifier.rewrite simpset
+                then_conv procedure_info_conv false lthy
+                then_conv Simplifier.rewrite simpset)
+
   in
   register_procedure {
     pattern=Thm.cterm_of lthy pattern,
     body=SOME body, return=SOME return, args=SOME args,
-    body_local_vars=SOME body_local_vars, return_vars=SOME return_vars
+    body_local_vars=SOME body_local_vars, return_vars=SOME return_vars,
+    global_vars=SOME global_vars, global_write_vars=SOME global_write_vars
   } lthy
   end
 

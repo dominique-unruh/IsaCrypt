@@ -441,6 +441,27 @@ and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" whe
 
 definition "vars prog = vars_untyped (Rep_program prog)"
 
+fun write_vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
+and write_vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" where
+  "write_vars_untyped Skip = []"
+| "write_vars_untyped (Seq p1 p2) = (write_vars_untyped p1) @ (write_vars_untyped p2)"
+| "write_vars_untyped (Assign pat e) = pu_vars pat"
+| "write_vars_untyped (Sample pat e) = pu_vars pat"
+| "write_vars_untyped (IfTE e p1 p2) = write_vars_untyped p1 @ write_vars_untyped p2"
+| "write_vars_untyped (While e p) = write_vars_untyped p"
+| "write_vars_untyped (CallProc v prc args) = 
+      pu_vars v @ write_vars_proc_untyped prc"
+| "write_vars_proc_untyped (Proc body pargs ret) =
+      [v. v\<leftarrow>pu_vars pargs, vu_global v]
+      @ [v. v\<leftarrow>write_vars_untyped body, vu_global v]"
+| "write_vars_proc_untyped (ProcRef i) = []"
+| "write_vars_proc_untyped (ProcAppl p q) = (write_vars_proc_untyped p) @ (write_vars_proc_untyped q)"
+| "write_vars_proc_untyped (ProcAbs p) = write_vars_proc_untyped p"
+| "write_vars_proc_untyped (ProcPair p q) = write_vars_proc_untyped p @ write_vars_proc_untyped q"
+| "write_vars_proc_untyped (ProcUnpair _ p) = write_vars_proc_untyped p"
+definition "write_vars prog = write_vars_untyped (Rep_program prog)"
+
+
 definition "lossless_untyped p = (\<forall>m. weight_distr (denotation_untyped p m) = 1)"
 definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"
 

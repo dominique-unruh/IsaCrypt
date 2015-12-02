@@ -357,37 +357,6 @@ using assms
 unfolding program_readonly_def program_untyped_readonly_def denotation_def program_footprint_def program_untyped_footprint_def
 by auto
 
-(* TODO move Lang_Untyped *)
-fun write_vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
-and write_vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" where
-  "write_vars_untyped Skip = []"
-| "write_vars_untyped (Seq p1 p2) = (write_vars_untyped p1) @ (write_vars_untyped p2)"
-| "write_vars_untyped (Assign pat e) = pu_vars pat"
-| "write_vars_untyped (Sample pat e) = pu_vars pat"
-| "write_vars_untyped (IfTE e p1 p2) = write_vars_untyped p1 @ write_vars_untyped p2"
-| "write_vars_untyped (While e p) = write_vars_untyped p"
-| "write_vars_untyped (CallProc v prc args) = 
-      pu_vars v @ write_vars_proc_untyped prc"
-| "write_vars_proc_untyped (Proc body pargs ret) =
-      [v. v\<leftarrow>pu_vars pargs, vu_global v]
-      @ [v. v\<leftarrow>write_vars_untyped body, vu_global v]"
-| "write_vars_proc_untyped (ProcRef i) = []"
-| "write_vars_proc_untyped (ProcAppl p q) = (write_vars_proc_untyped p) @ (write_vars_proc_untyped q)"
-| "write_vars_proc_untyped (ProcAbs p) = write_vars_proc_untyped p"
-| "write_vars_proc_untyped (ProcPair p q) = write_vars_proc_untyped p @ write_vars_proc_untyped q"
-| "write_vars_proc_untyped (ProcUnpair _ p) = write_vars_proc_untyped p"
-definition "write_vars prog = write_vars_untyped (Rep_program prog)"
-
-lemma write_vars_seq [simp]: "write_vars (seq a b) = write_vars a @ write_vars b" by (simp add: write_vars_def)
-lemma write_vars_assign [simp]: "write_vars (assign x e) = p_vars x" by (simp add: p_vars_def write_vars_def)
-lemma write_vars_sample [simp]: "write_vars (sample x e) = p_vars x" by (simp add: p_vars_def write_vars_def)
-lemma write_vars_while [simp]: "write_vars (Lang_Typed.while e p) = write_vars p" by (simp add: write_vars_def)
-lemma write_vars_ifte [simp]: "write_vars (Lang_Typed.ifte e p1 p2) = write_vars p1 @ write_vars p2" by (simp add: write_vars_def)
-definition "write_vars_proc_global p == [v. v<-p_vars (p_arg p), vu_global v] @ [v. v<-write_vars (p_body p), vu_global v]"
-lemma vars_callproc [simp]: "write_vars (callproc x p a) = p_vars x @ write_vars_proc_global p"
-  unfolding write_vars_def write_vars_proc_global_def p_vars_def by (auto simp: mk_procedure_untyped_def)
-lemma write_vars_skip [simp]: "write_vars Lang_Typed.skip = []" by (simp add: write_vars_def)
-
 lemma denotation_readonly_0 [simp]: "denotation_readonly X (\<lambda>m. 0)"
   unfolding denotation_readonly_def
   by (simp add: support_distr_def)
@@ -402,7 +371,6 @@ proof -
       thus "memory_lookup_untyped (memory_update_untyped_pattern m x (eu_fun e m)) y = a y"
         by (simp add: y memory_lookup_update_pattern_notsame)
     qed
-
 
   fix q
   have "\<And>R. set (write_vars_untyped p) \<inter> R = {} \<Longrightarrow> program_untyped_readonly R p"
@@ -557,17 +525,20 @@ fun swap_tac ctx range len1 (*(A,B,R)*) =
   THEN' rtac @{thm seq_swap2} (*(Drule.instantiate' [] [R,NONE,NONE,A,B] @{thm seq_swap})*)
 *}
 
+procedure f where "f = LOCAL x. proc () { x := (1::int); return () }"
+
+procedure g where "g = LOCAL x. proc () { x := call f(); return () }"
 
 lemma
 (*  assumes "program_footprint {} c3"
   assumes "program_footprint {} c4"
   assumes "program_footprint {} c5" *)
-  assumes "LOCAL c3 c4 c5 (x::int variable). hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; c4:=(1::int); c5:=x; c3:=x; \<guillemotleft>c6\<guillemotright> {Q &m}"
-  shows   "LOCAL c3 c4 c5 (x::int variable). hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; c3:=x; c4:=(1::int); c5:=x; \<guillemotleft>c6\<guillemotright> {Q &m}"
+  assumes "LOCAL c3 c4 c5 (x::int variable). hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; c4:=call f(); c5:=x; c3:=x; \<guillemotleft>c6\<guillemotright> {Q &m}"
+  shows   "LOCAL c3 c4 c5 (x::int variable). hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; c3:=x; c4:=call f(); c5:=x; \<guillemotleft>c6\<guillemotright> {Q &m}"
 apply (rule denotation_eq_rule)
-apply (tactic \<open>swap_tac @{context} ([3],3) 1 (*(NONE,NONE,NONE)*) 1\<close>)
-close simp
-close simp
+apply (tactic \<open>swap_tac @{context} ([3],3) 1 1\<close>)
+close (simp; tactic \<open>CONVERSION (Procs_Typed.procedure_info_conv false @{context}) 1\<close>; simp; tactic \<open>no_tac\<close>)
+close (simp; tactic \<open>CONVERSION (Procs_Typed.procedure_info_conv false @{context}) 1\<close>; simp; tactic \<open>no_tac\<close>)
 apply simp
 by (fact assms)
 

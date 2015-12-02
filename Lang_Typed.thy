@@ -732,6 +732,18 @@ definition "vars_proc_global p == [v. v<-p_vars (p_arg p), vu_global v] @ [v. v<
 lemma vars_callproc [simp]: "vars (callproc x p a) = p_vars x @ e_vars a @ vars_proc_global p"
   unfolding vars_def vars_proc_global_def p_vars_def by (auto simp: mk_procedure_untyped_def)
 lemma vars_skip [simp]: "vars Lang_Typed.skip = []" by (simp add: vars_def)
+
+lemma write_vars_seq [simp]: "write_vars (seq a b) = write_vars a @ write_vars b" by (simp add: write_vars_def)
+lemma write_vars_assign [simp]: "write_vars (assign x e) = p_vars x" by (simp add: p_vars_def write_vars_def)
+lemma write_vars_sample [simp]: "write_vars (sample x e) = p_vars x" by (simp add: p_vars_def write_vars_def)
+lemma write_vars_while [simp]: "write_vars (Lang_Typed.while e p) = write_vars p" by (simp add: write_vars_def)
+lemma write_vars_ifte [simp]: "write_vars (Lang_Typed.ifte e p1 p2) = write_vars p1 @ write_vars p2" by (simp add: write_vars_def)
+definition "write_vars_proc_global p == [v. v<-p_vars (p_arg p), vu_global v] @ [v. v<-write_vars (p_body p), vu_global v]"
+lemma write_vars_callproc [simp]: "write_vars (callproc x p a) = p_vars x @ write_vars_proc_global p"
+  unfolding write_vars_def write_vars_proc_global_def p_vars_def by (auto simp: mk_procedure_untyped_def)
+lemma write_vars_skip [simp]: "write_vars Lang_Typed.skip = []" by (simp add: write_vars_def)
+
+
 lemma LVariable_local [simp]: "\<not> vu_global (mk_variable_untyped (LVariable x))"
   by (simp add: mk_variable_untyped_def)
 lemma Variable_global [simp]: "vu_global (mk_variable_untyped (Variable x))"
