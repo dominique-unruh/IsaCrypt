@@ -287,7 +287,7 @@ proof -
       have "m1 = ?mix"
         apply (rule Rep_memory_inject[THEN iffD1], rule ext, auto)
          using m1m2B' apply blast
-          by (metis A'_def B'_def DiffI UNIV_I UnI1 UnI2 mm1A'R)
+          by (simp add: A'RB' mm1A'R)
       with `m1\<noteq>?mix` show "?thesis m1" by simp
     qed
     show "Rep_distr (denotation_untyped (Seq b a) m) m2 = bb m ?mix * aa ?mix m2" 
@@ -297,7 +297,7 @@ proof -
   qed
 
   have aux: "\<And>X m m'. (memory_combine X default m = memory_combine X default m') = (\<forall>x\<in>-X. Rep_memory m x = Rep_memory m' x)"
-    apply (subst Rep_memory_inject[symmetric]) apply auto apply metis by (meson ComplI) 
+    apply (subst Rep_memory_inject[symmetric]) apply auto by metis 
 
   have foot_aux_a: "\<And>m m' z. aa m m' =
        aa (memory_combine (A'\<union>R) m z) (memory_combine (A'\<union>R) m' z) *
@@ -425,8 +425,35 @@ proof -
   case (CallProc x p a)
     show ?case
     proof (cases p)
-    case (Proc body pargs ret)
-      show ?thesis by later
+    case (Proc body pargs ret)  
+      show ?thesis
+        unfolding program_untyped_readonly_def denotation_readonly_def
+      proof (rule+)
+        fix m m' y
+        def den == "denotation_untyped (CallProc x (Proc body pargs ret) a) m"
+        assume m': "m' \<in> support_distr (denotation_untyped (CallProc x p a) m)"
+        (* hence m': "Rep_distr den m' \<noteq> 0" by (simp add: den_def Proc support_distr_def) *)
+        assume "y \<in> R"
+        hence y_nin: "y \<notin> set (pu_vars x)" 
+          using CallProc.prems by auto
+        (* have cases: "\<And>P. \<lbrakk> \<not> vu_global y \<Longrightarrow> P; True \<Longrightarrow> P \<rbrakk> \<Longrightarrow> P" by auto *)
+        show "Rep_memory m y = Rep_memory m' y"                               
+        proof (cases "vu_global y")
+          assume local: "\<not> vu_global y"
+          obtain b r where den2: "den == apply_to_distr (\<lambda>m'\<Colon>memory. memory_update_untyped_pattern (restore_locals m m') x (r m')) b"
+            unfolding den_def by auto
+          with m' have "m' \<in> range (\<lambda>m'\<Colon>memory. memory_update_untyped_pattern (restore_locals m m') x (r m'))"
+            by (metis (mono_tags, lifting) Proc m' den_def imageE range_eqI support_apply_to_distr)
+          then obtain m'' where m'': "m' = memory_update_untyped_pattern (restore_locals m m'') x (r m'')" by blast
+          with y_nin have "Rep_memory m' y = Rep_memory (restore_locals m m'') y"
+            by (metis m'' memory_lookup_untyped_def memory_lookup_update_pattern_notsame)
+          thus "Rep_memory m y = Rep_memory m' y"
+            by (simp add: Rep_restore_locals local)
+        next
+          assume global: "vu_global y" 
+          show "Rep_memory m y = Rep_memory m' y" by later
+        qed
+      qed
     qed (auto simp: program_untyped_readonly_def denotation_untyped_CallProc_bad[THEN ext])
   next
   case Proc show ?case by simp
@@ -518,11 +545,26 @@ fun extract_range_tac _   ([],_)   = error "empty range given"
 
 thm seq_swap
 
+ML "open Tools"
+
 ML {*
-fun swap_tac ctx range len1 (*(A,B,R)*) =
-  extract_range_tac ctx range
-  THEN' split_with_seq_tac ctx len1
-  THEN' rtac @{thm seq_swap2} (*(Drule.instantiate' [] [R,NONE,NONE,A,B] @{thm seq_swap})*)
+fun procedure_info_varseteq_tac ctx =
+  CONVERSION (Procs_Typed.procedure_info_conv false ctx)
+  THEN'
+  ASSERT_SOLVED' (simp_tac ctx)
+         (fn subgoal1 => fn subgoals => 
+            raise TERM("In procedure_info_varseteq_tac, I got subgoal (1).\n"^
+                       "I could not prove that subgoal using simp_tac.\n",
+                         subgoal1::subgoals))
+*}
+
+ML {*
+fun swap_tac ctx range len1 i (*(A,B,R)*) =
+  extract_range_tac ctx range i
+  THEN split_with_seq_tac ctx len1 i
+  THEN rtac @{thm seq_swap2} i
+  THEN (simp_tac ctx THEN_ALL_NEW procedure_info_varseteq_tac ctx) (i+1)
+  THEN (simp_tac ctx THEN_ALL_NEW procedure_info_varseteq_tac ctx) i
 *}
 
 procedure f where "f = LOCAL x. proc () { x := (1::int); return () }"
@@ -537,8 +579,8 @@ lemma
   shows   "LOCAL c3 c4 c5 (x::int variable). hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; c3:=x; c4:=call f(); c5:=x; \<guillemotleft>c6\<guillemotright> {Q &m}"
 apply (rule denotation_eq_rule)
 apply (tactic \<open>swap_tac @{context} ([3],3) 1 1\<close>)
-close (simp; tactic \<open>CONVERSION (Procs_Typed.procedure_info_conv false @{context}) 1\<close>; simp; tactic \<open>no_tac\<close>)
-close (simp; tactic \<open>CONVERSION (Procs_Typed.procedure_info_conv false @{context}) 1\<close>; simp; tactic \<open>no_tac\<close>)
+(* close (simp; tactic \<open>CONVERSION (Procs_Typed.procedure_info_conv false @{context}) 1\<close>; simp; tactic \<open>no_tac\<close>) *)
+(* close (simp; tactic \<open>CONVERSION (Procs_Typed.procedure_info_conv false @{context}) 1\<close>; simp; tactic \<open>no_tac\<close>) *)
 apply simp
 by (fact assms)
 
