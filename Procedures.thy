@@ -192,7 +192,8 @@ lemma lift_subst_lt:
   shows "i < j + 1 \<Longrightarrow> lift_proc_in_prog (subst_proc_in_prog j s p) i = subst_proc_in_prog (j+1) (lift_proc s i) (lift_proc_in_prog p i)"
   and   "i < j + 1 \<Longrightarrow> lift_proc (subst_proc j s t) i = subst_proc (j+1) (lift_proc s i) (lift_proc t i)"
   apply (induct p and t arbitrary: i j s and i j s)
-  by (simp_all add: lift_lift)
+  apply (simp_all add: lift_lift)
+  by linarith
 
 lemma subst_lift [simp]:
   shows "subst_proc_in_prog k s (lift_proc_in_prog p k) = p"
@@ -264,9 +265,7 @@ apply auto apply (rename_tac x p a)
 by (case_tac p, auto)
 
 
-locale beta_reduce_proofs begin
-
-
+locale beta_reduce_proofs = typed_lambda begin
 
 abbreviation "Proc0 == Abs(Var 0)"
 abbreviation "Proc1 == Abs(Var 0)"
@@ -404,7 +403,6 @@ proof -
     with termip_leq show ?thesis by auto
   qed
 qed
-
 
 inductive par_beta' :: "[program_rep, program_rep] => bool"  (infixl "\<rightarrow>>" 50)
 and par_beta :: "[procedure_rep, procedure_rep] \<Rightarrow> bool" (infixl "\<Rightarrow>>" 50)
@@ -672,7 +670,6 @@ next case (ProcUnpair b p)
   qed
 qed auto
 
-
 lemma par_beta_subst:
   shows "s \<Rightarrow>> s' \<Longrightarrow> p \<rightarrow>> p' \<Longrightarrow> subst_proc_in_prog n s p \<rightarrow>> subst_proc_in_prog n s' p'"
     and "s \<Rightarrow>> s' \<Longrightarrow> t \<Rightarrow>> t' \<Longrightarrow> subst_proc n s t \<Rightarrow>> subst_proc n s' t'"
@@ -687,9 +684,34 @@ next case CallProc thus ?case by auto
 next case Proc thus ?case by auto
 next case ProcRef thus ?case by auto
 next case ProcAbs thus ?case by auto
-next case (ProcAppl p q) thus ?case
-   apply (auto simp: subst_subst [symmetric])
-   by (fastforce intro!: par_beta_lift)
+next case (ProcAppl p q) 
+  have "ProcAppl p q \<Rightarrow>> t'" by (fact ProcAppl)
+  hence cases: "\<And>P. (\<And>p' p'' q'. \<lbrakk> t' = subst_proc 0 q' p'; p = ProcAbs p''; p'' \<Rightarrow>> p'; q \<Rightarrow>> q' \<rbrakk> \<Longrightarrow> P) \<Longrightarrow>
+                    (\<And>p' q'. \<lbrakk> t' = ProcAppl p' q'; p \<Rightarrow>> p'; q \<Rightarrow>> q' \<rbrakk> \<Longrightarrow> P) \<Longrightarrow> P"
+    by auto
+  show ?case
+  proof (rule cases)
+    fix p' q' p''
+    assume t': "t' = subst_proc 0 q' p'" and p:"p = ProcAbs p''" and p': "p'' \<Rightarrow>> p'" and q': "q \<Rightarrow>> q'"
+    have l1: "subst_proc n s' t' = subst_proc 0 (subst_proc n s' q') (subst_proc (Suc n) (lift_proc s' 0) p')"
+      unfolding t'
+      by (simp add: Procedures.subst_subst(2))
+    have "ProcAbs (subst_proc (Suc n) (lift_proc s 0) p'') \<Rightarrow>> ProcAbs (subst_proc (Suc n) (lift_proc s' 0) p')"
+      apply (subst subst_proc_ProcAbs[symmetric])+ 
+      apply (rule ProcAppl.hyps[unfolded p]) 
+       close (fact ProcAppl.prems)
+      by (simp add: p')
+    hence l2: "subst_proc (Suc n) (lift_proc s 0) p'' \<Rightarrow>> subst_proc (Suc n) (lift_proc s' 0) p'" by blast
+    show "subst_proc n s (ProcAppl p q) \<Rightarrow>> subst_proc n s' t'"
+      unfolding l1 p apply (subst subst_proc_ProcAppl) apply (subst subst_proc_ProcAbs)
+      apply (rule pb_beta)
+       close (fact l2)
+      using ProcAppl.prems(1) q' by (rule ProcAppl.hyps)
+  next
+    fix p' q' assume t': "t' = ProcAppl p' q'" and p': "p \<Rightarrow>> p'" and q': "q \<Rightarrow>> q'"
+    show "subst_proc n s (ProcAppl p q) \<Rightarrow>> subst_proc n s' t' "
+      by (simp add: ProcAppl.hyps(1) ProcAppl.hyps(2) ProcAppl.prems(1) p' q' t')
+  qed
 next case (ProcUnpair b t) 
   from ProcUnpair.prems show ?case
   proof (erule_tac par_beta_cases)

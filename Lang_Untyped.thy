@@ -105,9 +105,9 @@ typedef memory = "{(m::variable_untyped\<Rightarrow>val). (\<forall>v. m v \<in>
   by (metis Rep_type mem_Collect_eq t_default_def t_domain_def)
 *)
 
-definition "memory_lookup_untyped m v = Rep_memory m v"
+abbreviation "memory_lookup_untyped m v \<equiv> Rep_memory m v"
 lemma memory_lookup_untyped_type: "memory_lookup_untyped m v \<in> t_domain (vu_type v)"
-  unfolding memory_lookup_untyped_def using Rep_memory by auto
+  using Rep_memory by auto
 
 definition "memory_update_untyped m v x = 
     Abs_memory ((Rep_memory m)(v:=if x\<in>t_domain(vu_type v) then x else t_default(vu_type v)))"
@@ -124,7 +124,7 @@ lemma Rep_memory_update_untyped:
   using Rep_memory assms by auto
 
 lemma memory_lookup_update_same_untyped: "a \<in> t_domain (vu_type v) \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) v = a"
-  unfolding memory_lookup_untyped_def memory_update_untyped_def 
+  unfolding memory_update_untyped_def 
   apply auto
   apply (subst Abs_memory_inverse, auto)
   using Rep_memory by auto
@@ -132,7 +132,7 @@ lemma memory_lookup_update_same_untyped: "a \<in> t_domain (vu_type v) \<Longrig
 
 lemma memory_lookup_update_notsame_untyped: 
   "v \<noteq> w \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) w = memory_lookup_untyped m w"
-  unfolding memory_lookup_untyped_def memory_update_untyped_def 
+  unfolding memory_update_untyped_def 
   apply auto
   apply (subst Abs_memory_inverse, auto)
   using Rep_memory Abs_memory_inverse Rep_type t_default_def t_domain_def by auto
@@ -144,14 +144,14 @@ lemma memory_lookup_update_untyped: "memory_lookup_untyped (memory_update_untype
   using memory_lookup_update_same_untyped close auto
   defer
   using memory_lookup_update_notsame_untyped close auto
-  unfolding memory_lookup_untyped_def memory_update_untyped_def Let_def
+  unfolding memory_update_untyped_def Let_def
   using Abs_memory_inverse Rep_memory Rep_type t_default_def t_domain_def by auto
 
 lemma memory_update_lookup_untyped: "memory_update_untyped m x (memory_lookup_untyped m x) = m"
   apply (rule Rep_memory_inject[THEN iffD1])
   apply (subst Rep_memory_update_untyped)
   using memory_lookup_untyped_type close auto
-  unfolding memory_lookup_untyped_def by auto
+  by auto
 
 instantiation memory :: default begin
 definition "default = Abs_memory (\<lambda>x. t_default (vu_type x))"
@@ -526,7 +526,7 @@ lemma lookup_rename_variables_memory:
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
   assumes global: "\<And>x. vu_global (f x) = vu_global x"
   shows "memory_lookup_untyped (rename_variables_memory f m) v = memory_lookup_untyped m (f v)"
-unfolding memory_lookup_untyped_def Rep_rename_variables_memory[OF type] global by simp
+unfolding Rep_rename_variables_memory[OF type] global by simp
 
 definition "rename_variables_expression f e = Abs_expression_untyped 
   \<lparr> eur_fun=(\<lambda>m. eu_fun e (rename_variables_memory f m)), eur_type=eu_type e, eur_vars=map f (eu_vars e) \<rparr>"
