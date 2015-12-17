@@ -226,7 +226,8 @@ proof -
 
   fix q
   have "\<And>R. set (write_vars_untyped p) \<inter> R = {} \<Longrightarrow> program_untyped_readonly R p"
-    and "\<And>R. set (write_vars_proc_untyped q) \<inter> R = {} \<Longrightarrow> True" 
+    and "\<And>R. set (write_vars_proc_untyped q) \<inter> R = {} \<Longrightarrow> 
+          program_untyped_readonly (R\<inter>Collect vu_global) (case q of Proc body a r \<Rightarrow> body | _ \<Rightarrow> Skip)" 
   proof (induct p and q)
   case (Assign x e)
     show ?case  
@@ -289,36 +290,65 @@ proof -
         hence y_nin: "y \<notin> set (pu_vars x)" 
           using CallProc.prems by auto
         (* have cases: "\<And>P. \<lbrakk> \<not> vu_global y \<Longrightarrow> P; True \<Longrightarrow> P \<rbrakk> \<Longrightarrow> P" by auto *)
+        obtain r a' b where den2: "den == apply_to_distr (\<lambda>m'\<Colon>memory. memory_update_untyped_pattern (restore_locals m m') x (r m')) b"
+                    and b: "b = denotation_untyped body (memory_update_untyped_pattern (init_locals m) pargs a')"
+          unfolding den_def by auto
+        then obtain m'' where m''1: "m'' \<in> support_distr b" and m''2: "m' = memory_update_untyped_pattern (restore_locals m m'') x (r m'')"
+          using Proc den_def m' by auto
         show "Rep_memory m y = Rep_memory m' y"                               
         proof (cases "vu_global y")
           assume local: "\<not> vu_global y"
-          obtain b r where den2: "den == apply_to_distr (\<lambda>m'\<Colon>memory. memory_update_untyped_pattern (restore_locals m m') x (r m')) b"
-            unfolding den_def by auto
-          with m' have "m' \<in> range (\<lambda>m'\<Colon>memory. memory_update_untyped_pattern (restore_locals m m') x (r m'))"
-            by (metis (mono_tags, lifting) Proc m' den_def imageE range_eqI support_apply_to_distr)
-          then obtain m'' where m'': "m' = memory_update_untyped_pattern (restore_locals m m'') x (r m'')" by blast
           with y_nin have "Rep_memory m' y = Rep_memory (restore_locals m m'') y"
-            by (metis m'' memory_lookup_untyped_def memory_lookup_update_pattern_notsame)
+            by (metis m''2 memory_lookup_untyped_def memory_lookup_update_pattern_notsame)
           thus "Rep_memory m y = Rep_memory m' y"
             by (simp add: Rep_restore_locals local)
         next
           assume global: "vu_global y" 
-          show "Rep_memory m y = Rep_memory m' y" by later
+          def m_init == "init_locals m"
+          def m_args == "memory_update_untyped_pattern m_init pargs a'"
+          have y_nin2: "y \<notin> set (pu_vars pargs)"
+            using `y \<in> R` CallProc.prems global unfolding Proc by auto
+          have "Rep_memory m y = Rep_memory m_init y"
+            by (simp add: Rep_init_locals global m_init_def)
+          also have "\<dots> = Rep_memory m_args y"
+            using m_args_def memory_lookup_untyped_def memory_lookup_update_pattern_notsame y_nin2 by auto
+          also have b: "b = denotation_untyped body m_args"
+            using b m_args_def m_init_def by auto
+          have yR: "y \<in> (R\<inter>Collect vu_global)" using global `y\<in>R` by auto
+          have "(set (pu_vars pargs) \<inter> Collect vu_global \<union> set (write_vars_untyped body) \<inter> Collect vu_global) \<inter> R = {}"
+            using CallProc.prems unfolding Proc by auto
+          hence "program_untyped_readonly (R\<inter>Collect vu_global) body"
+            using CallProc.hyps unfolding Proc by simp
+          with b m''1 yR have "Rep_memory m'' y = Rep_memory m_args y"
+            by (simp add: denotation_readonly_def program_untyped_readonly_def)
+          also have "Rep_memory m'' y = Rep_memory m' y"
+            using Rep_restore_locals global m''2 memory_lookup_untyped_def memory_lookup_update_pattern_notsame y_nin by auto
+          finally show "Rep_memory m y = Rep_memory m' y" by simp
         qed
       qed
     qed (auto simp: program_untyped_readonly_def denotation_untyped_CallProc_bad[THEN ext])
   next
-  case Proc show ?case by simp
+  case (Proc body a r) 
+    have "set (write_vars_untyped body) \<inter> (Collect vu_global \<inter> R) = {}"
+      using Proc.prems by auto
+    hence "program_untyped_readonly (Collect vu_global \<inter> R) body"
+      using Proc.hyps by simp
+    thus ?case by (simp add: Int_commute)
   next
-  case ProcRef show ?case by simp
+  case ProcRef show ?case 
+    unfolding program_untyped_readonly_def denotation_readonly_def by simp
   next
-  case ProcAbs show ?case by simp
+  case ProcAbs show ?case
+    unfolding program_untyped_readonly_def denotation_readonly_def by simp
   next
-  case ProcAppl show ?case by simp
+  case ProcAppl show ?case
+    unfolding program_untyped_readonly_def denotation_readonly_def by simp
   next
-  case ProcPair show ?case by simp
+  case ProcPair show ?case
+    unfolding program_untyped_readonly_def denotation_readonly_def by simp
   next
-  case ProcUnpair show ?case by simp
+  case ProcUnpair show ?case
+    unfolding program_untyped_readonly_def denotation_readonly_def by simp
   qed
   thus ?thesis by simp
 qed
@@ -399,7 +429,7 @@ fun extract_range_tac _   ([],_)   = error "empty range given"
 
 thm seq_swap
 
-ML "open Tools"
+ML {* open Tools *}
 
 ML {*
 fun procedure_info_varseteq_tac ctx =
@@ -426,9 +456,6 @@ procedure f where "f = LOCAL x. proc () { x := (1::int); return () }"
 procedure g where "g = LOCAL x. proc () { x := call f(); return () }"
 
 lemma
-(*  assumes "program_footprint {} c3"
-  assumes "program_footprint {} c4"
-  assumes "program_footprint {} c5" *)
   assumes "LOCAL c3 c4 c5 (x::int variable). hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; c4:=call f(); c5:=x; c3:=x; \<guillemotleft>c6\<guillemotright> {Q &m}"
   shows   "LOCAL c3 c4 c5 (x::int variable). hoare {P &m} \<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>; c3:=x; c4:=call f(); c5:=x; \<guillemotleft>c6\<guillemotright> {Q &m}"
 apply (rule denotation_eq_rule)
