@@ -2,6 +2,28 @@ theory TypedLambda
 imports Main Tools Extended_Sorry "~~/src/HOL/Proofs/Lambda/ListOrder"
 begin
 
+definition "weaknorm R x = (\<exists>y. R\<^sup>*\<^sup>* x y \<and> \<not>(\<exists>z. R y z))"
+
+lemma weaknorm_induct [consumes 1, case_names base step, induct set: weaknorm]: 
+  assumes "weaknorm R a"
+  assumes "\<And>y. \<not>(\<exists>z. R y z) \<Longrightarrow> P y"
+  assumes "\<And>x y. P y \<Longrightarrow> R x y \<Longrightarrow> P x"
+  shows "P a"
+by (metis assms converse_rtranclp_induct weaknorm_def)
+(* TODO speed up! *)
+
+lemma weaknormI: 
+  assumes "weaknorm R b"
+  assumes "R a b"
+  shows "weaknorm R a"
+by (metis assms(1) assms(2) converse_rtranclp_into_rtranclp weaknorm_def)
+
+lemma weaknormI2: 
+  assumes "\<not>(\<exists>z. R a z)"
+  shows "weaknorm R a"
+by (meson assms rtranclp.rtrancl_refl weaknorm_def)
+
+
 locale typed_lambda begin (* to hide syntax *)
 
 declare [[syntax_ambiguity_warning = false]]
@@ -20,6 +42,7 @@ datatype dB =
   | Abs dB
   | MkPair dB dB
   | Unpair bool dB
+  | Val | Op dB dB
 
 primrec
   lift :: "[dB, nat] => dB"
@@ -29,6 +52,8 @@ where
   | "lift (Abs s) k = Abs (lift s (k + 1))"
   | "lift (MkPair s t) k = MkPair (lift s k) (lift t k)"
   | "lift (Unpair b s) k = Unpair b (lift s k)" 
+  | "lift Val k = Val"
+  | "lift (Op a b) k = Op (lift a k) (lift b k)"
 
 primrec
   subst :: "[dB, dB, nat] => dB"  ("_[_'/_]" [300, 0, 0] 300)
@@ -39,6 +64,8 @@ where (* FIXME base names *)
   | subst_Abs: "(Abs t)[s/k] = Abs (t[lift s 0 / k+1])"
   | subst_MkPair: "(MkPair t u)[s/k] = MkPair (t[s/k]) (u[s/k])"
   | subst_Unpair: "(Unpair b t)[s/k] = Unpair b (t[s/k])"
+  | subst_Val: "Val[s/k] = Val"
+  | subst_Op: "(Op t u)[s/k] = Op (t[s/k]) (u[s/k])"
 
 declare subst_Var [simp del]
 
@@ -55,6 +82,8 @@ inductive beta :: "[dB, dB] => bool"  (infixl "\<rightarrow>\<^sub>\<beta>" 50)
   | unpair [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> Unpair b s \<rightarrow>\<^sub>\<beta> Unpair b t"
   | fst [simp, intro!]: "Unpair True (MkPair s t) \<rightarrow>\<^sub>\<beta> s"
   | snd [simp, intro!]: "Unpair False (MkPair s t) \<rightarrow>\<^sub>\<beta> t"
+  | opL [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> Op s u \<rightarrow>\<^sub>\<beta> Op t u"
+  | opR [simp, intro!]: "s \<rightarrow>\<^sub>\<beta> t ==> Op u s \<rightarrow>\<^sub>\<beta> Op u t"
 
 abbreviation
   beta_reds :: "[dB, dB] => bool"  (infixl "->>" 50) where
@@ -69,6 +98,8 @@ inductive_cases beta_cases [elim!]:
   "s \<degree> t \<rightarrow>\<^sub>\<beta> u"
   "MkPair s t \<rightarrow>\<^sub>\<beta> u"
   "Unpair b t \<rightarrow>\<^sub>\<beta> u"
+  "Val \<rightarrow>\<^sub>\<beta> u"
+  "Op a b \<rightarrow>\<^sub>\<beta> u"
 
 declare if_not_P [simp] not_less_eq [simp]
   -- {* don't add @{text "r_into_rtrancl[intro!]"} *}
@@ -103,6 +134,18 @@ lemma rtrancl_beta_MkPairR:
 lemma rtrancl_beta_MkPair [intro]:
     "[| s \<rightarrow>\<^sub>\<beta>\<^sup>* s'; t \<rightarrow>\<^sub>\<beta>\<^sup>* t' |] ==> MkPair s t \<rightarrow>\<^sub>\<beta>\<^sup>* MkPair s' t'"
   by (blast intro!: rtrancl_beta_MkPairL rtrancl_beta_MkPairR intro: rtranclp_trans)
+
+lemma rtrancl_beta_OpL:
+    "s \<rightarrow>\<^sub>\<beta>\<^sup>* s' ==> Op s t \<rightarrow>\<^sub>\<beta>\<^sup>* Op s' t"
+  by (induct set: rtranclp) (blast intro: rtranclp.rtrancl_into_rtrancl)+
+
+lemma rtrancl_beta_OpR:
+    "t \<rightarrow>\<^sub>\<beta>\<^sup>* t' ==> Op s t \<rightarrow>\<^sub>\<beta>\<^sup>* Op s t'"
+  by (induct set: rtranclp) (blast intro: rtranclp.rtrancl_into_rtrancl)+
+
+lemma rtrancl_beta_Op [intro]:
+    "[| s \<rightarrow>\<^sub>\<beta>\<^sup>* s'; t \<rightarrow>\<^sub>\<beta>\<^sup>* t' |] ==> Op s t \<rightarrow>\<^sub>\<beta>\<^sup>* Op s' t'"
+  by (blast intro!: rtrancl_beta_OpL rtrancl_beta_OpR intro: rtranclp_trans)
 
 lemma rtrancl_beta_Unpair [intro!]:
     "s \<rightarrow>\<^sub>\<beta>\<^sup>* s' ==> Unpair b s \<rightarrow>\<^sub>\<beta>\<^sup>* Unpair b s'"
@@ -163,7 +206,9 @@ theorem subst_preserves_beta2 [simp]: "r \<rightarrow>\<^sub>\<beta> s ==> t[r/i
   close (simp add: rtrancl_beta_App)
   close (simp add: rtrancl_beta_Abs)
   close (simp add: rtrancl_beta_MkPair)
-  by (simp add: rtrancl_beta_Unpair)
+  close (simp add: rtrancl_beta_Unpair)
+  close simp
+  by (simp add: rtrancl_beta_Op)
 
 
 abbreviation
@@ -260,6 +305,8 @@ inductive typing :: "(nat \<Rightarrow> lambda_type) \<Rightarrow> dB \<Rightarr
   | MkPair [intro!]: "env \<turnstile> s : T \<Longrightarrow> env \<turnstile> t : U \<Longrightarrow> env \<turnstile> (MkPair s t) : (Prod T U)"
   | Fst [intro!]: "env \<turnstile> s : Prod T U \<Longrightarrow> env \<turnstile> Unpair True s : T"
   | Snd [intro!]: "env \<turnstile> s : Prod T U \<Longrightarrow> env \<turnstile> Unpair False s : U"
+  | Val [intro!]: "env \<turnstile> Val : Atom 0"
+  | Op [intro!]: "env \<turnstile> s : Atom 0 \<Longrightarrow> env \<turnstile> t : Atom 0 \<Longrightarrow> env \<turnstile> (Op s t) : Atom 0"
 
 inductive_cases typing_elims [elim!]:
   "e \<turnstile> Var i : T"
@@ -480,14 +527,16 @@ abbreviation
 lemma head_Var_reduction:
   "Var n \<degree>\<degree> rs \<rightarrow>\<^sub>\<beta> v \<Longrightarrow> \<exists>ss. rs => ss \<and> v = Var n \<degree>\<degree> ss"
   apply (induct u == "Var n \<degree>\<degree> rs" v arbitrary: rs set: beta)
-     close simp
-    apply (rule_tac xs = rs in rev_exhaust)
-     close simp
-    close (atomize, force intro: append_step1I)
-   apply (rule_tac xs = rs in rev_exhaust)
-    close simp
-    apply (auto 0 3 intro: disjI2 [THEN append_step1I])
-  done
+            close simp
+           apply (rule_tac xs = rs in rev_exhaust)
+            close simp
+           close (atomize, force intro: append_step1I)
+          apply (rule_tac xs = rs in rev_exhaust)
+           close simp
+          apply (auto 0 3 intro: disjI2 [THEN append_step1I])
+apply (metis foldl.simps(2) foldl_Nil foldl_append rev_exhaust typed_lambda.dB.distinct(11) typed_lambda.dB.distinct(21))
+by (metis foldl.simps(2) foldl_Nil foldl_append rev_exhaust typed_lambda.dB.distinct(11) typed_lambda.dB.distinct(21))
+
 
 lemma apps_betasE [elim!, consumes 1, case_names head tail beta]:
   assumes major: "r \<degree>\<degree> rs \<rightarrow>\<^sub>\<beta> s"
@@ -504,12 +553,17 @@ proof -
   case beta thus ?case
        apply (case_tac r)
 
-        close simp
+         close simp
+
+         apply (simp add: App_eq_foldl_conv)
+         apply (split split_if_asm)
+          apply simp
+          close blast
+         close simp
 
         apply (simp add: App_eq_foldl_conv)
         apply (split split_if_asm)
-         apply simp
-         close blast
+         close simp
         close simp
 
        apply (simp add: App_eq_foldl_conv)
@@ -517,15 +571,17 @@ proof -
         close simp
        close simp
 
-       apply (simp add: App_eq_foldl_conv)
+      apply (simp add: App_eq_foldl_conv)
        apply (split split_if_asm)
         close simp
        close simp
+       
+     apply (simp add: App_eq_foldl_conv)
+      apply (split split_if_asm)
+       close simp
 
-       apply (simp add: App_eq_foldl_conv)
-       apply (split split_if_asm)
-        close simp
-       by simp
+    close simp
+   by (metis typed_lambda.Abs_eq_apps_conv typed_lambda.App_eq_foldl_conv typed_lambda.dB.distinct(21) typed_lambda.dB.distinct(29))
   next case appL thus ?case
       apply auto
       apply (drule App_eq_foldl_conv [THEN iffD1])
@@ -546,6 +602,8 @@ proof -
   next case snd thus ?case by auto
   next case pairL thus ?case by auto
   next case pairR thus ?case by auto
+  next case opL thus ?case by (metis foldl_Nil rev_exhaust typed_lambda.app_last typed_lambda.dB.distinct(21) typed_lambda.opL)
+  next case opR thus ?case by (metis foldl_Nil rev_exhaust typed_lambda.app_last typed_lambda.dB.distinct(21) typed_lambda.opR)
   qed
   with cases show ?thesis by blast
 qed
@@ -992,7 +1050,7 @@ next
 qed
 *)
 
-theorem type_implies_termi: "e \<turnstile> t : T \<Longrightarrow> termip beta t"
+theorem type_implies_termi: "e \<turnstile> t : T \<Longrightarrow> weaknorm beta t"
 apply (insert assms) SORRY "termination of beta reduction"
 (*proof -
   assume "e \<turnstile> t : T"

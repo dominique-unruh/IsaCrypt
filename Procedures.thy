@@ -267,9 +267,9 @@ by (case_tac p, auto)
 
 locale beta_reduce_proofs = typed_lambda begin
 
-abbreviation "Proc0 == Abs(Var 0)"
-abbreviation "Proc1 == Abs(Var 0)"
-abbreviation "Proc2 == Abs(Abs(Var 0))"
+abbreviation "Proc0 == Val"
+abbreviation "Proc1 == Op Val"
+abbreviation "Proc2 == Op"
 
 (*
 
@@ -297,11 +297,11 @@ fun prog_to_dB :: "program_rep \<Rightarrow> dB" and proc_to_dB :: "procedure_re
   "prog_to_dB Skip = Proc0"
 | "prog_to_dB (Assign v e) = Proc0"
 | "prog_to_dB (Sample v e) = Proc0"
-| "prog_to_dB (IfTE e p q) = Proc2 \<degree> prog_to_dB p \<degree> prog_to_dB q"
-| "prog_to_dB (Seq p q) = Proc2 \<degree> prog_to_dB p \<degree> prog_to_dB q"
-| "prog_to_dB (While e p) = Proc1 \<degree> prog_to_dB p"
-| "prog_to_dB (CallProc v p a) = Proc1 \<degree> proc_to_dB p"
-| "proc_to_dB (Proc p ret args) = Proc1 \<degree> prog_to_dB p"
+| "prog_to_dB (IfTE e p q) = Proc2 (prog_to_dB p) (prog_to_dB q)"
+| "prog_to_dB (Seq p q) = Proc2 (prog_to_dB p) (prog_to_dB q)"
+| "prog_to_dB (While e p) = prog_to_dB p"
+| "prog_to_dB (CallProc v p a) = Proc1 (proc_to_dB p)"
+| "proc_to_dB (Proc p ret args) = Proc1 (prog_to_dB p)"
 | "proc_to_dB (ProcRef i) = Var i"
 | "proc_to_dB (ProcAbs p) = Abs (proc_to_dB p)"
 | "proc_to_dB (ProcAppl p q) = proc_to_dB p \<degree> proc_to_dB q"
@@ -322,7 +322,7 @@ fun to_dB where
   "to_dB (Inl p) = prog_to_dB p"
 | "to_dB (Inr p) = proc_to_dB p"
 
-abbreviation "ProcT == Fun (Atom 0) (Atom 0)"
+abbreviation "ProcT == Atom 0"
 
 fun typ_conv :: "procedure_type_open \<Rightarrow> lambda_type" where
   "typ_conv (ProcTSimple _) = ProcT"
@@ -366,41 +366,187 @@ proof -
 qed
 
 lemma well_typed_beta_reduce:
-  shows "well_typed'' E p' \<Longrightarrow> termip beta_reduce_prog p'"
-    and "well_typed_proc'' E p T \<Longrightarrow> termip beta_reduce_proc p"
+  shows "well_typed'' E p' \<Longrightarrow> weaknorm beta_reduce_prog p'"
+    and "well_typed_proc'' E p T \<Longrightarrow> weaknorm beta_reduce_proc p"
 proof -
   def beta1 == "\<lambda>p q. (prog_to_dB p) \<rightarrow>\<^sub>\<beta> (prog_to_dB q)"
   def beta2 == "\<lambda>p q. (proc_to_dB p) \<rightarrow>\<^sub>\<beta> (proc_to_dB q)"
 
   {fix p1 p2 q1 q2 
-   have "beta_reduce_prog p1 p2 \<Longrightarrow> beta1 p1 p2"
-    and "beta_reduce_proc q1 q2 \<Longrightarrow> beta2 q1 q2"
+    have "beta_reduce_prog p1 p2 \<Longrightarrow> beta1 p1 p2"
+     and "beta_reduce_proc q1 q2 \<Longrightarrow> beta2 q1 q2"
     unfolding beta1_def beta2_def
     by (induction rule:beta_reduce_prog_beta_reduce_proc.inducts, auto)}
   note rel = this
 
-  show "well_typed_proc'' E p T \<Longrightarrow> termip beta_reduce_proc p"
+  have rel1: "\<And>l1 p1 l2. l1 \<rightarrow>\<^sub>\<beta> l2 \<Longrightarrow> l1=prog_to_dB p1 \<Longrightarrow> \<exists>p2. l1=prog_to_dB p2"
   proof -
-    assume wt: "well_typed_proc'' E p T"
-    have leq: "beta_reduce_proc \<le> beta2" by (auto simp: rel)
-    have termip_leq: "termip beta2 \<le> termip beta_reduce_proc"
-      by (rule accp_subset, simp add: leq)
-    have "(\<lambda>i. typ_conv (E!i)) \<turnstile> proc_to_dB p : typ_conv T" using wt by (rule typ_pres)
-    hence "termip beta (proc_to_dB p)" by (rule type_implies_termi)
-    hence "termip beta2 p" unfolding beta2_def by (rule termip_map)
-    with termip_leq show ?thesis by auto
+    fix l1 l2
+    assume "l1 \<rightarrow>\<^sub>\<beta> l2"
+    thus "\<And>p1. l1=prog_to_dB p1 \<Longrightarrow> \<exists>p1. l1=prog_to_dB p1"
+      by (induct, blast+)
   qed
 
-  show "well_typed'' E p' \<Longrightarrow> termip beta_reduce_prog p'"
+  (* have aux: "\<And>P. P \<Longrightarrow> \<not>P \<Longrightarrow> False" by simp *)
+
+  have no_abs: "\<And>x p. Abs x \<noteq> prog_to_dB p" by (induct_tac p, auto)
+  (* hence no_abs: "\<And>x p. Abs x = prog_to_dB p \<Longrightarrow> False" by simp *)
+
+  have no_appl: "\<And>x y p. x \<degree> y \<noteq> prog_to_dB p" by (induct_tac p, auto)
+  have no_unpair: "\<And>x y p. Unpair x y \<noteq> prog_to_dB p" by (induct_tac p, auto)
+
+  let ?good = "\<lambda>l1 l2. \<forall>p1. (l1=prog_to_dB p1 \<longrightarrow> (\<exists>p2. (l2=prog_to_dB p2 \<and> beta_reduce_prog p1 p2)))"
+  let ?good' = "\<lambda>l1 l2. \<forall>q1. (l1=proc_to_dB q1 \<longrightarrow> (\<exists>q2. (l2=proc_to_dB q2 \<and> beta_reduce_proc q1 q2)))"
+
+  {fix l1 l2
+  assume "l1 \<rightarrow>\<^sub>\<beta> l2"
+  hence "\<And>p1 q1. ((l1=prog_to_dB p1 \<Longrightarrow> (\<exists>p2. (l2=prog_to_dB p2 \<and> beta_reduce_prog p1 p2))) &&&
+                  (l1=proc_to_dB q1 \<Longrightarrow> (\<exists>q2. (l2=proc_to_dB q2 \<and> beta_reduce_proc q1 q2))))" 
+  (* hence "?good l1 l2 \<and> ?good' l1 l2" *)
+  proof induct 
+    case (beta s t) case 1 thus ?case by (cases p1, auto simp: no_appl)
+    next case (beta s t) case 2
+      then obtain qs qt where q1: "q1 = ProcAppl (ProcAbs qs) qt" and s:"s = proc_to_dB qs" and t:"t = proc_to_dB qt"
+        apply (cases q1) apply auto apply (case_tac x41) by auto
+      def q2 == "subst_proc 0 qt qs"
+      have "s[t/0] = proc_to_dB q2" unfolding q2_def proc_to_dB_subst s t by simp
+      moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def by (simp add: br_beta) 
+      ultimately show ?case by auto 
+    next case (appL s t u) case 1 thus ?case by (cases p1, auto simp: no_appl)
+    next case (appL s t u) case 2
+      then obtain qs qu where q1: "q1 = ProcAppl qs qu" and s:"s = proc_to_dB qs" and u:"u = proc_to_dB qu" 
+        apply (cases q1) by auto
+      with appL obtain qt where t:"t = proc_to_dB qt" and qsqt: "beta_reduce_proc qs qt" by metis
+      def q2 == "ProcAppl qt qu"
+      have "t \<degree> u = proc_to_dB q2" unfolding q2_def s u t by simp
+      moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def using qsqt by (simp add: br_ProcAppl1) 
+      ultimately show ?case by auto
+    next case (appR s t u) case 1 thus ?case by (cases p1, auto simp: no_appl)
+    next case (appR s t u) case 2
+      then obtain qs qu where q1: "q1 = ProcAppl qu qs" and s:"s = proc_to_dB qs" and u:"u = proc_to_dB qu" 
+        apply (cases q1) by auto
+      with appR obtain qt where t:"t = proc_to_dB qt" and qsqt: "beta_reduce_proc qs qt" by auto
+      def q2 == "ProcAppl qu qt"
+      have "u \<degree> t = proc_to_dB q2" unfolding q2_def s u t by simp
+      moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def using qsqt by (simp add: br_ProcAppl2) 
+      ultimately show ?case by auto
+    next case (pairL s t u) case 1 thus ?case by later
+    next case (pairL s t u) case 2
+      then obtain qs qu where q1: "q1 = ProcPair qs qu" and s:"s = proc_to_dB qs" and u:"u = proc_to_dB qu" 
+        apply (cases q1) by auto
+      with pairL obtain qt where t:"t = proc_to_dB qt" and qsqt: "beta_reduce_proc qs qt" by auto
+      def q2 == "ProcPair qt qu"
+      have "MkPair t u = proc_to_dB q2" unfolding q2_def s u t by simp
+      moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def using qsqt by (simp add: br_ProcPair1) 
+      ultimately show ?case by auto
+    next case (pairR s t u) case 1 thus ?case by later
+    next case (pairR s t u) case 2
+      then obtain qs qu where q1: "q1 = ProcPair qu qs" and s:"s = proc_to_dB qs" and u:"u = proc_to_dB qu" 
+        apply (cases q1) by auto
+      with pairR obtain qt where t:"t = proc_to_dB qt" and qsqt: "beta_reduce_proc qs qt" by auto
+      def q2 == "ProcPair qu qt"
+      have "MkPair u t = proc_to_dB q2" unfolding q2_def s u t by simp
+      moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def using qsqt by (simp add: br_ProcPair2) 
+      ultimately show ?case by auto
+    next case (abs s t) case 1 thus ?case by (cases p1, auto simp: no_abs)
+    next case (abs s t) case 2
+      then obtain qs where q1: "q1 = ProcAbs qs" and s:"s = proc_to_dB qs"
+        apply (cases q1) by auto
+      with abs obtain qt where t:"t = proc_to_dB qt" and qsqt: "beta_reduce_proc qs qt" by auto
+      def q2 == "ProcAbs qt"
+      have "Abs t = proc_to_dB q2" unfolding q2_def s t by simp
+      moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def using qsqt by (simp add: br_ProcAbs) 
+      ultimately show ?case by auto
+    next case (unpair s t b) case 1 thus ?case by later
+    next case (unpair s t b) case 2
+      then obtain qs where q1: "q1 = ProcUnpair b qs" and s:"s = proc_to_dB qs"
+        apply (cases q1) by auto
+      with unpair obtain qt where t:"t = proc_to_dB qt" and qsqt: "beta_reduce_proc qs qt" by auto
+      def q2 == "ProcUnpair b qt"
+      have "Unpair b t = proc_to_dB q2" unfolding q2_def s t by simp
+      moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def using qsqt by (simp add: br_ProcUnpair) 
+      ultimately show ?case by auto
+    next case (fst s t) case 1 thus ?case by (cases p1, auto simp: no_unpair)
+    next case (fst s t) case 2
+      then obtain qs qt where q1: "q1 = ProcUnpair True (ProcPair qs qt)" and s:"s = proc_to_dB qs" and t:"t = proc_to_dB qt"
+        apply (cases q1) apply auto apply (case_tac x62) by auto
+      def q2 == "subst_proc 0 qt qs"
+      have "beta_reduce_proc q1 qs" unfolding q1 by (simp add: br_ProcUnpairPair[where b=True, simplified]) 
+      with s show ?case by auto
+    next case (snd s t) case 1 thus ?case by (cases p1, auto simp: no_unpair)
+    next case (snd s t) case 2
+      then obtain qs qt where q1: "q1 = ProcUnpair False (ProcPair qs qt)" and s:"s = proc_to_dB qs" and t:"t = proc_to_dB qt"
+        apply (cases q1) apply auto apply (case_tac x62) by auto
+      def q2 == "subst_proc 0 qt qs"
+      have "beta_reduce_proc q1 qt" unfolding q1 by (simp add: br_ProcUnpairPair[where b=False, simplified]) 
+      with t show ?case by auto
+    next case (opL s t u) case 1 show ?case by later
+    next case (opL s t u) case 2 with opL show ?case by (cases q1, auto)
+    next case (opR s t u) case 1 show ?case by later
+    next case (opR s t u) case 2
+      then obtain qs x y where q1: "q1 = Proc qs x y" and s:"s = prog_to_dB qs"
+        apply (cases q1) by auto
+      from 2 have u:"u = Val" by (cases q1, auto)
+      from s opR obtain qt where t:"t = prog_to_dB qt" and qsqt: "beta_reduce_prog qs qt" by auto
+      def q2 == "Proc qt x y"
+      have "Op u t = proc_to_dB q2" unfolding q2_def s u t by simp
+      moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def using qsqt by (simp add: br_Proc) 
+      ultimately show ?case by auto
+  qed}
+  note tmp = this
+  hence rel2: "\<And>l1 q1 l2. l1 \<rightarrow>\<^sub>\<beta> l2 \<Longrightarrow> l1=proc_to_dB q1 \<Longrightarrow> \<exists>q2. (l2=proc_to_dB q2 \<and> beta_reduce_proc q1 q2)" by metis
+  from tmp have rel1: "\<And>l1 p1 l2. l1 \<rightarrow>\<^sub>\<beta> l2 \<Longrightarrow> l1=prog_to_dB p1 \<Longrightarrow> \<exists>p2. (l2=prog_to_dB p2 \<and> beta_reduce_prog p1 p2)" by metis
+
+  show "well_typed_proc'' E p T \<Longrightarrow> weaknorm beta_reduce_proc p"
+  proof -
+    assume wt: "well_typed_proc'' E p T"
+    def l == "proc_to_dB p"
+    have "(\<lambda>i. typ_conv (E!i)) \<turnstile> proc_to_dB p : typ_conv T" using wt by (rule typ_pres)
+    hence "weaknorm beta l" unfolding l_def by (rule type_implies_termi)
+    hence "\<And>p. l=proc_to_dB p \<Longrightarrow> weaknorm beta_reduce_proc p"
+    proof (induct)
+      case (base y p)
+      show "weaknorm beta_reduce_proc p"
+        apply (rule weaknormI2, auto)
+        apply (drule rel)
+        using base beta2_def by auto
+    next
+      case (step x y)
+      obtain p' where p: "y = proc_to_dB p'" and pp': "beta_reduce_proc p p'"
+        apply (atomize_elim, rule rel2)
+        using step by simp_all
+      with step have "weaknorm beta_reduce_proc p'" by simp
+      thus "weaknorm beta_reduce_proc p"
+        apply (rule weaknormI)
+        by (fact pp')
+    qed
+    thus "weaknorm beta_reduce_proc p" unfolding l_def by simp
+  qed
+
+  show "well_typed'' E p' \<Longrightarrow> weaknorm beta_reduce_prog p'"
   proof -
     assume wt: "well_typed'' E p'"
-    have leq: "beta_reduce_prog \<le> beta1" by (auto simp: rel)
-    have termip_leq: "termip beta1 \<le> termip beta_reduce_prog"
-      by (rule accp_subset, simp add: leq)
+    def l == "prog_to_dB p'"
     have "(\<lambda>i. typ_conv (E!i)) \<turnstile> prog_to_dB p' : ProcT" using wt by (rule typ_pres)
-    hence "termip beta (prog_to_dB p')" by (rule type_implies_termi)
-    hence "termip beta1 p'" unfolding beta1_def by (rule termip_map)
-    with termip_leq show ?thesis by auto
+    hence "weaknorm beta l" unfolding l_def by (rule type_implies_termi)
+    hence "\<And>p'. l=prog_to_dB p' \<Longrightarrow> weaknorm beta_reduce_prog p'"
+    proof (induct)
+      case (base y p')
+      show "weaknorm beta_reduce_prog p'"
+        apply (rule weaknormI2, auto)
+        apply (drule rel)
+        using base beta1_def by auto
+    next
+      case (step x y)
+      obtain p'' where p'': "y = prog_to_dB p''" and pp': "beta_reduce_prog p' p''"
+        apply (atomize_elim, rule rel1)
+        using step by simp_all
+      with step have "weaknorm beta_reduce_prog p''" by simp
+      thus "weaknorm beta_reduce_prog p'"
+        apply (rule weaknormI)
+        by (fact pp')
+    qed
+    thus "weaknorm beta_reduce_prog p'" unfolding l_def by simp
   qed
 qed
 
@@ -1077,7 +1223,7 @@ proof -
     by (metis converse_rtranclpE beta_reduced'_def)
 qed
 
-lemma beta_reduce_def2:
+(* lemma beta_reduce_def2:
   assumes "termip beta_reduce_proc p"
   shows "beta_reduced (beta_reduce p)" and "beta_reduce_proc\<^sup>*\<^sup>* p (beta_reduce p)"
 proof -
@@ -1090,9 +1236,25 @@ proof -
     by (rule theI'[of ?P], auto intro: exq beta_unique)
   thus "beta_reduced (beta_reduce p)" and "beta_reduce_proc\<^sup>*\<^sup>* p (beta_reduce p)"
     by auto
+qed *)
+
+lemma beta_reduce_def2:
+  assumes "weaknorm beta_reduce_proc p"
+  shows "beta_reduced (beta_reduce p)" and "beta_reduce_proc\<^sup>*\<^sup>* p (beta_reduce p)"
+proof -
+  have exq: "\<exists>q. beta_reduced q \<and> beta_reduce_proc\<^sup>*\<^sup>* p q"
+    using assms apply (induction, simp)
+    using beta_reduced_def by auto
+  have "beta_reduced (beta_reduce p) \<and> beta_reduce_proc\<^sup>*\<^sup>* p (beta_reduce p)" (is "?P (beta_reduce p)")
+    unfolding beta_reduce_def 
+    apply (subst exq, subst exq, simp)
+    by (rule theI'[of ?P], auto intro: exq beta_unique)
+  thus "beta_reduced (beta_reduce p)" and "beta_reduce_proc\<^sup>*\<^sup>* p (beta_reduce p)"
+    by auto
 qed
 
-lemma beta_reduce'_def2:
+
+(* lemma beta_reduce'_def2:
   assumes "termip beta_reduce_prog p"
   shows "beta_reduced' (beta_reduce' p)" and "beta_reduce_prog\<^sup>*\<^sup>* p (beta_reduce' p)"
 proof -
@@ -1106,6 +1268,23 @@ proof -
   thus "beta_reduced' (beta_reduce' p)" and "beta_reduce_prog\<^sup>*\<^sup>* p (beta_reduce' p)"
     by auto
 qed
+ *)
+
+lemma beta_reduce'_def2:
+  assumes "weaknorm beta_reduce_prog p"
+  shows "beta_reduced' (beta_reduce' p)" and "beta_reduce_prog\<^sup>*\<^sup>* p (beta_reduce' p)"
+proof -
+  have exq: "\<exists>q. beta_reduced' q \<and> beta_reduce_prog\<^sup>*\<^sup>* p q"
+    using assms apply (induction, simp)
+    using beta_reduced'_def by auto
+  have "beta_reduced' (beta_reduce' p) \<and> beta_reduce_prog\<^sup>*\<^sup>* p (beta_reduce' p)" (is "?P (beta_reduce' p)")
+    unfolding beta_reduce'_def 
+    apply (subst exq, subst exq, simp)
+    by (rule theI'[of ?P], auto intro: exq beta_unique')
+  thus "beta_reduced' (beta_reduce' p)" and "beta_reduce_prog\<^sup>*\<^sup>* p (beta_reduce' p)"
+    by auto
+qed
+
 
 lemma beta_reduceI:
   assumes "beta_reduced q" and "beta_reduce_proc\<^sup>*\<^sup>* p q"
@@ -1207,10 +1386,10 @@ next
 qed
 
 lemma beta_reduce_rewrite:
-  assumes "termip beta_reduce_proc p"
+  assumes "weaknorm beta_reduce_proc q"
   and "beta_reduce_proc\<^sup>*\<^sup>* p q"
   shows "beta_reduce p = beta_reduce q"
-by (metis accp_downwards_aux assms(1) assms(2) beta_reduce_def2(1) beta_reduce_def2(2) beta_unique rtranclp_converseI rtranclp_trans)
+by (meson assms(1) assms(2) beta_reduceI beta_reduce_def2(1) beta_reduce_def2(2) rtranclp_trans)
 
 lemma beta_reduce_ProcAbs:
   assumes "well_typed_proc'' E p T"
@@ -1489,11 +1668,10 @@ lemma beta_reduce_beta:
   assumes "well_typed_proc'' E q T"
   shows "beta_reduce (ProcAppl (ProcAbs p) q) = beta_reduce (subst_proc 0 q p)"
 proof -
-  have "termip beta_reduce_proc (ProcAppl (ProcAbs p) q)"
+  have "weaknorm beta_reduce_proc (subst_proc 0 q p)"
     apply (rule well_typed_beta_reduce)
-    apply (rule wt_ProcAppl)
-    apply (rule wt_ProcAbs)
-    using assms .
+    apply (rule well_typed_subst_proc[where F="[]", simplified])
+    using assms by auto
   moreover have "beta_reduce_proc\<^sup>*\<^sup>* (ProcAppl (ProcAbs p) q) (subst_proc 0 q p)"
     by (metis br_beta r_into_rtranclp)
   ultimately show ?thesis
