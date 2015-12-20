@@ -299,7 +299,7 @@ fun prog_to_dB :: "program_rep \<Rightarrow> dB" and proc_to_dB :: "procedure_re
 | "prog_to_dB (Sample v e) = Proc0"
 | "prog_to_dB (IfTE e p q) = Proc2 (prog_to_dB p) (prog_to_dB q)"
 | "prog_to_dB (Seq p q) = Proc2 (prog_to_dB p) (prog_to_dB q)"
-| "prog_to_dB (While e p) = prog_to_dB p"
+| "prog_to_dB (While e p) = Proc1 (prog_to_dB p)"
 | "prog_to_dB (CallProc v p a) = Proc1 (proc_to_dB p)"
 | "proc_to_dB (Proc p ret args) = Proc1 (prog_to_dB p)"
 | "proc_to_dB (ProcRef i) = Var i"
@@ -390,10 +390,15 @@ proof -
   (* have aux: "\<And>P. P \<Longrightarrow> \<not>P \<Longrightarrow> False" by simp *)
 
   have no_abs: "\<And>x p. Abs x \<noteq> prog_to_dB p" by (induct_tac p, auto)
-  (* hence no_abs: "\<And>x p. Abs x = prog_to_dB p \<Longrightarrow> False" by simp *)
-
   have no_appl: "\<And>x y p. x \<degree> y \<noteq> prog_to_dB p" by (induct_tac p, auto)
   have no_unpair: "\<And>x y p. Unpair x y \<noteq> prog_to_dB p" by (induct_tac p, auto)
+  have no_mkpair: "\<And>x y p. MkPair x y \<noteq> prog_to_dB p" by (induct_tac p, auto)
+  have op_cases: "\<And>a b p P. \<lbrakk> Op a b = prog_to_dB p; 
+                              \<And>a' b' e. a=prog_to_dB a' \<Longrightarrow> b=prog_to_dB b' \<Longrightarrow> p=IfTE e a' b' \<Longrightarrow> P;
+                              \<And>a' b'. a=prog_to_dB a' \<Longrightarrow> b=prog_to_dB b' \<Longrightarrow> p=Seq a' b' \<Longrightarrow> P; 
+                              \<And>b' e. a=Val \<Longrightarrow> b=prog_to_dB b' \<Longrightarrow> p=While e b' \<Longrightarrow> P;
+                              \<And>v b' e. a=Val \<Longrightarrow> b=proc_to_dB b' \<Longrightarrow> p=CallProc v b' e \<Longrightarrow> P\<rbrakk> \<Longrightarrow> P"
+    by (case_tac p, auto)
 
   let ?good = "\<lambda>l1 l2. \<forall>p1. (l1=prog_to_dB p1 \<longrightarrow> (\<exists>p2. (l2=prog_to_dB p2 \<and> beta_reduce_prog p1 p2)))"
   let ?good' = "\<lambda>l1 l2. \<forall>q1. (l1=proc_to_dB q1 \<longrightarrow> (\<exists>q2. (l2=proc_to_dB q2 \<and> beta_reduce_proc q1 q2)))"
@@ -404,7 +409,7 @@ proof -
                   (l1=proc_to_dB q1 \<Longrightarrow> (\<exists>q2. (l2=proc_to_dB q2 \<and> beta_reduce_proc q1 q2))))" 
   (* hence "?good l1 l2 \<and> ?good' l1 l2" *)
   proof induct 
-    case (beta s t) case 1 thus ?case by (cases p1, auto simp: no_appl)
+    case (beta s t) case 1 thus ?case by (auto simp: no_appl)
     next case (beta s t) case 2
       then obtain qs qt where q1: "q1 = ProcAppl (ProcAbs qs) qt" and s:"s = proc_to_dB qs" and t:"t = proc_to_dB qt"
         apply (cases q1) apply auto apply (case_tac x41) by auto
@@ -412,7 +417,7 @@ proof -
       have "s[t/0] = proc_to_dB q2" unfolding q2_def proc_to_dB_subst s t by simp
       moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def by (simp add: br_beta) 
       ultimately show ?case by auto 
-    next case (appL s t u) case 1 thus ?case by (cases p1, auto simp: no_appl)
+    next case (appL s t u) case 1 thus ?case by (auto simp: no_appl)
     next case (appL s t u) case 2
       then obtain qs qu where q1: "q1 = ProcAppl qs qu" and s:"s = proc_to_dB qs" and u:"u = proc_to_dB qu" 
         apply (cases q1) by auto
@@ -421,7 +426,7 @@ proof -
       have "t \<degree> u = proc_to_dB q2" unfolding q2_def s u t by simp
       moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def using qsqt by (simp add: br_ProcAppl1) 
       ultimately show ?case by auto
-    next case (appR s t u) case 1 thus ?case by (cases p1, auto simp: no_appl)
+    next case (appR s t u) case 1 thus ?case by (auto simp: no_appl)
     next case (appR s t u) case 2
       then obtain qs qu where q1: "q1 = ProcAppl qu qs" and s:"s = proc_to_dB qs" and u:"u = proc_to_dB qu" 
         apply (cases q1) by auto
@@ -430,16 +435,16 @@ proof -
       have "u \<degree> t = proc_to_dB q2" unfolding q2_def s u t by simp
       moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def using qsqt by (simp add: br_ProcAppl2) 
       ultimately show ?case by auto
-    next case (pairL s t u) case 1 thus ?case by later
+    next case (pairL s t u) case 1 thus ?case by (auto simp: no_mkpair)
     next case (pairL s t u) case 2
       then obtain qs qu where q1: "q1 = ProcPair qs qu" and s:"s = proc_to_dB qs" and u:"u = proc_to_dB qu" 
         apply (cases q1) by auto
-      with pairL obtain qt where t:"t = proc_to_dB qt" and qsqt: "beta_reduce_proc qs qt" by auto
+      with pairL obtain qt where t: "t = proc_to_dB qt" and qsqt: "beta_reduce_proc qs qt" by auto
       def q2 == "ProcPair qt qu"
       have "MkPair t u = proc_to_dB q2" unfolding q2_def s u t by simp
       moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def using qsqt by (simp add: br_ProcPair1) 
       ultimately show ?case by auto
-    next case (pairR s t u) case 1 thus ?case by later
+    next case (pairR s t u) case 1 thus ?case by (auto simp: no_mkpair)
     next case (pairR s t u) case 2
       then obtain qs qu where q1: "q1 = ProcPair qu qs" and s:"s = proc_to_dB qs" and u:"u = proc_to_dB qu" 
         apply (cases q1) by auto
@@ -457,7 +462,7 @@ proof -
       have "Abs t = proc_to_dB q2" unfolding q2_def s t by simp
       moreover have "beta_reduce_proc q1 q2" unfolding q1 q2_def using qsqt by (simp add: br_ProcAbs) 
       ultimately show ?case by auto
-    next case (unpair s t b) case 1 thus ?case by later
+    next case (unpair s t b) case 1 thus ?case by (auto simp: no_unpair)
     next case (unpair s t b) case 2
       then obtain qs where q1: "q1 = ProcUnpair b qs" and s:"s = proc_to_dB qs"
         apply (cases q1) by auto
@@ -480,9 +485,60 @@ proof -
       def q2 == "subst_proc 0 qt qs"
       have "beta_reduce_proc q1 qt" unfolding q1 by (simp add: br_ProcUnpairPair[where b=False, simplified]) 
       with t show ?case by auto
-    next case (opL s t u) case 1 show ?case by later
+    next case (opL s t u) case 1 
+      show ?case
+      proof (rule op_cases[OF 1])
+        fix a' b' e assume s: "s = prog_to_dB a'" and u: "u = prog_to_dB b'" and p1: "p1 = IfTE e a' b'"
+        from s opL obtain a'' where t: "t = prog_to_dB a''" and a'a'': "beta_reduce_prog a' a''" by auto
+        def p2 == "IfTE e a'' b'"
+        have "Op t u = prog_to_dB p2" unfolding p2_def using t u by simp 
+        also have "beta_reduce_prog p1 p2" unfolding p2_def p1 using a'a'' by (simp add: br_IfTE1)
+        ultimately show ?thesis by auto
+      next
+        fix a' b' assume s:  "s = prog_to_dB a'" and u: "u = prog_to_dB b'" and p1: "p1 = Seq a' b'"
+        from s opL obtain a'' where t: "t = prog_to_dB a''" and a'a'': "beta_reduce_prog a' a''" by auto
+        def p2 == "Seq a'' b'"
+        have "Op t u = prog_to_dB p2" unfolding p2_def using t u by simp 
+        also have "beta_reduce_prog p1 p2" unfolding p2_def p1 using a'a'' by (simp add: br_Seq1)
+        ultimately show ?thesis by auto
+      next
+        fix b' assume s: "s = Val"
+        from s opL have False by auto
+        thus ?thesis by simp
+        thus ?thesis by simp
+      qed
     next case (opL s t u) case 2 with opL show ?case by (cases q1, auto)
-    next case (opR s t u) case 1 show ?case by later
+    next case (opR s t u) case 1
+      show ?case
+      proof (rule op_cases[OF 1])
+        fix a' b' e assume s: "s = prog_to_dB b'" and u: "u = prog_to_dB a'" and p1: "p1 = IfTE e a' b'"
+        from s opR obtain b'' where t: "t = prog_to_dB b''" and b'b'': "beta_reduce_prog b' b''" by auto
+        def p2 == "IfTE e a' b''"
+        have "Op u t = prog_to_dB p2" unfolding p2_def using t u by simp 
+        also have "beta_reduce_prog p1 p2" unfolding p2_def p1 using b'b'' by (simp add: br_IfTE2)
+        ultimately show ?thesis by auto
+      next
+        fix a' b' assume s:  "s = prog_to_dB b'" and u: "u = prog_to_dB a'" and p1: "p1 = Seq a' b'"
+        from s opR obtain b'' where t: "t = prog_to_dB b''" and b'b'': "beta_reduce_prog b' b''" by auto
+        def p2 == "Seq a' b''"
+        have "Op u t = prog_to_dB p2" unfolding p2_def using t u by simp 
+        also have "beta_reduce_prog p1 p2" unfolding p2_def p1 using b'b'' by (simp add: br_Seq2)
+        ultimately show ?thesis by auto
+      next
+        fix b' e assume u: "u = Val" and s: "s = prog_to_dB b'" and p1: "p1 = While e b'"
+        from s opR obtain b'' where t: "t = prog_to_dB b''" and b'b'': "beta_reduce_prog b' b''" by auto
+        def p2 == "While e b''"
+        have "Op u t = prog_to_dB p2" unfolding p2_def using t u by simp 
+        also have "beta_reduce_prog p1 p2" unfolding p2_def p1 using b'b'' by (simp add: br_While)
+        ultimately show ?thesis by auto
+      next
+        fix v b' e assume u: "u = Val" and s: "s = proc_to_dB b'" and p1: "p1 = CallProc v b' e"
+        from s opR obtain b'' where t: "t = proc_to_dB b''" and b'b'': "beta_reduce_proc b' b''" by auto
+        def p2 == "CallProc v b'' e"
+        have "Op u t = prog_to_dB p2" unfolding p2_def using t u by simp 
+        also have "beta_reduce_prog p1 p2" unfolding p2_def p1 using b'b'' by (simp add: br_CallProc)
+        ultimately show ?thesis by auto
+      qed
     next case (opR s t u) case 2
       then obtain qs x y where q1: "q1 = Proc qs x y" and s:"s = prog_to_dB qs"
         apply (cases q1) by auto
