@@ -950,7 +950,7 @@ abbreviation rename_local_variables_memory :: "variable_name_renaming \<Rightarr
 
 lemma lookup_rename_local_variables_memory [simp]: 
   shows "memory_lookup (rename_local_variables_memory ren m) v = memory_lookup m (rename_local_variables_var ren v)"
-by (simp add: Rep_rename_variables_memory memory_lookup_def memory_lookup_untyped_def)
+by (simp add: Rep_rename_variables_memory memory_lookup_def)
   
 
 definition rename_local_variables_proc :: "variable_name_renaming \<Rightarrow> ('a::prog_type,'b::prog_type)procedure \<Rightarrow> ('a,'b)procedure" where

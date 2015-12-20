@@ -2,6 +2,8 @@ theory TypedLambda
 imports Main Tools Extended_Sorry "~~/src/HOL/Proofs/Lambda/ListOrder"
 begin
 
+locale typed_lambda begin (* to hide syntax *)
+
 declare [[syntax_ambiguity_warning = false]]
 
 (* 
@@ -997,5 +999,7 @@ apply (insert assms) SORRY "termination of beta reduction"
   hence "IT t" by (rule type_implies_IT)
   thus ?thesis by (rule IT_implies_termi)
 qed*)
+
+end
 
 end

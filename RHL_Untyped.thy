@@ -487,7 +487,7 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
         hence "x \<in> V" using G_def by auto
         from `x \<in> G` have "vu_global x" by (simp add: G_def)
         have init: "memory_lookup_untyped (init_locals m1) x = memory_lookup_untyped m1 x"
-          unfolding memory_lookup_untyped_def Rep_init_locals by (simp add: `vu_global x`)
+          unfolding Rep_init_locals by (simp add: `vu_global x`)
         have cp: "memory_lookup_untyped cp1mem x = memory_lookup_untyped m1 x" 
           unfolding cp1mem_def apply (subst memory_lookup_update_pattern_notsame)
           using not_pargs init .
@@ -509,7 +509,7 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
         have "\<not> vu_global x"
           using locals_local `x \<in> set locals` unfolding filter_global_def by auto
         have init: "memory_lookup_untyped (init_locals m1) x = t_default (vu_type x)"
-          unfolding memory_lookup_untyped_def Rep_init_locals using `\<not> vu_global x` by auto
+          unfolding Rep_init_locals using `\<not> vu_global x` by auto
         have cp: "memory_lookup_untyped cp1mem x = t_default (vu_type x)"
           unfolding cp1mem_def 
           apply (subst memory_lookup_update_pattern_notsame) using x_nin_pargs init .
@@ -714,7 +714,7 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
       assume y_co_locals: "y \<in> co_locals" and y_nin_pu_vars: "y\<notin>set(pu_vars x)"
       hence y_local: "\<not> vu_global y" by (simp add: co_locals_def)
       have restore_locals: "memory_lookup_untyped (restore_locals m1 m1') y = memory_lookup_untyped m1 y"
-        unfolding memory_lookup_untyped_def Rep_restore_locals by (simp add: y_local)
+        unfolding Rep_restore_locals by (simp add: y_local)
       have "memory_lookup_untyped (uf3mem m2') y = memory_lookup_untyped m2' y" 
         unfolding uf3mem_def apply (subst memory_lookup_update_pattern_notsame) using y_co_locals y_nin_pu_vars by auto
       also have "\<dots> = memory_lookup_untyped m2 y"
@@ -728,7 +728,7 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
     next
       assume y_global: "vu_global y" and y_nin_pu_vars: "y \<notin> set (pu_vars x)"
       have restore_locals: "memory_lookup_untyped (restore_locals m1 m1') y = memory_lookup_untyped m1' y"
-        unfolding memory_lookup_untyped_def Rep_restore_locals by (simp add: y_global)
+        unfolding Rep_restore_locals by (simp add: y_global)
       have "memory_lookup_untyped (uf3mem m2') y = memory_lookup_untyped m2' y" 
         unfolding uf3mem_def apply (subst memory_lookup_update_pattern_notsame) using y_nin_pu_vars by auto
       also have "\<dots> = memory_lookup_untyped m1' y"
