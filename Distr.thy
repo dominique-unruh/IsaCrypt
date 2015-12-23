@@ -69,12 +69,37 @@ definition "scaleR_distr r \<mu> = Abs_distr (\<lambda>x. r * Rep_distr \<mu> x)
 instance ..
 end
 
+lemma Rep_distr_scaleR: "r \<ge> 0 \<Longrightarrow> r \<le> 1 \<Longrightarrow> Rep_distr (r *\<^sub>R \<mu>) x = r * Rep_distr \<mu> x"
+proof -
+  assume rpos: "r \<ge> 0" and rleq1: "r \<le> 1"
+  have pos: "\<And>x. 0 \<le> r * Rep_distr \<mu> x"
+    by (simp add: Rep_distr_geq0 rpos)
+  have "(\<integral>\<^sup>+ x. ereal (r * Rep_distr \<mu> x) \<partial>count_space UNIV) = r * (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x) \<partial>count_space UNIV)"
+    unfolding times_ereal.simps(1)[symmetric]
+    apply (subst nn_integral_cmult)
+    using rpos by auto
+  also have "\<dots> \<le> ereal r * 1"
+    apply (rule ereal_mult_left_mono)
+    close (rule Rep_distr_int_leq1)
+    using rpos by auto
+  also have "\<dots> \<le> 1"
+    using rleq1 by auto
+  finally have leq1: "(\<integral>\<^sup>+ x. ereal (r * Rep_distr \<mu> x) \<partial>count_space UNIV) \<le> 1" by assumption
+  show ?thesis
+    unfolding scaleR_distr_def
+    apply (subst Abs_distr_inverse)
+    using pos leq1 by auto
+qed
 lemma scaleR_one_distr: "1 *\<^sub>R (\<mu>::'a distr) = \<mu>"
   unfolding scaleR_distr_def using Rep_distr_inverse by auto  
 
 definition "probability \<mu> E = real (\<integral>\<^sup>+x. Rep_distr \<mu> x * (if E x then 1 else 0) \<partial>count_space UNIV)" 
 
 definition "weight_distr \<mu> = real (\<integral>\<^sup>+x. Rep_distr \<mu> x \<partial>count_space UNIV)"
+lemma weight_distr_pos: "weight_distr \<mu> \<ge> 0"
+  by (simp add: nn_integral_nonneg real_of_ereal_pos weight_distr_def) 
+lemma weight_distr_leq1: "weight_distr \<mu> \<le> 1"
+  unfolding weight_distr_def by (simp add: Rep_distr_int_leq1 real_of_ereal_le_1) 
 
 (* lemma ereal_indicator: "\<And>x. ereal (indicator {a} x) = indicator {a} x" unfolding indicator_def by auto *)
 
@@ -517,7 +542,7 @@ lemma support_apply_to_distr [simp]: "support_distr (apply_to_distr f \<mu>) = f
   by auto
 
 definition "product_distr \<mu> \<nu> = Abs_distr (\<lambda>(x,y). Rep_distr \<mu> x * Rep_distr \<nu> y)"
-lemma product_Rep_distr: "Rep_distr (product_distr \<mu> \<nu>) (x,y) = Rep_distr \<mu> x * Rep_distr \<nu> y"
+lemma product_Rep_distr [simp]: "Rep_distr (product_distr \<mu> \<nu>) (x,y) = Rep_distr \<mu> x * Rep_distr \<nu> y"
 proof -
   have pos: "\<And>a b. Rep_distr \<mu> a * Rep_distr \<nu> b \<ge> 0"
     by (simp add: Rep_distr_geq0)
@@ -542,15 +567,52 @@ proof -
     using pos eq by auto
 qed
 lemma fst_product_distr [simp]: "apply_to_distr fst (product_distr \<mu> \<nu>) = weight_distr \<nu> *\<^sub>R \<mu>"
-  SORRY
+proof (subst Rep_distr_inject[symmetric], rule ext)
+  fix x0
+  have tmp1: "\<And>x y. Rep_distr (product_distr \<mu> \<nu>) (x,y) * indicator {x} x0 = Rep_distr (product_distr \<mu> \<nu>) (x0,y) * indicator {x} x0"
+    by (metis indicator_simps(2) mult_cancel_right singletonD)
+
+  have "(\<integral>\<^sup>+ x. indicator {x} x0 \<partial>count_space UNIV) = (\<integral>\<^sup>+ x. indicator {x0} x \<partial>count_space UNIV)"
+    by (metis indicator_def singletonD)
+  also have "\<dots> = 1" apply (subst nn_integral_indicator) by auto
+  finally have tmp2: "(\<integral>\<^sup>+ x. indicator {x} x0 \<partial>count_space UNIV) = 1" by assumption
+
+  have "Rep_distr (apply_to_distr fst (product_distr \<mu> \<nu>)) x0
+      = real (\<integral>\<^sup>+ xy. ereal (Rep_distr (product_distr \<mu> \<nu>) xy * indicator {fst xy} x0) \<partial>count_space UNIV)"
+    by simp
+  also have "\<dots> = real (\<integral>\<^sup>+ x. \<integral>\<^sup>+ y. (Rep_distr (product_distr \<mu> \<nu>) (x,y) * indicator {x} x0) \<partial>count_space UNIV \<partial>count_space UNIV)"
+    by (subst nn_integral_fst_count_space[symmetric], simp)
+  also have "\<dots> = real (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. (Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV) * indicator {x} x0 \<partial>count_space UNIV)"
+    unfolding times_ereal.simps(1)[symmetric] tmp1
+    apply (subst nn_integral_multc) apply (simp_all add: Rep_distr_geq0)
+    by (metis ereal_indicator)
+  also have "\<dots> = real ((\<integral>\<^sup>+ y. (Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV) * (\<integral>\<^sup>+ x. indicator {x} x0 \<partial>count_space UNIV))"
+    apply (subst nn_integral_cmult) by (simp_all add: nn_integral_nonneg)
+  also have "\<dots> = real (\<integral>\<^sup>+ y. (Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV)"
+    using tmp2 by simp
+  also have "\<dots> = real (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x0 * Rep_distr \<nu> x) \<partial>count_space UNIV)"
+    by simp    
+  also have "\<dots> = real (ereal (Rep_distr \<mu> x0) * \<integral>\<^sup>+ x. ereal (Rep_distr \<nu> x) \<partial>count_space UNIV)"
+    unfolding times_ereal.simps(1)[symmetric]
+    by (subst nn_integral_cmult, auto intro: Rep_distr_geq0)
+  also have "\<dots> = weight_distr \<nu> * Rep_distr \<mu> x0"
+    unfolding weight_distr_def by auto
+  also have "\<dots> = Rep_distr (weight_distr \<nu> *\<^sub>R \<mu>) x0"
+    apply (subst Rep_distr_scaleR) using weight_distr_pos  weight_distr_leq1 by auto
+  finally show "Rep_distr (apply_to_distr fst (product_distr \<mu> \<nu>)) x0 = Rep_distr (weight_distr \<nu> *\<^sub>R \<mu>) x0"
+    by assumption
+qed
+
 lemma snd_product_distr [simp]: "apply_to_distr snd (product_distr \<mu> \<nu>) = weight_distr \<mu> *\<^sub>R \<nu>"
   SORRY
+
 lemma support_product_distr [simp]: "support_distr (product_distr \<mu> \<nu>) = support_distr \<mu> \<times> support_distr \<nu>"
   unfolding support_distr_def
   apply auto unfolding product_Rep_distr
   close (metis Rep_distr_geq0 less_eq_real_def mult_zero_left)
   close (metis Rep_distr_geq0 less_eq_real_def mult_zero_right)
   by simp
+
 lemma product_distr_sym: "apply_to_distr (\<lambda>(x,y). (y,x)) (product_distr \<mu> \<nu>) = product_distr \<nu> \<mu>"
   SORRY
 
