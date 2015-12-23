@@ -53,6 +53,9 @@ typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. (\<mu> x)\<ge>0) \
 lemma Rep_distr_geq0: "Rep_distr \<mu> x \<ge> 0"
   using Rep_distr[of \<mu>] by auto 
 
+lemma Rep_distr_int_leq1: "(\<integral>\<^sup>+x. Rep_distr \<mu> x \<partial>count_space UNIV) \<le> 1"
+  using Rep_distr[of \<mu>] by auto
+
 definition support_distr :: "'a distr \<Rightarrow> 'a set" where
   "support_distr \<mu> = {x. Rep_distr \<mu> x > 0}"
 
@@ -515,7 +518,29 @@ lemma support_apply_to_distr [simp]: "support_distr (apply_to_distr f \<mu>) = f
 
 definition "product_distr \<mu> \<nu> = Abs_distr (\<lambda>(x,y). Rep_distr \<mu> x * Rep_distr \<nu> y)"
 lemma product_Rep_distr: "Rep_distr (product_distr \<mu> \<nu>) (x,y) = Rep_distr \<mu> x * Rep_distr \<nu> y"
-  SORRY
+proof -
+  have pos: "\<And>a b. Rep_distr \<mu> a * Rep_distr \<nu> b \<ge> 0"
+    by (simp add: Rep_distr_geq0)
+  have leq1\<mu>: "(\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x) \<partial>count_space UNIV) \<le> 1"
+    by (rule Rep_distr_int_leq1)
+  have leq1\<nu>: "(\<integral>\<^sup>+ x. ereal (Rep_distr \<nu> x) \<partial>count_space UNIV) \<le> 1"
+    by (rule Rep_distr_int_leq1)
+  have "(\<integral>\<^sup>+ xy. ereal (case xy of (x, y) \<Rightarrow> Rep_distr \<mu> x * Rep_distr \<nu> y) \<partial>count_space UNIV)
+       \<le> (\<integral>\<^sup>+ x. \<integral>\<^sup>+ y. ereal (Rep_distr \<mu> x) * ereal (Rep_distr \<nu> y) \<partial>count_space UNIV \<partial>count_space UNIV)"
+    by (subst nn_integral_fst_count_space[symmetric], simp)
+  also have "\<dots> = (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x) * \<integral>\<^sup>+ y. ereal (Rep_distr \<nu> y) \<partial>count_space UNIV \<partial>count_space UNIV)"
+    apply (subst nn_integral_cmult) by (simp_all add: Rep_distr_geq0)
+  also have "\<dots> = (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x) \<partial>count_space UNIV) * (\<integral>\<^sup>+ y. ereal (Rep_distr \<nu> y) \<partial>count_space UNIV)"
+    apply (subst nn_integral_multc) by (simp_all add: nn_integral_nonneg)
+  also with leq1\<mu> leq1\<nu> have "\<dots> \<le> 1 * 1"
+    using dual_order.trans ereal_mult_left_mono nn_integral_nonneg by fastforce 
+  finally have eq: "(\<integral>\<^sup>+ x. ereal (case x of (x, y) \<Rightarrow> Rep_distr \<mu> x * Rep_distr \<nu> y) \<partial>count_space UNIV) \<le> 1"
+    by simp
+  show ?thesis
+    unfolding product_distr_def
+    apply (subst Abs_distr_inverse)
+    using pos eq by auto
+qed
 lemma fst_product_distr [simp]: "apply_to_distr fst (product_distr \<mu> \<nu>) = weight_distr \<nu> *\<^sub>R \<mu>"
   SORRY
 lemma snd_product_distr [simp]: "apply_to_distr snd (product_distr \<mu> \<nu>) = weight_distr \<mu> *\<^sub>R \<nu>"

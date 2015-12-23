@@ -1,12 +1,12 @@
 #!/bin/bash
 
-HEAP=IsaCrypt-Core
+HEAP=IsaCrypt-Prereqs
 ISADIR=/opt/Isabelle2015
 
 git pull 
 
 if [ "$1" = "x" ]; then
-    HEAP=IsaCrypt-Prereqs
+    HEAP=IsaCrypt-Core
     shift
 fi
 
