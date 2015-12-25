@@ -1,7 +1,7 @@
 theory Scratch
 imports Procs_Typed Rewrite Hoare_Typed Hoare_Tactics Lang_Simplifier
-keywords "module" :: thy_decl
-     and "end_module" :: thy_decl
+(* keywords "module" :: thy_decl
+     and "end_module" :: thy_decl *)
 begin
 
 
@@ -13,7 +13,7 @@ begin
 
 lemma readonly_hoare_untyped:
   shows "program_untyped_readonly X c = (\<forall>a. hoare_untyped (\<lambda>m. \<forall>x\<in>X. memory_lookup_untyped m x = a x) c (\<lambda>m. \<forall>x\<in>X. memory_lookup_untyped m x = a x))"
-unfolding program_untyped_readonly_def hoare_untyped_hoare_denotation hoare_denotation_def denotation_readonly_def memory_lookup_untyped_def
+unfolding program_untyped_readonly_def hoare_untyped_hoare_denotation hoare_denotation_def denotation_readonly_def 
 by metis
 
 lemma readonly_hoare:
@@ -81,7 +81,7 @@ proof -
   proof -
     fix m2
     have seq_distr: "Rep_distr (denotation_untyped (Seq a b) m) m2 = real (\<integral>\<^sup>+m1. ereal (aa m m1 * bb m1 m2) \<partial>count_space UNIV)" 
-      by (simp add: compose_Rep_distr aa_def bb_def) 
+      by (simp add: Rep_compose_distr aa_def bb_def) 
     let ?mix = "memory_combine A' m2 m"
     have aux_cases: "\<And>P m1. \<lbrakk> m1=?mix \<Longrightarrow> P; aa m m1 * bb m1 m2 = 0 \<Longrightarrow> P;
                               m1\<noteq>?mix \<Longrightarrow>  aa m m1 * bb m1 m2 \<noteq> 0 \<Longrightarrow> P\<rbrakk> \<Longrightarrow> P" by auto
@@ -117,7 +117,7 @@ proof -
   proof -
     fix m2
     have seq_distr: "Rep_distr (denotation_untyped (Seq b a) m) m2 = real (\<integral>\<^sup>+m1. ereal (bb m m1 * aa m1 m2) \<partial>count_space UNIV)" 
-      by (simp add: compose_Rep_distr aa_def bb_def) 
+      by (simp add: Rep_compose_distr aa_def bb_def) 
     let ?mix = "memory_combine B' m2 m"
     have aux_cases: "\<And>P m1. \<lbrakk> m1=?mix \<Longrightarrow> P; bb m m1 * aa m1 m2 = 0 \<Longrightarrow> P;
                               m1\<noteq>?mix \<Longrightarrow>  bb m m1 * aa m1 m2 \<noteq> 0 \<Longrightarrow> P\<rbrakk> \<Longrightarrow> P" by auto
@@ -299,7 +299,7 @@ proof -
         proof (cases "vu_global y")
           assume local: "\<not> vu_global y"
           with y_nin have "Rep_memory m' y = Rep_memory (restore_locals m m'') y"
-            by (metis m''2 memory_lookup_untyped_def memory_lookup_update_pattern_notsame)
+            by (metis m''2 memory_lookup_update_pattern_notsame)
           thus "Rep_memory m y = Rep_memory m' y"
             by (simp add: Rep_restore_locals local)
         next
@@ -311,7 +311,7 @@ proof -
           have "Rep_memory m y = Rep_memory m_init y"
             by (simp add: Rep_init_locals global m_init_def)
           also have "\<dots> = Rep_memory m_args y"
-            using m_args_def memory_lookup_untyped_def memory_lookup_update_pattern_notsame y_nin2 by auto
+            using m_args_def memory_lookup_update_pattern_notsame y_nin2 by auto
           also have b: "b = denotation_untyped body m_args"
             using b m_args_def m_init_def by auto
           have yR: "y \<in> (R\<inter>Collect vu_global)" using global `y\<in>R` by auto
@@ -322,7 +322,7 @@ proof -
           with b m''1 yR have "Rep_memory m'' y = Rep_memory m_args y"
             by (simp add: denotation_readonly_def program_untyped_readonly_def)
           also have "Rep_memory m'' y = Rep_memory m' y"
-            using Rep_restore_locals global m''2 memory_lookup_untyped_def memory_lookup_update_pattern_notsame y_nin by auto
+            using Rep_restore_locals global m''2 memory_lookup_update_pattern_notsame y_nin by auto
           finally show "Rep_memory m y = Rep_memory m' y" by simp
         qed
       qed
