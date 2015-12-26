@@ -1,5 +1,5 @@
 theory Lang_Untyped
-imports Main Orderings Series Distr Universe
+imports Main Orderings Series Distr Universe Extended_Sorry
 begin
 
 subsection {* Types *}
@@ -827,6 +827,16 @@ lemma rename_variables_init_locals:
     unfolding Rep_rename_variables_memory[OF type] Rep_init_locals
     using fix_globals Rep_memory by auto    
 
+(* TODO Move to Distr *)
+lemma Rep_apply_distr_biject:
+  assumes "f (g x) = x"
+  and "\<And>x. g (f x) = x"
+  shows "Rep_distr (apply_to_distr f \<mu>) x = Rep_distr \<mu> (g x)"
+apply (subst probability_singleton[symmetric])+
+apply (subst probability_apply_to_distr)
+apply (subgoal_tac "f -` {x} = {g x}")
+using assms by auto
+
 lemma rename_variables_init_locals_outside:
   assumes fix_globals: "\<And>x. vu_global x \<Longrightarrow> f x = x"
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
@@ -904,9 +914,50 @@ proof -
         unfolding o_def rename_variables_memory_compose[OF type' type]
         unfolding inv_f_f[unfolded o_def] rename_variables_memory_id
         by simp
-    next case While
-      show ?case SORRY
-    next case IfTE show ?case SORRY
+    next case (While e p m)
+      show ?case                     SORRY
+    next case (IfTE e p1 p2 m)
+      have ren_f_inv_f: "\<And>a. rename_variables_memory f (rename_variables_memory (inv f) a) = a"
+        by (simp add: inv_f_f rename_variables_memory_compose rename_variables_memory_id type type')
+      have ren_inv_f_f: "\<And>a. rename_variables_memory (inv f) (rename_variables_memory f a) = a"
+        by (simp add: f_inv_f rename_variables_memory_compose rename_variables_memory_id type type')
+      from ren_f_inv_f ren_inv_f_f have ind: "\<And>a m'. indicator {rename_variables_memory (inv f) a} m' = indicator {rename_variables_memory f m'} a"
+        unfolding indicator_def by auto
+      show ?case
+        apply (subst Rep_distr_inject[symmetric], rule ext, rename_tac m', subst ereal.inject[symmetric])
+      proof (cases "eu_fun e m = embedding True")
+        fix m'
+        assume True1: "eu_fun e m = embedding True"
+        hence True2: "eu_fun (rename_variables_expression (inv f) e) (rename_variables_memory f m) = embedding True"
+          by (simp add: `surj f` global rename_variables_expression_memory type)
+        show "ereal (Rep_distr (denotation_untyped (IfTE e p1 p2) m) m') =
+          ereal (Rep_distr (apply_to_distr (rename_variables_memory (inv f))
+          (denotation_untyped (rename_variables (inv f) (IfTE e p1 p2)) (rename_variables_memory f m))) m')"
+          apply (simp add: True1 True2) apply (subst times_ereal.simps(1)[symmetric], subst ereal_indicator)
+          apply (subst ind)
+          apply (subst nn_integral_singleton_indicator_countspace)
+          apply auto
+          apply (simp add: Rep_distr_geq0)
+          apply (subst Rep_apply_distr_biject[where f="rename_variables_memory (inv f)" and g="rename_variables_memory f", symmetric])
+            close (fact ren_inv_f_f) close (fact ren_f_inv_f)
+          by (simp add: IfTE.hyps(1))
+      next
+        fix m'
+        assume False1: "eu_fun e m \<noteq> embedding True"
+        hence False2: "eu_fun (rename_variables_expression (inv f) e) (rename_variables_memory f m) \<noteq> embedding True"
+          by (simp add: `surj f` global rename_variables_expression_memory type)
+        show "ereal (Rep_distr (denotation_untyped (IfTE e p1 p2) m) m') =
+          ereal (Rep_distr (apply_to_distr (rename_variables_memory (inv f))
+          (denotation_untyped (rename_variables (inv f) (IfTE e p1 p2)) (rename_variables_memory f m))) m')"
+          apply (simp add: False1 False2) apply (subst times_ereal.simps(1)[symmetric], subst ereal_indicator)
+          apply (subst ind)
+          apply (subst nn_integral_singleton_indicator_countspace)
+          apply auto
+          apply (simp add: Rep_distr_geq0)
+          apply (subst Rep_apply_distr_biject[where f="rename_variables_memory (inv f)" and g="rename_variables_memory f", symmetric])
+            close (fact ren_inv_f_f) close (fact ren_f_inv_f)
+          by (simp add: IfTE.hyps(2))
+      qed
     next case (CallProc x p a) 
            show ?case proof (cases "\<exists>body pargs ret. p=Proc body pargs ret")
              case False

@@ -1,5 +1,5 @@
 theory Distr
-imports Main Tools Extended_Sorry "~~/src/HOL/Probability/Binary_Product_Measure"
+imports Main Tools "~~/src/HOL/Probability/Binary_Product_Measure"
 begin
 
 lemma indicator_singleton: "indicator {x} y = indicator {y} x"
