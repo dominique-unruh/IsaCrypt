@@ -1,7 +1,7 @@
 theory Scratch
 imports Procs_Typed Rewrite Hoare_Typed Hoare_Tactics Lang_Simplifier
-keywords "module" :: thy_decl
-     and "end_module" :: thy_decl
+(* keywords "module" :: thy_decl
+     and "end_module" :: thy_decl *)
 begin
 
 
@@ -13,7 +13,7 @@ begin
 
 lemma readonly_hoare_untyped:
   shows "program_untyped_readonly X c = (\<forall>a. hoare_untyped (\<lambda>m. \<forall>x\<in>X. memory_lookup_untyped m x = a x) c (\<lambda>m. \<forall>x\<in>X. memory_lookup_untyped m x = a x))"
-unfolding program_untyped_readonly_def hoare_untyped_hoare_denotation hoare_denotation_def denotation_readonly_def memory_lookup_untyped_def
+unfolding program_untyped_readonly_def hoare_untyped_hoare_denotation hoare_denotation_def denotation_readonly_def 
 by metis
 
 lemma readonly_hoare:
@@ -81,7 +81,7 @@ proof -
   proof -
     fix m2
     have seq_distr: "Rep_distr (denotation_untyped (Seq a b) m) m2 = real (\<integral>\<^sup>+m1. ereal (aa m m1 * bb m1 m2) \<partial>count_space UNIV)" 
-      by (simp add: compose_Rep_distr aa_def bb_def) 
+      by (simp add: Rep_compose_distr aa_def bb_def) 
     let ?mix = "memory_combine A' m2 m"
     have aux_cases: "\<And>P m1. \<lbrakk> m1=?mix \<Longrightarrow> P; aa m m1 * bb m1 m2 = 0 \<Longrightarrow> P;
                               m1\<noteq>?mix \<Longrightarrow>  aa m m1 * bb m1 m2 \<noteq> 0 \<Longrightarrow> P\<rbrakk> \<Longrightarrow> P" by auto
@@ -117,7 +117,7 @@ proof -
   proof -
     fix m2
     have seq_distr: "Rep_distr (denotation_untyped (Seq b a) m) m2 = real (\<integral>\<^sup>+m1. ereal (bb m m1 * aa m1 m2) \<partial>count_space UNIV)" 
-      by (simp add: compose_Rep_distr aa_def bb_def) 
+      by (simp add: Rep_compose_distr aa_def bb_def) 
     let ?mix = "memory_combine B' m2 m"
     have aux_cases: "\<And>P m1. \<lbrakk> m1=?mix \<Longrightarrow> P; bb m m1 * aa m1 m2 = 0 \<Longrightarrow> P;
                               m1\<noteq>?mix \<Longrightarrow>  bb m m1 * aa m1 m2 \<noteq> 0 \<Longrightarrow> P\<rbrakk> \<Longrightarrow> P" by auto
@@ -299,7 +299,7 @@ proof -
         proof (cases "vu_global y")
           assume local: "\<not> vu_global y"
           with y_nin have "Rep_memory m' y = Rep_memory (restore_locals m m'') y"
-            by (metis m''2 memory_lookup_untyped_def memory_lookup_update_pattern_notsame)
+            by (metis m''2 memory_lookup_update_pattern_notsame)
           thus "Rep_memory m y = Rep_memory m' y"
             by (simp add: Rep_restore_locals local)
         next
@@ -311,7 +311,7 @@ proof -
           have "Rep_memory m y = Rep_memory m_init y"
             by (simp add: Rep_init_locals global m_init_def)
           also have "\<dots> = Rep_memory m_args y"
-            using m_args_def memory_lookup_untyped_def memory_lookup_update_pattern_notsame y_nin2 by auto
+            using m_args_def memory_lookup_update_pattern_notsame y_nin2 by auto
           also have b: "b = denotation_untyped body m_args"
             using b m_args_def m_init_def by auto
           have yR: "y \<in> (R\<inter>Collect vu_global)" using global `y\<in>R` by auto
@@ -322,7 +322,7 @@ proof -
           with b m''1 yR have "Rep_memory m'' y = Rep_memory m_args y"
             by (simp add: denotation_readonly_def program_untyped_readonly_def)
           also have "Rep_memory m'' y = Rep_memory m' y"
-            using Rep_restore_locals global m''2 memory_lookup_untyped_def memory_lookup_update_pattern_notsame y_nin by auto
+            using Rep_restore_locals global m''2 memory_lookup_update_pattern_notsame y_nin by auto
           finally show "Rep_memory m y = Rep_memory m' y" by simp
         qed
       qed
@@ -359,8 +359,52 @@ lemma program_readonly_write_vars: "program_readonly (- set(write_vars p)) p"
   unfolding program_readonly_def program_untyped_readonly_def write_vars_def denotation_def 
   by assumption
 
+(* lemma denotation_footprint_def2: "denotation_footprint X d = ((\<forall>m m' z. 
+  (\<forall>x\<in>-X. Rep_memory m x = Rep_memory m' x) \<longrightarrow> Rep_distr (d m) m' = Rep_distr (d (memory_combine X m z)) (memory_combine X m' z))
+  \<and> (\<forall>m m' z. 
+  ~ (\<forall>x\<in>-X. Rep_memory m x = Rep_memory m' x) \<longrightarrow> Rep_distr (d m) m' = 0))"
+  unfolding denotation_footprint_def apply auto *)
+
+lemma program_untyped_footprint_vars: "program_untyped_footprint (set(vars_untyped p)) p"
+proof -
+  fix q
+  have "\<And>R. set (vars_untyped p) \<subseteq> R \<Longrightarrow> program_untyped_footprint R p"
+    and "\<And>R. set (vars_proc_untyped q) \<subseteq> R \<Longrightarrow> True" 
+  proof (induct p and q)
+  case Assign thus ?case by auto
+  next case Sample thus ?case by auto
+  next case Skip 
+    have aux: "\<And>f g x. f = g \<Longrightarrow> f x = g x" by simp
+    have "\<And>m m'. Rep_memory (memory_combine R default m) = Rep_memory (memory_combine R default m') \<Longrightarrow>
+       Rep_memory m' \<noteq> Rep_memory m \<Longrightarrow> (\<And>z. Rep_memory (memory_combine R m' z) \<noteq> Rep_memory (memory_combine R m z))"
+    proof -
+      fix m m' z
+      assume "Rep_memory m' \<noteq> Rep_memory m" then obtain x where x: "Rep_memory m' x \<noteq> Rep_memory m x" by auto
+      assume "Rep_memory (memory_combine R default m) = Rep_memory (memory_combine R default m')"
+      with x have "x \<in> R" apply (cases "x\<in>R") apply auto apply (drule_tac aux[where x=x]) by auto
+      with x show "Rep_memory (memory_combine R m' z) \<noteq> Rep_memory (memory_combine R m z)" 
+        apply auto apply (drule_tac aux[where x=x]) by auto
+    qed
+    thus ?case
+      unfolding program_untyped_footprint_def denotation_footprint_def apply simp
+      apply (subst Rep_memory_inject[symmetric])+ by simp
+  next case While thus ?case by auto
+  next case IfTE thus ?case by auto
+  next case Seq thus ?case by auto
+  next case CallProc thus ?case by auto
+  next case Proc thus ?case by auto
+  next case ProcAppl thus ?case by auto
+  next case ProcPair thus ?case by auto
+  next case ProcRef thus ?case by auto
+  next case ProcAbs thus ?case by auto
+  next case ProcUnpair thus ?case by auto
+  qed
+  thus ?thesis by auto
+qed
+
 lemma program_footprint_vars: "program_footprint (set(vars p)) p"
-SORRY
+  using program_untyped_footprint_vars
+  unfolding program_footprint_def program_untyped_footprint_def vars_def denotation_def.
 
 
 lemma seq_swap2:
@@ -473,99 +517,5 @@ by (fact assms)
 
 
 
-
-
-ML {*
-type module = {
-  name : string list
-}
-
-fun module_name ({name=name, ...} : module) = String.concatWith "." (rev name)
-*}
-
-
-ML {*
-structure ModuleData = Generic_Data
-  (type T = module list
-   val empty = []
-   val extend = I
-   fun merge (_,_) = error ("ModuleData.merge"))
-*}
-                                             
-ML {*
-
-fun begin_module1 (name:string) lthy : local_theory =
-  let val _ = @{print} name
-      val _ = @{print} lthy
-      val module_stack = ModuleData.get (Context.Proof lthy)
-      val full_name = case module_stack of [] => [name] | {name=n,...}::_ => name::n
-      val new_module = {name=full_name}
-      val lthy = ModuleData.map (fn d => new_module::d) (Context.Proof lthy) |> Context.proof_of
-  in
-  lthy
-  end
-
-fun begin_module (name:string) =
-  let fun begin stack = 
-        let val full_name = case stack of [] => [name] | {name=n,...}::_ => name::n
-            val new_module = {name=full_name}
-        in new_module::stack end
-  in
-  Local_Theory.declaration {pervasive=true, syntax=false}
-  (fn _ => ModuleData.map begin)
-  end
-
-fun end_module lthy =
-  let val stack = ModuleData.get (Context.Proof lthy)
-      val _ = if null stack then error "No matching module command" else ()
-      val _ = writeln ("Closing module "^module_name (hd stack))
-  in
-  Local_Theory.declaration {pervasive=true, syntax=false} (fn _ => ModuleData.map tl) lthy
-  end
-
-val _ =
-  Outer_Syntax.command @{command_keyword module} "Defines a new module"
-    (Parse.name --| Parse.begin
-      >> (fn name => Toplevel.local_theory NONE NONE (begin_module name)))
-val _ =
-  Outer_Syntax.command @{command_keyword end_module} "Finished a module definition"
-    (Scan.succeed (Toplevel.local_theory NONE NONE end_module))
-*}
-
-ML {*
-fun current_module ctx = 
-  case ModuleData.get (Context.Proof ctx) of [] => NONE
-                           | m::_ => SOME m
-fun current_module_name ctx =
-  case current_module ctx of NONE => [] | SOME m => #name m
-
-fun qualify_in_module ctx bind =
-  fold (Binding.qualify true) (current_module_name ctx) bind
-*}
-
-module hello begin
-module hey begin
-
-ML {* qualify_in_module @{context} @{binding beep} *}
-
-local_setup {* fn lthy => 
-  let val (_,lthy) = Local_Theory.define ((qualify_in_module lthy @{binding bla},NoSyn),((@{binding bla_def},[]),@{term "1::int"})) lthy
-  in
-  lthy
-  end
-*}
-
-thm bla_def
-
-ML {* ModuleData.get (Context.Proof @{context}) |> hd |> module_name *}
-
-end_module
-end_module
-
-
-thm bla_def
-
-module_type MT =
-  proc1 :: "(unit,unit) procedure"
 
 end

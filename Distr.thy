@@ -2,6 +2,19 @@ theory Distr
 imports Main Tools Extended_Sorry "~~/src/HOL/Probability/Binary_Product_Measure"
 begin
 
+lemma indicator_singleton: "indicator {x} y = indicator {y} x"
+  unfolding indicator_def by auto
+
+lemma nn_integral_pos:
+  assumes "(\<integral>\<^sup>+x. f x \<partial>\<mu>) > 0"
+  shows "\<exists>x. f x > 0" (* \<and> \<mu> {x} > 0 *)
+proof -
+  have "(\<And>x. f x \<le> 0) \<Longrightarrow> (\<integral>\<^sup>+x. f x \<partial>\<mu>) = 0"
+    by (metis ereal_zero_times nn_integral_cong_pos nn_integral_const order_refl)
+  with assms show ?thesis
+    using le_less_linear by fastforce 
+qed
+
 lemma nn_integral_singleton_indicator:
   assumes "f y \<ge> 0"
   assumes "{y} \<in> sets \<mu>"
@@ -22,6 +35,19 @@ apply (subst nn_integral_singleton_indicator)
   using assms apply auto
   by (metis mult.comm_neutral one_ereal_def)
 
+(* lemma nn_integral_count_space_geq_single:
+  assumes "x \<in> M" and "\<And>x. f x \<ge> 0" 
+  shows "(\<integral>\<^sup>+y. f y \<partial>count_space M) \<ge> f x"
+proof (cases "f x \<ge> 0")
+  assume fx: "f x \<ge> 0"
+  have "(\<integral>\<^sup>+y. f y \<partial>count_space M) \<ge> (\<integral>\<^sup>+y. f y * indicator {x} y \<partial>count_space M)"
+    apply (rule nn_integral_mono) 
+    apply (thin_tac _)
+    unfolding indicator_def
+    using fx apply auto
+ *)
+
+
 typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. (\<mu> x)\<ge>0) \<and> (\<integral>\<^sup>+x. \<mu> x \<partial>count_space UNIV) \<le> 1}"
   apply (rule exI[where x="\<lambda>x. 0"], auto)
   by (metis ereal_eq_0(2) ereal_less_eq(6) ereal_zero_mult zero_le_one)
@@ -29,6 +55,9 @@ typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. (\<mu> x)\<ge>0) \
 (* abbreviation "Rep_distr == Rep_distr" *)
 lemma Rep_distr_geq0: "Rep_distr \<mu> x \<ge> 0"
   using Rep_distr[of \<mu>] by auto 
+
+lemma Rep_distr_int_leq1: "(\<integral>\<^sup>+x. Rep_distr \<mu> x \<partial>count_space UNIV) \<le> 1"
+  using Rep_distr[of \<mu>] by auto
 
 definition support_distr :: "'a distr \<Rightarrow> 'a set" where
   "support_distr \<mu> = {x. Rep_distr \<mu> x > 0}"
@@ -43,12 +72,68 @@ definition "scaleR_distr r \<mu> = Abs_distr (\<lambda>x. r * Rep_distr \<mu> x)
 instance ..
 end
 
+lemma Rep_distr_scaleR: "r \<ge> 0 \<Longrightarrow> r \<le> 1 \<Longrightarrow> Rep_distr (r *\<^sub>R \<mu>) x = r * Rep_distr \<mu> x"
+proof -
+  assume rpos: "r \<ge> 0" and rleq1: "r \<le> 1"
+  have pos: "\<And>x. 0 \<le> r * Rep_distr \<mu> x"
+    by (simp add: Rep_distr_geq0 rpos)
+  have "(\<integral>\<^sup>+ x. ereal (r * Rep_distr \<mu> x) \<partial>count_space UNIV) = r * (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x) \<partial>count_space UNIV)"
+    unfolding times_ereal.simps(1)[symmetric]
+    apply (subst nn_integral_cmult)
+    using rpos by auto
+  also have "\<dots> \<le> ereal r * 1"
+    apply (rule ereal_mult_left_mono)
+    close (rule Rep_distr_int_leq1)
+    using rpos by auto
+  also have "\<dots> \<le> 1"
+    using rleq1 by auto
+  finally have leq1: "(\<integral>\<^sup>+ x. ereal (r * Rep_distr \<mu> x) \<partial>count_space UNIV) \<le> 1" by assumption
+  show ?thesis
+    unfolding scaleR_distr_def
+    apply (subst Abs_distr_inverse)
+    using pos leq1 by auto
+qed
 lemma scaleR_one_distr: "1 *\<^sub>R (\<mu>::'a distr) = \<mu>"
   unfolding scaleR_distr_def using Rep_distr_inverse by auto  
 
-definition "probability \<mu> E = real (\<integral>\<^sup>+x. Rep_distr \<mu> x * (if E x then 1 else 0) \<partial>count_space UNIV)" 
+definition "probability \<mu> E = real (\<integral>\<^sup>+x. Rep_distr \<mu> x * indicator E x \<partial>count_space UNIV)" 
+lemma probability_singleton: "probability \<mu> {x} = Rep_distr \<mu> x"
+  unfolding probability_def times_ereal.simps(1)[symmetric] ereal_indicator
+  apply (subst nn_integral_singleton_indicator_countspace)
+  using Rep_distr_geq0 by auto
+lemma ereal_probability: "ereal (probability \<mu> E) = (\<integral>\<^sup>+x. Rep_distr \<mu> x * indicator E x \<partial>count_space UNIV)"
+proof -
+  have "(\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x * indicator E x) \<partial>count_space UNIV) \<le> 
+        (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x) \<partial>count_space UNIV)"
+    apply (rule nn_integral_mono, thin_tac _)
+    apply (subst ereal_less_eq)
+    by (simp add: Rep_distr_geq0 mult_right_le_one_le)
+  also have "\<dots> \<le> 1"
+    by (simp add: Rep_distr_int_leq1)
+  also note leq1 = calculation
+  show ?thesis
+    unfolding probability_def apply (subst ereal_real')
+    using calculation by auto
+qed
 
-definition "weight_distr \<mu> = real (\<integral>\<^sup>+x. Rep_distr \<mu> x \<partial>count_space UNIV)"
+abbreviation "weight_distr \<mu> == probability \<mu> UNIV"
+lemma probability_pos: "probability \<mu> E \<ge> 0"
+by (simp add: nn_integral_nonneg probability_def real_of_ereal_pos)
+lemma probability_leq1: "probability \<mu> E \<le> 1"
+proof -
+  have "probability \<mu> E \<le> real (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x) \<partial>count_space UNIV)"
+    unfolding probability_def
+    apply (rule real_of_ereal_positive_mono)
+    using nn_integral_nonneg close auto
+    apply (rule nn_integral_mono)
+    apply (simp add: Rep_distr_geq0)
+    using Rep_distr ereal_infty_less_eq2(1) ereal_times(1)
+    apply (simp add: Rep_distr_geq0 mult_right_le_one_le)
+    by (metis Rep_distr_int_leq1 ereal_times(2) top.extremum_uniqueI top_ereal_def)
+  also have "\<dots> \<le> 1"
+    by (simp add: Rep_distr_int_leq1 real_of_ereal_le_1)
+  finally show ?thesis by assumption
+qed
 
 (* lemma ereal_indicator: "\<And>x. ereal (indicator {a} x) = indicator {a} x" unfolding indicator_def by auto *)
 
@@ -61,7 +146,7 @@ proof -
     unfolding ereal_indicator
     by (subst nn_integral_indicator, auto)
   show ?thesis
-    unfolding weight_distr_def point_distr_def 
+    unfolding probability_def point_distr_def 
     by (subst Abs_distr_inverse, auto simp: sum1)
 qed
 
@@ -278,6 +363,7 @@ qed
 lemma Fubini_count_space:
   "(\<integral>\<^sup>+ y. (\<integral>\<^sup>+ x. f x y \<partial>count_space X) \<partial>count_space Y) = (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. f x y \<partial>count_space Y) \<partial>count_space X)"
     (is "?left = ?right")
+(* Could be proven easily with nn_integral_fst_count_space, nn_integral_snd_count_space, nn_integral_bij_count_space ? *)
 proof -
   let ?f = "\<lambda>x y. max 0 (f x y)"
   have left: "?left = (\<integral>\<^sup>+ y. (\<integral>\<^sup>+ x. ?f x y \<partial>count_space X) \<partial>count_space Y)"
@@ -295,7 +381,8 @@ proof -
   show ?thesis by auto
 qed
 
-lemma nn_integral_counting_single:
+(* nn_integral_ge_point *)
+(* lemma nn_integral_counting_single:
   assumes "x\<in>X"
   shows "f x \<le> \<integral>\<^sup>+x. f x \<partial>count_space X"
 proof -
@@ -310,17 +397,17 @@ proof -
   also have "\<dots> = max 0 (f x)"
     by (subst nn_integral_count_space_finite, auto)
   finally show ?thesis using assms by auto
-qed
+qed *)
 
 definition compose_distr :: "('a \<Rightarrow> 'b distr) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
   "compose_distr f \<mu> == Abs_distr (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV))"
-lemma compose_Rep_distr: "Rep_distr (compose_distr f \<mu>) b =
-  real (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV)"
+lemma ereal_Rep_compose_distr: "ereal (Rep_distr (compose_distr f \<mu>) b) =
+  (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV)"
 proof -
   have aux1: "\<And>a b::ereal. a\<ge>0 \<Longrightarrow> b\<le>1 \<Longrightarrow> a*b \<le> a"
     by (metis ereal_mult_right_mono monoid_mult_class.mult.left_neutral mult.commute) 
   have nn_integral_counting_single_aux: "\<And>x X f. x\<in>X \<Longrightarrow> (\<integral>\<^sup>+x. f x \<partial>count_space X) < \<infinity> \<Longrightarrow> f x < \<infinity>"
-    by (metis ereal_infty_less(1) nn_integral_counting_single not_less)
+    by (metis ereal_infty_less(1) nn_integral_ge_point not_less)
     
   have "(\<integral>\<^sup>+ b. \<integral>\<^sup>+ a. ereal (Rep_distr \<mu> a * Rep_distr (f a) b)
             \<partial>count_space UNIV \<partial>count_space UNIV) =
@@ -344,16 +431,20 @@ proof -
     by (metis PInfty_neq_ereal(1) ereal_infty_less_eq(1) one_ereal_def)
   show ?thesis
     unfolding compose_distr_def apply (subst Abs_distr_inverse, auto)
-    apply (metis nn_integral_nonneg real_of_ereal_pos)
-    apply (subst ereal_real')
-    using int_b close auto
-    using `?int_ba \<le> 1` .
+      close (metis nn_integral_nonneg real_of_ereal_pos)
+     apply (subst ereal_real')
+      using int_b close auto
+     using `?int_ba \<le> 1` close assumption
+    using ereal_real int_b by auto
 qed
+lemma Rep_compose_distr: "Rep_distr (compose_distr f \<mu>) b =
+  real (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV)"
+  by (subst ereal_Rep_compose_distr[symmetric], simp)
 
 definition apply_to_distr :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
   "apply_to_distr f \<mu> = Abs_distr (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
-lemma Rep_apply_to_distr [simp]: "Rep_distr (apply_to_distr f \<mu>)
-  = (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
+lemma ereal_Rep_apply_to_distr [simp]: "ereal (Rep_distr (apply_to_distr f \<mu>) b)
+  = (\<integral>\<^sup>+a. ereal (Rep_distr \<mu> a * indicator {f a} b) \<partial>count_space UNIV)"
 proof -
   def d == "\<lambda>x. ereal (Rep_distr \<mu> x)"
   have dpos: "\<And>x. d x \<ge> 0" and d_int: "(\<integral>\<^sup>+ y. d y \<partial>count_space UNIV) \<le> 1" 
@@ -374,11 +465,63 @@ proof -
     apply (subst ereal_real') using finite by auto
   show ?thesis
     unfolding apply_to_distr_def
-    apply (rule Abs_distr_inverse, auto)
-    using nn_integral_nonneg real_of_ereal_pos close blast
-    apply (subst times_ereal.simps(1)[symmetric], simp)
-    using leq1' unfolding d_def
-    by (metis (no_types, lifting) ereal_mult_indicator nn_integral_cong) 
+    apply (subst Abs_distr_inverse, auto)
+      using nn_integral_nonneg real_of_ereal_pos close blast
+     (* apply (subst times_ereal.simps(1)[symmetric], simp) *)                                     
+     using leq1' unfolding d_def ereal_indicator[symmetric] close simp
+    apply (subst ereal_real')
+     using finite[of b] unfolding d_def ereal_indicator[symmetric] close auto
+    by auto
+qed
+
+(* lemma Rep_apply_to_distr: "Rep_distr (apply_to_distr f \<mu>)
+  = (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
+ *)
+
+lemma probability_apply_to_distr: "probability (apply_to_distr f \<mu>) E = probability \<mu> (f -` E)"
+proof -
+  have "\<And>x. (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV)
+      \<le> (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa) \<partial>count_space UNIV)"
+    apply (rule nn_integral_mono, auto)
+    by (smt Rep_distr_geq0 indicator_simps(1) indicator_simps(2) mult_cancel_left1 mult_nonneg_nonpos mult_nonpos_nonneg)
+  also have "\<And>x. \<dots> x \<le> 1"
+    by (simp add: Rep_distr_int_leq1)
+  finally have t2: "\<And>x. \<bar>\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV\<bar> \<noteq> \<infinity>"
+    using abs_eq_infinity_cases ereal_infty_less_eq2(1) ereal_times(1) nn_integral_not_MInfty by blast
+    
+(*   have "\<And>x. ereal (real (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x) \<partial>count_space UNIV) * indicator E x)
+      = ereal (real (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x) * ereal (indicator E x) \<partial>count_space UNIV))"
+    apply (subst nn_integral_multc)
+      close auto close auto
+    by auto
+  also have "\<And>x. \<dots> x = ereal (real (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV))"
+    by auto
+  also have "\<And>x. \<dots> x = (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV)"
+    find_theorems "ereal (real ?x) = ?x"
+    apply (subst ereal_real') using t2 by auto 
+  finally have t1: "\<And>x. ereal (real (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x) \<partial>count_space UNIV) * indicator E x)
+        = (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV)"
+    by assumption *)
+
+  have ind: "\<And>x. indicator E (f x) = indicator (f -` E) x"
+    by (simp add: indicator_def)
+
+  have "probability (apply_to_distr f \<mu>) E
+      = real (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV) \<partial>count_space UNIV)"
+    unfolding probability_def times_ereal.simps(1)[symmetric]
+    apply (simp del: times_ereal.simps(1) add: ereal_indicator)
+    apply (subst nn_integral_multc) unfolding ereal_indicator[symmetric] by auto
+  also have "\<dots> = real (\<integral>\<^sup>+ xa. (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> xa * indicator E x) * (indicator {f xa} x) \<partial>count_space UNIV) \<partial>count_space UNIV)"
+    apply (subst Fubini_count_space)
+    by (smt ereal_mult_indicator ereal_zero_times indicator_simps(1) indicator_simps(2) nn_integral_cong)
+  also have "\<dots> = real (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator E (f xa)) \<partial>count_space UNIV)"
+    apply (subst nn_integral_singleton_indicator_countspace)
+    by (simp_all add: Rep_distr_geq0)
+  also have "\<dots> = real (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator (f -` E) xa) \<partial>count_space UNIV)"
+    unfolding ind by rule
+  also have "\<dots> = probability \<mu> (f -` E)"
+    unfolding probability_def by rule
+  finally show ?thesis by assumption
 qed
 
 lemma compose_point_distr_r [simp]: "compose_distr f (point_distr x) = f x"
@@ -400,11 +543,6 @@ lemma compose_point_distr_l [simp]: "compose_distr (\<lambda>x. point_distr (f x
   apply (subst Abs_distr_inverse, auto)
   by (subst ereal_indicator, auto)
 
-lemma apply_to_distr_twice [simp]: "apply_to_distr f (apply_to_distr g \<mu>) = apply_to_distr (\<lambda>x. f (g x)) \<mu>"
-  apply (rule Rep_distr_inject[THEN iffD1])
-  apply simp
-  SORRY
-
 lemma apply_to_distr_id [simp]: "apply_to_distr (\<lambda>x. x) \<mu> = \<mu>"
 proof -
   have rew1: "\<And>x b. ereal (Rep_distr \<mu> x) * indicator {x} b = ereal (Rep_distr \<mu> b) * indicator {b} x"
@@ -416,30 +554,212 @@ proof -
     by (rule Rep_distr_inverse)
 qed
 
-lemma support_compose_distr [simp]: "support_distr (compose_distr f g) = (\<Union>x\<in>support_distr g. support_distr (f x))"
-  SORRY
-
-lemma support_apply_to_distr [simp]: "support_distr (apply_to_distr f \<mu>) = f ` support_distr \<mu>"
-  SORRY
 
 lemma support_point_distr [simp]: "support_distr (point_distr x) = {x}"
   unfolding support_distr_def by simp
 
+lemma support_compose_distr [simp]: "support_distr (compose_distr f g) = (\<Union>x\<in>support_distr g. support_distr (f x))"
+proof -
+  have "\<And>x. x \<in> support_distr (compose_distr f g) \<Longrightarrow> x \<in> (\<Union>x\<in>support_distr g. support_distr (f x))"
+  proof -
+    fix x assume "x \<in> support_distr (compose_distr f g)"
+    hence "Rep_distr (compose_distr f g) x > 0" unfolding support_distr_def by simp
+    hence "(\<integral>\<^sup>+ y. ereal (Rep_distr g y * Rep_distr (f y) x) \<partial>count_space UNIV) > 0" 
+      unfolding Rep_compose_distr using zero_less_real_of_ereal by auto
+    then obtain y where x: "ereal (Rep_distr g y * Rep_distr (f y) x) > 0" apply atomize_elim by (rule nn_integral_pos)
+    hence "Rep_distr g y > 0" and "Rep_distr (f y) x > 0"
+      apply auto using Rep_distr_geq0 less_eq_real_def by fastforce+
+    hence "y \<in> support_distr g" and "x \<in> support_distr (f y)"
+      by (simp_all add: support_distr_def)
+    thus "x \<in> (\<Union>y\<in>support_distr g. support_distr (f y))" by auto
+  qed
+  moreover have "\<And>x. x \<in> (\<Union>x\<in>support_distr g. support_distr (f x)) \<Longrightarrow> x \<in> support_distr (compose_distr f g)"
+  proof -
+    let ?fg = "\<lambda>y x. ereal (Rep_distr g y * Rep_distr (f y) x)" 
+    fix x assume "x \<in> (\<Union>x\<in>support_distr g. support_distr (f x))"
+    then obtain y where "y \<in> support_distr g" and "x \<in> support_distr (f y)" by blast
+    hence "Rep_distr g y > 0" and "Rep_distr (f y) x > 0" unfolding support_distr_def by auto
+    hence "?fg y x > 0" by auto
+    also have "(\<integral>\<^sup>+ y. ?fg y x \<partial>count_space UNIV) \<ge> ?fg y x"
+      by (rule nn_integral_ge_point, simp)
+    finally have "ereal (Rep_distr (compose_distr f g) x) > 0"
+      unfolding ereal_Rep_compose_distr by simp
+    thus "x \<in> support_distr (compose_distr f g)"
+      by (simp add: support_distr_def)
+  qed
+  ultimately show ?thesis by auto
+qed
+
+lemma support_apply_to_distr [simp]: "support_distr (apply_to_distr f \<mu>) = f ` support_distr \<mu>"
+  apply (subst compose_point_distr_l[symmetric])
+  apply (subst support_compose_distr)
+  by auto
+
+lemma compose_distr_assoc: "compose_distr (\<lambda>x. compose_distr g (f x)) \<mu> = compose_distr g (compose_distr f \<mu>)" 
+proof (subst Rep_distr_inject[symmetric], rule ext, subst ereal.inject[symmetric])
+  fix a
+  have "ereal (Rep_distr (compose_distr (\<lambda>b. compose_distr g (f b)) \<mu>) a)
+      = \<integral>\<^sup>+b. ereal (Rep_distr \<mu> b) * \<integral>\<^sup>+c. ereal (Rep_distr (f b) c * Rep_distr (g c) a) \<partial>count_space UNIV \<partial>count_space UNIV"
+    apply (subst ereal_Rep_compose_distr)
+    apply (subst times_ereal.simps(1)[symmetric])
+    apply (subst ereal_Rep_compose_distr)
+    by rule
+  also have "\<dots> = \<integral>\<^sup>+b. \<integral>\<^sup>+c. ereal (Rep_distr \<mu> b * Rep_distr (f b) c * Rep_distr (g c) a) \<partial>count_space UNIV \<partial>count_space UNIV"
+    apply (subst nn_integral_cmult[symmetric])
+    apply (auto intro: Rep_distr_geq0)
+    by (metis (no_types, lifting) linordered_field_class.sign_simps(23) nn_integral_cong)
+  also have "\<dots> = \<integral>\<^sup>+c. \<integral>\<^sup>+b. ereal (Rep_distr \<mu> b * Rep_distr (f b) c * Rep_distr (g c) a) \<partial>count_space UNIV \<partial>count_space UNIV"
+    by (rule Fubini_count_space)
+  also have "\<dots> = \<integral>\<^sup>+c. (\<integral>\<^sup>+b. ereal (Rep_distr \<mu> b * Rep_distr (f b) c) \<partial>count_space UNIV) * Rep_distr (g c) a \<partial>count_space UNIV"
+    apply (subst nn_integral_multc[symmetric])
+    by (auto intro: Rep_distr_geq0)
+  also have "\<dots> = ereal (Rep_distr (compose_distr g (compose_distr f \<mu>)) a)"
+    apply (subst ereal_Rep_compose_distr)
+    apply (subst times_ereal.simps(1)[symmetric], subst ereal_Rep_compose_distr)
+    by auto
+  finally show "ereal (Rep_distr (compose_distr (\<lambda>x. compose_distr g (f x)) \<mu>) a) = ereal (Rep_distr (compose_distr g (compose_distr f \<mu>)) a)"
+    by assumption
+qed
+
+lemma compose_distr_apply_to_distr: 
+  shows "compose_distr f (apply_to_distr g \<mu>) = compose_distr (f o g) \<mu>"
+proof -
+  have "compose_distr (\<lambda>c. compose_distr f (point_distr (g c))) \<mu> = compose_distr (f \<circ> g) \<mu>"
+    by (metis (no_types) comp_def compose_point_distr_r)
+  thus ?thesis
+    by (metis compose_distr_assoc compose_point_distr_l)
+qed
+
+lemma apply_to_distr_twice [simp]: "apply_to_distr f (apply_to_distr g \<mu>) = apply_to_distr (\<lambda>x. f (g x)) \<mu>"
+  apply (subst compose_point_distr_l[symmetric])
+  apply (subst compose_distr_apply_to_distr)
+  unfolding o_def 
+  apply (subst compose_point_distr_l) by simp
+
+
 definition "product_distr \<mu> \<nu> = Abs_distr (\<lambda>(x,y). Rep_distr \<mu> x * Rep_distr \<nu> y)"
-lemma product_Rep_distr: "Rep_distr (product_distr \<mu> \<nu>) (x,y) = Rep_distr \<mu> x * Rep_distr \<nu> y"
-  SORRY
+lemma Rep_product_distr [simp]: "Rep_distr (product_distr \<mu> \<nu>) (x,y) = Rep_distr \<mu> x * Rep_distr \<nu> y"
+proof -
+  have pos: "\<And>a b. Rep_distr \<mu> a * Rep_distr \<nu> b \<ge> 0"
+    by (simp add: Rep_distr_geq0)
+  have leq1\<mu>: "(\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x) \<partial>count_space UNIV) \<le> 1"
+    by (rule Rep_distr_int_leq1)
+  have leq1\<nu>: "(\<integral>\<^sup>+ x. ereal (Rep_distr \<nu> x) \<partial>count_space UNIV) \<le> 1"
+    by (rule Rep_distr_int_leq1)
+  have "(\<integral>\<^sup>+ xy. ereal (case xy of (x, y) \<Rightarrow> Rep_distr \<mu> x * Rep_distr \<nu> y) \<partial>count_space UNIV)
+       \<le> (\<integral>\<^sup>+ x. \<integral>\<^sup>+ y. ereal (Rep_distr \<mu> x) * ereal (Rep_distr \<nu> y) \<partial>count_space UNIV \<partial>count_space UNIV)"
+    by (subst nn_integral_fst_count_space[symmetric], simp)
+  also have "\<dots> = (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x) * \<integral>\<^sup>+ y. ereal (Rep_distr \<nu> y) \<partial>count_space UNIV \<partial>count_space UNIV)"
+    apply (subst nn_integral_cmult) by (simp_all add: Rep_distr_geq0)
+  also have "\<dots> = (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x) \<partial>count_space UNIV) * (\<integral>\<^sup>+ y. ereal (Rep_distr \<nu> y) \<partial>count_space UNIV)"
+    apply (subst nn_integral_multc) by (simp_all add: nn_integral_nonneg)
+  also with leq1\<mu> leq1\<nu> have "\<dots> \<le> 1 * 1"
+    using dual_order.trans ereal_mult_left_mono nn_integral_nonneg by fastforce 
+  finally have eq: "(\<integral>\<^sup>+ x. ereal (case x of (x, y) \<Rightarrow> Rep_distr \<mu> x * Rep_distr \<nu> y) \<partial>count_space UNIV) \<le> 1"
+    by simp
+  show ?thesis
+    unfolding product_distr_def
+    apply (subst Abs_distr_inverse)
+    using pos eq by auto
+qed
+
+
+lemma product_distr_sym: "apply_to_distr (\<lambda>(x,y). (y,x)) (product_distr \<mu> \<nu>) = product_distr \<nu> \<mu>"
+proof -
+  have tmp: "\<And>x. ((\<lambda>(x, y). (y, x)) -` {x}) = {(\<lambda>(x, y). (y, x)) x}" 
+    by (case_tac x, auto)
+  show ?thesis
+    apply (subst Rep_distr_inject[symmetric], rule ext)
+    apply (subst probability_singleton[symmetric])
+    apply (subst probability_apply_to_distr)
+    apply (subst tmp)
+    apply (subst probability_singleton)
+    by auto
+qed
+
 lemma fst_product_distr [simp]: "apply_to_distr fst (product_distr \<mu> \<nu>) = weight_distr \<nu> *\<^sub>R \<mu>"
-  SORRY
+proof (subst Rep_distr_inject[symmetric], rule ext)
+  fix x0
+  have tmp1: "\<And>x y. Rep_distr (product_distr \<mu> \<nu>) (x,y) * indicator {x} x0 = Rep_distr (product_distr \<mu> \<nu>) (x0,y) * indicator {x} x0"
+    by (metis indicator_simps(2) mult_cancel_right singletonD)
+
+  have "(\<integral>\<^sup>+ x. indicator {x} x0 \<partial>count_space UNIV) = (\<integral>\<^sup>+ x. indicator {x0} x \<partial>count_space UNIV)"
+    by (metis indicator_def singletonD)
+  also have "\<dots> = 1" apply (subst nn_integral_indicator) by auto
+  finally have tmp2: "(\<integral>\<^sup>+ x. indicator {x} x0 \<partial>count_space UNIV) = 1" by assumption
+
+  have "ereal (Rep_distr (apply_to_distr fst (product_distr \<mu> \<nu>)) x0)
+      = (\<integral>\<^sup>+ xy. ereal (Rep_distr (product_distr \<mu> \<nu>) xy * indicator {fst xy} x0) \<partial>count_space UNIV)"
+    by simp
+  also have "\<dots> = (\<integral>\<^sup>+ x. \<integral>\<^sup>+ y. (Rep_distr (product_distr \<mu> \<nu>) (x,y) * indicator {x} x0) \<partial>count_space UNIV \<partial>count_space UNIV)"
+    by (subst nn_integral_fst_count_space[symmetric], simp)
+  also have "\<dots> = (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. (Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV) * indicator {x} x0 \<partial>count_space UNIV)"
+    unfolding times_ereal.simps(1)[symmetric] tmp1
+    apply (subst nn_integral_multc) apply (simp_all add: Rep_distr_geq0)
+    by (metis ereal_indicator)
+  also have "\<dots> = ((\<integral>\<^sup>+ y. (Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV) * (\<integral>\<^sup>+ x. indicator {x} x0 \<partial>count_space UNIV))"
+    apply (subst nn_integral_cmult) by (simp_all add: nn_integral_nonneg)
+  also have "\<dots> = (\<integral>\<^sup>+ y. (Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV)"
+    using tmp2 by simp
+  also have "\<dots> = (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x0 * Rep_distr \<nu> x) \<partial>count_space UNIV)"
+    by simp    
+  also have "\<dots> = ereal (Rep_distr \<mu> x0) * \<integral>\<^sup>+ x. ereal (Rep_distr \<nu> x) \<partial>count_space UNIV"
+    unfolding times_ereal.simps(1)[symmetric]
+    by (subst nn_integral_cmult, auto intro: Rep_distr_geq0)
+  also have "\<dots> = ereal (weight_distr \<nu> * Rep_distr \<mu> x0)"
+    unfolding times_ereal.simps(1)[symmetric]
+    unfolding ereal_probability
+    by (auto simp: mult.commute)
+  also have "\<dots> = ereal (Rep_distr (weight_distr \<nu> *\<^sub>R \<mu>) x0)"
+    apply (subst Rep_distr_scaleR) using probability_pos  probability_leq1 by auto
+
+
+(*   have "Rep_distr (apply_to_distr fst (product_distr \<mu> \<nu>)) x0
+      = real (\<integral>\<^sup>+ xy. ereal (Rep_distr (product_distr \<mu> \<nu>) xy * indicator {fst xy} x0) \<partial>count_space UNIV)"
+    by simp
+  also have "\<dots> = real (\<integral>\<^sup>+ x. \<integral>\<^sup>+ y. (Rep_distr (product_distr \<mu> \<nu>) (x,y) * indicator {x} x0) \<partial>count_space UNIV \<partial>count_space UNIV)"
+    by (subst nn_integral_fst_count_space[symmetric], simp)
+  also have "\<dots> = real (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. (Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV) * indicator {x} x0 \<partial>count_space UNIV)"
+    unfolding times_ereal.simps(1)[symmetric] tmp1
+    apply (subst nn_integral_multc) apply (simp_all add: Rep_distr_geq0)
+    by (metis ereal_indicator)
+  also have "\<dots> = real ((\<integral>\<^sup>+ y. (Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV) * (\<integral>\<^sup>+ x. indicator {x} x0 \<partial>count_space UNIV))"
+    apply (subst nn_integral_cmult) by (simp_all add: nn_integral_nonneg)
+  also have "\<dots> = real (\<integral>\<^sup>+ y. (Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV)"
+    using tmp2 by simp
+  also have "\<dots> = real (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu> x0 * Rep_distr \<nu> x) \<partial>count_space UNIV)"
+    by simp    
+  also have "\<dots> = real (ereal (Rep_distr \<mu> x0) * \<integral>\<^sup>+ x. ereal (Rep_distr \<nu> x) \<partial>count_space UNIV)"
+    unfolding times_ereal.simps(1)[symmetric]
+    by (subst nn_integral_cmult, auto intro: Rep_distr_geq0)
+  also have "\<dots> = weight_distr \<nu> * Rep_distr \<mu> x0"
+    unfolding probability_def by auto
+  also have "\<dots> = Rep_distr (weight_distr \<nu> *\<^sub>R \<mu>) x0"
+    apply (subst Rep_distr_scaleR) using probability_pos  probability_leq1 by auto *)
+  finally show "Rep_distr (apply_to_distr fst (product_distr \<mu> \<nu>)) x0 = Rep_distr (weight_distr \<nu> *\<^sub>R \<mu>) x0"
+    by blast
+qed
+
 lemma snd_product_distr [simp]: "apply_to_distr snd (product_distr \<mu> \<nu>) = weight_distr \<mu> *\<^sub>R \<nu>"
-  SORRY
+proof -
+  have aux: "(\<lambda>x. snd (case x of (x, y) \<Rightarrow> (y, x))) = fst"
+    unfolding snd_def fst_def by auto
+
+  have "apply_to_distr snd (product_distr \<mu> \<nu>) = apply_to_distr snd (apply_to_distr (\<lambda>(x,y). (y,x)) (product_distr \<nu> \<mu>))"
+    unfolding product_distr_sym by rule
+  also have "\<dots> = apply_to_distr fst (product_distr \<nu> \<mu>)"
+    unfolding apply_to_distr_twice aux by rule
+  also have "\<dots> = weight_distr \<mu> *\<^sub>R \<nu>"
+    by (rule fst_product_distr)
+  finally show ?thesis by assumption
+qed
+
 lemma support_product_distr [simp]: "support_distr (product_distr \<mu> \<nu>) = support_distr \<mu> \<times> support_distr \<nu>"
   unfolding support_distr_def
-  apply auto unfolding product_Rep_distr
+  apply auto unfolding Rep_product_distr
   close (metis Rep_distr_geq0 less_eq_real_def mult_zero_left)
-  close (metis Rep_distr_geq0 less_eq_real_def mult_zero_right)
-  by simp
-lemma product_distr_sym: "apply_to_distr (\<lambda>(x,y). (y,x)) (product_distr \<mu> \<nu>) = product_distr \<nu> \<mu>"
-  SORRY
+  by (metis Rep_distr_geq0 less_eq_real_def mult_zero_right)
+
 
 lemma apply_to_point_distr [simp]: "apply_to_distr f (point_distr x) = point_distr (f x)"
   unfolding compose_point_distr_l[symmetric] compose_point_distr_r ..
@@ -461,48 +781,159 @@ lemma markov_chain:
   obtains \<mu> where "apply_to_distr (\<lambda>(x::'a,y::'b,z::'c). (x,y)) \<mu> = \<mu>1" 
               and "apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu> = \<mu>2"
 proof
-  def \<mu> == "undefined::('a*'b*'c) distr"
-  show "apply_to_distr (\<lambda>(x,y,z). (x,y)) \<mu> = \<mu>1" SORRY "distribution laws"
-  show "apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu> = \<mu>2" SORRY "distribution laws"
+  def mid == "apply_to_distr snd \<mu>1"
+  have mid_def2: "mid = apply_to_distr fst \<mu>2" using assms mid_def by simp
+  def f == "(\<lambda>(x,y,z). Rep_distr \<mu>1 (x,y) * Rep_distr \<mu>2 (y,z) / Rep_distr mid y)"
+  def \<mu> == "Abs_distr f"
+  have f2: "\<And>x y z. f (x,y,z) = ereal (Rep_distr \<mu>1 (x,y)) * (ereal (1 / Rep_distr mid y) * ereal (Rep_distr \<mu>2 (y,z)))"
+    unfolding f_def by auto
+  have f3: "\<And>x y z. f (x,y,z) = ereal (Rep_distr \<mu>2 (y,z)) * (ereal (1 / Rep_distr mid y) * ereal (Rep_distr \<mu>1 (x,y)))"
+    unfolding f_def by auto
+  
+  have mid0: "\<And>y z. Rep_distr mid y = 0 \<Longrightarrow> Rep_distr \<mu>2 (y, z) = 0"
+  proof -
+    fix y0 z0 assume "Rep_distr mid y0 = 0"
+    hence "0 = ereal (Rep_distr mid y0)"
+      by simp
+    also have "\<dots> = \<integral>\<^sup>+z. \<integral>\<^sup>+y. ereal (Rep_distr \<mu>2 (y,z) * indicator {y} y0) \<partial>count_space UNIV \<partial>count_space UNIV"
+      apply (subst mid_def2, simp)
+      by (subst nn_integral_snd_count_space[symmetric], simp)
+    also have "\<dots> = \<integral>\<^sup>+z. ereal (Rep_distr \<mu>2 (y0,z)) \<partial>count_space UNIV"
+      unfolding times_ereal.simps(1)[symmetric] ereal_indicator
+      apply (subst indicator_singleton)
+      apply (subst nn_integral_singleton_indicator_countspace)
+      by (auto simp: Rep_distr_geq0)
+    also have "\<dots> \<ge> ereal (Rep_distr \<mu>2 (y0,z0))"
+      by (rule nn_integral_ge_point, simp)
+    finally show "Rep_distr \<mu>2 (y0, z0) = 0"
+      by (simp add: Rep_distr_geq0 eq_iff)
+  qed
+
+  have mid0': "\<And>x y. Rep_distr mid y = 0 \<Longrightarrow> Rep_distr \<mu>1 (x, y) = 0"
+  proof -
+    fix x0 y0 assume "Rep_distr mid y0 = 0"
+    hence "0 = ereal (Rep_distr mid y0)"
+      by simp
+    also have "\<dots> = \<integral>\<^sup>+x. \<integral>\<^sup>+y. ereal (Rep_distr \<mu>1 (x,y) * indicator {y} y0) \<partial>count_space UNIV \<partial>count_space UNIV"
+      apply (subst mid_def, simp)
+      by (subst nn_integral_fst_count_space[symmetric], simp)
+    also have "\<dots> = \<integral>\<^sup>+x. ereal (Rep_distr \<mu>1 (x,y0)) \<partial>count_space UNIV"
+      unfolding times_ereal.simps(1)[symmetric] ereal_indicator
+      apply (subst indicator_singleton)
+      apply (subst nn_integral_singleton_indicator_countspace)
+      by (auto simp: Rep_distr_geq0)
+    also have "\<dots> \<ge> ereal (Rep_distr \<mu>1 (x0,y0))"
+      by (rule nn_integral_ge_point, simp)
+    finally show "Rep_distr \<mu>1 (x0,y0) = 0"
+      by (simp add: Rep_distr_geq0 eq_iff)
+  qed
+
+  have \<mu>1_int: "\<And>y. (\<integral>\<^sup>+ x. ereal (Rep_distr \<mu>1 (x, y)) \<partial>count_space UNIV) = Rep_distr mid y"
+    unfolding mid_def apply simp
+    apply (subst nn_integral_fst_count_space[symmetric])
+    apply simp apply (subst indicator_singleton) apply (subst times_ereal.simps(1)[symmetric])
+    unfolding ereal_indicator
+    apply (subst nn_integral_singleton_indicator_countspace)
+    by (auto simp: Rep_distr_geq0) 
+
+  have \<mu>2_int: "\<And>y. (\<integral>\<^sup>+ z. ereal (Rep_distr \<mu>2 (y, z)) \<partial>count_space UNIV) = Rep_distr mid y"
+    unfolding mid_def2 apply simp
+    apply (subst nn_integral_snd_count_space[symmetric])
+    apply simp apply (subst indicator_singleton) apply (subst times_ereal.simps(1)[symmetric])
+    unfolding ereal_indicator
+    apply (subst nn_integral_singleton_indicator_countspace)
+    by (auto simp: Rep_distr_geq0) 
+
+  have yz_int: "\<And>y z. (\<integral>\<^sup>+ x. ereal (f (x,y,z)) \<partial>count_space UNIV) = ereal (Rep_distr \<mu>2 (y, z))"
+    apply (subst f2) apply (subst nn_integral_multc) apply (auto simp: Rep_distr_geq0)
+    apply (subst \<mu>1_int) using mid0 by simp
+  
+  have xy_int: "\<And>x y. (\<integral>\<^sup>+z. ereal (f (x,y,z)) \<partial>count_space UNIV) = ereal (Rep_distr \<mu>1 (x, y))"
+    apply (subst f3) apply (subst nn_integral_multc) apply (auto simp: Rep_distr_geq0)
+    apply (subst \<mu>2_int) using mid0' by simp
+ 
+  have "(\<integral>\<^sup>+xyz. ereal (f xyz) \<partial>count_space UNIV) = (\<integral>\<^sup>+yz. \<integral>\<^sup>+x. ereal (f (x,yz)) \<partial>count_space UNIV \<partial>count_space UNIV)"
+    by (subst nn_integral_snd_count_space, simp)
+  also have "\<dots> = (\<integral>\<^sup>+yz. ereal (Rep_distr \<mu>2 yz) \<partial>count_space UNIV)"
+    apply (rule nn_integral_cong, rename_tac yz, case_tac yz, simp) apply (subst yz_int) by simp
+  also have "\<dots> \<le> 1"
+    by (simp add: Rep_distr_int_leq1)
+  finally have leq1: "(\<integral>\<^sup>+xyz. ereal (f xyz) \<partial>count_space UNIV) \<le> 1" by assumption
+
+  have Rep_\<mu>: "\<And>x y z. Rep_distr \<mu> = f"
+    unfolding \<mu>_def apply (subst Abs_distr_inverse) 
+    using leq1 by (auto simp: Rep_distr_geq0 f_def)
+
+  {fix x0 y0
+  have "ereal (Rep_distr (apply_to_distr (\<lambda>(x,y,z). (x,y)) \<mu>) (x0,y0))
+      = (\<integral>\<^sup>+x. \<integral>\<^sup>+y. \<integral>\<^sup>+z. ereal (f (x,y,z) * indicator {(x,y)} (x0, y0)) \<partial>count_space UNIV \<partial>count_space UNIV \<partial>count_space UNIV)"
+    apply simp unfolding Rep_\<mu> 
+    apply (subst nn_integral_fst_count_space[symmetric])
+    by (subst nn_integral_fst_count_space[symmetric], simp)
+  also have "\<dots> = (\<integral>\<^sup>+x. \<integral>\<^sup>+y. ereal (Rep_distr \<mu>1 (x, y)) * ereal (indicator {(x,y)} (x0, y0)) \<partial>count_space UNIV \<partial>count_space UNIV)"
+    apply (subst times_ereal.simps(1)[symmetric], subst nn_integral_multc) close auto close auto
+    apply (subst xy_int) by simp
+  also have "\<dots> = ereal (Rep_distr \<mu>1 (x0, y0))"
+    apply (subst nn_integral_fst_count_space)
+    apply (subst ereal_indicator) 
+    apply (subst indicator_singleton)
+    apply (subst nn_integral_singleton_indicator_countspace)
+    by (auto simp: Rep_distr_geq0)
+  also note calculation}
+  thus "apply_to_distr (\<lambda>(x,y,z). (x,y)) \<mu> = \<mu>1"
+    apply (subst Rep_distr_inject[symmetric])
+    apply (rule_tac ext, rename_tac xy0, case_tac xy0)
+    apply (subst ereal.inject[symmetric])
+    by simp
+
+  {fix y0 z0
+  have "ereal (Rep_distr (apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu>) (y0,z0))
+      = (\<integral>\<^sup>+y. \<integral>\<^sup>+z. \<integral>\<^sup>+x. ereal (f (x,y,z) * indicator {(y,z)} (y0,z0)) \<partial>count_space UNIV \<partial>count_space UNIV \<partial>count_space UNIV)"
+    apply simp unfolding Rep_\<mu> 
+    apply (subst nn_integral_snd_count_space[symmetric])
+    by (subst nn_integral_fst_count_space[symmetric], simp)
+  also have "\<dots> = (\<integral>\<^sup>+y. \<integral>\<^sup>+z. ereal (Rep_distr \<mu>2 (y,z)) * ereal (indicator {(y,z)} (y0,z0)) \<partial>count_space UNIV \<partial>count_space UNIV)"
+    apply (subst times_ereal.simps(1)[symmetric], subst nn_integral_multc) close auto close auto
+    apply (subst yz_int) by simp
+  also have "\<dots> = ereal (Rep_distr \<mu>2 (y0, z0))"
+    apply (subst nn_integral_fst_count_space)
+    apply (subst ereal_indicator) 
+    apply (subst indicator_singleton)
+    apply (subst nn_integral_singleton_indicator_countspace)
+    by (auto simp: Rep_distr_geq0)
+  also note calculation}
+  thus "apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu> = \<mu>2"
+    apply (subst Rep_distr_inject[symmetric])
+    apply (rule_tac ext, rename_tac yz0, case_tac yz0)
+    apply (subst ereal.inject[symmetric])
+    by (simp add: id_def)
 qed
-
-
-lemma compose_distr_assoc: "compose_distr (\<lambda>x. compose_distr g (f x)) \<mu> = compose_distr g (compose_distr f \<mu>)" 
-  SORRY
-
-(*
-subsection {* Combining ell1 and distr *}
-
-definition "distr_to_ell1 \<mu> = Abs_ell1 (Rep_distr \<mu>)"
-definition "ell1_to_distr \<mu> = Abs_distr (Rep_ell1 \<mu>)"
-
-lemma distr_to_ell1_apply_comm [simp]: "distr_to_ell1 (apply_to_distr f \<mu>) = apply_to_ell1 f (distr_to_ell1 \<mu>)"
-  SORRY
-lemma support_distr_to_ell1 [simp]: "support_ell1 (distr_to_ell1 \<mu>) = support_distr \<mu>"
-  SORRY
-*)
 
 lemma compose_distr_cong: 
   fixes f1 f2 \<mu>
   assumes "\<And>x. x\<in>support_distr \<mu> \<Longrightarrow> f1 x = f2 x"
   shows "compose_distr f1 \<mu> = compose_distr f2 \<mu>"
-SORRY
+proof -
+  have aux: "\<And>x y. Rep_distr \<mu> y * Rep_distr (f1 y) x = Rep_distr \<mu> y * Rep_distr (f2 y) x"
+    apply (case_tac "y\<in>support_distr \<mu>")
+    using assms close auto
+    by (smt Rep_distr mem_Collect_eq mult.commute mult_cancel_right real_ereal.simps(1) real_of_ereal_pos support_distr_def)
+  show ?thesis
+    apply (subst Rep_distr_inject[symmetric], rule ext)
+    apply (subst ereal.inject[symmetric])
+    apply (subst ereal_Rep_compose_distr)+
+    apply (rule nn_integral_cong)
+    apply (subst ereal.inject)
+    by (rule aux)
+qed
 
 lemma apply_to_distr_cong: 
   fixes f1 f2 \<mu>
   assumes "\<And>x. x\<in>support_distr \<mu> \<Longrightarrow> f1 x = f2 x"
   shows "apply_to_distr f1 \<mu> = apply_to_distr f2 \<mu>"
-SORRY
-
-lemma compose_distr_apply_to_distr: 
-  shows "compose_distr f (apply_to_distr g \<mu>) = compose_distr (f o g) \<mu>"
-proof -
-  have "compose_distr (\<lambda>c. compose_distr f (point_distr (g c))) \<mu> = compose_distr (f \<circ> g) \<mu>"
-    by (metis (no_types) comp_def compose_point_distr_r)
-  thus ?thesis
-    by (metis compose_distr_assoc compose_point_distr_l)
-qed
-
+apply (subst compose_point_distr_l[symmetric])+
+apply (rule compose_distr_cong)
+using assms by auto
 
 lemma Rep_distr_0 [simp]: "Rep_distr 0 = (\<lambda>x. 0)"
   unfolding zero_distr_def apply (subst Abs_distr_inverse) apply auto
