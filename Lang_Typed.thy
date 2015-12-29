@@ -604,8 +604,10 @@ lemma denotation_sample: "denotation (sample v e) m = apply_to_distr (memory_upd
 
 lemma denotation_ifte: "denotation (ifte e thn els) m = (if e_fun e m then denotation thn m else denotation els m)"
   unfolding denotation_def by simp
-lemma denotation_while: "denotation (while e p) m = Abs_distr (\<lambda>m'. \<Sum>n. Rep_distr (compose_distr (\<lambda>m. if e_fun e m then 0 else point_distr m)
-                                                  (while_iter n (e_fun e) (denotation p) m)) m')"
+lemma denotation_while: "denotation (while e p) m = 
+  (SUP n. while_denotation_n n (\<lambda>m. e_fun e m) (denotation p) m)"
+(* Abs_distr (\<lambda>m'. \<Sum>n. Rep_distr (compose_distr (\<lambda>m. if e_fun e m then 0 else point_distr m)
+                                                  (while_iter n (e_fun e) (denotation p) m)) m')" *)
   unfolding denotation_def by simp 
 
 lemma denotation_callproc: "denotation (callproc v proc args) m =

@@ -353,11 +353,19 @@ subsection {* Denotational semantics *}
 
 type_synonym denotation = "memory \<Rightarrow> memory distr"
 
-fun while_iter :: "nat \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> denotation \<Rightarrow> memory \<Rightarrow> memory distr" where
+(* TODO remove *)
+(* fun while_iter :: "nat \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> denotation \<Rightarrow> memory \<Rightarrow> memory distr" where
   "while_iter 0 e p m = point_distr m"
 | "while_iter (Suc n) e p m = 
       compose_distr (\<lambda>m. if e m then p m else 0)
-                    (while_iter n e p m)"
+                    (while_iter n e p m)" *)
+
+(* while_denotation_n 3 e p m   is approximately:
+   if e then (if e then (if e then p else skip); p); p) *)
+fun while_denotation_n :: "nat \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> denotation \<Rightarrow> denotation" where
+  "while_denotation_n 0 e p m = point_distr m"
+| "while_denotation_n (Suc n) e p m =
+    (if e m then compose_distr (while_denotation_n n e p) (p m) else point_distr m)"
 
 definition "init_locals m = Abs_memory (\<lambda>x. if vu_global x then Rep_memory m x else t_default (vu_type x))"
 lemma Rep_init_locals: "Rep_memory (init_locals m) = (\<lambda>x. if vu_global x then Rep_memory m x else t_default (vu_type x))"
@@ -392,9 +400,11 @@ fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
 | denotation_untyped_Sample: "denotation_untyped (Sample pat e) m = apply_to_distr (memory_update_untyped_pattern m pat) (ed_fun e m)"
 | denotation_untyped_Skip: "denotation_untyped (Skip) m = point_distr m"
 | denotation_untyped_IfTE: "denotation_untyped (IfTE e thn els) m = (if (eu_fun e m = embedding True) then denotation_untyped thn m else denotation_untyped els m)"
-| denotation_untyped_While: "denotation_untyped (While e p) m = 
-    Abs_distr (\<lambda>m'. \<Sum>n. Rep_distr (compose_distr (\<lambda>m. if eu_fun e m = embedding True then 0 else point_distr m)
-                                            (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)) m')"
+(* | denotation_untyped_While: "denotation_untyped (While e p) m = 
+    Abs_distr (\<lambda>m'. real (\<Sum>n. ereal (Rep_distr (compose_distr (\<lambda>m. if eu_fun e m = embedding True then 0 else point_distr m)
+                                            (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)) m')))" *)
+| denotation_untyped_While: "denotation_untyped (While e p) m =
+  (SUP n. while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)"
 | denotation_untyped_CallProc: "denotation_untyped (CallProc v (Proc body pargs return) args) m = 
   (let argval = eu_fun args m in
   let m' = init_locals m in
@@ -422,6 +432,7 @@ fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
 *)
 
 | denotation_untyped_CallProc_bad: "denotation_untyped (CallProc v _ args) m = 0" (* Cannot happen for well-typed programs *)
+
 definition "denotation prog = denotation_untyped (Rep_program prog)"
 
 lemma denotation_untyped_assoc: "denotation_untyped (Seq (Seq x y) z) = denotation_untyped (Seq x (Seq y z))"
@@ -836,6 +847,12 @@ apply (subst probability_singleton[symmetric])+
 apply (subst probability_apply_to_distr)
 apply (subgoal_tac "f -` {x} = {g x}")
 using assms by auto
+lemma ereal_Rep_apply_distr_biject:
+  assumes "f (g x) = x"
+  and "\<And>x. g (f x) = x"
+  shows "ereal_Rep_distr (apply_to_distr f \<mu>) x = ereal_Rep_distr \<mu> (g x)"
+unfolding ereal_Rep_distr_def apply (subst ereal.inject)
+using assms by (rule Rep_apply_distr_biject)
 
 lemma rename_variables_init_locals_outside:
   assumes fix_globals: "\<And>x. vu_global x \<Longrightarrow> f x = x"
@@ -885,60 +902,61 @@ proof -
   from fix_global have fix_global': "\<And>x. vu_global x \<Longrightarrow> inv f x = x"
     by (simp add: fix_global `inj f` inv_f_eq)
 
+  have ren_f_inv_f: "\<And>a. rename_variables_memory f (rename_variables_memory (inv f) a) = a"
+    by (simp add: inv_f_f rename_variables_memory_compose rename_variables_memory_id type type')
+  have ren_inv_f_f: "\<And>a. rename_variables_memory (inv f) (rename_variables_memory f a) = a"
+    by (simp add: f_inv_f rename_variables_memory_compose rename_variables_memory_id type type')
+  from ren_f_inv_f ren_inv_f_f have ind: "\<And>a m'. indicator {rename_variables_memory (inv f) a} m' = indicator {rename_variables_memory f m'} a"
+    unfolding indicator_def by auto
+
+
   def p' == "rename_variables f p"
   have "denotation_untyped p' m = 
     apply_to_distr (rename_variables_memory (inv f)) (denotation_untyped (rename_variables (inv f) p') (rename_variables_memory f m))"
   proof (induct p' arbitrary: m rule:program_rep.induct[of _ "\<lambda>p. True"])
     case Assign show ?case 
-                  apply simp
+                  apply (simp add: )
                   apply (subst update_pattern_rename_variables_memory[OF `bij f` type global])
                   unfolding rename_variables_memory_compose[OF type type'] f_inv_f rename_variables_memory_id
                             rename_variables_pattern_compose[OF type' type]
                             rename_variables_expression_memory[OF `surj f` type global]
                             rename_variables_pattern_id ..
     next case Sample show ?case
-                  apply simp
+                  apply (simp add: )
                   apply (subst update_pattern_rename_variables_memory[OF `bij f` type global])
                   unfolding rename_variables_memory_compose[OF type type'] f_inv_f rename_variables_memory_id
                             rename_variables_pattern_compose[OF type' type]
                             rename_variables_expression_distr_memory[OF `surj f` type global]
                             rename_variables_pattern_id ..
     next case Skip thus ?case 
-                      apply simp apply (subst rename_variables_memory_compose) close (fact type) close (fact type')
+                      apply (simp add: ) apply (subst rename_variables_memory_compose) close (fact type) close (fact type')
                       unfolding `f o inv f = id` apply (subst rename_variables_memory_id)..
     next case (Seq p1 p2)
       show ?case
-        apply simp
+        apply (simp add: )
         unfolding Seq.hyps[THEN ext]
         unfolding compose_distr_apply_to_distr apply_to_distr_compose_distr
         unfolding o_def rename_variables_memory_compose[OF type' type]
         unfolding inv_f_f[unfolded o_def] rename_variables_memory_id
         by simp
     next case (While e p m)
-      show ?case                     SORRY
+      show ?case SORRY
     next case (IfTE e p1 p2 m)
-      have ren_f_inv_f: "\<And>a. rename_variables_memory f (rename_variables_memory (inv f) a) = a"
-        by (simp add: inv_f_f rename_variables_memory_compose rename_variables_memory_id type type')
-      have ren_inv_f_f: "\<And>a. rename_variables_memory (inv f) (rename_variables_memory f a) = a"
-        by (simp add: f_inv_f rename_variables_memory_compose rename_variables_memory_id type type')
-      from ren_f_inv_f ren_inv_f_f have ind: "\<And>a m'. indicator {rename_variables_memory (inv f) a} m' = indicator {rename_variables_memory f m'} a"
-        unfolding indicator_def by auto
       show ?case
-        apply (subst Rep_distr_inject[symmetric], rule ext, rename_tac m', subst ereal.inject[symmetric])
+        apply (subst ereal_Rep_distr_inject[symmetric], rule ext, rename_tac m')
       proof (cases "eu_fun e m = embedding True")
         fix m'
         assume True1: "eu_fun e m = embedding True"
         hence True2: "eu_fun (rename_variables_expression (inv f) e) (rename_variables_memory f m) = embedding True"
           by (simp add: `surj f` global rename_variables_expression_memory type)
-        show "ereal (Rep_distr (denotation_untyped (IfTE e p1 p2) m) m') =
-          ereal (Rep_distr (apply_to_distr (rename_variables_memory (inv f))
+        show "(ereal_Rep_distr (denotation_untyped (IfTE e p1 p2) m) m') =
+          (ereal_Rep_distr (apply_to_distr (rename_variables_memory (inv f))
           (denotation_untyped (rename_variables (inv f) (IfTE e p1 p2)) (rename_variables_memory f m))) m')"
-          apply (simp add: True1 True2) apply (subst times_ereal.simps(1)[symmetric], subst ereal_indicator)
+          apply (simp add: True1 True2)
           apply (subst ind)
           apply (subst nn_integral_singleton_indicator_countspace)
           apply auto
-          apply (simp add: Rep_distr_geq0)
-          apply (subst Rep_apply_distr_biject[where f="rename_variables_memory (inv f)" and g="rename_variables_memory f", symmetric])
+          apply (subst ereal_Rep_apply_distr_biject[where f="rename_variables_memory (inv f)" and g="rename_variables_memory f", symmetric])
             close (fact ren_inv_f_f) close (fact ren_f_inv_f)
           by (simp add: IfTE.hyps(1))
       next
@@ -946,15 +964,14 @@ proof -
         assume False1: "eu_fun e m \<noteq> embedding True"
         hence False2: "eu_fun (rename_variables_expression (inv f) e) (rename_variables_memory f m) \<noteq> embedding True"
           by (simp add: `surj f` global rename_variables_expression_memory type)
-        show "ereal (Rep_distr (denotation_untyped (IfTE e p1 p2) m) m') =
-          ereal (Rep_distr (apply_to_distr (rename_variables_memory (inv f))
-          (denotation_untyped (rename_variables (inv f) (IfTE e p1 p2)) (rename_variables_memory f m))) m')"
-          apply (simp add: False1 False2) apply (subst times_ereal.simps(1)[symmetric], subst ereal_indicator)
+        show "ereal_Rep_distr (denotation_untyped (IfTE e p1 p2) m) m' =
+          ereal_Rep_distr (apply_to_distr (rename_variables_memory (inv f))
+          (denotation_untyped (rename_variables (inv f) (IfTE e p1 p2)) (rename_variables_memory f m))) m'"
+          apply (simp add: False1 False2)
           apply (subst ind)
           apply (subst nn_integral_singleton_indicator_countspace)
           apply auto
-          apply (simp add: Rep_distr_geq0)
-          apply (subst Rep_apply_distr_biject[where f="rename_variables_memory (inv f)" and g="rename_variables_memory f", symmetric])
+          apply (subst ereal_Rep_apply_distr_biject[where f="rename_variables_memory (inv f)" and g="rename_variables_memory f", symmetric])
             close (fact ren_inv_f_f) close (fact ren_f_inv_f)
           by (simp add: IfTE.hyps(2))
       qed
@@ -962,9 +979,9 @@ proof -
            show ?case proof (cases "\<exists>body pargs ret. p=Proc body pargs ret")
              case False
                have "denotation_untyped (CallProc x p a) m = 0"
-                 apply (cases p) using False by auto
+                 apply (cases p) using False by (auto simp: )
                also have "denotation_untyped (rename_variables (inv f) (CallProc x p a)) (rename_variables_memory f m) = 0" 
-                 apply (cases p) using False by auto
+                 apply (cases p) using False by (auto simp: )
                hence "apply_to_distr (rename_variables_memory (inv f))
                   (denotation_untyped (rename_variables (inv f) (CallProc x p a)) (rename_variables_memory f m)) = 0"
                     by simp
@@ -973,7 +990,7 @@ proof -
                then obtain body pargs ret where p: "p=Proc body pargs ret" by auto
                show ?thesis
                  unfolding p
-                 apply simp 
+                 apply (simp add: )
                  apply (subst update_pattern_rename_variables_memory[OF `bij (inv f)` type' global', symmetric])
                  apply (subst rename_variables_expression_memory[OF `surj f` type global])
                  apply (subst rename_variables_restore_locals[OF fix_global' type' global']) close simp
@@ -1014,9 +1031,9 @@ proof (rule ext, cases "\<exists>body pargs ret. p=Proc body pargs ret")
 case False
   fix m
   have "denotation_untyped (CallProc x p a) m = 0"
-    apply (cases p) using False by auto
+    apply (cases p) using False by (auto simp: )
   also have "denotation_untyped (CallProc x (rename_variables_proc f p) a) m = 0"  
-    apply (cases p) using False by auto
+    apply (cases p) using False by (auto simp: )
   finally show "denotation_untyped (CallProc x (rename_variables_proc f p) a) m = denotation_untyped (CallProc x p a) m" by simp
 next case True 
   then obtain body pargs ret where p: "p=Proc body pargs ret" by auto
@@ -1029,7 +1046,7 @@ next case True
   have inv_inv_f: "inv (inv f) = f" by (simp add: `bij f` inv_inv_eq)
   have "surj (inv f)" by (simp add: `bij (inv f)` bij_is_surj)
   show "denotation_untyped (CallProc x (rename_variables_proc f p) a) m = denotation_untyped (CallProc x p a) m" 
-    unfolding p apply simp
+    unfolding p apply (simp add: ) 
     apply (subst denotation_rename_variables[OF type fix_global `bij f`], assumption)
     apply (subst apply_to_distr_twice)
     apply (subst rename_variables_restore_locals_new[OF fix_global' type'], assumption)
