@@ -37,9 +37,9 @@ proof -
   def aa == "(\<lambda>m. Rep_distr (denotation_untyped a m))"
   def bb == "(\<lambda>m. Rep_distr (denotation_untyped b m))"
   have aa_pos: "\<And>x y. aa x y \<ge> 0"
-    by (simp add: Rep_distr_geq0 aa_def) 
+    by (simp add: aa_def) 
   have bb_pos: "\<And>x y. bb x y \<ge> 0"
-    by (simp add: Rep_distr_geq0 bb_def) 
+    by (simp add: bb_def) 
   have aux: "\<And>x y z. ereal (x * indicator y z) = ereal x * indicator y z"
     by (simp add: ereal_mult_indicator)
 

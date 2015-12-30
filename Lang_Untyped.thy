@@ -363,9 +363,31 @@ type_synonym denotation = "memory \<Rightarrow> memory distr"
 (* while_denotation_n 3 e p m   is approximately:
    if e then (if e then (if e then p else skip); p); p) *)
 fun while_denotation_n :: "nat \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> denotation \<Rightarrow> denotation" where
-  "while_denotation_n 0 e p m = point_distr m"
+  "while_denotation_n 0 e p m = 0"
 | "while_denotation_n (Suc n) e p m =
     (if e m then compose_distr (while_denotation_n n e p) (p m) else point_distr m)"
+
+lemma mono_while_denotation_n: "mono (\<lambda>n. while_denotation_n n e p m)"
+proof -
+  {fix n
+  have "while_denotation_n n e p m \<le> while_denotation_n (Suc n) e p m"
+  proof (induct n arbitrary: m)
+  case 0
+    show ?case by (simp add: bot_distr_def[symmetric])
+  next case (Suc n)
+    show ?case
+    proof (cases "e m")
+    case False
+      thus ?thesis by simp
+    next case True
+      have "compose_distr (while_denotation_n n e p) (p m) \<le> compose_distr (while_denotation_n (Suc n) e p) (p m)" 
+        using mono_compose_distr1 Suc unfolding mono_def le_fun_def[THEN ext] by blast
+      with True show ?thesis by auto
+    qed
+  qed}
+  thus ?thesis
+    by (simp add: incseq_SucI)
+qed
 
 definition "init_locals m = Abs_memory (\<lambda>x. if vu_global x then Rep_memory m x else t_default (vu_type x))"
 lemma Rep_init_locals: "Rep_memory (init_locals m) = (\<lambda>x. if vu_global x then Rep_memory m x else t_default (vu_type x))"
@@ -940,7 +962,24 @@ proof -
         unfolding inv_f_f[unfolded o_def] rename_variables_memory_id
         by simp
     next case (While e p m)
-      show ?case SORRY
+      {fix n
+       have "while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m
+           = apply_to_distr (rename_variables_memory (inv f))
+              (while_denotation_n n (\<lambda>m. eu_fun (rename_variables_expression (inv f) e) m = embedding True)
+                 (denotation_untyped (rename_variables (inv f) p)) (rename_variables_memory f m))"
+        SORRY}
+      note n_steps = this
+(*       {fix e p m n
+       have "while_denotation_n n e p m \<le> while_denotation_n (Suc n) e p m"
+        by later}
+      hence inc: "\<And>e p m. incseq (\<lambda>n. while_denotation_n n e p m)"
+        by (simp add: incseq_SucI)
+ *)
+      show ?case
+        apply simp
+        apply (subst apply_to_distr_sup)
+         close (fact mono_while_denotation_n)
+        by (subst n_steps, rule)
     next case (IfTE e p1 p2 m)
       show ?case
         apply (subst ereal_Rep_distr_inject[symmetric], rule ext, rename_tac m')
