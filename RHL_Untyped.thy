@@ -1,5 +1,5 @@
 theory RHL_Untyped
-imports Lang_Untyped Hoare_Untyped
+imports Lang_Untyped Hoare_Untyped Extended_Sorry
 begin
 
 definition rhoare_untyped :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> program_rep \<Rightarrow> program_rep \<Rightarrow> (memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> bool" where
@@ -653,10 +653,11 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
     hence m'_m2: "memory_lookup_untyped m' x = memory_lookup_untyped m2 x"
       using untouched1 unfolding untouched_def by auto
     assume m: "m \<in> support_distr (denotation_untyped body m')"
-    have x: "x \<notin> set(vars_untyped body)"
+    have "x \<notin> set(vars_untyped body)"
       using x_co body_locals unfolding GL_def co_locals_def by auto
+    hence x: "x \<notin> set(write_vars_untyped body)" using write_vars_subset_vars_untyped by auto
     have m_m': "memory_lookup_untyped m x = memory_lookup_untyped m' x"
-      apply (rule readonly_notin_vars[unfolded hoare_untyped_def, rule_format, where c=body and m=m'])
+      apply (rule program_untyped_readonly_write_vars[where p=body, unfolded readonly_hoare_untyped hoare_untyped_def, rule_format])
       using m x by auto
     with m'_m2 show "memory_lookup_untyped m x = memory_lookup_untyped m2 x" by simp
   qed

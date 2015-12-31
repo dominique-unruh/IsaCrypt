@@ -488,7 +488,7 @@ lemma mk_procedure_untyped:
   fixes p0::"('a::prog_type,'b::prog_type,'c)procedure_ext"
   defines "p == mk_procedure_untyped p0"
   shows "well_typed_proc p" and "proctype_of p = procedure_type TYPE(('a,'b,'c)procedure_ext)"
-SORRY
+by (simp_all add: mk_procedure_untyped_def p_def procedure_type_def)
 
 (*
 definition procargs_empty :: "unit procargs" where
@@ -518,12 +518,12 @@ qed
 *)
 
 (*
-lemma procargvars_add_untyped [simp]: "mk_procargvars_untyped (procargvars_add x a) = mk_variable_untyped x # mk_procargvars_untyped a" SORRY
-lemma procargvars_empty_untyped [simp]: "mk_procargvars_untyped procargvars_empty = []" SORRY
-lemma procargs_add_untyped [simp]: "mk_procargs_untyped (procargs_add x a) = mk_expression_untyped x # mk_procargs_untyped a" SORRY
-lemma procargs_empty_untyped [simp]: "mk_procargs_untyped procargs_empty = []" SORRY
-lemma vars_procargs_add [simp]: "vars_procargs (procargs_add e a) = e_vars e @ vars_procargs a" SORRY
-lemma vars_procargs_empty [simp]: "vars_procargs procargs_empty = []" SORRY
+lemma procargvars_add_untyped [simp]: "mk_procargvars_untyped (procargvars_add x a) = mk_variable_untyped x # mk_procargvars_untyped a" 
+lemma procargvars_empty_untyped [simp]: "mk_procargvars_untyped procargvars_empty = []" 
+lemma procargs_add_untyped [simp]: "mk_procargs_untyped (procargs_add x a) = mk_expression_untyped x # mk_procargs_untyped a" 
+lemma procargs_empty_untyped [simp]: "mk_procargs_untyped procargs_empty = []" 
+lemma vars_procargs_add [simp]: "vars_procargs (procargs_add e a) = e_vars e @ vars_procargs a" 
+lemma vars_procargs_empty [simp]: "vars_procargs procargs_empty = []" 
 *)
 
 
@@ -604,8 +604,10 @@ lemma denotation_sample: "denotation (sample v e) m = apply_to_distr (memory_upd
 
 lemma denotation_ifte: "denotation (ifte e thn els) m = (if e_fun e m then denotation thn m else denotation els m)"
   unfolding denotation_def by simp
-lemma denotation_while: "denotation (while e p) m = Abs_distr (\<lambda>m'. \<Sum>n. Rep_distr (compose_distr (\<lambda>m. if e_fun e m then 0 else point_distr m)
-                                                  (while_iter n (e_fun e) (denotation p) m)) m')"
+lemma denotation_while: "denotation (while e p) m = 
+  (SUP n. while_denotation_n n (\<lambda>m. e_fun e m) (denotation p) m)"
+(* Abs_distr (\<lambda>m'. \<Sum>n. Rep_distr (compose_distr (\<lambda>m. if e_fun e m then 0 else point_distr m)
+                                                  (while_iter n (e_fun e) (denotation p) m)) m')" *)
   unfolding denotation_def by simp 
 
 lemma denotation_callproc: "denotation (callproc v proc args) m =
