@@ -1014,7 +1014,305 @@ proof (induct U)
 qed
 *)
 
-subsection {* Well-typed terms are strongly normalizing *}
+subsection {* Well-typed terms are weakly normalizing *}
+
+(* We follow https://www.cis.upenn.edu/~bcpierce/sf/current/Norm.html which shows normalization for a specific deterministic evaluation strategy.
+This implies weak normalization. *)
+
+inductive "value" :: "dB \<Rightarrow> bool" where
+  "value (Abs t)"
+| "value t1 \<Longrightarrow> value t2 \<Longrightarrow> value (MkPair t1 t2)"
+| "value Val"
+
+inductive step :: "dB \<Rightarrow> dB \<Rightarrow> bool" where
+  st_beta: "value t \<Longrightarrow> step (Abs s \<degree> t) (s[t/0])"
+| st_appL: "step s t ==> step (s \<degree> u) (t \<degree> u)"
+| st_appR: "value u \<Longrightarrow> step s t ==> step (u \<degree> s) (u \<degree> t)"
+| st_pairL: "step s t ==> step (MkPair s u) (MkPair t u)"
+| st_pairR: "value u \<Longrightarrow> step s t ==> step (MkPair u s) (MkPair u t)"
+| st_unpair: "step s t ==> step (Unpair b s) (Unpair b t)"
+| st_fst: "value s \<Longrightarrow> value t \<Longrightarrow> step (Unpair True (MkPair s t)) s"
+| st_snd: "value s \<Longrightarrow> value t \<Longrightarrow> step (Unpair False (MkPair s t)) t"
+| st_opL: "step s t ==> step (Op s u) (Op t u)"
+| st_opR: "value u \<Longrightarrow> step s t ==> step (Op u s) (Op u t)"
+(* | "step s t ==> step (Abs s) (Abs t)" *)
+
+
+(* closed' n t  iff  no free variables \<ge> n *)
+inductive closed' :: "nat \<Rightarrow> dB \<Rightarrow> bool" where
+  cl_var: "n < m \<Longrightarrow> closed' m (Var n)"
+| cl_app: "closed' n t \<Longrightarrow> closed' n u \<Longrightarrow> closed' n (t \<degree> u)"
+| cl_abs: "closed' (Suc n) t \<Longrightarrow> closed' n (Abs t)"
+| cl_pair: "closed' n t \<Longrightarrow> closed' n u \<Longrightarrow> closed' n (MkPair t u)"
+| cl_op: "closed' n t \<Longrightarrow> closed' n u \<Longrightarrow> closed' n (Op t u)"
+| cl_unp: "closed' n t \<Longrightarrow> closed' n (Unpair b t)"
+abbreviation "closed == closed' 0"
+
+inductive_cases step_cases:
+  "step (Abs t) u"
+  "step (MkPair t u) v"
+  "step Val v"
+  "step (Abs s \<degree> t) y'"
+  "step (s \<degree> t) y'"
+
+print_theorems
+
+lemma value_no_step:
+  assumes "value t"
+  shows "\<And>u. \<not> step t u"
+using assms apply (induct) apply auto
+close (drule step_cases, simp)
+close (frule_tac step_cases, auto)
+by (frule_tac step_cases, auto)
+
+lemma step_beta: assumes "step t u" shows "beta t u"
+  using assms apply induct by auto
+
+lemma step_deterministic: 
+  assumes "step x y" and "step x y'"
+  shows "y=y'"
+using assms proof (induction arbitrary: y')
+case st_beta thus ?case
+  by (metis typed_lambda.step_cases(1) typed_lambda.step_cases(4) typed_lambda.value_no_step)
+next case (st_appL s t u) thus ?case
+  by (metis typed_lambda.step_cases(1) typed_lambda.step_cases(5) typed_lambda.value_no_step) 
+next case st_appR thus ?case
+  by (metis typed_lambda.step_cases(5) typed_lambda.value_no_step)
+next case st_fst thus ?case
+  by (smt typed_lambda.dB.distinct(17) typed_lambda.dB.distinct(31) typed_lambda.dB.distinct(39) typed_lambda.dB.inject(4) typed_lambda.dB.inject(5) typed_lambda.step.simps typed_lambda.value.intros(2) typed_lambda.value_no_step)
+next case st_snd thus ?case
+  by (smt typed_lambda.dB.distinct(17) typed_lambda.dB.distinct(31) typed_lambda.dB.distinct(39) typed_lambda.dB.inject(4) typed_lambda.dB.inject(5) typed_lambda.step.simps typed_lambda.value.intros(2) typed_lambda.value_no_step)
+next case st_opL thus ?case
+by (smt typed_lambda.dB.distinct(21) typed_lambda.dB.distinct(35) typed_lambda.dB.distinct(39) typed_lambda.dB.inject(6) typed_lambda.step.simps typed_lambda.value_no_step)
+next case st_opR thus ?case
+by (smt typed_lambda.dB.distinct(21) typed_lambda.dB.distinct(35) typed_lambda.dB.distinct(39) typed_lambda.dB.inject(6) typed_lambda.step.simps typed_lambda.value_no_step)
+next case st_unpair thus ?case
+by (smt typed_lambda.dB.distinct(17) typed_lambda.dB.distinct(31) typed_lambda.dB.distinct(39) typed_lambda.dB.inject(5) typed_lambda.step.simps typed_lambda.value.intros(2) typed_lambda.value_no_step)
+next case st_pairL thus ?case
+by (metis typed_lambda.step_cases(2) typed_lambda.value_no_step)
+next case st_pairR thus ?case
+by (metis typed_lambda.step_cases(2) typed_lambda.value_no_step)
+qed
+
+definition "halts t = (\<exists>t'. step\<^sup>*\<^sup>* t t' \<and> value t')"
+
+lemma value_halts: "value t \<Longrightarrow> halts t"
+  using halts_def by blast
+
+definition "empty_env = (\<lambda>m. Atom 0)"
+
+fun RR :: "lambda_type \<Rightarrow> dB \<Rightarrow> bool" where
+  R_atom: "RR (Atom 0) t = (empty_env \<turnstile> t : Atom 0 \<and> closed t \<and> halts t)"
+| R_fun: "RR (T \<Rightarrow> U) t = (empty_env \<turnstile> t : T \<Rightarrow> U \<and> closed t \<and> halts t \<and> (\<forall>s. RR T s \<longrightarrow> RR U (t \<degree> s)))"
+| R_atomSuc: "RR (Atom (Suc n)) t = False"
+| R_prod: "RR (Prod T U) t = (empty_env \<turnstile> t : T \<Rightarrow> U \<and> closed t \<and> halts t)" (* TODO check if right *)
+
+lemma step_preserves_halting: 
+  assumes "step t t'"
+  shows "halts t = halts t'"
+by (metis assms converse_rtranclpE converse_rtranclp_into_rtranclp typed_lambda.halts_def typed_lambda.step_deterministic typed_lambda.value_no_step)
+(* apply auto
+close (metis assms converse_rtranclpE typed_lambda.halts_def typed_lambda.step_deterministic typed_lambda.value_no_step)
+by (meson assms r_into_rtranclp rtranclp_trans typed_lambda.halts_def) *)
+
+lemma closed_lift:
+  assumes "closed' n s"
+  shows "closed' (Suc n) (lift s k)"
+using assms proof (induction arbitrary: k)
+  case cl_var thus ?case
+    using typed_lambda.cl_var by auto
+  next case cl_app thus ?case
+    by (simp add: typed_lambda.cl_app)
+  next case cl_pair thus ?case
+    by (simp add: typed_lambda.cl_pair)
+  next case cl_abs thus ?case
+    by (simp add: cl_abs.IH typed_lambda.cl_abs)
+  next case cl_op thus ?case
+    by (simp add: typed_lambda.cl_op)
+  next case cl_unp thus ?case
+    by (simp add: typed_lambda.cl_unp)
+qed
+
+lemma closed_subst:
+  fixes n s t k
+  defines "m == Suc n"
+  assumes s: "closed' m s"
+  assumes t: "closed' n t"
+  assumes k: "k \<le> n"
+  shows "closed' n (subst s t k)"
+using s t k m_def[THEN meta_eq_to_obj_eq] proof (induction arbitrary: n t k)
+  case (cl_var i m)
+    have minus_Suc: "k < i \<Longrightarrow> i < Suc n \<Longrightarrow> closed' n (Var (i-Suc 0))"
+      by (simp add: typed_lambda.cl_var)
+    have vari: "i \<noteq> k \<Longrightarrow> i < Suc k \<Longrightarrow> closed' n (Var i)"
+      apply (rule_tac closed'.cl_var) 
+      using cl_var k by auto
+    show ?case
+      apply (subst subst_Var, auto)
+      using cl_var minus_Suc vari by auto
+  next case cl_app thus ?case
+    by (simp add: cl_app.IH(1) cl_app.IH(2) typed_lambda.cl_app)
+  next case cl_pair thus ?case
+    by (simp add: cl_pair.IH(1) cl_pair.IH(2) typed_lambda.cl_pair)
+  next case cl_abs thus ?case
+    by (simp add: cl_abs.IH typed_lambda.cl_abs typed_lambda.closed_lift)
+  next case cl_op thus ?case
+    by (simp add: cl_op.IH(1) cl_op.IH(2) typed_lambda.cl_op)
+  next case cl_unp thus ?case
+    by (simp add: cl_unp.IH typed_lambda.cl_unp)
+qed
+
+
+
+(* lemma closed_subst:
+  assumes "closed' n s"
+  assumes "closed' n t"
+  shows "closed' n (subst s t k)"
+using assms proof (induction arbitrary: t k)
+  case (cl_var i m) thus ?case
+    using typed_lambda.cl_var typed_lambda.subst_Var by auto
+  next case cl_app thus ?case
+    by (simp add: cl_app.IH(1) cl_app.IH(2) typed_lambda.cl_app)
+  next case cl_pair thus ?case
+    by (simp add: cl_pair.IH(1) cl_pair.IH(2) typed_lambda.cl_pair)
+  next case cl_abs thus ?case
+    by (simp add: cl_abs.IH typed_lambda.cl_abs typed_lambda.closed_lift)
+  next case cl_op thus ?case
+    by (simp add: cl_op.IH(1) cl_op.IH(2) typed_lambda.cl_op)
+  next case cl_unp thus ?case
+    by (simp add: cl_unp.IH typed_lambda.cl_unp)
+qed *)
+
+lemma closed_preservation:
+  assumes "step t u"
+  assumes "closed' n t"
+  shows "closed' n u"
+using assms proof (induction arbitrary: n)
+case (st_fst s t)
+ hence "closed' n (MkPair s t)"
+    using typed_lambda.closed'.simps by blast
+ thus ?case
+    using typed_lambda.closed'.simps by blast
+next case (st_snd s t)
+ hence "closed' n (MkPair s t)"
+    using typed_lambda.closed'.simps by blast
+ thus ?case
+    using typed_lambda.closed'.simps by blast
+next case (st_beta t s) 
+  hence "closed' n (Abs s)"
+    using typed_lambda.closed'.cases typed_lambda.dB.distinct(21) typed_lambda.dB.inject(2) by blast
+  hence "closed' (Suc n) s"
+    using typed_lambda.closed'.cases typed_lambda.dB.distinct(3) by blast
+  moreover have "closed' n t"
+    using st_beta.prems typed_lambda.closed'.simps by blast
+  ultimately show ?case
+    by (rule closed_subst, simp)
+next case (st_appL s t u)
+  have "closed' n s"
+    using st_appL.prems typed_lambda.closed'.simps by blast
+  hence "closed' n t"
+    by (simp add: st_appL.IH)
+  moreover have "closed' n u"
+    using st_appL.prems typed_lambda.closed'.simps by blast 
+  ultimately show ?case
+    by (simp add: typed_lambda.cl_app)
+next case (st_appR u s t)
+  have "closed' n s"
+    using st_appR.prems typed_lambda.closed'.simps by blast
+  hence "closed' n t"
+    by (simp add: st_appR.IH)
+  moreover have "closed' n u"
+    using st_appR.prems typed_lambda.closed'.simps by blast 
+  ultimately show ?case
+    by (simp add: typed_lambda.cl_app)
+next case (st_opL s t u)
+  have "closed' n s"
+    using st_opL.prems typed_lambda.closed'.simps by blast
+  hence "closed' n t"
+    by (simp add: st_opL.IH)
+  moreover have "closed' n u"
+    using st_opL.prems typed_lambda.closed'.simps by blast 
+  ultimately show ?case
+    by (simp add: typed_lambda.cl_op)
+next case (st_opR u s t)
+  have "closed' n s"
+    using st_opR.prems typed_lambda.closed'.simps by blast
+  hence "closed' n t"
+    by (simp add: st_opR.IH)
+  moreover have "closed' n u"
+    using st_opR.prems typed_lambda.closed'.simps by blast 
+  ultimately show ?case
+    by (simp add: typed_lambda.cl_op)
+next case (st_pairL s t u)
+  have "closed' n s"
+    using st_pairL.prems typed_lambda.closed'.simps by blast
+  hence "closed' n t"
+    by (simp add: st_pairL.IH)
+  moreover have "closed' n u"
+    using st_pairL.prems typed_lambda.closed'.simps by blast 
+  ultimately show ?case
+    by (simp add: typed_lambda.cl_pair)
+next case (st_pairR u s t)
+  have "closed' n s"
+    using st_pairR.prems typed_lambda.closed'.simps by blast
+  hence "closed' n t"
+    by (simp add: st_pairR.IH)
+  moreover have "closed' n u"
+    using st_pairR.prems typed_lambda.closed'.simps by blast 
+  ultimately show ?case
+    by (simp add: typed_lambda.cl_pair)
+next case (st_unpair s t b)
+  have "closed' n s"
+    using st_unpair.prems typed_lambda.closed'.simps by blast
+  hence "closed' n t"
+    by (simp add: st_unpair.IH)
+  thus "closed' n (Unpair b t)"
+    by (simp add: typed_lambda.cl_unp)
+qed
+
+lemma step_preserves_R: 
+  assumes "step t t'" and "RR T t"
+  shows "RR T t'"
+using assms proof (induction T arbitrary: t t' rule:lambda_type.induct)
+case (Atom n)
+  show ?case
+  proof (cases n)
+  case 0 
+    have type: "empty_env \<turnstile> t : Atom 0" and closed: "closed t" and halts: "halts t"
+      using "0" Atom.prems(2) by auto
+    from type have "empty_env \<turnstile> t' : Atom 0"
+      apply (rule subject_reduction)
+      using Atom.prems(1) by (rule step_beta)
+    moreover from Atom.prems(1) closed have "closed t'"
+      by (rule closed_preservation)
+    moreover have "halts t'"
+      apply (subst step_preserves_halting[symmetric]) using halts Atom by auto
+    ultimately show ?thesis by (auto simp: 0)
+  next case Suc with Atom show ?thesis by auto
+  qed
+next case (Fun T U)
+  have type: "empty_env \<turnstile> t : T \<Rightarrow> U" and closed: "closed t" and halts: "halts t"
+        and app: "\<And>s. RR T s \<Longrightarrow> RR U (t \<degree> s)"
+    using Fun by auto
+  from type have "empty_env \<turnstile> t' : T \<Rightarrow> U"
+    apply (rule subject_reduction)
+    using Fun.prems(1) by (rule step_beta)
+  moreover from Fun.prems(1) closed have "closed t'"
+    by (rule closed_preservation)
+  moreover have "halts t'"
+    apply (subst step_preserves_halting[symmetric]) using halts Fun by auto
+  moreover have "\<And>s. RR T s \<Longrightarrow> RR U (t' \<degree> s)"
+  proof -
+    fix s assume RTs: "RR T s"
+    have "step (t \<degree> s) (t' \<degree> s)" using Fun(3) by (rule step.intros)
+    moreover from RTs have "RR U (t \<degree> s)" by (rule app)
+    ultimately show "RR U (t' \<degree> s)"
+      by (rule Fun(2))
+  qed
+  ultimately show ?case
+    by simp
+next case (Prod T U) thus ?case by later
+qed
 
 lemma type_implies_IT:
   assumes "e \<turnstile> t : T"

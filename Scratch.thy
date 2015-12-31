@@ -205,7 +205,7 @@ unfolding program_readonly_def program_untyped_readonly_def denotation_def progr
 by auto
 
 
-
+                     
 
 lemma program_readonly_write_vars: "program_readonly (- set(write_vars p)) p"
   using program_untyped_readonly_write_vars[of "Rep_program p"]
