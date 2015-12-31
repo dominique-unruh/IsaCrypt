@@ -1,5 +1,5 @@
 theory RHL_Untyped
-imports Lang_Untyped Hoare_Untyped
+imports Lang_Untyped Hoare_Untyped Extended_Sorry
 begin
 
 definition rhoare_untyped :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> program_rep \<Rightarrow> program_rep \<Rightarrow> (memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> bool" where

@@ -1,5 +1,5 @@
 theory Hoare_Untyped
-imports Lang_Untyped Extended_Sorry
+imports Lang_Untyped
 begin
 
 definition hoare_untyped :: "(memory \<Rightarrow> bool) \<Rightarrow> program_rep \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> bool" where
@@ -9,6 +9,13 @@ definition hoare_untyped :: "(memory \<Rightarrow> bool) \<Rightarrow> program_r
 
 definition hoare_denotation :: "(memory \<Rightarrow> bool) \<Rightarrow> _ \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> bool" where
   "hoare_denotation pre prog post = (\<forall>m. pre m \<longrightarrow> (\<forall>m'. m' \<in> support_distr (prog m) \<longrightarrow> post m'))"
+lemma hoare_denotation_0': 
+  assumes "\<And>m. P m \<Longrightarrow> f m = 0"
+  shows "hoare_denotation P f Q"
+unfolding hoare_denotation_def using assms by auto
+
+lemma hoare_denotation_0 [simp]: "hoare_denotation P (\<lambda>m. 0) Q"
+  apply (rule hoare_denotation_0') by simp
 
 lemma hoare_untyped_hoare_denotation: "hoare_untyped pre c post = hoare_denotation pre (denotation_untyped c) post"
   unfolding hoare_untyped_def hoare_denotation_def ..
@@ -33,6 +40,13 @@ SORRY *)
 SORRY *)
 
 
+lemma conseq_rule:
+  assumes "\<forall>m. P m \<longrightarrow> P' m"
+      and "\<forall>m. Q' m \<longrightarrow> Q m"
+      and "hoare_untyped P' c Q'"
+  shows "hoare_untyped P c Q"
+  using assms unfolding hoare_untyped_def by auto
+
 lemma seq_rule:
   fixes P Q R c d
   assumes "hoare_untyped P c Q" and "hoare_untyped Q d R"
@@ -51,13 +65,70 @@ lemma sample_rule:
   shows "hoare_untyped P (Sample pat e) Q"
   using assms unfolding hoare_untyped_def by auto
 
+lemma hoare_denotation_sup:
+  assumes "incseq c"
+  assumes hoare: "\<And>n::nat. hoare_denotation P (c n) Q"
+  shows "hoare_denotation P (\<lambda>m. SUP n. c n m) Q"
+proof (unfold hoare_denotation_def, auto)
+  fix m m' assume "P m"
+  assume m': "m' \<in> support_distr (SUP n. c n m)"
+  {assume "\<And>n. m' \<notin> support_distr (c n m)"
+  hence "\<And>n. ereal_Rep_distr (c n m) m' \<le> 0" 
+    unfolding support_distr_def' using le_less_linear by blast
+  hence "ereal_Rep_distr (SUP n. c n m) m' \<le> 0"
+    apply (subst ereal_Rep_SUP_distr)
+     close (metis (mono_tags, lifting) assms(1) incseq_def le_funD)
+    by (simp add: SUP_le_iff) 
+  hence "m' \<notin> support_distr (SUP n. c n m)"
+    unfolding support_distr_def' by auto}
+  with m' obtain n where "m' \<in> support_distr (c n m)" 
+    by auto
+  with hoare and `P m` show "Q m'"
+    unfolding hoare_denotation_def by auto
+qed
+
 lemma while_rule:
   fixes P Q I c p
-  assumes "hoare_untyped (\<lambda>m. I m \<and> eu_fun e m = embedding True) p I"
-          "\<forall>m. P m \<longrightarrow> I m"
-          "\<forall>m. eu_fun e m \<noteq> embedding True \<longrightarrow> I m \<longrightarrow> Q m"
+  assumes hoare: "hoare_untyped (\<lambda>m. I m \<and> eu_fun e m = embedding True) p I"
+      and PI: "\<forall>m. P m \<longrightarrow> I m"
+      and IQ: "\<forall>m. eu_fun e m \<noteq> embedding True \<longrightarrow> I m \<longrightarrow> Q m"
   shows "hoare_untyped P (While e p) Q"
-  SORRY
+proof -
+  have inc: "incseq (\<lambda>n. while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p))"
+    using mono_while_denotation_n unfolding mono_def le_fun_def by simp
+  {fix n
+  have "hoare_denotation I (while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p)) Q"
+  proof (induct n)
+  case 0 show ?case by simp
+  next case (Suc n)
+    show ?case
+    proof (unfold hoare_denotation_def, auto)
+      fix m m' x
+      assume true: "eu_fun e m = embedding True"
+        and Im: "I m" and x: "x \<in> support_distr (denotation_untyped p m)"
+        and m': "m' \<in> support_distr (while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) x)"
+      (* from P and PI have I: "I m" by simp *)
+      from true hoare x Im have Ix: "I x"
+        unfolding hoare_untyped_def by auto
+      from Ix m' Suc show "Q m'" 
+        unfolding hoare_denotation_def by auto
+    next
+      fix m assume not_true: "eu_fun e m \<noteq> embedding True" and I: "I m"
+      (* from P have I: "I m" using PI by auto *)
+      from not_true and I and IQ 
+      show "Q m" by auto
+    qed
+  qed
+  }
+  hence n: "\<And>n. hoare_denotation P (while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p)) Q"
+    unfolding hoare_denotation_def using PI by auto
+  show ?thesis
+    unfolding hoare_untyped_hoare_denotation
+    unfolding denotation_untyped_While[THEN ext]
+    apply (rule hoare_denotation_sup)
+     close (fact inc)
+    by (fact n)
+qed
 
 lemma iftrue_rule:
   fixes P Q I c p1 p2
@@ -80,13 +151,6 @@ lemma skip_rule:
   assumes "\<forall>m. P m \<longrightarrow> Q m"
   shows "hoare_untyped P Skip Q"
   unfolding hoare_untyped_def using assms by simp
-
-lemma conseq_rule:
-  assumes "\<forall>m. P m \<longrightarrow> P' m"
-      and "\<forall>m. Q' m \<longrightarrow> Q m"
-      and "hoare_untyped P' c Q'"
-  shows "hoare_untyped P c Q"
-  using assms unfolding hoare_untyped_def by auto
 
 lemma case_rule:
   assumes "\<And>x. hoare_untyped (\<lambda>m. P m \<and> f m = x) c Q"

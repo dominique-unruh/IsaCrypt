@@ -110,11 +110,22 @@ lemma Rep_distr_leq1 [simp]: "Rep_distr \<mu> x \<le> 1"
   unfolding ereal_less_eq(3)[symmetric] ereal_Rep_distr one_ereal_def[symmetric]
   by (rule ereal_Rep_distr_leq1)
 
+instantiation distr :: (type) zero begin
+definition zero_distr :: "'a distr" where "zero_distr = Abs_distr (\<lambda>x. 0)"
+instance ..
+end
+lemma Rep_distr_0 [simp]: "Rep_distr 0 = (\<lambda>x. 0)"
+  unfolding zero_distr_def apply (subst Abs_distr_inverse) apply auto
+  by (metis ereal_zero_times zero_ereal_def zero_less_one_ereal)
+
+
+
 definition support_distr :: "'a distr \<Rightarrow> 'a set" where
   "support_distr \<mu> = {x. Rep_distr \<mu> x > 0}"
 lemma support_distr_def': "support_distr \<mu> = {x. ereal_Rep_distr \<mu> x > 0}"
   unfolding support_distr_def ereal_Rep_distr_def by auto
-
+lemma support_distr_0 [simp]: "support_distr 0 = {}"
+  unfolding support_distr_def Rep_distr_0 by simp 
 
 definition "ereal_probability \<mu> E = (\<integral>\<^sup>+x. ereal_Rep_distr \<mu> x * indicator E x \<partial>count_space UNIV)" 
 definition "probability \<mu> E = real (\<integral>\<^sup>+x. ereal_Rep_distr \<mu> x * indicator E x \<partial>count_space UNIV)" 
@@ -157,15 +168,6 @@ qed
 lemma probability_leq1 [simp]: "probability \<mu> E \<le> 1"
   apply (subst ereal_less_eq(3)[symmetric]) apply (subst ereal_probability)
   unfolding one_ereal_def[symmetric] by simp
-
-instantiation distr :: (type) zero begin
-definition zero_distr :: "'a distr" where "zero_distr = Abs_distr (\<lambda>x. 0)"
-instance ..
-end
-
-lemma Rep_distr_0 [simp]: "Rep_distr 0 = (\<lambda>x. 0)"
-  unfolding zero_distr_def apply (subst Abs_distr_inverse) apply auto
-  by (metis ereal_zero_times zero_ereal_def zero_less_one_ereal)
 
 instantiation distr :: (type) scaleR begin
 definition "scaleR_distr r \<mu> = Abs_distr (\<lambda>x. r * Rep_distr \<mu> x)"

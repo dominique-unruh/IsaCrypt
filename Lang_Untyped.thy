@@ -191,12 +191,9 @@ record expression_distr_rep =
 typedef expression_distr = "{(e::expression_distr_rep).
   (\<forall>m. support_distr (edr_fun e m) \<subseteq> t_domain (edr_type e)) \<and>
   (\<forall>m1 m2. (\<forall>v\<in>set (edr_vars e). memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<longrightarrow> edr_fun e m1 = edr_fun e m2)}"
-  apply (rule exI[of _ "\<lparr> edr_fun=\<lambda>m. 0,
+  by (rule exI[of _ "\<lparr> edr_fun=\<lambda>m. 0,
                           edr_type=undefined,
                           edr_vars=[] \<rparr>"], simp)
-  unfolding support_distr_def zero_distr_def
-  apply (subst Abs_distr_inverse, auto)
-  by (metis ereal_eq_0(2) ereal_less_eq(6) ereal_zero_mult zero_le_one)
 
 definition "ed_fun e == edr_fun (Rep_expression_distr e)"
 definition "ed_type e == edr_type (Rep_expression_distr e)"
