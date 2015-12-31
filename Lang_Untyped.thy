@@ -931,7 +931,6 @@ proof -
   from ren_f_inv_f ren_inv_f_f have ind: "\<And>a m'. indicator {rename_variables_memory (inv f) a} m' = indicator {rename_variables_memory f m'} a"
     unfolding indicator_def by auto
 
-
   def p' == "rename_variables f p"
   have "denotation_untyped p' m = 
     apply_to_distr (rename_variables_memory (inv f)) (denotation_untyped (rename_variables (inv f) p') (rename_variables_memory f m))"
@@ -963,18 +962,48 @@ proof -
         by simp
     next case (While e p m)
       {fix n
-       have "while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m
-           = apply_to_distr (rename_variables_memory (inv f))
-              (while_denotation_n n (\<lambda>m. eu_fun (rename_variables_expression (inv f) e) m = embedding True)
-                 (denotation_untyped (rename_variables (inv f) p)) (rename_variables_memory f m))"
-        SORRY}
+      have "while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m
+          = apply_to_distr (rename_variables_memory (inv f))
+             (while_denotation_n n (\<lambda>m. eu_fun (rename_variables_expression (inv f) e) m = embedding True)
+                (denotation_untyped (rename_variables (inv f) p)) (rename_variables_memory f m))"
+      proof (induct n arbitrary: m)
+      case 0 show ?case by simp
+      next case (Suc n)
+        show ?case 
+        proof (cases "eu_fun e m = embedding True") 
+          case False
+            hence "eu_fun (rename_variables_expression (inv f) e) (rename_variables_memory f m) \<noteq> embedding True"
+              by (simp add: `surj f` global rename_variables_expression_memory type)
+            with False show ?thesis by (simp add: ren_inv_f_f)
+          next case True 
+            let ?invfmem = "rename_variables_memory (inv f)"
+            let ?invfexp = "rename_variables_expression (inv f)"
+            let ?fmem = "rename_variables_memory f"
+            let ?invf = "rename_variables (inv f)"
+            let ?p = "denotation_untyped p"
+            let ?pf = "denotation_untyped (?invf p)"
+            let ?e = "\<lambda>m. eu_fun e m = embedding True"
+            let ?ef = "\<lambda>m. eu_fun (?invfexp e) m = embedding True"
+            from True have True': "?ef (?fmem m)"
+              by (simp add: `surj f` global rename_variables_expression_memory type)
+
+            have "while_denotation_n (Suc n) ?e ?p m
+                = compose_distr (while_denotation_n n ?e ?p) (?p m)"
+              using True by simp
+            also have "\<dots> = compose_distr (\<lambda>m. apply_to_distr ?invfmem (while_denotation_n n ?ef ?pf (?fmem m))) (?p m)"
+              using Suc by metis
+            also have "\<dots> = apply_to_distr ?invfmem (compose_distr (\<lambda>m. while_denotation_n n ?ef ?pf (?fmem m)) (?p m))"
+              apply (subst apply_to_distr_compose_distr[symmetric]) by rule
+            also have "\<dots> = apply_to_distr ?invfmem (compose_distr (\<lambda>m. while_denotation_n n ?ef ?pf m) (apply_to_distr ?fmem (?p m)))"
+              by (smt compose_distr_assoc compose_distr_cong compose_point_distr_l compose_point_distr_r)
+            also have "\<dots> = apply_to_distr ?invfmem (compose_distr (\<lambda>m. while_denotation_n n ?ef ?pf m) (?pf (?fmem m)))"
+              using While.hyps ren_f_inv_f by auto
+            also have "\<dots> = apply_to_distr ?invfmem (while_denotation_n (Suc n) ?ef ?pf (?fmem m))"
+              using True' by simp
+            finally show ?thesis by assumption
+        qed
+      qed}
       note n_steps = this
-(*       {fix e p m n
-       have "while_denotation_n n e p m \<le> while_denotation_n (Suc n) e p m"
-        by later}
-      hence inc: "\<And>e p m. incseq (\<lambda>n. while_denotation_n n e p m)"
-        by (simp add: incseq_SucI)
- *)
       show ?case
         apply simp
         apply (subst apply_to_distr_sup)
