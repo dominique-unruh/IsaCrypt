@@ -1,5 +1,5 @@
 theory Lang_Untyped
-imports Main Orderings Series Distr Universe Extended_Sorry
+imports Main Orderings Series Distr Universe 
 begin
 
 subsection {* Types *}
@@ -505,6 +505,10 @@ and write_vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped lis
 | "write_vars_proc_untyped (ProcUnpair _ p) = write_vars_proc_untyped p"
 definition "write_vars prog = write_vars_untyped (Rep_program prog)"
 
+lemma write_vars_subset_vars_untyped: 
+  shows "set (write_vars_untyped p) \<subseteq> set (vars_untyped p)"
+    and "set (write_vars_proc_untyped q) \<subseteq> set (vars_proc_untyped q)"
+  apply (induct p and q) by auto 
 
 definition "lossless_untyped p = (\<forall>m. weight_distr (denotation_untyped p m) = 1)"
 definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"
@@ -1186,6 +1190,9 @@ definition "denotation_readonly X d = (\<forall>m. \<forall>m'\<in>support_distr
 definition "program_readonly X c = denotation_readonly X (denotation c)"
 definition "program_untyped_readonly X c = denotation_readonly X (denotation_untyped c)"
 
+lemma denotation_readonly_0 [simp]: "denotation_readonly X (\<lambda>m. 0)"
+  unfolding denotation_readonly_def
+  by (simp add: support_distr_def)
 
 
 lemma denotation_footprint_mono:
