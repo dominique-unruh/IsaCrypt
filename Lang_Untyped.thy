@@ -1021,7 +1021,7 @@ proof -
         show "(ereal_Rep_distr (denotation_untyped (IfTE e p1 p2) m) m') =
           (ereal_Rep_distr (apply_to_distr (rename_variables_memory (inv f))
           (denotation_untyped (rename_variables (inv f) (IfTE e p1 p2)) (rename_variables_memory f m))) m')"
-          apply (simp add: True1 True2)
+          apply (simp add: ereal_Rep_apply_to_distr True1 True2)
           apply (subst ind)
           apply (subst nn_integral_singleton_indicator_countspace)
           apply auto
@@ -1036,7 +1036,7 @@ proof -
         show "ereal_Rep_distr (denotation_untyped (IfTE e p1 p2) m) m' =
           ereal_Rep_distr (apply_to_distr (rename_variables_memory (inv f))
           (denotation_untyped (rename_variables (inv f) (IfTE e p1 p2)) (rename_variables_memory f m))) m'"
-          apply (simp add: False1 False2)
+          apply (simp add: ereal_Rep_apply_to_distr False1 False2)
           apply (subst ind)
           apply (subst nn_integral_singleton_indicator_countspace)
           apply auto

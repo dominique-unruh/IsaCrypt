@@ -299,14 +299,105 @@ lemma rhoare_denotation_post_eq:
   defines "project == (\<lambda>m x. if x\<in>X then memory_lookup_untyped m x else undefined)"
   assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow> apply_to_distr project (c1 m1) = apply_to_distr project (c2 m2)"
   shows "rhoare_denotation P c1 c2 (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)"
-SORRY
+proof (unfold rhoare_denotation_def, auto del: exI intro!: exI )
+  fix m1 m2 
+  assume P: "P m1 m2"
+  def project_other == "(\<lambda>m x. if x\<notin>X then memory_lookup_untyped m x else undefined)"
+  def \<mu>1 == "apply_to_distr (\<lambda>m. (project_other m, project m)) (c1 m1)"
+  def \<mu>2 == "apply_to_distr (\<lambda>m. (project m, project_other m)) (c2 m2)"
+  have \<mu>1\<mu>2: "apply_to_distr snd \<mu>1 = apply_to_distr fst \<mu>2"
+    unfolding \<mu>1_def \<mu>2_def using P assms(2) by auto
+  def \<mu>' == "markov_chain_combine \<mu>1 \<mu>2"
+  have \<mu>1: "apply_to_distr (\<lambda>(x,y,z). (x,y)) \<mu>' = \<mu>1" 
+    using \<mu>1\<mu>2 unfolding \<mu>'_def \<mu>1_def \<mu>2_def by (rule markov_chain)
+  have \<mu>2: "apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu>' = \<mu>2"
+    using \<mu>1\<mu>2 unfolding \<mu>'_def \<mu>1_def \<mu>2_def by (rule markov_chain)
+
+  def recon1 == "(\<lambda>(m,m'). Abs_memory (\<lambda>x. if x\<notin>X then m x else m' x))"
+  have "(\<lambda>x. (\<lambda>(m,m') x. if x\<notin>X then m x else m' x) (project_other x, project x)) = Rep_memory"
+    unfolding recon1_def project_other_def project_def by force
+  hence "\<And>x. recon1 (project_other x, project x) = x"
+    by (metis (no_types, lifting) Rep_memory_inverse recon1_def split_conv)
+  hence recon1: "apply_to_distr recon1 \<mu>1 = c1 m1"
+    unfolding \<mu>1_def by auto
+
+  def recon2 == "(\<lambda>(m,m'). Abs_memory (\<lambda>x. if x\<in>X then m x else m' x))"
+  have "(\<lambda>x. (\<lambda>(m,m') x. if x\<in>X then m x else m' x) (project x, project_other x)) = Rep_memory"
+    unfolding recon1_def project_other_def project_def by force
+  hence "\<And>x. recon2 (project x, project_other x) = x"
+    by (metis (no_types, lifting) Rep_memory_inverse recon2_def split_conv)
+  hence recon2: "apply_to_distr recon2 \<mu>2 = c2 m2"
+    unfolding \<mu>2_def by auto
+
+  def \<mu> == "apply_to_distr (\<lambda>(x,y,z). (recon1 (x,y), recon2 (y,z))) \<mu>'"
+  have "apply_to_distr fst \<mu> = apply_to_distr (\<lambda>(x, y, z). recon1 (x, y)) \<mu>'"
+    unfolding \<mu>_def apply simp
+    apply (tactic \<open>cong_tac @{context} 1\<close>, tactic \<open>cong_tac @{context} 1\<close>) by auto
+  also have "\<dots> = apply_to_distr recon1 \<mu>1"
+    unfolding \<mu>1[symmetric] apply simp
+    apply (tactic \<open>cong_tac @{context} 1\<close>, tactic \<open>cong_tac @{context} 1\<close>) by auto
+  also have "\<dots> = c1 m1"
+    by (fact recon1)
+  finally show "apply_to_distr fst \<mu> = c1 m1"
+    by assumption
+
+  have "apply_to_distr snd \<mu> = apply_to_distr (\<lambda>(x, y, z). recon2 (y, z)) \<mu>'"
+    unfolding \<mu>_def apply simp
+    apply (tactic \<open>cong_tac @{context} 1\<close>, tactic \<open>cong_tac @{context} 1\<close>) by auto
+  also have "\<dots> = apply_to_distr recon2 \<mu>2"
+    unfolding \<mu>2[symmetric] apply simp
+    apply (tactic \<open>cong_tac @{context} 1\<close>, tactic \<open>cong_tac @{context} 1\<close>) by auto
+  also have "\<dots> = c2 m2"
+    by (fact recon2)
+  finally show "apply_to_distr snd \<mu> = c2 m2"
+    by assumption
+
+  fix m1' m2' x
+  assume "(m1', m2') \<in> support_distr \<mu>"
+  then obtain a b c where m1': "m1' = recon1 (a,b)" and m2': "m2' = recon2 (b,c)"
+    and supp_abc: "(a,b,c) \<in> support_distr \<mu>'"
+    unfolding \<mu>_def by auto
+  have supp_ab: "(a,b) \<in> support_distr \<mu>1" and supp_bc: "(b,c) \<in> support_distr \<mu>2"
+    using \<mu>1\<mu>2 supp_abc unfolding \<mu>'_def apply (rule markov_chain_support)
+    using \<mu>1\<mu>2 supp_abc unfolding \<mu>'_def by (rule markov_chain_support)
+  from supp_ab obtain mab where a: "a = project_other mab" and b: "b = project mab"
+    unfolding \<mu>1_def by auto
+  from supp_bc obtain mbc where c: "c = project_other mbc"
+    unfolding \<mu>2_def by auto
+  have RepAbs_ab: "Rep_memory (Abs_memory (\<lambda>x. if x \<notin> X then a x else b x)) = (\<lambda>x. if x \<notin> X then a x else b x)"
+    apply (subst Abs_memory_inverse)
+     by (simp_all add: a b project_other_def project_def memory_lookup_untyped_type)
+  have RepAbs_bc: "Rep_memory (Abs_memory (\<lambda>x. if x \<in> X then b x else c x)) = (\<lambda>x. if x \<in> X then b x else c x)"
+    apply (subst Abs_memory_inverse)
+     by (simp_all add: b c project_other_def project_def memory_lookup_untyped_type)
+
+  assume "x \<in> X"
+  thus "memory_lookup_untyped m1' x = memory_lookup_untyped m2' x"
+    unfolding m1' m2' recon1_def recon2_def using RepAbs_ab RepAbs_bc by auto
+qed
 
 lemma rhoare_denotation_post_eq2: 
   fixes X c1 c2 P
   defines "project == (\<lambda>m x. if x\<in>X then memory_lookup_untyped m x else undefined)"
-  assumes "rhoare_denotation P c1 c2 (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)"
+  assumes rhoare: "rhoare_denotation P c1 c2 (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)"
   shows "\<And>m1 m2. P m1 m2 \<Longrightarrow> apply_to_distr project (c1 m1) = apply_to_distr project (c2 m2)"
-SORRY
+proof -
+  fix m1 m2 assume P: "P m1 m2"
+  from rhoare obtain \<mu> where \<mu>c1: "apply_to_distr fst \<mu> = c1 m1" and \<mu>c2: "apply_to_distr snd \<mu> = c2 m2"
+     and eq: "\<And>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<Longrightarrow> (\<forall>x\<in>X. memory_lookup_untyped m1' x = memory_lookup_untyped m2' x)"
+    unfolding rhoare_denotation_def using P by force
+  from eq have project_eq: "\<And>x. x \<in> support_distr \<mu> \<Longrightarrow> project (fst x) = project (snd x)"
+    unfolding project_def by force
+
+  have "apply_to_distr project (c1 m1) = apply_to_distr (\<lambda>m. project (fst m)) \<mu>"
+    unfolding \<mu>c1[symmetric] by simp
+  also have "\<dots> = apply_to_distr (\<lambda>m. project (snd m)) \<mu>"
+    by (rule apply_to_distr_cong, fact project_eq)
+  also have "\<dots> = apply_to_distr project (c2 m2)"
+    unfolding \<mu>c2[symmetric] by simp
+  finally show "apply_to_distr project (c1 m1) = apply_to_distr project (c2 m2)"
+    by assumption
+qed
 
 (*
 lemma obs_eq_untypedI: 
