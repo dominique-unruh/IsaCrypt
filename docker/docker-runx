@@ -1,0 +1,2 @@
+DOCKERUSER=user
+docker run --rm -t -i -e DISPLAY -v "$HOME/.Xauthority:/home/$DOCKERUSER/.Xauthority" -v "$PWD:/home/$DOCKERUSER/data" --net=host "$@"
