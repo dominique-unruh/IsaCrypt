@@ -19,7 +19,8 @@ definition rhoare_denotation :: "('a \<Rightarrow> 'b \<Rightarrow> bool) \<Righ
 lemma rhoare_untyped_rhoare_denotation: "rhoare_untyped pre c1 c2 post = rhoare_denotation pre (denotation_untyped c1) (denotation_untyped c2) post"
   unfolding rhoare_untyped_def rhoare_denotation_def ..
 
-
+lemma rhoare_denotation_0 [simp]: "rhoare_denotation P (\<lambda>x. 0) (\<lambda>x. 0) Q"
+  using apply_to_distr_0 rhoare_denotation_def by fastforce
 
 lemma rskip_rule:
   assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q m1 m2"
@@ -188,6 +189,72 @@ lemma rcase_rule:
   shows "rhoare_untyped P c1 c2 Q"
 using assms unfolding rhoare_untyped_def by metis
 
+
+lemma iftrue_rule_left:
+  fixes P Q I c p1 p2
+  assumes "rhoare_untyped P p1 q Q"
+          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m = embedding True"
+  shows "rhoare_untyped P (IfTE e p1 p2) q Q"
+  using assms unfolding rhoare_untyped_def by auto
+
+lemma iffalse_rule_left:
+  fixes P Q I c p1 p2
+  assumes "rhoare_untyped P p2 q Q"
+          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m \<noteq> embedding True"
+  shows "rhoare_untyped P (IfTE e p1 p2) q Q"
+  using assms unfolding rhoare_untyped_def by auto
+
+lemma iftrue_rule_right:
+  fixes P Q I c p1 p2
+  assumes "rhoare_untyped P q p1 Q"
+          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m' = embedding True"
+  shows "rhoare_untyped P q (IfTE e p1 p2) Q"
+  using assms unfolding rhoare_untyped_def by auto
+
+lemma iffalse_rule_right:
+  fixes P Q I c p1 p2
+  assumes "rhoare_untyped P q p2 Q"
+          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m' \<noteq> embedding True"
+  shows "rhoare_untyped P q (IfTE e p1 p2) Q"
+  using assms unfolding rhoare_untyped_def by auto
+
+lemma iffalse_rule_both:
+  assumes "rhoare_untyped P p2 p2' Q"
+          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m \<noteq> embedding True \<and> eu_fun e' m' \<noteq> embedding True"
+  shows "rhoare_untyped P (IfTE e p1 p2) (IfTE e' p1' p2') Q"
+apply (rule iffalse_rule_right)
+apply (rule iffalse_rule_left)
+using assms by auto
+
+
+lemma iftrue_rule_both:
+  assumes "rhoare_untyped P p1 p1' Q"
+          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m = embedding True \<and> eu_fun e' m' = embedding True"
+  shows "rhoare_untyped P (IfTE e p1 p2) (IfTE e' p1' p2') Q"
+apply (rule iftrue_rule_right)
+apply (rule iftrue_rule_left)
+using assms by auto
+
+lemma rif_rule:
+  assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow> eu_fun e1 m1 = eu_fun e2 m2"
+  assumes "rhoare_untyped (\<lambda>m1 m2. P m1 m2 \<and> eu_fun e1 m1 = embedding True \<and> eu_fun e2 m2 = embedding True) then1 then2 Q"
+  assumes "rhoare_untyped (\<lambda>m1 m2. P m1 m2 \<and> eu_fun e1 m1 \<noteq> embedding True \<and> eu_fun e2 m2 \<noteq> embedding True) else1 else2 Q"
+  shows "rhoare_untyped P (IfTE e1 then1 else1) (IfTE e2 then2 else2) Q"
+apply (rule rcase_rule[where f="\<lambda>m1 m2. eu_fun e1 m1 = embedding True"], rename_tac b, case_tac b)
+ apply (rule iftrue_rule_both)
+  close (rule rconseq_rule[OF _ _ assms(2)]; auto simp: assms(1))
+ using assms(1) close auto
+apply (rule iffalse_rule_both)
+ close (rule rconseq_rule[OF _ _ assms(3)]; auto simp: assms(1))
+using assms(1) by auto
+
+lemma rwhile_rule:
+  assumes hoare: "rhoare_untyped (\<lambda>m1 m2. I m1 m2 \<and> eu_fun e1 m1 = embedding True) p1 p2 I"
+      and PI: "\<And>m1 m2. P m1 m2 \<Longrightarrow> I m1 m2"
+      and Ieq: "\<And>m1 m2. I m1 m2 \<Longrightarrow> eu_fun e1 m1 = eu_fun e2 m2"
+      and IQ: "\<And>m1 m2. eu_fun e1 m1 \<noteq> embedding True \<Longrightarrow> I m1 m2 \<Longrightarrow> Q m1 m2"
+  shows "rhoare_untyped P (While e1 p1) (While e2 p2) Q"
+SORRY
 
 lemma rseq_rule_denotation: 
   assumes PcQ: "rhoare_denotation P c1 c2 Q"
@@ -415,81 +482,208 @@ using assms by auto
 lemma obs_eq_untyped_sym: 
   assumes "obs_eq_untyped X Y c d"
   shows "obs_eq_untyped X Y d c"
-SORRY
+unfolding obs_eq_untyped_def
+apply (rule rsymmetric_rule)
+apply (subst (1) eq_commute)
+apply (subst (2) eq_commute)
+using assms unfolding obs_eq_untyped_def by assumption
 
-
-lemma self_obseq_vars:
-  assumes "set(vars_untyped c) \<subseteq> X"
-  assumes "Y \<subseteq> X"
-  shows "obs_eq_untyped X Y c c"
-SORRY
-
+(* TODO remove? (coro of self_obseq_vars)*)
 lemma self_obseq_assign:
   assumes "set (eu_vars e) \<subseteq> X"
   assumes "Y \<subseteq> X\<union>set(p_vars pat)"
   shows "obs_eq_untyped X Y (Assign pat e) (Assign pat e)"
 SORRY
 
-(*
-fun assign_local_vars :: "variable_untyped list \<Rightarrow> variable_untyped list \<Rightarrow> expression_untyped list \<Rightarrow> program_rep" where
-  "assign_local_vars [] [] [] = Skip"
-| "assign_local_vars locals (v#vs) (e#es) = Seq (assign_local_vars locals vs es) (Assign (pattern_1var v) e)"
-| "assign_local_vars (x#locals) [] [] = Seq (assign_local_vars locals [] [])
-        (Assign (pattern_1var x) (const_expression_untyped (vu_type x) (t_default (vu_type x))))"
-| "assign_local_vars locals [] (e#es) = assign_local_vars locals [] []"
-| "assign_local_vars locals (v#vs) [] = assign_local_vars locals [] []"
-*)
+(* TODO remove? (coro of self_obseq_vars) *)
+lemma self_obseq_sample:
+  assumes "set (ed_vars e) \<subseteq> X"
+  assumes "Y \<subseteq> X\<union>set(p_vars pat)"
+  shows "obs_eq_untyped X Y (Sample pat e) (Sample pat e)"
+SORRY
 
-(*
-definition "assign_local_vars (locals::variable_untyped list) vs es = 
-  fold (\<lambda>(x,e) p. Seq p (Assign x e)) (zip vs es)
-  (fold (\<lambda>x p. Seq p (Assign x (const_expression_untyped (vu_type x) (t_default (vu_type x))))) 
-  locals Skip)"
-*)
+lemma obseq_mono1: 
+  assumes "X' \<ge> X"
+  assumes "obs_eq_untyped X Y c d"
+  shows "obs_eq_untyped X' Y c d"
+by (smt assms(1) assms(2) obs_eq_untyped_def rconseq_rule rev_subsetD)
 
-(*
-lemma well_typed_assign_local_vars:
-  assumes "map vu_type vs = map eu_type es"
-  shows "well_typed (assign_local_vars locals vs es)"
+lemma obseq_mono2: 
+  assumes "Y' \<le> Y"
+  assumes "obs_eq_untyped X Y c d"
+  shows "obs_eq_untyped X Y' c d"
+by (smt assms(1) assms(2) in_mono obs_eq_untyped_def rhoare_untyped_def)
+
+lemma self_obseq_vars:
+  assumes vars: "set(vars_untyped c) \<subseteq> X"
+  assumes YX: "Y \<subseteq> X"
+  shows "obs_eq_untyped X Y c c"
 proof -
-  have wt_nil: "well_typed (assign_local_vars locals [] [])"
-    apply (induction locals)
-    by (auto simp: eu_type_const_expression_untyped)
-  have vs_es_type: "\<forall>(v,e)\<in>set (zip vs es). eu_type e = vu_type v"
-    using assms[unfolded list_eq_iff_zip_eq] unfolding zip_map_map by auto
-  show "well_typed (assign_local_vars locals vs es)"
-    apply (insert vs_es_type)
-    apply (induction vs es rule:list_induct2') 
-    using wt_nil by auto
+  fix x p a
+  have "set(vars_untyped c) \<subseteq> X \<Longrightarrow> obs_eq_untyped X X c c"
+   and "set(vars_untyped (CallProc x p a)) \<subseteq> X
+        \<Longrightarrow> obs_eq_untyped X X (CallProc x p a) (CallProc x p a)"
+  proof (induct c and p arbitrary: X and X x a)
+  case Assign show ?case
+    apply (rule self_obseq_assign)
+    using Assign by auto
+  next case Sample show ?case
+    apply (rule self_obseq_sample)
+    using Sample by auto
+  next case Seq thus ?case
+    by (smt Un_upper2 dual_order.trans obs_eq_untyped_def rseq_rule set_append sup_ge1 vars_untyped.simps(2))
+  next case Skip thus ?case
+    using obs_eq_untyped_def rskip_rule by auto
+  next case (IfTE b c1 c2)
+    have "set (vars_untyped c1) \<subseteq> X"
+      using IfTE.prems by auto
+    hence rh_c1: "rhoare_untyped (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) c1 c1
+                          (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)"
+      using IfTE.hyps unfolding obs_eq_untyped_def by blast
+    have "set (vars_untyped c2) \<subseteq> X"
+      using IfTE.prems by auto
+    hence rh_c2: "rhoare_untyped (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) c2 c2
+                          (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)"
+      using IfTE.hyps unfolding obs_eq_untyped_def by blast
+    show ?case
+      unfolding obs_eq_untyped_def
+      apply (rule rif_rule) 
+        close (metis IfTE.prems Un_upper1 eu_fun_footprint set_append subsetCE vars_untyped.simps(5)) 
+       close (rule rconseq_rule[OF _ _ rh_c1]; simp)
+      by (rule rconseq_rule[OF _ _ rh_c2]; simp)
+  next case (While b c X)
+    let ?I = "\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+    have rh: "rhoare_untyped (\<lambda>m1 m2. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) \<and> eu_fun b m1 = embedding True) c c
+     (\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)"
+      apply (rule rconseq_rule[rotated -1])
+        using While unfolding obs_eq_untyped_def by auto
+    show ?case
+      unfolding obs_eq_untyped_def
+      apply (rule rwhile_rule[where I="?I"])
+         close (fact rh)
+        apply auto
+      by (metis (full_types) While.prems eu_fun_footprint set_append set_rev_mp sup_ge1 vars_untyped.simps(6))
+  next case CallProc thus ?case by blast 
+  next case (Proc body args ret) 
+    def X' == "X \<union> {x. \<not> vu_global x}"
+    have bodyX: "set (vars_untyped body) \<subseteq> X'"
+      using Proc.prems X'_def by auto
+    hence eq_body: "obs_eq_untyped X' X' body body"
+      using Proc.hyps by simp
+    have retX: "set (eu_vars ret) \<subseteq> X'"
+      using Proc.prems X'_def by auto
+    have argsX: "set (pu_vars args) \<subseteq> X'"
+      unfolding X'_def using Proc.prems by auto
+    have xX: "set (pu_vars x) \<subseteq> X"
+      using Proc.prems by auto
+
+    have deneq: "\<And>m1 m2. (\<And>x. x\<in>X \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) \<Longrightarrow>
+            (\<exists>\<mu>. apply_to_distr fst \<mu> = denotation_untyped (CallProc x (Proc body args ret) a) m1 \<and>
+                  apply_to_distr snd \<mu> = denotation_untyped (CallProc x (Proc body args ret) a) m2 \<and>
+                  (\<forall>m1' m2'. (m1', m2') \<in> support_distr \<mu> \<longrightarrow> (\<forall>x\<in>X. memory_lookup_untyped m1' x = memory_lookup_untyped m2' x)))"
+    proof -
+      fix m1 m2 assume eq: "\<And>x. x\<in>X \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+      def d1 == "denotation_untyped (CallProc x (Proc body args ret) a) m1"
+      def d2 == "denotation_untyped (CallProc x (Proc body args ret) a) m2"
+
+      def argval == "eu_fun a m1"
+      def m'1 == "init_locals m1"
+      def m''1 == "memory_update_untyped_pattern m'1 args argval"
+      def post1 == "\<lambda>m'. let res = eu_fun ret m'; m' = restore_locals m1 m' in memory_update_untyped_pattern m' x res"
+      have d1: "d1 = apply_to_distr post1 (denotation_untyped body m''1)"
+        unfolding d1_def denotation_untyped_CallProc m''1_def argval_def m'1_def post1_def by simp
+
+      have argval2: "argval = eu_fun a m2"
+        using eq unfolding argval_def 
+        apply (rule Lang_Untyped.eu_fun_footprint)
+        using Proc.prems by auto
+      def m'2 == "init_locals m2"
+      def m''2 == "memory_update_untyped_pattern m'2 args argval"
+      def post2 == "(\<lambda>m'. let res = eu_fun ret m'; m' = restore_locals m2 m' in memory_update_untyped_pattern m' x res)"
+      have d2: "d2 = apply_to_distr post2 (denotation_untyped body m''2)"
+        unfolding d2_def denotation_untyped_CallProc m''2_def argval2 m'2_def post2_def by simp
+
+      have m'eq: "\<And>x. x\<in>X' \<Longrightarrow> memory_lookup_untyped m'1 x = memory_lookup_untyped m'2 x"
+        unfolding X'_def m'1_def m'2_def Rep_init_locals using eq by auto
+
+      hence m''eq: "\<And>x. x\<in>X' \<Longrightarrow> memory_lookup_untyped m''1 x = memory_lookup_untyped m''2 x"
+        unfolding m''1_def m''2_def
+        apply (rule memory_update_untyped_pattern_footprint[where X=X'])
+        using argsX by auto 
+
+      obtain \<mu>0 where \<mu>0fst: "apply_to_distr fst \<mu>0 = denotation_untyped body m''1" and
+                      \<mu>0snd: "apply_to_distr snd \<mu>0 = denotation_untyped body m''2" and
+                      \<mu>0eq: "\<And>m1' m2'. (m1', m2') \<in> support_distr \<mu>0 \<Longrightarrow> (\<forall>x\<in>X'. memory_lookup_untyped m1' x = memory_lookup_untyped m2' x)"
+        apply atomize_elim
+        apply (rule eq_body[unfolded obs_eq_untyped_def rhoare_untyped_rhoare_denotation rhoare_denotation_def, rule_format])
+        by (rule m''eq)
+
+      def \<mu> == "apply_to_distr (\<lambda>(m1,m2). (post1 m1, post2 m2)) \<mu>0"
+      have \<mu>d1: "apply_to_distr fst \<mu> = d1"
+        unfolding \<mu>_def d1 \<mu>0fst[symmetric] apply simp
+        apply (rule apply_to_distr_cong) by auto
+      have \<mu>d2: "apply_to_distr snd \<mu> = d2"
+        unfolding \<mu>_def d2 \<mu>0snd[symmetric] apply simp
+        apply (rule apply_to_distr_cong) by auto
+
+      have eq_after: "\<And>m1' m2' x. (m1', m2') \<in> support_distr \<mu> \<Longrightarrow> x\<in>X \<Longrightarrow> memory_lookup_untyped m1' x = memory_lookup_untyped m2' x"
+      proof - 
+        fix m1' m2' assume "(m1', m2') \<in> support_distr \<mu>"
+        then obtain m1'' m2'' where supp'': "(m1'',m2'')\<in>support_distr \<mu>0" and m1'': "m1'=post1 m1''" and m2'': "m2'=post2 m2''"
+          unfolding \<mu>_def by auto
+        from supp'' have eq'': "\<And>x. x\<in>X' \<Longrightarrow> memory_lookup_untyped m1'' x = memory_lookup_untyped m2'' x"
+          using \<mu>0eq by blast
+        def res == "eu_fun ret m1''"
+        have res2: "res = eu_fun ret m2''"
+          unfolding res_def apply (rule eu_fun_footprint) using retX eq'' by auto
+        def m1a == "restore_locals m1 m1''"
+        def m2a == "restore_locals m2 m2''"
+        have m1a: "m1' = memory_update_untyped_pattern m1a x res"
+          by (simp add: m1'' m1a_def post1_def res_def)
+        have m2a: "m2' = memory_update_untyped_pattern m2a x res"
+          by (simp add: m2'' m2a_def post2_def res2)
+        have eqa: "\<And>x. x\<in>X \<Longrightarrow> memory_lookup_untyped m1a x = memory_lookup_untyped m2a x"
+          unfolding m1a_def m2a_def Rep_restore_locals using eq eq'' X'_def by auto
+        show "\<And>x. x\<in>X \<Longrightarrow> memory_lookup_untyped m1' x = memory_lookup_untyped m2' x"
+          unfolding m1a m2a apply (rule memory_update_untyped_pattern_footprint[where X=X])
+          using xX eqa by auto
+      qed
+
+      show "\<exists>\<mu>. apply_to_distr fst \<mu> = d1 \<and> apply_to_distr snd \<mu> = d2 \<and>
+                (\<forall>m1' m2'. (m1', m2') \<in> support_distr \<mu> \<longrightarrow> (\<forall>x\<in>X. memory_lookup_untyped m1' x = memory_lookup_untyped m2' x))"
+        apply (rule exI[of _ \<mu>]) using \<mu>d1 \<mu>d2 eq_after by auto
+    qed
+    show ?case
+      unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation rhoare_denotation_def
+      using deneq by auto
+  next case ProcRef show ?case
+    unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation
+    unfolding denotation_untyped_CallProc_bad[THEN ext]
+    by simp
+  next case ProcAbs show ?case 
+    unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation
+    unfolding denotation_untyped_CallProc_bad[THEN ext]
+    by simp
+  next case ProcAppl show ?case 
+    unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation
+    unfolding denotation_untyped_CallProc_bad[THEN ext]
+    by simp
+  next case ProcPair show ?case 
+    unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation
+    unfolding denotation_untyped_CallProc_bad[THEN ext]
+    by simp
+  next case ProcUnpair show ?case 
+    unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation
+    unfolding denotation_untyped_CallProc_bad[THEN ext]
+    by simp
+  qed
+  hence "obs_eq_untyped X X c c"
+    using vars by simp
+  with YX show ?thesis
+    by (rule obseq_mono2)
 qed
-*)
 
-(* lemma foldr_commute:  (* TODO used? *)
-  assumes "\<And>x y. f (g x y) = g' x (f y)"
-  shows "f (foldr g l a) = foldr g' l (f a)"
-    apply (induction l)
-    using assms by auto
-lemma foldl_commute: 
-  assumes "\<And>x y. f (g x y) = g' (f x) y"
-  shows "f (foldl g a l) = foldl g' (f a) l"
-    apply (induction l rule:rev_induct)
-    using assms by auto
- *)
 
-(* lemma foldr_o:  (* TODO used? *)
-  shows "(foldr (\<lambda>x. op o (f x)) l a) m = foldr f l (a m)"
-  by (induction l, auto)
- *)
-(* TODO need? *)
-(* lemma zip_hd: 
-  assumes "(a, b) # x = zip as bs"
-  shows "as = a#tl as" and "bs = b#tl bs"
-apply (insert assms)
-apply (induction bs, auto)
-apply (metis list.exhaust list.sel(1) list.sel(3) prod.sel(1) zip_Cons_Cons zip_Nil)
-apply (induction bs arbitrary: as, auto)
-by (metis Pair_inject list.distinct(2) list.exhaust list.inject zip_Cons_Cons zip_Nil)
- *)
 definition "assign_default = foldl (\<lambda>p v. Seq p (Assign (pattern_1var v) 
                       (const_expression_untyped (vu_type v) (t_default (vu_type v))))) Skip"
 
@@ -853,35 +1047,6 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
         apply_to_distr (\<lambda>m x. if x \<in> V then memory_lookup_untyped m x else undefined) (denotation_untyped unfolded m2)" 
     unfolding eq_def by simp
 qed
-
-
-lemma iftrue_rule_left:
-  fixes P Q I c p1 p2
-  assumes "rhoare_untyped P p1 q Q"
-          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m = embedding True"
-  shows "rhoare_untyped P (IfTE e p1 p2) q Q"
-  using assms unfolding rhoare_untyped_def by auto
-
-lemma iffalse_rule_left:
-  fixes P Q I c p1 p2
-  assumes "rhoare_untyped P p2 q Q"
-          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m \<noteq> embedding True"
-  shows "rhoare_untyped P (IfTE e p1 p2) q Q"
-  using assms unfolding rhoare_untyped_def by auto
-
-lemma iftrue_rule_right:
-  fixes P Q I c p1 p2
-  assumes "rhoare_untyped P q p1 Q"
-          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m' = embedding True"
-  shows "rhoare_untyped P q (IfTE e p1 p2) Q"
-  using assms unfolding rhoare_untyped_def by auto
-
-lemma iffalse_rule_right:
-  fixes P Q I c p1 p2
-  assumes "rhoare_untyped P q p2 Q"
-          "\<forall>m m'. P m m' \<longrightarrow> eu_fun e m' \<noteq> embedding True"
-  shows "rhoare_untyped P q (IfTE e p1 p2) Q"
-  using assms unfolding rhoare_untyped_def by auto
 
 
 
