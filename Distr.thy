@@ -679,7 +679,7 @@ lemma Rep_compose_distr: "Rep_distr (compose_distr f \<mu>) b =
 
 definition apply_to_distr :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
   "apply_to_distr f \<mu> = Abs_distr (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
-lemma ereal_Rep_apply_to_distr [simp]: "ereal_Rep_distr (apply_to_distr f \<mu>) b
+lemma ereal_Rep_apply_to_distr: "ereal_Rep_distr (apply_to_distr f \<mu>) b
   = (\<integral>\<^sup>+a. ereal_Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV)"
 proof -
   def d == "\<lambda>x. ereal (Rep_distr \<mu> x)"
@@ -745,7 +745,7 @@ proof -
   have "ereal_probability (apply_to_distr f \<mu>) E
       = (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ xa. ereal_Rep_distr \<mu> xa * indicator {f xa} x * indicator E x \<partial>count_space UNIV) \<partial>count_space UNIV)"
     unfolding ereal_probability_def
-    apply (subst nn_integral_multc) by auto
+    apply (subst nn_integral_multc) by (auto simp: ereal_Rep_apply_to_distr)
   also have "\<dots> = (\<integral>\<^sup>+ xa. (\<integral>\<^sup>+ x. ereal_Rep_distr \<mu> xa * indicator E x * indicator {f xa} x \<partial>count_space UNIV) \<partial>count_space UNIV)"
     apply (subst Fubini_count_space)
     by (smt ereal_zero_times indicator_def nn_integral_cong)
@@ -960,7 +960,7 @@ proof (subst Rep_distr_inject[symmetric], rule ext)
 
   have "ereal_Rep_distr (apply_to_distr fst (product_distr \<mu> \<nu>)) x0
       = (\<integral>\<^sup>+ xy. ereal_Rep_distr (product_distr \<mu> \<nu>) xy * indicator {fst xy} x0 \<partial>count_space UNIV)"
-    by simp
+    by (simp add: ereal_Rep_apply_to_distr)
   also have "\<dots> = (\<integral>\<^sup>+ x. \<integral>\<^sup>+ y. ereal_Rep_distr (product_distr \<mu> \<nu>) (x,y) * indicator {x} x0 \<partial>count_space UNIV \<partial>count_space UNIV)"
     by (subst nn_integral_fst_count_space[symmetric], simp)
   also have "\<dots> = (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. (ereal_Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV) * indicator {x} x0 \<partial>count_space UNIV)"
@@ -1023,16 +1023,24 @@ qed
 definition uniform :: "'a set \<Rightarrow> 'a distr" where
   "uniform S = Abs_distr (\<lambda>x. if x \<in> S then 1/(card S) else 0)"
 
+definition "markov_chain_combine \<mu>1 \<mu>2 = ereal_Abs_distr (\<lambda>(x,y,z). ereal_Rep_distr \<mu>1 (x,y) * ereal_Rep_distr \<mu>2 (y,z) / ereal_Rep_distr (apply_to_distr snd \<mu>1) y)"
 
-lemma markov_chain:
+lemma markov_chain_combine_all:
   assumes "apply_to_distr snd \<mu>1 = apply_to_distr fst \<mu>2"
-  obtains \<mu> where "apply_to_distr (\<lambda>(x::'a,y::'b,z::'c). (x,y)) \<mu> = \<mu>1" 
-              and "apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu> = \<mu>2"
-proof
-  def mid == "apply_to_distr snd \<mu>1"
+  defines "\<mu> == markov_chain_combine \<mu>1 \<mu>2"
+  defines "mid == apply_to_distr snd \<mu>1"
+  defines "f == (\<lambda>(x,y,z). ereal_Rep_distr \<mu>1 (x,y) * ereal_Rep_distr \<mu>2 (y,z) / ereal_Rep_distr mid y)"
+  shows "apply_to_distr (\<lambda>(x::'a,y::'b,z::'c). (x,y)) \<mu> = \<mu>1" 
+    and "apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu> = \<mu>2"
+    and "ereal_Rep_distr (markov_chain_combine \<mu>1 \<mu>2) = f"
+proof -
+  note ereal_Rep_apply_to_distr[simp add]
+
   have mid_def2: "mid = apply_to_distr fst \<mu>2" using assms mid_def by simp
-  def f == "(\<lambda>(x,y,z). ereal_Rep_distr \<mu>1 (x,y) * ereal_Rep_distr \<mu>2 (y,z) / ereal_Rep_distr mid y)"
-  def \<mu> == "ereal_Abs_distr f"
+  (* def f == "(\<lambda>(x,y,z). ereal_Rep_distr \<mu>1 (x,y) * ereal_Rep_distr \<mu>2 (y,z) / ereal_Rep_distr mid y)" *)
+  (* def \<mu> == "markov_chain_combine \<mu>1 \<mu>2" *)
+  have \<mu>_def': "\<mu> = ereal_Abs_distr f"
+    unfolding \<mu>_def markov_chain_combine_def f_def mid_def by simp
   have f2: "\<And>x y z. f (x,y,z) = (ereal_Rep_distr \<mu>1 (x,y)) * ((1 / ereal_Rep_distr mid y) * (ereal_Rep_distr \<mu>2 (y,z)))"
     unfolding f_def by (simp add: ereal_times_divide_eq)
   have f3: "\<And>x y z. f (x,y,z) = (ereal_Rep_distr \<mu>2 (y,z)) * ((1 / ereal_Rep_distr mid y) * (ereal_Rep_distr \<mu>1 (x,y)))"
@@ -1109,7 +1117,7 @@ proof
   finally have leq1: "(\<integral>\<^sup>+xyz. (f xyz) \<partial>count_space UNIV) \<le> 1" by assumption
 
   have Rep_\<mu>: "ereal_Rep_distr \<mu> = f"
-    unfolding \<mu>_def apply (subst ereal_Abs_distr_inverse) 
+    unfolding \<mu>_def' apply (subst ereal_Abs_distr_inverse) 
     using leq1 by (auto simp: f_def)
 
   {fix x0 y0
@@ -1151,6 +1159,42 @@ proof
     apply (subst ereal_Rep_distr_inject[symmetric])
     apply (rule_tac ext, rename_tac xy0, case_tac xy0)
     by metis
+
+  show "ereal_Rep_distr (markov_chain_combine \<mu>1 \<mu>2) = f"
+    using Rep_\<mu> \<mu>_def by auto
+qed
+
+lemma markov_chain:
+  assumes "apply_to_distr snd \<mu>1 = apply_to_distr fst \<mu>2"
+  defines "\<mu> == markov_chain_combine \<mu>1 \<mu>2"
+  shows "apply_to_distr (\<lambda>(x::'a,y::'b,z::'c). (x,y)) \<mu> = \<mu>1" 
+    and "apply_to_distr (\<lambda>(x,y,z). (y,z)) \<mu> = \<mu>2"
+using assms markov_chain_combine_all by auto
+
+lemma ereal_Rep_markov_chain: 
+  assumes "apply_to_distr snd \<mu>1 = apply_to_distr fst \<mu>2"
+  defines "\<mu> == markov_chain_combine \<mu>1 \<mu>2"
+  defines "mid == apply_to_distr snd \<mu>1"
+  defines "f == (\<lambda>(x,y,z). ereal_Rep_distr \<mu>1 (x,y) * ereal_Rep_distr \<mu>2 (y,z) / ereal_Rep_distr mid y)"
+  shows "ereal_Rep_distr (markov_chain_combine \<mu>1 \<mu>2) = f"
+unfolding assms(2-4) using assms(1) by (rule markov_chain_combine_all(3))
+
+lemma markov_chain_support:
+  assumes eq: "apply_to_distr snd \<mu>1 = apply_to_distr fst \<mu>2"
+  assumes supp: "(x,y,z) \<in> support_distr (markov_chain_combine \<mu>1 \<mu>2)"
+  shows "(x,y) \<in> support_distr \<mu>1"
+    and "(y,z) \<in> support_distr \<mu>2"
+proof -
+  show "(x,y) \<in> support_distr \<mu>1"
+    using supp unfolding support_distr_def' 
+    apply (subst (asm) ereal_Rep_markov_chain)
+      apply (fact eq)
+    using less_eq_ereal_def by force
+  show "(y,z) \<in> support_distr \<mu>2"
+    using supp unfolding support_distr_def' 
+    apply (subst (asm) ereal_Rep_markov_chain)
+      apply (fact eq)
+    using less_eq_ereal_def by force
 qed
 
 lemma compose_distr_cong: 
@@ -1232,7 +1276,7 @@ proof -
     using inc unfolding mono_def less_eq_distr_def' le_fun_def
     by auto
   have move_SUP: "ereal_Rep_distr (apply_to_distr f (SUP x. \<mu> x)) = (SUP i. ereal_Rep_distr (apply_to_distr f (\<mu> i)))"
-    apply (rule ext) apply simp
+    apply (rule ext) apply (simp add: ereal_Rep_apply_to_distr)
     apply (subst nn_integral_monotone_convergence_SUP[symmetric])
       close (fact inc'') close simp
     apply (subst ereal_Rep_SUP_distr)

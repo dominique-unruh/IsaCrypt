@@ -262,6 +262,43 @@ definition memory_update_untyped_pattern :: "memory \<Rightarrow> pattern_untype
   "memory_update_untyped_pattern m p x = 
   foldl (\<lambda>m (v,f). memory_update_untyped m v (f x)) m (pu_var_getters p)"
 
+lemma memory_update_untyped_footprint:
+  assumes "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
+  assumes "w \<in> X"
+  shows   "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m1 w x) v = memory_lookup_untyped (memory_update_untyped m2 w x) v"
+by (simp add: assms(1) memory_lookup_update_untyped)
+
+lemma memory_update_untyped_pattern_footprint:
+  assumes "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
+  assumes "X \<supseteq> set (pu_vars pat)"
+  shows   "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped_pattern m1 pat x) v = memory_lookup_untyped (memory_update_untyped_pattern m2 pat x) v"
+proof -
+  fix v
+  def getters == "pu_var_getters pat"
+  have "\<And>gv gs. (gv,gs)\<in>set getters \<Longrightarrow> gv \<in> set (pu_vars pat)" 
+    unfolding getters_def pu_vars_def by force
+  hence gvX: "\<And>gv gs. (gv,gs)\<in>set getters \<Longrightarrow> gv \<in> X"
+    using assms(2) by auto
+  show "v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped_pattern m1 pat x) v = memory_lookup_untyped (memory_update_untyped_pattern m2 pat x) v"
+    unfolding memory_update_untyped_pattern_def getters_def[symmetric]
+  proof (insert gvX, induct getters arbitrary: v rule:rev_induct)
+  case Nil thus ?case using assms(1) by simp
+  next case (snoc g gs)
+    obtain gv gf where g:"g = (gv,gf)" by force
+    have gvX: "gv \<in> X" using snoc.prems g by auto
+    have gs: "\<And>gv gf. (gv, gf) \<in> set gs \<Longrightarrow> gv \<in> X"
+      using snoc.prems(2) by force
+    have eq: "\<And>v. v \<in> X \<Longrightarrow>
+         memory_lookup_untyped (foldl (\<lambda>m (v, f). memory_update_untyped m v (f x)) m1 gs) v =
+         memory_lookup_untyped (foldl (\<lambda>m (v, f). memory_update_untyped m v (f x)) m2 gs) v"
+     using snoc.hyps gs by auto
+    show ?case 
+      unfolding g apply simp
+      apply (rule memory_update_untyped_footprint[where X=X])
+      using snoc gvX eq by simp_all
+  qed
+qed
+
 lemma memory_lookup_update_pattern_notsame:
   assumes "x \<notin> set (pu_vars p)"
   shows "memory_lookup_untyped (memory_update_untyped_pattern m p a) x = memory_lookup_untyped m x"
@@ -1021,7 +1058,7 @@ proof -
         show "(ereal_Rep_distr (denotation_untyped (IfTE e p1 p2) m) m') =
           (ereal_Rep_distr (apply_to_distr (rename_variables_memory (inv f))
           (denotation_untyped (rename_variables (inv f) (IfTE e p1 p2)) (rename_variables_memory f m))) m')"
-          apply (simp add: True1 True2)
+          apply (simp add: ereal_Rep_apply_to_distr True1 True2)
           apply (subst ind)
           apply (subst nn_integral_singleton_indicator_countspace)
           apply auto
@@ -1036,7 +1073,7 @@ proof -
         show "ereal_Rep_distr (denotation_untyped (IfTE e p1 p2) m) m' =
           ereal_Rep_distr (apply_to_distr (rename_variables_memory (inv f))
           (denotation_untyped (rename_variables (inv f) (IfTE e p1 p2)) (rename_variables_memory f m))) m'"
-          apply (simp add: False1 False2)
+          apply (simp add: ereal_Rep_apply_to_distr False1 False2)
           apply (subst ind)
           apply (subst nn_integral_singleton_indicator_countspace)
           apply auto

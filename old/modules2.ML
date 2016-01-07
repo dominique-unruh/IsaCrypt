@@ -1,3 +1,4 @@
+(* -*- mode: sml;-*- *)
 structure Modules =
 struct
 
