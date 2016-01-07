@@ -1,6 +1,0 @@
-docker rm -v $(docker ps -a -q)
-docker images | grep "<none>" | awk '{print $3}' | xargs docker rmi
-echo =============
-docker ps -a
-echo -------------
-docker images
