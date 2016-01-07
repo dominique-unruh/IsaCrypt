@@ -7,4 +7,4 @@ before_install:
 - docker pull unruh/isabelle:multivariate
 
 script:
-- docker run isabelle build -d . IsaCrypt
+- docker run -v "$PWD:/home/user/data" unruh/isabelle:multivariate build  -d . IsaCrypt
