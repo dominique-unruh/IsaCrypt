@@ -14,5 +14,7 @@ install:
 - pip install pyro4 serpent
 
 script:
+- touch test.tmp # Checking for write access in current dir
+- test -e test.tmp
 - make test_with_docker
 #- docker run -v "$PWD:/home/user/data" unruh/isabelle:isacrypt-prereqs isabelle build -d . IsaCrypt-Nodocs
