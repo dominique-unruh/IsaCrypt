@@ -59,7 +59,7 @@ fun trivial_procedure_info (ctx:Proof.context) (p:term) : procedure_info =
   | procedure_head_of _ (Free _) = error "procedure_head_of Free"
   | procedure_head_of _ (Bound _) = error "procedure_head_of Bound" *)
 
-fun assert_procedure_info_complete ctx ({args=_,body=_,body_local_vars, pattern=_, return=_, return_vars,global_write_vars,global_vars} : procedure_info) = 
+fun assert_procedure_info_complete ctx ({args=_,body=_,body_local_vars, pattern=_, return=_, return_vars,global_write_vars=_,global_vars=_} : procedure_info) = 
   let fun is_string_literal n = (HOLogic.dest_string n; true) handle TERM _ => false
       fun is_var (v as (Const(@{const_name mk_variable_untyped},_) $ (Const(@{const_name LVariable},_) $ n))) =
               if is_string_literal n then () else error ("Not a variable: "^Syntax.string_of_term ctx v)
@@ -74,8 +74,8 @@ fun assert_procedure_info_complete ctx ({args=_,body=_,body_local_vars, pattern=
         | is_varset_thm (SOME thm) = is_varset (rhs thm)
       val _ = is_varset_thm body_local_vars
       val _ = is_varset_thm return_vars
-      val _ = is_varset_thm global_write_vars
-      val _ = is_varset_thm global_vars
+      (* val _ = is_varset_thm global_write_vars *)
+      (* val _ = is_varset_thm global_vars *)
   in ()
   end
 
