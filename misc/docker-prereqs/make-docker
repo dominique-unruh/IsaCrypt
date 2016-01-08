@@ -6,6 +6,6 @@ if ! cmp ROOT ../../ROOT; then
     cp ../../ROOT .
 fi
 
-docker build -t unruh/isacrypt:prereqs .
+docker build -t unruh/isabelle:isacrypt-prereqs .
 
-docker push unruh/isacrypt:prereqs
+docker push unruh/isabelle:isacrypt-prereqs
