@@ -495,6 +495,12 @@ lemma denotation_untyped_assoc: "denotation_untyped (Seq (Seq x y) z) = denotati
   unfolding denotation_untyped_Seq[THEN ext] 
   unfolding compose_distr_assoc ..
 
+lemma denotation_Seq_Skip1 [simp]: "denotation_untyped (Seq Skip c) = denotation_untyped c"
+  by auto
+lemma denotation_Seq_Skip2 [simp]: "denotation_untyped (Seq c Skip) = denotation_untyped c"
+  unfolding denotation_untyped_Seq[THEN ext] denotation_untyped_Skip[THEN ext] 
+  by auto
+
 subsection {* Misc (free vars, lossless) *}
 
 fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 

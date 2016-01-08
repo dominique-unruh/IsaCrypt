@@ -488,19 +488,12 @@ apply (subst (1) eq_commute)
 apply (subst (2) eq_commute)
 using assms unfolding obs_eq_untyped_def by assumption
 
-(* TODO remove? (coro of self_obseq_vars)*)
-lemma self_obseq_assign:
-  assumes "set (eu_vars e) \<subseteq> X"
-  assumes "Y \<subseteq> X\<union>set(p_vars pat)"
-  shows "obs_eq_untyped X Y (Assign pat e) (Assign pat e)"
-SORRY
-
-(* TODO remove? (coro of self_obseq_vars) *)
+(* (* TODO remove? (coro of self_obseq_vars) *)
 lemma self_obseq_sample:
   assumes "set (ed_vars e) \<subseteq> X"
   assumes "Y \<subseteq> X\<union>set(p_vars pat)"
   shows "obs_eq_untyped X Y (Sample pat e) (Sample pat e)"
-SORRY
+SORRY *)
 
 lemma obseq_mono1: 
   assumes "X' \<ge> X"
@@ -514,6 +507,27 @@ lemma obseq_mono2:
   shows "obs_eq_untyped X Y' c d"
 by (smt assms(1) assms(2) in_mono obs_eq_untyped_def rhoare_untyped_def)
 
+lemma self_obseq_assign:
+  assumes "set (eu_vars e) \<subseteq> X"
+  assumes "Y \<subseteq> X\<union>set(pu_vars x)"
+  shows "obs_eq_untyped X Y (Assign x e) (Assign x e)"
+proof -
+  def eq == "\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  def eqY == "\<lambda>m1 m2. \<forall>x\<in>Y. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  have em1m2: "\<And>m1 m2. eq m1 m2 \<Longrightarrow> eu_fun e m1 = eu_fun e m2"
+    by (meson assms(1) eu_fun_footprint local.eq_def subsetCE)
+  have eqYupd: "\<And>m1 m2 z. eqY (memory_update_untyped_pattern m1 x z) (memory_update_untyped_pattern m2 x z)" SORRY
+  have "rhoare_untyped eq (Seq (Assign x e) Skip) (Seq Skip (Assign x e)) eqY"
+    apply (rule rseq_rule[rotated])
+     unfolding eq_def close (rule rassign_rule2, rule allI, rule allI, rule imp_refl)
+    apply (rule rassign_rule1, auto)
+    apply (subst em1m2)
+     unfolding eq_def close assumption
+    using eqYupd by assumption 
+  thus ?thesis
+    unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation eq_def eqY_def by simp
+qed
+
 lemma self_obseq_vars:
   assumes vars: "set(vars_untyped c) \<subseteq> X"
   assumes YX: "Y \<subseteq> X"
@@ -524,12 +538,48 @@ proof -
    and "set(vars_untyped (CallProc x p a)) \<subseteq> X
         \<Longrightarrow> obs_eq_untyped X X (CallProc x p a) (CallProc x p a)"
   proof (induct c and p arbitrary: X and X x a)
-  case Assign show ?case
-    apply (rule self_obseq_assign)
-    using Assign by auto
-  next case Sample show ?case
-    apply (rule self_obseq_sample)
-    using Sample by auto
+  case (Assign x e)
+    show ?case apply (rule self_obseq_assign)
+      using Assign by auto
+  next case (Sample x e) 
+    def eq == "\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+    def \<mu> == "\<lambda>m1 m2::memory. apply_to_distr (\<lambda>x. (x,x)) (ed_fun e m1)"
+    have fstsnd: "\<And>m1 m2. apply_to_distr fst (\<mu> m1 m2) = apply_to_distr snd (\<mu> m1 m2)"
+      unfolding \<mu>_def by simp
+    have eX: "set (ed_vars e) \<subseteq> X"
+      using Sample by simp
+    have em1: "\<And>m1 m2. apply_to_distr fst (\<mu> m1 m2) = ed_fun e m1"
+      unfolding \<mu>_def by simp
+    moreover have "\<And>m1 m2. eq m1 m2 \<Longrightarrow> apply_to_distr snd (\<mu> m1 m2) = ed_fun e m2" 
+      unfolding fstsnd[symmetric] em1 eq_def apply (rule ed_fun_footprint) using eX by auto
+    moreover have "\<And>m1 m2. eq m1 m2 \<Longrightarrow> \<forall>(xval, yval)\<in>support_distr (\<mu> m1 m2).
+                \<forall>y\<in>X. memory_lookup_untyped (memory_update_untyped_pattern m1 x xval) y =
+                       memory_lookup_untyped (memory_update_untyped_pattern m2 x yval) y"
+    proof auto
+      fix m1 m2 xval yval y assume yX: "y \<in> X" assume eq: "eq m1 m2"
+      assume "(xval, yval)\<in>support_distr (\<mu> m1 m2)" 
+      hence xyval: "xval = yval"
+        unfolding \<mu>_def by auto
+      thus "memory_lookup_untyped (memory_update_untyped_pattern m1 x xval) y 
+          = memory_lookup_untyped (memory_update_untyped_pattern m2 x yval) y"
+      proof (cases "y \<in> set(pu_vars x)")
+      case True
+        show ?thesis
+          unfolding xyval 
+          apply (rule memory_update_untyped_pattern_footprint[where X=X])
+          using eq eq_def close auto
+          using Sample close simp
+          using yX by simp 
+      next case False
+        show ?thesis
+          apply (subst memory_lookup_update_pattern_notsame[OF False])
+          apply (subst memory_lookup_update_pattern_notsame[OF False])
+          using eq yX unfolding eq_def by blast
+      qed
+    qed
+    ultimately show ?case
+      unfolding obs_eq_untyped_def eq_def 
+      by (rule rnd_rule[where \<mu>=\<mu>])
   next case Seq thus ?case
     by (smt Un_upper2 dual_order.trans obs_eq_untyped_def rseq_rule set_append sup_ge1 vars_untyped.simps(2))
   next case Skip thus ?case
@@ -682,6 +732,8 @@ proof -
   with YX show ?thesis
     by (rule obseq_mono2)
 qed
+
+
 
 
 definition "assign_default = foldl (\<lambda>p v. Seq p (Assign (pattern_1var v) 
