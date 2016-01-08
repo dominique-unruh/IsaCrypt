@@ -32,13 +32,13 @@ graph: session.graph
 	/opt/Isabelle/bin/isabelle browser session.graph 
 
 testsuite.py : tests.py tests/*.thy
-	python3 tests.py
+	python2 tests.py
 
 test: testsuite.py tests.py
 	cricket-unittest &
 
 test_with_docker: testsuite.py tests.py
-	ISABELLE_DOCKER=1 python3 testsuite.py dummy.test_succeed
+	ISABELLE_DOCKER=1 python2 testsuite.py dummy.test_succeed
 
 test_shutdown :
 	python tests.py ISABELLE_SERVER_SHUTDOWN

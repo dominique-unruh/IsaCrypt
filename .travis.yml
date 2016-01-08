@@ -2,7 +2,7 @@ language: python
 sudo: required
 
 python:
-- "3.4"
+- "2.7"
 
 services:
 - docker
@@ -11,7 +11,7 @@ before_install:
 - docker pull unruh/isabelle:isacrypt-prereqs
 
 install:
-- pip3 install pyro4 serpent
+- pip install pyro4 serpent
 
 script:
 - make test_with_docker

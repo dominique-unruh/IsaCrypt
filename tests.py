@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 
 # sudo apt-get install python3-pyro4
 # sudo pip3 install serpent
@@ -205,7 +205,7 @@ def get_server():
         isabelle_server.check()
     def start():
         print("Starting server...")
-        os.system("nohup python tests.py ISABELLE_SERVER >.isabelle-server-out.log 2>&1 &")
+        os.system("nohup python2 tests.py ISABELLE_SERVER >.isabelle-server-out.log 2>&1 &")
         time.sleep(1)
         connect()
 
