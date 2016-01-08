@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -e
+
+if ! cmp ROOT ../../ROOT; then 
+    cp ../../ROOT .
+fi
+
+docker build -t unruh/isacrypt:prereqs .
+
+docker push unruh/isacrypt:prereqs

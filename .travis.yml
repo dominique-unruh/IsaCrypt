@@ -5,7 +5,7 @@ services:
   - docker
 
 before_install:
-- docker pull unruh/isabelle:multivariate
+- docker pull unruh/isacrypt:prereqs
 
 script:
-- docker run -v "$PWD:/home/user/data" unruh/isabelle:multivariate isabelle build -d . -b IsaCrypt-Nodocs
+- docker run -v "$PWD:/home/user/data" unruh/isacrypt:prereqs isabelle build -d . IsaCrypt-Nodocs
