@@ -39,3 +39,6 @@ test: testsuite.py tests.py
 
 test_shutdown :
 	python tests.py ISABELLE_SERVER_SHUTDOWN
+
+make-docker :
+	cd misc/docker-prereqs/ && ./make-docker
