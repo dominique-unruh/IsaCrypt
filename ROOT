@@ -8,7 +8,7 @@ session "IsaCrypt" = "IsaCrypt-Prereqs" +
 session "IsaCrypt-Nodocs" = "IsaCrypt-Prereqs" +
   options [document = false, quick_and_dirty = true]
   theories [document = false]
-  theories (*ISACRYPT_THYS*) Distr ElGamal Extended_Sorry Hoare_Tactics Hoare_Typed Hoare_Untyped Lang_Simplifier Lang_Typed Lang_Untyped Procedures Procs_Typed RHL_Typed RHL_Untyped Tactic_Inline TermX_Antiquot Tools TypedLambda Universe
+  theories (*ISACRYPT_THYS*) Distr Extended_Sorry Hoare_Tactics Hoare_Typed Hoare_Untyped Lang_Simplifier Lang_Typed Lang_Untyped Procedures Procs_Typed RHL_Typed RHL_Untyped Tactic_Inline TermX_Antiquot Tools TypedLambda Universe
   document_files (in ".")
     "root.tex"
 
