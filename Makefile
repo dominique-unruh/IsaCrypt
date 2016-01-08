@@ -26,7 +26,7 @@ theories.pdf session.graph: ROOT *.thy *.tex
 	cp $(BROWSER_INFO)/session.graph .
 
 ROOT: *.thy Makefile
-	perl -i~ -p -e 'if (/theories\s*\(\*ISACRYPT_THYS\*\)/) { $$_ = "  theories (*ISACRYPT_THYS*) ".join(" ",grep { $$_ ne "Example" && $$_ ne "Tmp_Print_Sorry" && $$_ ne "Scratch" && $$_ ne "Scratch2" && $$_ ne "Scratch3" } map { s/\.thy$$//; $$_ } <*.thy>)."\n" }' ROOT
+	perl -i~ -p -e 'if (/theories\s*\(\*ISACRYPT_THYS\*\)/) { $$_ = "  theories (*ISACRYPT_THYS*) ".join(" ",grep { $$_ ne "Example" && $$_ ne "Tmp_Print_Sorry" && $$_ !~ "^Scratch" } map { s/\.thy$$//; $$_ } <*.thy>)."\n" }' ROOT
 
 graph: session.graph
 	/opt/Isabelle/bin/isabelle browser session.graph 

@@ -79,6 +79,8 @@ fun assert_procedure_info_complete ctx ({args=_,body=_,body_local_vars, pattern=
   in ()
   end
 
+exception PROCEDURE_INFO_NOT_FOUND of string
+
 fun get_procedure_info lthy partial proc = 
   let val _ = tracing ("Constructing procedure info for "^Syntax.string_of_term lthy proc)
       (* val name : string = procedure_head_of lthy proc *)
@@ -86,7 +88,7 @@ fun get_procedure_info lthy partial proc =
       val infos = Net.match_term (ProcedureData.get (Context.Proof lthy)) proc
                   |> map_filter (fn info => SOME (info,Thm.first_order_match (#pattern info, cproc))
                     handle Pattern.MATCH => NONE)
-      val _ = if null infos then error ("Could not find procedure_info for procedure pattern "^Syntax.string_of_term lthy proc) else ()
+      val _ = if null infos then raise PROCEDURE_INFO_NOT_FOUND ("Could not find procedure_info for procedure pattern "^Syntax.string_of_term lthy proc) else ()
       val (info,matcher) = hd infos
       val _ = if not (null (tl infos)) then warning ("Several matchin procedure infos for "^ 
                                                Syntax.string_of_term lthy proc^
@@ -115,7 +117,7 @@ open Conv
 
 (* TODO: all other fields, too *)
 fun procedure_info_conv partial : Proof.context -> conv =
-  let fun conv ctx ct = case Thm.term_of ct of
+  let fun conv ctx ct = (case Thm.term_of ct of
 
             Const(@{const_name set},_) $ (Const(@{const_name vars_proc_global},_) $ f) => 
               (case get_procedure_info ctx partial f |> #global_vars of
@@ -125,7 +127,9 @@ fun procedure_info_conv partial : Proof.context -> conv =
               (case get_procedure_info ctx partial f |> #global_write_vars of
                 NONE => no_conv ct | SOME th => rewr_conv th ct)
 
-          | _ => no_conv ct
+          | _ => no_conv ct)
+        handle PROCEDURE_INFO_NOT_FOUND _ => no_conv ct
+
       fun conv' ctx = conv ctx   then_conv  procedure_info_conv partial ctx
   in
     Conv.top_sweep_conv conv'

@@ -685,7 +685,7 @@ end
 
 lemmas reduce_procfun.proc [reduce_procfun.safe]
 lemmas reduce_procfun.unit [reduce_procfun.safe]
-lemmas reduce_procfun.apply1 [reduce_procfun.safe]                                                                     
+lemmas reduce_procfun.apply1 [reduce_procfun.safe]  
 lemmas reduce_procfun.closed [reduce_procfun.safe]
 lemmas reduce_procfun.seq [reduce_procfun.safe]
 lemmas reduce_procfun.callproc [reduce_procfun.safe]

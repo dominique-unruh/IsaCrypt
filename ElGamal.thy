@@ -154,7 +154,7 @@ definition "game_probability game args mem E ==
   LOCAL res. 
   probability 
     (denotation (callproc (variable_pattern res) game (const_expression args)) mem)
-    (\<lambda>m. E (memory_lookup m res))"
+    {m. E (memory_lookup m res)}"
 
 (* TODO move *)
 (* TODO: correct precondition (refer only to globals of p1,p2) *)

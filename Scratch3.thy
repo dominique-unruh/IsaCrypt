@@ -4,7 +4,7 @@ keywords "module" :: thy_decl
      and "end_module" :: thy_decl
 begin
 
-
+(** Code for wrapping definitions into modules **)
 
 ML {*
 type module = {

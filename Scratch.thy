@@ -4,9 +4,7 @@ imports Procs_Typed Rewrite Hoare_Typed Hoare_Tactics Lang_Simplifier
      and "end_module" :: thy_decl *)
 begin
 
-
-(* definition "restrict_memory X m = memory_combine X m default" *)
-
+(** Development of the line-swapping code **)
 
 
 
