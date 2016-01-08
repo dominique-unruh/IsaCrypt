@@ -37,6 +37,9 @@ testsuite.py : tests.py tests/*.thy
 test: testsuite.py tests.py
 	cricket-unittest &
 
+test_with_docker: testsuite.py tests.py
+	ISABELLE_DOCKER=1 python3 testsuite.py dummy.test_succeed
+
 test_shutdown :
 	python tests.py ISABELLE_SERVER_SHUTDOWN
 

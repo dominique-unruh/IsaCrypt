@@ -7,7 +7,14 @@ import glob, sys, os, random, re, subprocess, time
 import unittest
 import Pyro4
 
-isabelle_dir = "/opt/Isabelle2015"
+if 'ISABELLE_DOCKER' in os.environ:
+    isabelle_process = ['docker','run','-i',
+                        '-v', os.getcwd()+":/home/user/data",
+                        'unruh/isabelle:isacrypt-prereqs',
+                        '/opt/Isabelle2015/bin/isabelle_process']
+else:
+    isabelle_process = ['/opt/Isabelle2015/bin/isabelle_process']
+
 
 run_theory_ml = r"""
 datatype thyexn = Theory | Exception of exn;;
@@ -42,7 +49,7 @@ class IsabelleProcess(object):
     def start_isabelle_proc(self):
         if self.isabelle_proc!=None: return
         logic = "IsaCrypt-Prereqs"
-        cmd = [isabelle_dir+'/bin/isabelle_process', '-o', 'quick_and_dirty=true', logic, '-q']
+        cmd = isabelle_process + ['-o', 'quick_and_dirty=true', logic, '-q']
         self.log("Running "+" ".join(cmd))
         self.isabelle_proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
         self.communicate_until(run_theory_ml,"*** INITIALIZATION FINISHED ***");
