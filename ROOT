@@ -5,6 +5,13 @@ session "IsaCrypt" = "IsaCrypt-Prereqs" +
   document_files (in ".")
     "root.tex"
 
+session "IsaCrypt-Nodocs" = "IsaCrypt-Prereqs" +
+  options [document = false, quick_and_dirty = true]
+  theories [document = false]
+  theories (*ISACRYPT_THYS*) Distr ElGamal Extended_Sorry Hoare_Tactics Hoare_Typed Hoare_Untyped Lang_Typed Lang_Untyped Procedures Procs_Typed RHL_Typed RHL_Untyped TermX_Antiquot Tools TypedLambda Universe
+  document_files (in ".")
+    "root.tex"
+
 
 session "IsaCrypt-Prereqs" in "~~/src/HOL" = "HOL-Multivariate_Analysis" +
   description {*
