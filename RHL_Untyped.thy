@@ -488,13 +488,6 @@ apply (subst (1) eq_commute)
 apply (subst (2) eq_commute)
 using assms unfolding obs_eq_untyped_def by assumption
 
-(* (* TODO remove? (coro of self_obseq_vars) *)
-lemma self_obseq_sample:
-  assumes "set (ed_vars e) \<subseteq> X"
-  assumes "Y \<subseteq> X\<union>set(p_vars pat)"
-  shows "obs_eq_untyped X Y (Sample pat e) (Sample pat e)"
-SORRY *)
-
 lemma obseq_mono1: 
   assumes "X' \<ge> X"
   assumes "obs_eq_untyped X Y c d"
@@ -516,14 +509,36 @@ proof -
   def eqY == "\<lambda>m1 m2. \<forall>x\<in>Y. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   have em1m2: "\<And>m1 m2. eq m1 m2 \<Longrightarrow> eu_fun e m1 = eu_fun e m2"
     by (meson assms(1) eu_fun_footprint local.eq_def subsetCE)
-  have eqYupd: "\<And>m1 m2 z. eqY (memory_update_untyped_pattern m1 x z) (memory_update_untyped_pattern m2 x z)" SORRY
+  have eqYupd: "\<And>m1 m2 z. eq m1 m2 \<Longrightarrow> eqY (memory_update_untyped_pattern m1 x z) (memory_update_untyped_pattern m2 x z)"
+  proof (auto simp: eqY_def)
+    fix m1 m2 z y assume yY: "y \<in> Y" and eq: "eq m1 m2"
+    show "memory_lookup_untyped (memory_update_untyped_pattern m1 x z) y
+        = memory_lookup_untyped (memory_update_untyped_pattern m2 x z) y"
+    proof (cases "y \<in> set(pu_vars x)")
+    case True show ?thesis
+      apply (subst lookup_memory_update_untyped_pattern_getter)
+       close (fact True)
+      apply (subst lookup_memory_update_untyped_pattern_getter)
+       close (fact True)
+      by simp
+    next case False 
+      hence yX: "y \<in> X" using yY assms(2) by auto
+      show ?thesis
+      apply (subst memory_lookup_update_pattern_notsame)
+       close (fact False)
+      apply (subst memory_lookup_update_pattern_notsame)
+       close (fact False)
+      using yX eq eq_def by auto
+    qed
+  qed
   have "rhoare_untyped eq (Seq (Assign x e) Skip) (Seq Skip (Assign x e)) eqY"
     apply (rule rseq_rule[rotated])
      unfolding eq_def close (rule rassign_rule2, rule allI, rule allI, rule imp_refl)
     apply (rule rassign_rule1, auto)
     apply (subst em1m2)
      unfolding eq_def close assumption
-    using eqYupd by assumption 
+    apply (rule eqYupd)
+    unfolding eq_def by assumption 
   thus ?thesis
     unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation eq_def eqY_def by simp
 qed
@@ -1101,25 +1116,6 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
 qed
 
 
-
-
-
-(*
-lemma rseq_rule1:
-  assumes "\<And>m1 m2. Q m1 m2 \<Longrightarrow> Q' m1 m2"
-      and "rhoare_untyped P c1 Skip Q"
-      and "rhoare_untyped Q' Skip c2 R"
-  shows "rhoare_untyped P c1 c2 R"
-SORRY
-
-
-lemma rif_rule:
-  assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow> eu_fun e1 m1 = eu_fun e2 m2"
-      and "rhoare_untyped (\<lambda>m1 m2. P m1 m2 \<and> eu_fun e1 m1 = embedding True) then1 then2 Q"
-      and "rhoare_untyped (\<lambda>m1 m2. P m1 m2 \<and> eu_fun e1 m1 \<noteq> embedding True) else1 else2 Q"
-  shows "rhoare_untyped P (IfTE e1 then1 else1) (IfTE e2 then2 else2) Q"
-SORRY
-*)
 
 (*
 TODO: (https://www.easycrypt.info/trac/raw-attachment/wiki/BibTex/Barthe.2009.POPL.pdf)

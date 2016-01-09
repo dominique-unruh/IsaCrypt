@@ -262,6 +262,45 @@ definition memory_update_untyped_pattern :: "memory \<Rightarrow> pattern_untype
   "memory_update_untyped_pattern m p x = 
   foldl (\<lambda>m (v,f). memory_update_untyped m v (f x)) m (pu_var_getters p)"
 
+definition memory_update_untyped_pattern_getter :: "pattern_untyped \<Rightarrow> variable_untyped \<Rightarrow> val \<Rightarrow> val" where
+  "memory_update_untyped_pattern_getter pat v =
+  (case List.find (\<lambda>(w,f). v=w) (rev (pu_var_getters pat)) of Some (w,f) \<Rightarrow> f | None \<Rightarrow> undefined)"
+
+lemma lookup_memory_update_untyped_pattern_getter:
+  assumes "v \<in> set (pu_vars pat)"
+  shows "memory_lookup_untyped (memory_update_untyped_pattern m pat val) v = memory_update_untyped_pattern_getter pat v val"
+proof -
+  def getters \<equiv> "pu_var_getters pat"
+  have vgetters: "v \<in> fst ` set getters"
+    using assms getters_def pu_vars_def by auto
+  def good \<equiv> "\<lambda>(v::variable_untyped,f::val\<Rightarrow>val). (\<forall>x. f x \<in> t_domain (vu_type v))"
+  have good: "\<forall>getter \<in> set getters. good getter"
+    using Rep_pattern_untyped getters_def good_def pu_var_getters_def by auto
+  show ?thesis
+    unfolding memory_update_untyped_pattern_def memory_update_untyped_pattern_getter_def getters_def[symmetric]
+  proof (insert vgetters, insert good, induct getters arbitrary: m v rule:rev_induct)
+  case Nil thus ?case by auto
+  next case (snoc getter getters)
+    obtain z f where zf: "getter = (z,f)" by fastforce
+    have good: "\<forall>a\<in>set (getters @ [getter]). good a" using snoc by simp
+    show ?case
+    proof (cases "v=z")
+    case True
+      show ?thesis
+        apply (simp add: zf True)
+        apply (rule memory_lookup_update_same_untyped)
+        using good zf good_def True by auto
+    next case False
+      show ?thesis
+        apply (simp add: zf False)
+        apply (subst memory_lookup_update_notsame_untyped)
+         using False close simp
+        apply (subst snoc.hyps)
+        using snoc.prems zf False by auto
+    qed
+  qed
+qed
+
 lemma memory_update_untyped_footprint:
   assumes "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
   assumes "w \<in> X"
