@@ -53,9 +53,7 @@ definition "split_program_start n p == split_program n n p Lang_Typed.skip"
 
 lemma denotation_split_program_start: "denotation (split_program_start n p) = denotation p"
   unfolding split_program_start_def denotation_def split_program_def seq_def Rep_skip
-  apply (subst Abs_program_inverse, auto simp: split_program_untyped_welltyped split_program_untyped_denotation)
-  unfolding denotation_untyped_Seq[THEN ext] denotation_untyped_Skip[THEN ext]  
-  by auto
+  by (subst Abs_program_inverse, auto simp: split_program_untyped_welltyped split_program_untyped_denotation)
 
 lemmas split_program_simps = split_program_start_def split_program_0_seq split_program_0_skip split_program_suc rev_program_seq rev_program_skip
 
