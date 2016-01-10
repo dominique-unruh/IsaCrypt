@@ -1,5 +1,5 @@
 theory RHL_Untyped
-imports Lang_Untyped Hoare_Untyped Extended_Sorry
+imports Lang_Untyped Hoare_Untyped
 begin
 
 definition rhoare_untyped :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> program_rep \<Rightarrow> program_rep \<Rightarrow> (memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> bool" where
@@ -48,7 +48,7 @@ proof (unfold rhoare_untyped_def, rule, rule, rule)
              (\<forall>m1' m2'. (m1', m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2')"
     apply (rule exI[where x=witness])
     unfolding witness_def apply auto
-    apply (metis scaleR_one_distr)
+    (* apply (metis scaleR_one_distr) *)
     apply (metis `lossless_untyped c` lossless_untyped_def scaleR_one_distr)
     by (metis Pm1m2 h hoare_untyped_def)
 qed
@@ -248,13 +248,198 @@ apply (rule iffalse_rule_both)
  close (rule rconseq_rule[OF _ _ assms(3)]; auto simp: assms(1))
 using assms(1) by auto
 
-lemma rwhile_rule:
-  assumes hoare: "rhoare_untyped (\<lambda>m1 m2. I m1 m2 \<and> eu_fun e1 m1 = embedding True) p1 p2 I"
-      and PI: "\<And>m1 m2. P m1 m2 \<Longrightarrow> I m1 m2"
-      and Ieq: "\<And>m1 m2. I m1 m2 \<Longrightarrow> eu_fun e1 m1 = eu_fun e2 m2"
-      and IQ: "\<And>m1 m2. eu_fun e1 m1 \<noteq> embedding True \<Longrightarrow> I m1 m2 \<Longrightarrow> Q m1 m2"
-  shows "rhoare_untyped P (While e1 p1) (While e2 p2) Q"
-SORRY
+(* TODO move to Misc *)
+lemma setsum_apply: 
+  assumes "finite N"
+  shows "(\<Sum>n\<in>N. f n) x = (\<Sum>n\<in>N. f n x)"
+using assms apply (induction N)
+by (auto simp: zero_fun_def plus_fun_def)
+
+lemma suminf_rhoare:
+  assumes rhoare: "\<And>n::nat. rhoare_denotation P (c n) (d n) Q"
+  assumes c': "\<And>x m m'. ereal_Rep_distr (c' m) m' = (\<Sum>n. ereal_Rep_distr (c n m) m')"
+  (* assumes c': "\<And>x m m'. (\<lambda>n. ereal_Rep_distr (c n m) m') sums (ereal_Rep_distr (c' m) m')" *)
+  assumes d': "\<And>x m m'. ereal_Rep_distr (d' m) m' = (\<Sum>n. ereal_Rep_distr (d n m) m')"
+  shows "rhoare_denotation P c' d' Q"
+proof (unfold rhoare_denotation_def, auto)
+  fix m1 m2 assume P: "P m1 m2"
+  have sumpos: "\<And>\<mu> n x. 0 \<le> (\<Sum>n'<n. ereal_Rep_distr (\<mu> n') x)"  by (simp add: setsum_nonneg)
+  obtain \<mu>n where fst: "\<And>n. apply_to_distr fst (\<mu>n n) = (c n m1)" 
+              and snd: "\<And>n. apply_to_distr snd (\<mu>n n) = (d n m2)"
+              and post: "\<And>n. (\<forall>m1' m2'. (m1', m2') \<in> support_distr (\<mu>n n) \<longrightarrow> Q m1' m2')"
+    apply atomize_elim using assms(1)[unfolded rhoare_denotation_def, rule_format, OF P] by metis
+  have weight_\<mu>n: "\<And>n. ereal_probability (\<mu>n n) UNIV = ereal_probability (c n m1) UNIV"
+    unfolding fst[symmetric] apply (subst ereal_probability_apply_to_distr) by simp
+  have csumbound: "\<And>n. (\<integral>\<^sup>+ x. (\<Sum>n'<n. ereal_Rep_distr (c n' m1) x) \<partial>count_space UNIV) \<le> 1"
+  proof -
+    fix n 
+    have "(\<integral>\<^sup>+x. (\<Sum>n'<n. ereal_Rep_distr (c n' m1) x) \<partial>count_space UNIV)
+        = (\<Sum>n'<n. (\<integral>\<^sup>+x. ereal_Rep_distr (c n' m1) x \<partial>count_space UNIV))"
+      by (subst nn_integral_setsum, simp_all)
+    also have "\<dots> = (\<Sum>n'<n. ereal_probability (c n' m1) UNIV)"
+      unfolding ereal_probability_def indicator_def by auto
+    also have "\<dots> \<le> (\<Sum>n'. ereal_probability (c n' m1) UNIV)"
+      by (simp add: suminf_upper)
+    also have "\<dots> = ereal_probability (c' m1) UNIV"
+      unfolding ereal_probability_def indicator_def c' apply auto
+      apply (rule nn_integral_suminf[symmetric]) by auto
+    also have "\<dots> \<le> 1" by auto
+    finally show "?thesis n" by assumption
+  qed
+  have dsumbound: "\<And>n. (\<integral>\<^sup>+ x. (\<Sum>n'<n. ereal_Rep_distr (d n' m2) x) \<partial>count_space UNIV) \<le> 1"
+  proof -
+    fix n 
+    have "(\<integral>\<^sup>+x. (\<Sum>n'<n. ereal_Rep_distr (d n' m2) x) \<partial>count_space UNIV)
+        = (\<Sum>n'<n. (\<integral>\<^sup>+x. ereal_Rep_distr (d n' m2) x \<partial>count_space UNIV))"
+      by (subst nn_integral_setsum, simp_all)
+    also have "\<dots> = (\<Sum>n'<n. ereal_probability (d n' m2) UNIV)"
+      unfolding ereal_probability_def indicator_def by auto
+    also have "\<dots> \<le> (\<Sum>n'. ereal_probability (d n' m2) UNIV)"
+      by (simp add: suminf_upper)
+    also have "\<dots> = ereal_probability (d' m2) UNIV"
+      unfolding ereal_probability_def indicator_def d' apply auto
+      apply (rule nn_integral_suminf[symmetric]) by auto
+    also have "\<dots> \<le> 1" by auto
+    finally show "?thesis n" by assumption
+  qed
+  have \<mu>nsumbound: "\<And>n. (\<integral>\<^sup>+ x. (\<Sum>n'<n. ereal_Rep_distr (\<mu>n n') x) \<partial>count_space UNIV) \<le> 1"
+  proof -
+    fix n 
+    have "(\<integral>\<^sup>+x. (\<Sum>n'<n. ereal_Rep_distr (\<mu>n n') x) \<partial>count_space UNIV)
+        = (\<Sum>n'<n. (\<integral>\<^sup>+x. ereal_Rep_distr (\<mu>n n') x \<partial>count_space UNIV))"
+      by (subst nn_integral_setsum, simp_all)
+    also have "\<dots> = (\<Sum>n'<n. ereal_probability (\<mu>n n') UNIV)"
+      unfolding ereal_probability_def indicator_def by auto
+    also have "\<dots> = (\<Sum>n'<n. ereal_probability (c n' m1) UNIV)"
+      unfolding weight_\<mu>n by simp
+    also have "\<dots> \<le> (\<Sum>n'. ereal_probability (c n' m1) UNIV)"
+      by (simp add: suminf_upper)
+    also have "\<dots> = ereal_probability (c' m1) UNIV"
+      unfolding ereal_probability_def indicator_def c' apply auto
+      apply (rule nn_integral_suminf[symmetric]) by auto
+    also have "\<dots> \<le> 1" by auto
+    finally show "?thesis n" by assumption
+  qed
+  def \<mu>nsum == "\<lambda>n. ereal_Abs_distr (\<lambda>m. setsum (\<lambda>n'. ereal_Rep_distr (\<mu>n n') m) {..<n})"
+  have \<mu>nsum_rep: "\<And>n. ereal_Rep_distr (\<mu>nsum n) = (\<lambda>m. setsum (\<lambda>n'. ereal_Rep_distr (\<mu>n n') m) {..<n})"
+    unfolding \<mu>nsum_def using sumpos \<mu>nsumbound by (rule ereal_Abs_distr_inverse)
+  def \<mu> == "SUP n::nat. \<mu>nsum n"
+  def csum == "\<lambda>n. ereal_Abs_distr (\<lambda>m. setsum (\<lambda>n'. ereal_Rep_distr (c n' m1) m) {..<n})"
+  have csum_rep: "\<And>n. ereal_Rep_distr (csum n) = (\<lambda>m. setsum (\<lambda>n'. ereal_Rep_distr (c n' m1) m) {..<n})"
+    unfolding csum_def using sumpos csumbound by (rule ereal_Abs_distr_inverse)
+  def dsum == "\<lambda>n. ereal_Abs_distr (\<lambda>m. setsum (\<lambda>n'. ereal_Rep_distr (d n' m2) m) {..<n})"
+  have dsum_rep: "\<And>n. ereal_Rep_distr (dsum n) = (\<lambda>m. setsum (\<lambda>n'. ereal_Rep_distr (d n' m2) m) {..<n})"
+    unfolding dsum_def using sumpos dsumbound by (rule ereal_Abs_distr_inverse)
+  have cinc: "incseq (\<lambda>n. csum n)"
+    unfolding csum_def mono_def apply auto
+    apply (subst less_eq_ereal_Abs_distr[symmetric])
+        close (rule sumpos) close (rule sumpos) close (rule csumbound) close (rule csumbound)
+    unfolding le_fun_def apply (rule allI)
+    apply (rule setsum_mono3)
+      by auto
+  have dinc: "incseq (\<lambda>n. dsum n)"
+    unfolding dsum_def mono_def apply auto
+    apply (subst less_eq_ereal_Abs_distr[symmetric])
+        close (rule sumpos) close (rule sumpos) close (rule dsumbound) close (rule dsumbound)
+    unfolding le_fun_def apply (rule allI)
+    apply (rule setsum_mono3)
+      by auto
+  have c'sup: "\<And>m. c' m1 = (SUP n. csum n)"
+    apply (subst ereal_Rep_distr_inject[symmetric])
+    apply (subst ereal_Rep_SUP_distr)
+     close (rule cinc)
+    unfolding csum_rep apply (subst SUP_apply[THEN ext])
+    apply (subst suminf_ereal_eq_SUP[symmetric])
+     close (rule ereal_Rep_distr_geq0)
+    by (rule c'[THEN ext])
+  have d'sup: "\<And>m. d' m2 = (SUP n. dsum n)"
+    apply (subst ereal_Rep_distr_inject[symmetric])
+    apply (subst ereal_Rep_SUP_distr)
+     close (rule dinc)
+    unfolding dsum_rep apply (subst SUP_apply[THEN ext])
+    apply (subst suminf_ereal_eq_SUP[symmetric])
+     close (rule ereal_Rep_distr_geq0)
+    by (rule d'[THEN ext])
+  have inc: "incseq \<mu>nsum"
+    unfolding \<mu>nsum_def mono_def apply auto
+    apply (subst less_eq_ereal_Abs_distr[symmetric])
+        close (rule sumpos) close (rule sumpos) close (rule \<mu>nsumbound) close (rule \<mu>nsumbound)
+    unfolding le_fun_def apply (rule allI)
+    apply (rule setsum_mono3)
+      by auto
+  have fst0: "\<And>n. apply_to_distr fst (\<mu>nsum n) = csum n"
+    apply (subst ereal_Rep_distr_inject[symmetric]) apply (rule ext, rename_tac m)
+    unfolding csum_rep apply (subst apply_to_distr_setsum[symmetric, where N="{..<_}" and \<nu>=\<mu>n])
+      close auto
+     close (simp add: \<mu>nsum_rep)
+    apply (subst fst)
+    apply (subst setsum_apply) by auto
+  have fst': "apply_to_distr fst \<mu> = c' m1"
+    unfolding \<mu>_def fst[symmetric] c'sup
+    apply (subst apply_to_distr_sup)
+    unfolding fst0 using inc by auto
+  have snd0: "\<And>n. apply_to_distr snd (\<mu>nsum n) = dsum n"
+    apply (subst ereal_Rep_distr_inject[symmetric]) apply (rule ext, rename_tac m)
+    unfolding dsum_rep apply (subst apply_to_distr_setsum[symmetric, where N="{..<_}" and \<nu>=\<mu>n])
+      close auto
+     close (simp add: \<mu>nsum_rep)
+    apply (subst snd)
+    apply (subst setsum_apply) by auto
+  have snd': "apply_to_distr snd \<mu> = d' m2"
+    unfolding \<mu>_def fst[symmetric] d'sup
+    apply (subst apply_to_distr_sup)
+    unfolding snd0 using inc by auto
+  have sum0: "\<And>(f::nat\<Rightarrow>ereal) n. (\<Sum>n'<n. f n') > 0 \<Longrightarrow> \<exists>n'. f n' > 0"
+  proof (rule ccontr)
+    fix f::"nat\<Rightarrow>ereal" and n assume sum:"(\<Sum>n'<n. f n') > 0" assume "\<not> (\<exists>n'. f n' > 0)"
+    hence "\<And>n'. f n' \<le> 0" by (simp add: not_less)
+    hence "(\<Sum>n'<n. f n') \<le> 0" by (simp add: setsum_nonpos)
+    with sum show False by simp
+  qed
+  have post'': "\<And>m1' m2' i. (m1', m2') \<in> support_distr (\<mu>nsum i) \<Longrightarrow> Q m1' m2'"
+    unfolding support_distr_def' apply auto
+    unfolding \<mu>nsum_rep apply (drule sum0)
+    using post unfolding support_distr_def' by auto
+  have post': "\<And>m1' m2'. (m1', m2') \<in> support_distr \<mu> \<Longrightarrow> Q m1' m2'"
+    unfolding \<mu>_def support_distr_SUP[OF inc] using post'' by auto
+  show "\<exists>\<mu>. apply_to_distr fst \<mu> = c' m1 \<and> apply_to_distr snd \<mu> = d' m2
+          \<and> (\<forall>m1' m2'. (m1', m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2')"
+    apply (rule exI[of _ \<mu>]) using fst' snd' post' by auto
+qed
+
+
+(* lemma SUP_rhoare: (* TODO: is this actually true? Or could it be that the sup of the witnesses does not exist? *)
+  assumes "\<And>n. rhoare_denotation P (c n) (d n) Q"
+  assumes "incseq c" and "incseq d"
+  shows "rhoare_denotation P (SUP n::nat. c n) (SUP n. d n) Q"
+proof (unfold rhoare_denotation_def, auto)
+  fix m1 m2 assume P: "P m1 m2"
+  obtain \<mu>n where fst: "\<And>n. apply_to_distr fst (\<mu>n n) = (c n m1)" 
+              and snd: "\<And>n. apply_to_distr snd (\<mu>n n) = (d n m2)"
+              and post: "\<And>n. (\<forall>m1' m2'. (m1', m2') \<in> support_distr (\<mu>n n) \<longrightarrow> Q m1' m2')"
+    apply atomize_elim using assms(1)[unfolded rhoare_denotation_def, rule_format, OF P] by metis
+  def \<mu> == "SUP n::nat. \<mu>n n"
+  have inc: "incseq \<mu>n" (* Might not be true! *)
+    by later
+  hence fst': "apply_to_distr fst \<mu> = (\<Squnion>n. c n m1)"
+    unfolding \<mu>_def fst[symmetric] 
+    by (rule apply_to_distr_sup)
+  from inc have snd': "apply_to_distr snd \<mu> = (\<Squnion>n. d n m2)"
+    unfolding \<mu>_def snd[symmetric] 
+    by (rule apply_to_distr_sup)
+  have post': "\<And>m1' m2'. (m1', m2') \<in> support_distr \<mu> \<Longrightarrow> Q m1' m2'"
+    unfolding \<mu>_def support_distr_SUP[OF inc]
+    using post by auto
+  show "\<exists>\<mu>. apply_to_distr fst \<mu> = (\<Squnion>n. c n m1) \<and> apply_to_distr snd \<mu> = (\<Squnion>n. d n m2)
+          \<and> (\<forall>m1' m2'. (m1', m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2')"
+    apply (rule exI[of _ \<mu>]) using fst' snd' post' by auto
+    by later
+qed *)
+
+
+
+lemma rhalt_rule [simp]: "rhoare_untyped P Halt Halt Q"
+  unfolding rhoare_untyped_rhoare_denotation by simp
 
 lemma rseq_rule_denotation: 
   assumes PcQ: "rhoare_denotation P c1 c2 Q"
@@ -351,6 +536,80 @@ proof (unfold rhoare_untyped_def, rule, rule, rule)
 qed
 *)
 
+
+lemma rwhile_rule:
+  assumes hoare: "rhoare_untyped (\<lambda>m1 m2. I m1 m2 \<and> eu_fun e1 m1 = embedding True) p1 p2 I"
+      and PI: "\<And>m1 m2. P m1 m2 \<Longrightarrow> I m1 m2"
+      and Ieq: "\<And>m1 m2. I m1 m2 \<Longrightarrow> eu_fun e1 m1 = eu_fun e2 m2"
+      and IQ: "\<And>m1 m2. eu_fun e1 m1 \<noteq> embedding True \<Longrightarrow> eu_fun e2 m2 \<noteq> embedding True \<Longrightarrow> I m1 m2 \<Longrightarrow> Q m1 m2"
+  shows "rhoare_untyped P (While e1 p1) (While e2 p2) Q"
+proof -
+  {fix n have "rhoare_untyped I (While_n_exact n e1 p1) (While_n_exact n e2 p2) Q"
+  proof (induction n)
+  case 0 
+    show ?case 
+      apply simp apply (rule rif_rule)
+        using Ieq close simp
+       close simp
+      apply (rule rskip_rule)
+       using IQ by simp
+  case (Suc n)
+    have preserve: "rhoare_untyped (\<lambda>m1 m2. I m1 m2 \<and> eu_fun e1 m1 = embedding True \<and> eu_fun e2 m2 = embedding True) 
+              (Seq p1 (While_n_exact n e1 p1)) (Seq p2 (While_n_exact n e2 p2)) Q"
+      apply (rule rseq_rule[where Q=I])
+       apply (rule rconseq_rule[rotated -1])
+         close (fact hoare)
+        close simp close simp
+      by (fact Suc.IH) 
+    have exit: "rhoare_untyped (\<lambda>m1 m2. I m1 m2 \<and> eu_fun e1 m1 \<noteq> embedding True \<and> eu_fun e2 m2 \<noteq> embedding True) Halt Halt Q"
+      by simp
+    show ?case
+      apply simp
+      using Ieq preserve exit by (rule rif_rule)
+  qed}
+  hence nsteps: "\<And>n. rhoare_untyped P (While_n_exact n e1 p1) (While_n_exact n e2 p2) Q"
+    apply (rule rconseq_rule[rotated -1])
+    using PI by simp_all
+  show ?thesis
+    unfolding rhoare_untyped_rhoare_denotation 
+    apply (rule suminf_rhoare)
+      close (rule nsteps[unfolded rhoare_untyped_rhoare_denotation])      
+     close (rule denotation_untyped_While'')
+    by (rule denotation_untyped_While'')
+qed
+
+
+(* lemma rwhile_rule:
+  assumes hoare: "rhoare_untyped (\<lambda>m1 m2. I m1 m2 \<and> eu_fun e1 m1 = embedding True) p1 p2 I"
+      and PI: "\<And>m1 m2. P m1 m2 \<Longrightarrow> I m1 m2"
+      and Ieq: "\<And>m1 m2. I m1 m2 \<Longrightarrow> eu_fun e1 m1 = eu_fun e2 m2"
+      and IQ: "\<And>m1 m2. eu_fun e1 m1 \<noteq> embedding True \<Longrightarrow> eu_fun e2 m2 \<noteq> embedding True \<Longrightarrow> I m1 m2 \<Longrightarrow> Q m1 m2"
+  shows "rhoare_untyped P (While e1 p1) (While e2 p2) Q"
+proof -
+  {fix n have "rhoare_untyped I (While_n n e1 p1) (While_n n e2 p2) Q"
+  proof (induction n)
+  case 0 show ?case by simp
+  case (Suc n)
+    have preserve: "rhoare_untyped (\<lambda>m1 m2. I m1 m2 \<and> eu_fun e1 m1 = embedding True \<and> eu_fun e2 m2 = embedding True) 
+              (Seq p1 (While_n n e1 p1)) (Seq p2 (While_n n e2 p2)) Q"
+      apply (rule rseq_rule[where Q=I])
+       apply (rule rconseq_rule[rotated -1])
+         close (fact hoare)
+        close simp close simp
+      by (fact Suc.IH) 
+    have exit: "rhoare_untyped (\<lambda>m1 m2. I m1 m2 \<and> eu_fun e1 m1 \<noteq> embedding True \<and> eu_fun e2 m2 \<noteq> embedding True) Skip Skip Q"
+      apply (rule rskip_rule) using IQ by simp
+    show ?case
+      apply simp
+      using Ieq preserve exit by (rule rif_rule)
+  qed}
+  hence "\<And>n. rhoare_untyped P (While_n n e1 p1) (While_n n e2 p2) Q"
+    apply (rule rconseq_rule[rotated -1])
+    using PI by simp_all
+  thus ?thesis
+    unfolding rhoare_untyped_rhoare_denotation denotation_untyped_While'
+    by (rule SUP_rhoare) 
+qed *)
 
 
 (*definition "blockassign (xs::variable_untyped list) (es::expression_untyped list) == 

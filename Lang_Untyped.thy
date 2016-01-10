@@ -208,6 +208,9 @@ lemma eu_fun_const_expression_untyped: "a \<in> t_domain T \<Longrightarrow> eu_
 lemma eu_type_const_expression_untyped: "a \<in> t_domain T \<Longrightarrow> eu_type (const_expression_untyped T a) = T"
   unfolding const_expression_untyped_def eu_type_def
   by (subst Abs_expression_untyped_inverse, auto)
+lemma eu_vars_const_expression_untyped: "a \<in> t_domain T \<Longrightarrow> eu_vars (const_expression_untyped T a) = []"
+  unfolding const_expression_untyped_def eu_vars_def
+  by (subst Abs_expression_untyped_inverse, auto)
 
 lemma eu_fun_footprint: 
   assumes "\<And>v. v\<in>set (eu_vars e) \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
@@ -219,6 +222,20 @@ lemma ed_fun_footprint:
   shows "ed_fun e m1 = ed_fun e m2"
 using Rep_expression_distr assms ed_fun_def ed_vars_def by auto
 
+definition "expression_distr_zero T == Abs_expression_distr \<lparr> edr_fun=\<lambda>x. 0, edr_type=T, edr_vars=[] \<rparr>"
+
+lemma ed_fun_const_expression_untyped [simp]: "ed_fun (expression_distr_zero T) = (\<lambda>m. 0)"
+  unfolding expression_distr_zero_def ed_fun_def
+  by (subst Abs_expression_distr_inverse, auto)
+lemma ed_type_const_expression_untyped [simp]: "ed_type (expression_distr_zero T) = T"
+  unfolding expression_distr_zero_def ed_type_def
+  by (subst Abs_expression_distr_inverse, auto)
+lemma ed_vars_const_expression_untyped [simp]: "ed_vars (expression_distr_zero T) = []"
+  unfolding expression_distr_zero_def ed_vars_def
+  by (subst Abs_expression_distr_inverse, auto)
+
+
+(* TODO remove *)
 type_synonym id0 = string
 type_synonym id = "id0 list"
 
@@ -422,6 +439,20 @@ typedef program = "{prog. well_typed prog}"
 lemma well_typed_Rep_program [simp]: "well_typed (Rep_program x)" 
   using Rep_program by simp
 
+definition "Halt = Sample (pattern_ignore unit_type) (expression_distr_zero unit_type)"
+
+fun While_n :: "nat \<Rightarrow> expression_untyped \<Rightarrow> program_rep \<Rightarrow> program_rep" where
+  "While_n 0 e p = Halt"
+| "While_n (Suc n) e p = IfTE e (Seq p (While_n n e p)) Skip"
+
+(* While_n n + While_n_exact n = While_n (n+1) *)
+fun While_n_exact :: "nat \<Rightarrow> expression_untyped \<Rightarrow> program_rep \<Rightarrow> program_rep" where
+  "While_n_exact 0 e p =                                           IfTE e Halt Skip"
+(* | "While_n_exact (Suc 0) e p =                      IfTE e (Seq p (IfTE e (Seq p Halt) Skip)) Halt" *)
+(* | "While_n_exact (Suc (Suc 0)) e p = IfTE e (Seq p (IfTE e (Seq p (IfTE e (Seq p Halt) Skip)) Halt)) Halt" *)
+(* TODO etc *)
+| "While_n_exact (Suc n) e p = IfTE e (Seq p (While_n_exact n e p)) Halt"
+
 subsection {* Denotational semantics *}
 
 type_synonym denotation = "memory \<Rightarrow> memory distr"
@@ -434,7 +465,7 @@ type_synonym denotation = "memory \<Rightarrow> memory distr"
                     (while_iter n e p m)" *)
 
 (* while_denotation_n 3 e p m   is approximately:
-   if e then (if e then (if e then p else skip); p); p) *)
+   if e then (p; if e then (p; if e then p else skip))) *)
 fun while_denotation_n :: "nat \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> denotation \<Rightarrow> denotation" where
   "while_denotation_n 0 e p m = 0"
 | "while_denotation_n (Suc n) e p m =
@@ -461,6 +492,8 @@ proof -
   thus ?thesis
     by (simp add: incseq_SucI)
 qed
+
+
 
 definition "init_locals m = Abs_memory (\<lambda>x. if vu_global x then Rep_memory m x else t_default (vu_type x))"
 lemma Rep_init_locals: "Rep_memory (init_locals m) = (\<lambda>x. if vu_global x then Rep_memory m x else t_default (vu_type x))"
@@ -539,6 +572,81 @@ lemma denotation_Seq_Skip1 [simp]: "denotation_untyped (Seq Skip c) = denotation
 lemma denotation_Seq_Skip2 [simp]: "denotation_untyped (Seq c Skip) = denotation_untyped c"
   unfolding denotation_untyped_Seq[THEN ext] denotation_untyped_Skip[THEN ext] 
   by auto
+
+lemma denotation_Halt [simp]: "denotation_untyped Halt = (\<lambda>m. 0)"
+  apply (rule ext) unfolding Halt_def by simp
+
+declare denotation_untyped_While[simp del]
+
+lemma denotation_untyped_While_n: "denotation_untyped (While_n n e p) = while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p)"
+    apply (induct_tac n) by auto
+
+lemma mono_denotation_While_n: "mono (\<lambda>n. denotation_untyped (While_n n e p) m)"
+  unfolding denotation_untyped_While_n by (fact mono_while_denotation_n)
+
+lemma denotation_untyped_While' [simp]: "denotation_untyped (While e p) =
+  (SUP n. denotation_untyped (While_n n e p))"
+proof -
+  have "\<And>m. denotation_untyped (While e p) m = (SUP n. denotation_untyped (While_n n e p) m)"
+    using denotation_untyped_While_n unfolding denotation_untyped_While by simp
+  thus ?thesis by auto
+qed
+
+
+lemma denotation_While_n_diff: 
+  "ereal_Rep_distr (denotation_untyped (While_n n e p) m)
+ + ereal_Rep_distr (denotation_untyped (While_n_exact n e p) m)
+ = ereal_Rep_distr (denotation_untyped (While_n (Suc n) e p) m)"
+proof (induction n arbitrary: m)
+case 0
+  show ?case by (auto simp: plus_fun_def)
+next case (Suc n)
+  show ?case
+  proof (cases "eu_fun e m = embedding True")
+  case True
+    have "ereal_Rep_distr (denotation_untyped (While_n (Suc n) e p) m) + ereal_Rep_distr (denotation_untyped (While_n_exact (Suc n) e p) m)
+        = ereal_Rep_distr (compose_distr (denotation_untyped (While_n n e p)) (denotation_untyped p m)) +
+          ereal_Rep_distr (compose_distr (denotation_untyped (While_n_exact n e p)) (denotation_untyped p m))"
+      using True by simp
+    also have "\<dots> = ereal_Rep_distr (compose_distr (denotation_untyped (While_n (Suc n) e p))
+                                              (denotation_untyped p m))"
+      apply (rule compose_distr_add_left)
+      by (fact Suc.IH)
+    also have "\<dots> = ereal_Rep_distr (denotation_untyped (While_n (Suc (Suc n)) e p) m)"
+      using True by simp
+    finally show ?thesis by assumption
+  next case False
+    have "ereal_Rep_distr (denotation_untyped (While_n (Suc n) e p) m) + ereal_Rep_distr (denotation_untyped (While_n_exact (Suc n) e p) m)
+        = ereal_Rep_distr (point_distr m)"
+      by (simp add: False plus_fun_def)
+    also have "\<dots> = ereal_Rep_distr (denotation_untyped (While_n (Suc (Suc n)) e p) m)"
+      using False by simp
+    finally show ?thesis by assumption
+  qed 
+qed
+
+lemma denotation_untyped_While'': "ereal_Rep_distr (denotation_untyped (While e p) m) m' =
+  (\<Sum>n. ereal_Rep_distr (denotation_untyped (While_n_exact n e p) m) m')"
+proof -
+  have "ereal_Rep_distr (denotation_untyped (While e p) m) m' =
+        (SUP n. ereal_Rep_distr (denotation_untyped (While_n n e p) m) m')"
+    apply (subst denotation_untyped_While')
+    by (simp add: ereal_Rep_SUP_distr mono_denotation_While_n)
+  also have "\<dots> = (SUP n. setsum (\<lambda>n'. ereal_Rep_distr (denotation_untyped (While_n_exact n' e p) m) m') {..<n})"
+  proof -
+    {fix n
+    have "ereal_Rep_distr (denotation_untyped (While_n n e p) m) m' =
+          (\<Sum>n'<n. ereal_Rep_distr (denotation_untyped (While_n_exact n' e p) m) m')"
+      apply (induction n)
+       close simp
+      apply (subst denotation_While_n_diff[symmetric])
+      unfolding plus_fun_def by simp}
+    thus ?thesis by simp
+  qed
+  also have "\<dots> = (\<Sum>n. ereal_Rep_distr (denotation_untyped (While_n_exact n e p) m) m')"
+    by (rule suminf_ereal_eq_SUP[symmetric], simp)
+  finally show ?thesis by assumption
+qed
 
 subsection {* Misc (free vars, lossless) *}
 
@@ -943,22 +1051,6 @@ lemma rename_variables_init_locals:
     unfolding Rep_rename_variables_memory[OF type] Rep_init_locals
     using fix_globals Rep_memory by auto    
 
-(* TODO Move to Distr *)
-lemma Rep_apply_distr_biject:
-  assumes "f (g x) = x"
-  and "\<And>x. g (f x) = x"
-  shows "Rep_distr (apply_to_distr f \<mu>) x = Rep_distr \<mu> (g x)"
-apply (subst probability_singleton[symmetric])+
-apply (subst probability_apply_to_distr)
-apply (subgoal_tac "f -` {x} = {g x}")
-using assms by auto
-lemma ereal_Rep_apply_distr_biject:
-  assumes "f (g x) = x"
-  and "\<And>x. g (f x) = x"
-  shows "ereal_Rep_distr (apply_to_distr f \<mu>) x = ereal_Rep_distr \<mu> (g x)"
-unfolding ereal_Rep_distr_def apply (subst ereal.inject)
-using assms by (rule Rep_apply_distr_biject)
-
 lemma rename_variables_init_locals_outside:
   assumes fix_globals: "\<And>x. vu_global x \<Longrightarrow> f x = x"
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
@@ -1088,7 +1180,7 @@ proof -
       qed}
       note n_steps = this
       show ?case
-        apply simp
+        apply (simp del: denotation_untyped_While' add: denotation_untyped_While)
         apply (subst apply_to_distr_sup)
          close (fact mono_while_denotation_n)
         by (subst n_steps, rule)

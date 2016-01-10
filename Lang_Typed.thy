@@ -604,8 +604,9 @@ lemma denotation_sample: "denotation (sample v e) m = apply_to_distr (memory_upd
 
 lemma denotation_ifte: "denotation (ifte e thn els) m = (if e_fun e m then denotation thn m else denotation els m)"
   unfolding denotation_def by simp
+(* TODO: define and use a typed version of While_n in the following lemma *)
 lemma denotation_while: "denotation (while e p) m = 
-  (SUP n. while_denotation_n n (\<lambda>m. e_fun e m) (denotation p) m)"
+  (SUP n. denotation_untyped (While_n n (mk_expression_untyped e) (Rep_program p)) m)"
 (* Abs_distr (\<lambda>m'. \<Sum>n. Rep_distr (compose_distr (\<lambda>m. if e_fun e m then 0 else point_distr m)
                                                   (while_iter n (e_fun e) (denotation p) m)) m')" *)
   unfolding denotation_def by simp 
@@ -1182,12 +1183,6 @@ lemma rename_local_variables_const_expression [simp]:
   apply (rule mk_expression_untyped_inject[THEN iffD1]) 
   apply (rule Rep_expression_untyped_inject[THEN iffD1])
   by auto
-
-(** Misc rules **)
-
-(*lemma swap_denotation:
-  assumes "set(vars a) \<inter> set(vars b) = {}"
-  shows "denotation (seq a b) = denotation (seq b a)"*)
 
 
 end

@@ -82,7 +82,7 @@ lemma ereal_Abs_distr_inverse':
   shows "ereal_Rep_distr (Abs_distr a) = (\<lambda>m. ereal (a m))"
 proof -
   have "ereal_Rep_distr (Abs_distr a) = ereal_Rep_distr (ereal_Abs_distr (\<lambda>m. ereal (a m)))"
-    unfolding ereal_Abs_distr_def by auto
+    unfolding ereal_Abs_distr_def by auto                                                                               
   also have "\<dots> = (\<lambda>m. ereal (a m))"
     apply (rule ereal_Abs_distr_inverse)
     using pos close auto
@@ -90,17 +90,19 @@ proof -
   finally show ?thesis by assumption
 qed
 
-lemma ereal_Rep_inverse: "ereal_Abs_distr (ereal_Rep_distr a) = a"
+lemma ereal_Rep_distr_inverse: "ereal_Abs_distr (ereal_Rep_distr a) = a"
   unfolding ereal_Abs_distr_def ereal_Rep_distr_def apply simp
   by (fact Rep_distr_inverse)
 
 lemma ereal_Rep_distr_inject: "(ereal_Rep_distr x = ereal_Rep_distr y) = (x = y)"
-  using ereal_Rep_inverse by metis
+  using ereal_Rep_distr_inverse by metis
 
 lemma Rep_distr_geq0 [simp]: "Rep_distr \<mu> x \<ge> 0"
   using Rep_distr[of \<mu>] by auto 
 lemma ereal_Rep_distr_geq0 [simp]: "ereal_Rep_distr \<mu> x \<ge> 0"
   unfolding ereal_Rep_distr_def apply (subst ereal_less_eq(5)) by (rule Rep_distr_geq0)
+lemma ereal_Rep_distr_not_inf [simp]: "ereal_Rep_distr \<mu> x \<noteq> \<infinity>"
+  by (simp add: ereal_Rep_distr_def)
 
 lemma ereal_Rep_distr_int_leq1: "(\<integral>\<^sup>+x. ereal_Rep_distr \<mu> x \<partial>count_space UNIV) \<le> 1"
   unfolding ereal_Rep_distr_def using Rep_distr[of \<mu>] by auto
@@ -117,8 +119,8 @@ end
 lemma Rep_distr_0 [simp]: "Rep_distr 0 = (\<lambda>x. 0)"
   unfolding zero_distr_def apply (subst Abs_distr_inverse) apply auto
   by (metis ereal_zero_times zero_ereal_def zero_less_one_ereal)
-
-
+lemma ereal_Rep_distr_0 [simp]: "ereal_Rep_distr 0 = (\<lambda>x. 0)"
+  unfolding ereal_Rep_distr_def[THEN ext] by auto
 
 definition support_distr :: "'a distr \<Rightarrow> 'a set" where
   "support_distr \<mu> = {x. Rep_distr \<mu> x > 0}"
@@ -196,7 +198,7 @@ proof -
     apply (subst Abs_distr_inverse)
     using pos leq1 by (auto simp del: times_ereal.simps simp add: times_ereal.simps(1)[symmetric] ereal_Rep_distr)
 qed
-lemma scaleR_one_distr: "1 *\<^sub>R (\<mu>::'a distr) = \<mu>"
+lemma scaleR_one_distr [simp]: "1 *\<^sub>R (\<mu>::'a distr) = \<mu>"
   unfolding scaleR_distr_def using Rep_distr_inverse by auto  
 
 instantiation distr :: (type) order begin
@@ -213,6 +215,20 @@ proof -
   show "x \<le> y \<Longrightarrow> y \<le> x \<Longrightarrow> x = y" unfolding less_eq_distr_def Rep_distr_inject[symmetric] by simp
 qed
 end
+
+lemma less_eq_ereal_Abs_distr: 
+  fixes a b :: "'a \<Rightarrow> ereal"
+  assumes "\<And>x. a x \<ge> 0" and "\<And>x. b x \<ge> 0"
+  assumes "(\<integral>\<^sup>+x. a x \<partial>count_space UNIV) \<le> 1" and "(\<integral>\<^sup>+x. b x \<partial>count_space UNIV) \<le> 1"
+  shows "(a \<le> b) = (ereal_Abs_distr a \<le> ereal_Abs_distr b)"
+unfolding less_eq_distr_def'
+apply (subst ereal_Abs_distr_inverse)
+  using assms close auto
+ using assms close auto
+apply (subst ereal_Abs_distr_inverse)
+  using assms close auto
+ using assms close auto
+by simp
 
 instantiation distr :: (type) order_bot begin
 definition "(bot :: 'a distr) = 0"
@@ -1290,5 +1306,237 @@ proof -
      using inc' move_SUP by simp_all
 qed
 
+lemma support_distr_SUP: 
+  assumes inc: "incseq \<mu>"
+  shows "support_distr (SUP i. \<mu> i) = (SUP i. support_distr (\<mu> i))"
+proof (unfold support_distr_def', auto)
+  fix x assume "0 < ereal_Rep_distr (SUP n. \<mu> n) x"
+  thus "\<exists>i. 0 < ereal_Rep_distr (\<mu> i) x"
+    by (simp add: ereal_Rep_SUP_distr inc less_SUP_iff)
+next
+  fix x n assume "0 < ereal_Rep_distr (\<mu> n) x"
+  thus "0 < ereal_Rep_distr (SUP n. \<mu> n) x "
+    by (metis (mono_tags) SUP_apply SUP_lessD ereal_Rep_SUP_distr inc iso_tuple_UNIV_I less_linear less_not_sym)
+qed
+
+
+lemma Rep_apply_distr_biject:
+  assumes "f (g x) = x"
+  and "\<And>x. g (f x) = x"
+  shows "Rep_distr (apply_to_distr f \<mu>) x = Rep_distr \<mu> (g x)"
+apply (subst probability_singleton[symmetric])+
+apply (subst probability_apply_to_distr)
+apply (subgoal_tac "f -` {x} = {g x}")
+using assms by auto
+lemma ereal_Rep_apply_distr_biject:
+  assumes "f (g x) = x"
+  and "\<And>x. g (f x) = x"
+  shows "ereal_Rep_distr (apply_to_distr f \<mu>) x = ereal_Rep_distr \<mu> (g x)"
+unfolding ereal_Rep_distr_def apply (subst ereal.inject)
+using assms by (rule Rep_apply_distr_biject)
+
+lemma compose_distr_0 [simp]: "compose_distr (\<lambda>x. 0) \<mu> = 0"
+  apply (subst ereal_Rep_distr_inject[symmetric])
+  unfolding ereal_Rep_compose_distr[THEN ext]
+  by simp
+lemma compose_distr_0' [simp]: "compose_distr f 0 = 0"
+  apply (subst ereal_Rep_distr_inject[symmetric])
+  unfolding ereal_Rep_compose_distr[THEN ext]
+  by simp
+
+instantiation "fun" :: (type,zero) zero begin
+definition "0 = (\<lambda>x. 0)"
+instance ..
+end
+instantiation "fun" :: (type,plus) plus begin
+definition "f + g = (\<lambda>x. f x + g x)"
+instance ..
+end
+instantiation "fun" :: (type,semigroup_add) semigroup_add begin
+instance proof
+  fix a b c :: "'a\<Rightarrow>'b"
+  show "a + b + c = a + (b + c)"
+    unfolding plus_fun_def by (rule ext, rule add.assoc)
+qed
+end
+instantiation "fun" :: (type,ab_semigroup_add) ab_semigroup_add begin
+instance proof
+  fix a b :: "'a\<Rightarrow>'b"
+  show "a + b = b + a"
+    unfolding plus_fun_def by (rule ext, rule add.commute)
+qed
+end
+instantiation "fun" :: (type,comm_monoid_add) comm_monoid_add begin
+instance proof
+  fix a :: "'a\<Rightarrow>'b"
+  show "0 + a = a"
+    unfolding plus_fun_def zero_fun_def by (rule ext, rule add.left_neutral)
+qed
+end
+
+
+
+lemma compose_distr_const: "compose_distr (\<lambda>x. \<mu>) \<nu> = weight_distr \<nu> *\<^sub>R \<mu>"
+  apply (subst ereal_Rep_distr_inject[symmetric]) apply (rule ext)
+  unfolding ereal_Rep_compose_distr apply (subst Rep_distr_scaleR)
+    close (rule probability_pos)
+   close (rule probability_leq1)
+  apply (subst nn_integral_multc)
+    close simp
+   close simp
+  unfolding ereal_probability ereal_probability_def indicator_def 
+  by simp
+
+
+lemma compose_distr_add_left: 
+  assumes "\<And>x. ereal_Rep_distr (f x) + ereal_Rep_distr (g x) = ereal_Rep_distr (h x)"
+  shows "ereal_Rep_distr (compose_distr f \<mu>) + ereal_Rep_distr (compose_distr g \<mu>) = ereal_Rep_distr (compose_distr h \<mu>)"
+apply (rule ext) unfolding plus_fun_def ereal_Rep_compose_distr assms[symmetric] 
+apply (subst ereal_pos_distrib)
+  close (fact ereal_Rep_distr_geq0)
+ close (fact ereal_Rep_distr_not_inf)
+apply (subst nn_integral_add)
+by auto
+
+lemma compose_distr_setsum_left: 
+  assumes fin: "finite N"
+  assumes sum: "\<And>x y. setsum (\<lambda>n. ereal_Rep_distr (f n x) y) N = ereal_Rep_distr (g x) y"
+  shows "setsum (\<lambda>n. ereal_Rep_distr (compose_distr (f n) \<mu>)) N = ereal_Rep_distr (compose_distr g \<mu>)"
+proof -
+  def g' == "\<lambda>M x. ereal_Abs_distr (\<lambda>y. setsum (\<lambda>n. ereal_Rep_distr (f n x) y) M)"
+  have leq1: "\<And>M x. M \<subseteq> N \<Longrightarrow> (\<integral>\<^sup>+ y. (\<Sum>n\<in>M. ereal_Rep_distr (f n x) y) \<partial>count_space UNIV) \<le> 1"
+  proof -
+    fix M and x assume MN: "M \<subseteq> N"
+    have "(\<integral>\<^sup>+ y. (\<Sum>n\<in>M. ereal_Rep_distr (f n x) y) \<partial>count_space UNIV) \<le> (\<integral>\<^sup>+ y. (\<Sum>n\<in>N. ereal_Rep_distr (f n x) y) \<partial>count_space UNIV)"
+      apply (rule nn_integral_mono, thin_tac _) 
+      apply (rule setsum_mono3) using MN fin by auto
+    also have "\<dots> \<le> (\<integral>\<^sup>+ y. (ereal_Rep_distr (g x) y) \<partial>count_space UNIV)"
+      using sum by simp
+    also have "\<dots> \<le> 1"
+      by (rule ereal_Rep_distr_int_leq1)
+    finally show "?thesis M x" by assumption
+  qed
+  have g'_rep: "\<And>M x. M \<subseteq> N \<Longrightarrow> ereal_Rep_distr (g' M x) = (\<lambda>y. setsum (\<lambda>n. ereal_Rep_distr (f n x) y) M)" 
+    unfolding g'_def apply (rule ereal_Abs_distr_inverse)  
+     close (rule setsum_nonneg, simp)
+    by (fact leq1)
+  have g': "g' N = g"
+    apply (rule ext)
+    apply (subst ereal_Rep_distr_inject[symmetric])
+    apply (subst g'_rep)
+    unfolding sum by auto
+  have sum': "\<And>M x y. M \<subseteq> N \<Longrightarrow> setsum (\<lambda>n. ereal_Rep_distr (f n x) y) M = ereal_Rep_distr (g' M x) y"
+    unfolding g'_rep by auto
+
+  def M == N hence "M \<subseteq> N" by simp
+  have M: "N = M" using M_def by simp
+  (* show ?thesis *)
+  have "setsum (\<lambda>n. ereal_Rep_distr (compose_distr (f n) \<mu>)) M = ereal_Rep_distr (compose_distr g \<mu>)"
+    unfolding g'[symmetric] M
+  using fin[unfolded M] sum'[unfolded M] `M \<subseteq> N` proof (induction M)
+  case empty 
+    hence "\<And>x y. ereal_Rep_distr (g' {} x) y = 0" by auto
+    hence "\<And>x. g' {} x = 0" 
+      apply (subst ereal_Rep_distr_inject[symmetric]) by auto
+    thus ?case using zero_fun_def by auto
+  next case (insert n M)
+    have "(\<Sum>n\<in>insert n M. ereal_Rep_distr (compose_distr (f n) \<mu>))  
+      = ereal_Rep_distr (compose_distr (f n) \<mu>) + (\<Sum>n\<in>M. ereal_Rep_distr (compose_distr (f n) \<mu>))"
+      apply (rule setsum.insert)
+      using insert.hyps by simp_all
+    also have "\<dots> = ereal_Rep_distr (compose_distr (f n) \<mu>) + ereal_Rep_distr (compose_distr (g' M) \<mu>)"
+      apply (subst insert.IH) apply (rule insert.prems) using insert.prems by auto
+    also have "\<dots> = ereal_Rep_distr (compose_distr (g' (insert n M)) \<mu>)"
+      apply (rule compose_distr_add_left)
+      apply (subst g'_rep)
+       using insert.prems close simp
+      apply (subst g'_rep)
+       using insert.prems close simp
+      unfolding plus_fun_def
+      apply (subst setsum.insert)
+        using insert.hyps by auto
+    finally show ?case by assumption
+  qed
+  thus ?thesis using M by simp
+qed
+
+lemma compose_distr_add_right: 
+  assumes "\<And>x. ereal_Rep_distr \<mu> + ereal_Rep_distr \<nu> = ereal_Rep_distr \<sigma>"
+  shows "ereal_Rep_distr (compose_distr f \<mu>) + ereal_Rep_distr (compose_distr f \<nu>) = ereal_Rep_distr (compose_distr f \<sigma>)"
+apply (rule ext) unfolding plus_fun_def ereal_Rep_compose_distr assms[symmetric] 
+apply (subst mult.commute, subst ereal_pos_distrib)
+  close (fact ereal_Rep_distr_geq0)
+ close (fact ereal_Rep_distr_not_inf)
+apply (subst nn_integral_add) apply auto
+by (metis (no_types, lifting) mult.commute nn_integral_cong) 
+
+
+lemma compose_distr_setsum_right: 
+  assumes fin: "finite N"
+  assumes sum: "\<And>x y. setsum (\<lambda>n. ereal_Rep_distr (\<nu> n) y) N = ereal_Rep_distr \<mu> y"
+  shows "setsum (\<lambda>n. ereal_Rep_distr (compose_distr f (\<nu> n))) N = ereal_Rep_distr (compose_distr f \<mu>)"
+proof -
+  def \<mu>' == "\<lambda>M. ereal_Abs_distr (\<lambda>y. setsum (\<lambda>n. ereal_Rep_distr (\<nu> n) y) M)"
+  have leq1: "\<And>M. M \<subseteq> N \<Longrightarrow> (\<integral>\<^sup>+y. (\<Sum>n\<in>M. ereal_Rep_distr (\<nu> n) y) \<partial>count_space UNIV) \<le> 1"
+  proof -
+    fix M assume MN: "M \<subseteq> N"
+    have "(\<integral>\<^sup>+ y. (\<Sum>n\<in>M. ereal_Rep_distr (\<nu> n) y) \<partial>count_space UNIV) \<le> (\<integral>\<^sup>+ y. (\<Sum>n\<in>N. ereal_Rep_distr (\<nu> n) y) \<partial>count_space UNIV)"
+      apply (rule nn_integral_mono, thin_tac _) 
+      apply (rule setsum_mono3) using MN fin by auto
+    also have "\<dots> \<le> (\<integral>\<^sup>+ y. (ereal_Rep_distr \<mu> y) \<partial>count_space UNIV)"
+      using sum by simp
+    also have "\<dots> \<le> 1"
+      by (rule ereal_Rep_distr_int_leq1)
+    finally show "?thesis M" by assumption
+  qed
+  have \<mu>'_rep: "\<And>M. M \<subseteq> N \<Longrightarrow> ereal_Rep_distr (\<mu>' M) = (\<lambda>y. setsum (\<lambda>n. ereal_Rep_distr (\<nu> n) y) M)" 
+    unfolding \<mu>'_def apply (rule ereal_Abs_distr_inverse)  
+     close (rule setsum_nonneg, simp)
+    by (fact leq1)
+  have \<mu>': "\<mu>' N = \<mu>"
+    apply (subst ereal_Rep_distr_inject[symmetric])
+    apply (subst \<mu>'_rep) close simp
+    unfolding sum by rule
+  have sum': "\<And>M y. M \<subseteq> N \<Longrightarrow> setsum (\<lambda>n. ereal_Rep_distr (\<nu> n) y) M = ereal_Rep_distr (\<mu>' M) y"
+    unfolding \<mu>'_rep by auto
+
+  def M == N hence "M \<subseteq> N" by simp
+  have M: "N = M" using M_def by simp
+  (* show ?thesis *)
+  have "setsum (\<lambda>n. ereal_Rep_distr (compose_distr f (\<nu> n))) M = ereal_Rep_distr (compose_distr f \<mu>)"
+    unfolding \<mu>'[symmetric] unfolding M
+  using fin[unfolded M] sum'[unfolded M] `M \<subseteq> N` proof (induction M)
+  case empty
+    hence "\<And>y. ereal_Rep_distr (\<mu>' {}) y = 0" by auto
+    hence "\<And>y. \<mu>' {} = 0" 
+      apply (subst ereal_Rep_distr_inject[symmetric]) by auto
+    thus ?case using zero_fun_def by auto
+  next case (insert n M)
+    have "(\<Sum>n\<in>insert n M. ereal_Rep_distr (compose_distr f (\<nu> n)))  
+      = ereal_Rep_distr (compose_distr f (\<nu> n)) + (\<Sum>n\<in>M. ereal_Rep_distr (compose_distr f (\<nu> n)))"
+      apply (rule setsum.insert)
+      using insert.hyps by simp_all
+    also have "\<dots> = ereal_Rep_distr (compose_distr f (\<nu> n)) + ereal_Rep_distr (compose_distr f (\<mu>' M))"
+      apply (subst insert.IH) apply (rule insert.prems) using insert.prems by auto
+    also have "\<dots> = ereal_Rep_distr (compose_distr f (\<mu>' (insert n M)))"
+      apply (rule compose_distr_add_right)
+      apply (subst \<mu>'_rep)
+       using insert.prems close simp
+      apply (subst \<mu>'_rep)
+       using insert.prems close simp
+      unfolding plus_fun_def
+      apply (subst setsum.insert)
+        using insert.hyps by auto
+    finally show ?case by assumption
+  qed
+  thus ?thesis using M by simp
+qed
+
+lemma apply_to_distr_setsum: 
+  assumes fin: "finite N"
+  assumes sum: "\<And>x y. setsum (\<lambda>n. ereal_Rep_distr (\<nu> n) y) N = ereal_Rep_distr \<mu> y"
+  shows "setsum (\<lambda>n. ereal_Rep_distr (apply_to_distr f (\<nu> n))) N = ereal_Rep_distr (apply_to_distr f \<mu>)"
+using assms unfolding compose_point_distr_l[symmetric]
+by (rule compose_distr_setsum_right)
 
 end
