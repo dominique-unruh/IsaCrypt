@@ -1177,8 +1177,6 @@ lemma rename_local_variables_const_expression [simp]:
 
 subsection {* Misc *}
 
-thm while_unfold_untyped
-
 lemma while_unfold: "denotation (Lang_Typed.while e p) = denotation (ifte e (seq p (Lang_Typed.while e p)) Lang_Typed.skip)"
   unfolding denotation_def using while_unfold_untyped by simp 
 

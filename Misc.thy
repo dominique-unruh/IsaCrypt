@@ -32,11 +32,27 @@ instance proof
 qed
 end
 
-(* TODO move to Misc *)
 lemma setsum_apply: 
   assumes "finite N"
   shows "(\<Sum>n\<in>N. f n) x = (\<Sum>n\<in>N. f n x)"
 using assms apply (induction N)
 by (auto simp: zero_fun_def plus_fun_def)
+
+lemma SUP_Suc:
+  fixes f :: "nat \<Rightarrow> 'a::complete_lattice"
+  assumes "mono f"
+  shows "(SUP n. f n) = (SUP n. f (Suc n))"
+using assms
+by (smt SUP_eq bex_UNIV monoD mono_iff_le_Suc order_refl)
+
+lemma mono_apply: 
+  assumes "mono f" and "mono g" 
+  shows "mono (\<lambda>n. f (g n))"
+by (meson assms(1) assms(2) mono_def)
+
+lemma mono_funD: "\<And>x. mono f \<Longrightarrow> mono (\<lambda>i. f i x)"
+  unfolding mono_def le_fun_def by auto
+lemma mono_funI: "(\<And>x. mono (\<lambda>i. f i x)) \<Longrightarrow> mono f"
+  unfolding mono_def le_fun_def by auto
 
 end

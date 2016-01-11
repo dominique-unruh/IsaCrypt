@@ -1310,8 +1310,39 @@ qed
 lemma compose_distr_SUP_left:
   assumes "incseq f"
   shows "compose_distr (SUP n::nat. f n) \<mu> = (SUP n. compose_distr (f n) \<mu>)"
-by later
+proof -
+  have left_mono: "\<And>\<mu> y. mono (\<lambda>x. ereal_Rep_distr \<mu> y * x)" 
+    unfolding mono_def apply auto
+    apply (rule ereal_mult_left_mono)
+    by auto
 
+  have "ereal_Rep_distr (compose_distr (SUP x. f x) \<mu>) = (\<lambda>x. \<integral>\<^sup>+ a. ereal_Rep_distr \<mu> a * ereal_Rep_distr (SUP y. f y a) x \<partial>count_space UNIV)"
+    by (simp add: ereal_Rep_compose_distr[THEN ext])
+  also have "\<dots> = (\<lambda>x. \<integral>\<^sup>+ a. ereal_Rep_distr \<mu> a * (SUP i. ereal_Rep_distr (f i a)) x \<partial>count_space UNIV)"
+    apply (subst ereal_Rep_SUP_distr)
+     using assms unfolding mono_def le_fun_def by auto
+  also have "... = (\<lambda>x. \<integral>\<^sup>+ a. (SUP i. ereal_Rep_distr \<mu> a * ereal_Rep_distr (f i a) x) \<partial>count_space UNIV)"
+    apply (subst SUP_apply) 
+    apply (subst SUP_ereal_mult_left[symmetric])
+       by auto
+  also have "... = (\<lambda>x. SUP i. \<integral>\<^sup>+ a. ereal_Rep_distr \<mu> a * ereal_Rep_distr (f i a) x \<partial>count_space UNIV)"
+    apply (subst nn_integral_monotone_convergence_SUP)  
+      apply (rule mono_funI) apply (rule mono_apply[OF left_mono])
+      apply (rule mono_funD) apply (rule mono_apply[OF mono_ereal_Rep_distr])
+      apply (rule mono_funD) close (fact assms)
+     by auto
+  also have "... = (SUP i. (\<lambda>x. \<integral>\<^sup>+ a. ereal_Rep_distr \<mu> a * ereal_Rep_distr (f i a) x \<partial>count_space UNIV))"
+    by auto
+  also have "... = (SUP i. ereal_Rep_distr (compose_distr (f i) \<mu>))"
+    by (subst ereal_Rep_compose_distr[THEN ext], simp)
+  also have "\<dots> = ereal_Rep_distr (SUP i. compose_distr (f i) \<mu>)"
+    apply (rule ereal_Rep_SUP_distr[symmetric])
+    apply (rule mono_apply[OF mono_compose_distr1])
+    by (fact assms)
+
+  finally show ?thesis
+    apply (subst ereal_Rep_distr_inject[symmetric]) by assumption
+qed
 
 lemma support_distr_SUP: 
   assumes inc: "incseq \<mu>"

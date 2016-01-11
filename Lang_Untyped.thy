@@ -581,11 +581,6 @@ declare denotation_untyped_While[simp del]
 lemma denotation_untyped_While_n: "denotation_untyped (While_n n e p) = while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p)"
     apply (induct_tac n) by auto
 
-(* TODO move to Misc *)
-lemma mono_funD: "\<And>x. mono f \<Longrightarrow> mono (\<lambda>i. f i x)"
-  unfolding mono_def le_fun_def by auto
-lemma mono_funI: "(\<And>x. mono (\<lambda>i. f i x)) \<Longrightarrow> mono f"
-  unfolding mono_def le_fun_def by auto
 
 lemma mono_denotation_While_n: "mono (\<lambda>n. denotation_untyped (While_n n e p))"
   apply (rule mono_funI) unfolding denotation_untyped_While_n by (fact mono_while_denotation_n)
@@ -653,31 +648,17 @@ proof -
   finally show ?thesis by assumption
 qed
 
-(* TODO move to Misc *)
-lemma SUP_Suc:
-  fixes f :: "nat \<Rightarrow> 'a::complete_lattice"
-  assumes "incseq f"
-  shows "(SUP n. f n) = (SUP n. f (Suc n))"
-using assms
-by (smt SUP_eq bex_UNIV monoD mono_iff_le_Suc order_refl)
-
-(* TODO move to Misc *)
-lemma mono_compose: 
-  assumes "mono f" and "mono g" 
-  shows "mono (\<lambda>n. f (g n))"
-by (meson assms(1) assms(2) mono_def)
-
 lemma while_unfold_untyped: "denotation_untyped (While e p) = denotation_untyped (IfTE e (Seq p (While e p)) Skip)"
 proof -
   have inc: "\<And>m m'. incseq (\<lambda>n. ereal_Rep_distr (denotation_untyped (While_n n e p) m) m')"
-    apply (rule mono_funD) apply (rule mono_compose[OF mono_ereal_Rep_distr])
+    apply (rule mono_funD) apply (rule mono_apply[OF mono_ereal_Rep_distr])
     apply (rule mono_funD) by (rule mono_denotation_While_n)
   have inc': "\<And>m. incseq (\<lambda>y. denotation_untyped (IfTE e (Seq p (While_n y e p)) Skip) m)" 
     apply (case_tac "eu_fun e m = embedding True")
-     apply simp apply (rule mono_compose[OF mono_compose_distr1]) close (rule mono_denotation_While_n)
+     apply simp apply (rule mono_apply[OF mono_compose_distr1]) close (rule mono_denotation_While_n)
     by simp
   have inc3: "\<And>m. incseq (\<lambda>n. compose_distr (denotation_untyped (While_n n e p)) (denotation_untyped p m))" 
-    apply (rule mono_compose[OF mono_compose_distr1]) by (rule mono_denotation_While_n)
+    apply (rule mono_apply[OF mono_compose_distr1]) by (rule mono_denotation_While_n)
   
   {fix m m'
   have "ereal_Rep_distr (denotation_untyped (While e p) m) m' = ereal_Rep_distr ((SUP n. denotation_untyped (While_n n e p)) m) m'"
