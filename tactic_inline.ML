@@ -391,7 +391,7 @@ fun hoare_obseq_replace_tac ctx redex obseq_tac =
       val (obseq_rule,program) = case concl of @{termx "Trueprop (Hoare_Typed.hoare ?P ?c ?Q)"} => 
                                                  let val _ = (P,Q) (* Avoids ML warning *)
                                                      val _ = if contains_pattern ctx redex c then () else raise TERM("hoare_obseq_replace_tac: Hoare triple does not contain pattern",[concl,redex])
-                                                 in (@{thm hoare_obseq_replace},c) end
+                                                 in (@{thm hoare_obseq_replace_ctx},c) end
                                              | @{termx "Trueprop (rhoare ?P ?c ?c' ?Q)"} => 
                                                  if contains_pattern ctx redex c then (@{thm rhoare_left_obseq_replace},c)
                                                  else if contains_pattern ctx redex c' then (@{thm rhoare_right_obseq_replace},c')

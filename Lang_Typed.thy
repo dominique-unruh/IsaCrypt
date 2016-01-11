@@ -149,6 +149,14 @@ lemma e_fun_eu_fun: "e_fun e = inv embedding o eu_fun (mk_expression_untyped e)"
 lemma e_vars_eu_vars: "e_vars e = eu_vars (mk_expression_untyped e)"
   unfolding eu_vars_def Rep_mk_expression_untyped o_def by simp
 
+lemma e_fun_footprint: 
+  assumes "\<And>v. v\<in>set (e_vars e) \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
+  shows "e_fun (e::'a::prog_type expression) m1 = e_fun e m2"
+unfolding e_fun_eu_fun o_def
+apply (tactic \<open>cong_tac @{context} 1\<close>, simp)
+apply (subst eu_fun_footprint)
+using assms unfolding e_vars_eu_vars by auto
+
 lemma mk_expression_typed_inverse:
   assumes "eu_type e=Type TYPE('a)"
   shows "mk_expression_untyped (mk_expression_typed e :: 'a::prog_type expression) = e"
@@ -421,25 +429,6 @@ lemma memory_update_pair_pattern':
   by (cases x, simp)
 
 
-(*
-class pattern = fixes pattern_of :: "'a \<Rightarrow> 'a pattern"
-
-instantiation unit :: pattern begin
-definition "pattern_of (_::unit) = Abs_pattern (pattern_ignore unit_type)"
-instance by intro_classes
-end
-
-instantiation prod :: (pattern,pattern)pattern begin
-(* TODO define pattern_of *)
-instance by intro_classes
-end
-
-instantiation variable :: (prog_type)pattern begin
-
-TODO: does not work.
-prog_type would have to map "'a variable \<Rightarrow> 'a pattern", but it's type is "'a variable \<Rightarrow> 'a variable pattern"
-what to do?
-*)
 
 record ('a,'b) procedure = 
   p_body :: program
@@ -1185,6 +1174,14 @@ lemma rename_local_variables_const_expression [simp]:
   apply (rule mk_expression_untyped_inject[THEN iffD1]) 
   apply (rule Rep_expression_untyped_inject[THEN iffD1])
   by auto
+
+subsection {* Misc *}
+
+thm while_unfold_untyped
+
+lemma while_unfold: "denotation (Lang_Typed.while e p) = denotation (ifte e (seq p (Lang_Typed.while e p)) Lang_Typed.skip)"
+  unfolding denotation_def using while_unfold_untyped by simp 
+
 
 
 end

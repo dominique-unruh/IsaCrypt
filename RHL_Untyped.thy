@@ -22,6 +22,19 @@ lemma rhoare_untyped_rhoare_denotation: "rhoare_untyped pre c1 c2 post = rhoare_
 lemma rhoare_denotation_0 [simp]: "rhoare_denotation P (\<lambda>x. 0) (\<lambda>x. 0) Q"
   using apply_to_distr_0 rhoare_denotation_def by fastforce
 
+definition "assertion_footprint_left X P == (\<forall>m1 m1' m2 m2'. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m1' x) \<longrightarrow> (m2::memory)=m2' \<longrightarrow> P m1 m2 = P m1' m2')"
+lemma assertion_footprint_left_const: "assertion_footprint_left X (\<lambda>m. P)"
+  unfolding assertion_footprint_left_def by simp
+lemma assertion_footprint_left_app: "assertion_footprint_left X P \<Longrightarrow> assertion_footprint_left X Q \<Longrightarrow> assertion_footprint_left X (\<lambda>m m'. (P m m') (Q m m'))"
+  unfolding assertion_footprint_left_def by auto
+
+definition "assertion_footprint_right X P == (\<forall>m1 m1' m2 m2'. (\<forall>x\<in>X. memory_lookup_untyped m2 x = memory_lookup_untyped m2' x)\<longrightarrow> (m1::memory)=m1' \<longrightarrow> P m1 m2 = P m1' m2')"
+lemma assertion_footprint_right_const: "assertion_footprint_right X (\<lambda>m m'. P m)"
+  unfolding assertion_footprint_right_def by simp
+lemma assertion_footprint_right_app: "assertion_footprint_right X P \<Longrightarrow> assertion_footprint_right X Q \<Longrightarrow> assertion_footprint_right X (\<lambda>m m'. (P m m') (Q m m'))"
+  unfolding assertion_footprint_right_def by auto
+
+
 lemma rskip_rule:
   assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q m1 m2"
   shows "rhoare_untyped P Skip Skip Q"
@@ -247,13 +260,6 @@ apply (rule rcase_rule[where f="\<lambda>m1 m2. eu_fun e1 m1 = embedding True"],
 apply (rule iffalse_rule_both)
  close (rule rconseq_rule[OF _ _ assms(3)]; auto simp: assms(1))
 using assms(1) by auto
-
-(* TODO move to Misc *)
-lemma setsum_apply: 
-  assumes "finite N"
-  shows "(\<Sum>n\<in>N. f n) x = (\<Sum>n\<in>N. f n x)"
-using assms apply (induction N)
-by (auto simp: zero_fun_def plus_fun_def)
 
 lemma suminf_rhoare:
   assumes rhoare: "\<And>n::nat. rhoare_denotation P (c n) (d n) Q"
@@ -1374,6 +1380,28 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
     unfolding eq_def by simp
 qed
 
+(* TODO move to RHL_Untyped *)
+lemma hoare_obseq_replace_untyped:
+  assumes Q: "assertion_footprint Y Q"
+  assumes eq: "obs_eq_untyped X Y c d"
+  assumes hoare: "hoare_untyped P d Q"
+  shows "hoare_untyped P c Q"
+proof (unfold hoare_untyped_def, rule+)
+  fix m m' assume "P m" assume supp_m': "m' \<in> support_distr (denotation_untyped c m)"
+  obtain \<mu> where supp: "\<And>m1 m2 x. (m1,m2)\<in>support_distr \<mu> \<Longrightarrow> x\<in>Y \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+        and fst: "apply_to_distr fst \<mu> = denotation_untyped c m" and snd: "apply_to_distr snd \<mu> = denotation_untyped d m"
+    apply atomize_elim
+    using eq[unfolded obs_eq_untyped_def rhoare_untyped_def, rule_format, of m m]
+    by metis
+  from supp_m' have "m' \<in> support_distr (apply_to_distr fst \<mu>)" using fst by simp
+  then obtain m'd where m'd: "(m',m'd) \<in> support_distr \<mu>" by auto
+  hence "m'd \<in> support_distr (apply_to_distr snd \<mu>)" by force
+  hence "m'd \<in> support_distr (denotation_untyped d m)" using snd by auto
+  hence "Q m'd" using hoare `P m` unfolding hoare_untyped_def by auto
+  from m'd and supp have "\<And>x. x\<in>Y \<Longrightarrow> memory_lookup_untyped m' x = memory_lookup_untyped m'd x" by simp
+  thus "Q m'"
+    using Q `Q m'd` unfolding assertion_footprint_def by blast 
+qed
 
 
 (*

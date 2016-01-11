@@ -28,11 +28,11 @@ simproc_setup hoare_simproc ("denotation c" | "Hoare_Typed.hoare P c Q" | "rhoar
 lemma lang_cong_program [lang_cong]: "fun_equiv denotation x y \<Longrightarrow> fun_equiv denotation (program x) (program y)"
   unfolding program_def .
 lemma lang_cong_while [lang_cong]: "fun_equiv denotation x y \<Longrightarrow> fun_equiv denotation (Lang_Typed.while e x) (Lang_Typed.while e y)"
-  SORRY
+  unfolding fun_equiv_def denotation_def Rep_while unfolding denotation_untyped_While[THEN ext] by simp
 lemma lang_cong_seq [lang_cong]: "fun_equiv denotation x y \<Longrightarrow> fun_equiv denotation x' y' \<Longrightarrow> fun_equiv denotation (seq x x') (seq y y')"
   unfolding fun_equiv_def denotation_seq[THEN ext] by simp
 lemma lang_cong_ifte [lang_cong]: "fun_equiv denotation x y \<Longrightarrow> fun_equiv denotation x' y' \<Longrightarrow> fun_equiv denotation (ifte e x x') (ifte e y y')"
-  SORRY
+  unfolding fun_equiv_def denotation_def Rep_ifte unfolding denotation_untyped_IfTE[THEN ext] by auto
 
 lemma lang_simp_seq_assoc [lang_simp]: "fun_equiv denotation (seq x (seq y z)) (seq (seq x y) z)"
   unfolding fun_equiv_def by (fact denotation_seq_assoc[symmetric])
@@ -45,8 +45,7 @@ lemma lang_simp_iftrue [lang_simp]: "(\<And>m. e_fun e m) \<Longrightarrow> fun_
 lemma lang_simp_iffalse [lang_simp]: "(\<And>m. \<not> e_fun e m) \<Longrightarrow> fun_equiv denotation (ifte e c d) d"
   unfolding fun_equiv_def by (subst denotation_ifte[THEN ext], simp)
 lemma lang_simp_whilefalse [lang_simp]: "(\<And>m. \<not> e_fun e m) \<Longrightarrow> fun_equiv denotation (Lang_Typed.while e c) Lang_Typed.skip"
-  (* unfolding fun_equiv_def by (subst denotation_while[THEN ext], simp) *)
-  SORRY
+  using lang_simp_iffalse unfolding fun_equiv_def while_unfold by simp
 
 
 lemma lang_simp_ifsame [lang_simp]: "fun_equiv denotation c d \<Longrightarrow> fun_equiv denotation (ifte e c d) c"

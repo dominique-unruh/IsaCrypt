@@ -198,6 +198,16 @@ unfolding rhoare_untyped apply simp
 apply (rule rwhile_rule[where I=I])
 using assms unfolding rhoare_untyped by auto
 
+lemma rtrans_rule:
+  assumes p:"\<And>m1 m2. P m1 m2 \<Longrightarrow> \<exists>m. P1 m1 m \<and> P2 m m2"
+      and q:"\<And>m1 m2 m. Q1 m1 m \<Longrightarrow> Q2 m m2 \<Longrightarrow> Q m1 m2"
+      and rhl1: "hoare {P1 &1 &2} \<guillemotleft>c1\<guillemotright> ~ \<guillemotleft>c\<guillemotright> {Q1 &1 &2}"
+      and rhl2: "hoare {P2 &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>c2\<guillemotright> {Q2 &1 &2}"
+  shows "hoare {P &1 &2} \<guillemotleft>c1\<guillemotright> ~ \<guillemotleft>c2\<guillemotright> {Q &1 &2}"
+unfolding rhoare_untyped
+apply (rule rtrans_rule[of _ P1 P2 Q1 Q2])
+using assms unfolding rhoare_untyped by auto
+
 lemma seq_assoc_left_rule: 
   assumes "hoare {P &1 &2} \<guillemotleft>a\<guillemotright>;\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {R &1 &2}"
   shows "hoare {P &1 &2} \<guillemotleft>a\<guillemotright>;{\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright>} ~ \<guillemotleft>d\<guillemotright> {R &1 &2}"
@@ -474,28 +484,10 @@ lemma callproc_equiv:
 *)
 
 definition "obseq_context X C == (\<forall>c d. obs_eq X X c d \<longrightarrow> obs_eq X X (C c) (C d))"
-definition "assertion_footprint X P == (\<forall>m1 m2. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) \<longrightarrow> P m1 = P m2)"
-lemma assertion_footprint_const: "assertion_footprint X (\<lambda>m. P)"
-  unfolding assertion_footprint_def by simp
-lemma assertion_footprint_lookup: "mk_variable_untyped x \<in> X \<Longrightarrow> assertion_footprint X (\<lambda>m. memory_lookup m x)"
-  unfolding assertion_footprint_def by auto
-lemma assertion_footprint_app: "assertion_footprint X P \<Longrightarrow> assertion_footprint X Q \<Longrightarrow> assertion_footprint X (\<lambda>m. (P m) (Q m))"
-  unfolding assertion_footprint_def by auto
 
-definition "assertion_footprint_left X P == (\<forall>m1 m1' m2 m2'. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m1' x) \<longrightarrow> (m2::memory)=m2' \<longrightarrow> P m1 m2 = P m1' m2')"
-lemma assertion_footprint_left_const: "assertion_footprint_left X (\<lambda>m. P)"
-  unfolding assertion_footprint_left_def by simp
 lemma assertion_footprint_left_lookup: "mk_variable_untyped x \<in> X \<Longrightarrow> assertion_footprint_left X (\<lambda>m1 m2. memory_lookup m1 x)"
   unfolding assertion_footprint_left_def by auto
-lemma assertion_footprint_left_app: "assertion_footprint_left X P \<Longrightarrow> assertion_footprint_left X Q \<Longrightarrow> assertion_footprint_left X (\<lambda>m m'. (P m m') (Q m m'))"
-  unfolding assertion_footprint_left_def by auto
-
-definition "assertion_footprint_right X P == (\<forall>m1 m1' m2 m2'. (\<forall>x\<in>X. memory_lookup_untyped m2 x = memory_lookup_untyped m2' x)\<longrightarrow> (m1::memory)=m1' \<longrightarrow> P m1 m2 = P m1' m2')"
-lemma assertion_footprint_right_const: "assertion_footprint_right X (\<lambda>m m'. P m)"
-  unfolding assertion_footprint_right_def by simp
 lemma assertion_footprint_right_lookup: "mk_variable_untyped x \<in> X \<Longrightarrow> assertion_footprint_right X (\<lambda>m1 m2. memory_lookup m2 x)"
-  unfolding assertion_footprint_right_def by auto
-lemma assertion_footprint_right_app: "assertion_footprint_right X P \<Longrightarrow> assertion_footprint_right X Q \<Longrightarrow> assertion_footprint_right X (\<lambda>m m'. (P m m') (Q m m'))"
   unfolding assertion_footprint_right_def by auto
 
 lemma rskip_rule [simp]:
@@ -530,15 +522,6 @@ proof -
   thus ?thesis
     unfolding obseq_context_def obs_eq_def eq_def by simp
 qed
-
-(* TODO move *)
-lemma e_fun_footprint: 
-  assumes "\<And>v. v\<in>set (e_vars e) \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
-  shows "e_fun (e::'a::prog_type expression) m1 = e_fun e m2"
-unfolding e_fun_eu_fun o_def
-apply (tactic \<open>cong_tac @{context} 1\<close>, simp)
-apply (subst eu_fun_footprint)
-using assms unfolding e_vars_eu_vars by auto
 
 lemma obseq_context_ifte: 
   assumes C1: "obseq_context X C1"
@@ -621,13 +604,28 @@ using assms unfolding p_vars_def
 by (auto simp: vars_proc_untyped_global)
   
 
-lemma hoare_obseq_replace: 
-  assumes "obseq_context X C"
-  assumes "assertion_footprint X Q"
-  assumes "obs_eq' X c d"
-  assumes "hoare {P &m} \<guillemotleft>C d\<guillemotright> {Q &m}"
+lemma hoare_obseq_replace_ctx: 
+  assumes C: "obseq_context X C"
+  assumes Q: "assertion_footprint X Q"
+  assumes eq: "obs_eq' X c d"
+  assumes hoare: "hoare {P &m} \<guillemotleft>C d\<guillemotright> {Q &m}"
   shows "hoare {P &m} \<guillemotleft>C c\<guillemotright> {Q &m}"
-SORRY "check assumptions carefully!"
+proof -
+  let ?eq = "\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  let ?c = "Rep_program (C c)"
+  let ?d = "Rep_program (C d)"
+  have "obs_eq' X (C c) (C d)"
+    unfolding obs_eq'_def obs_eq_def
+    apply (rule obseq_context_as_rule[OF C])
+    using eq unfolding obs_eq'_def obs_eq_def by assumption
+  hence "obs_eq_untyped X X ?c ?d"
+    by (simp add: obs_eq'_def obs_eq_obs_eq_untyped)
+  moreover have "hoare_untyped P ?d Q"
+    using hoare hoare_untyped by auto
+  ultimately have "hoare_untyped P ?c Q"
+    using Q by (rule hoare_obseq_replace_untyped[rotated])
+  thus ?thesis unfolding hoare_untyped by assumption
+qed
 
 lemma rhoare_left_obseq_replace: 
   assumes "obseq_context X C"

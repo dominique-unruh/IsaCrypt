@@ -32,6 +32,9 @@ print_translation {*
 
 subsection {* Rules *}
 
+lemma assertion_footprint_lookup: "mk_variable_untyped x \<in> X \<Longrightarrow> assertion_footprint X (\<lambda>m. memory_lookup m x)"
+  unfolding assertion_footprint_def by auto
+
 lemma seq_rule:
   fixes P Q R c d
   assumes "hoare {P &m} \<guillemotleft>c\<guillemotright> {Q &m}" and "hoare {Q &m} \<guillemotleft>d\<guillemotright> {R &m}"

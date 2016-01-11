@@ -30,14 +30,20 @@ by metis
   fixes x::variable_untyped and a::val and c::program_rep
   assumes "x\<notin>set(vars_untyped c)"
   shows "hoare_untyped (\<lambda>m. memory_lookup_untyped m x = a) c (\<lambda>m. memory_lookup_untyped m x = a)"
-SORRY *)
+ *)
 
 (* lemma readonly_assign: (* TODO: rephrase using readonly_program_untyped or something, or drop *)
 (* See program_untyped_readonly_write_vars below *)
   fixes x::pattern_untyped and y::variable_untyped and e::expression_untyped and a::val
   assumes "y\<notin>set(p_vars x)"
   shows "hoare_untyped (\<lambda>m. memory_lookup_untyped m y = a) (Assign x e) (\<lambda>m. memory_lookup_untyped m y = a)"
-SORRY *)
+ *)
+
+definition "assertion_footprint X P == (\<forall>m1 m2. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) \<longrightarrow> P m1 = P m2)"
+lemma assertion_footprint_const: "assertion_footprint X (\<lambda>m. P)"
+  unfolding assertion_footprint_def by simp
+lemma assertion_footprint_app: "assertion_footprint X P \<Longrightarrow> assertion_footprint X Q \<Longrightarrow> assertion_footprint X (\<lambda>m. (P m) (Q m))"
+  unfolding assertion_footprint_def by auto
 
 
 lemma conseq_rule:

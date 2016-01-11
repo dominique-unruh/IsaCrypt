@@ -581,8 +581,14 @@ declare denotation_untyped_While[simp del]
 lemma denotation_untyped_While_n: "denotation_untyped (While_n n e p) = while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p)"
     apply (induct_tac n) by auto
 
-lemma mono_denotation_While_n: "mono (\<lambda>n. denotation_untyped (While_n n e p) m)"
-  unfolding denotation_untyped_While_n by (fact mono_while_denotation_n)
+(* TODO move to Misc *)
+lemma mono_funD: "\<And>x. mono f \<Longrightarrow> mono (\<lambda>i. f i x)"
+  unfolding mono_def le_fun_def by auto
+lemma mono_funI: "(\<And>x. mono (\<lambda>i. f i x)) \<Longrightarrow> mono f"
+  unfolding mono_def le_fun_def by auto
+
+lemma mono_denotation_While_n: "mono (\<lambda>n. denotation_untyped (While_n n e p))"
+  apply (rule mono_funI) unfolding denotation_untyped_While_n by (fact mono_while_denotation_n)
 
 lemma denotation_untyped_While' [simp]: "denotation_untyped (While e p) =
   (SUP n. denotation_untyped (While_n n e p))"
@@ -591,7 +597,6 @@ proof -
     using denotation_untyped_While_n unfolding denotation_untyped_While by simp
   thus ?thesis by auto
 qed
-
 
 lemma denotation_While_n_diff: 
   "ereal_Rep_distr (denotation_untyped (While_n n e p) m)
@@ -631,7 +636,7 @@ proof -
   have "ereal_Rep_distr (denotation_untyped (While e p) m) m' =
         (SUP n. ereal_Rep_distr (denotation_untyped (While_n n e p) m) m')"
     apply (subst denotation_untyped_While')
-    by (simp add: ereal_Rep_SUP_distr mono_denotation_While_n)
+    by (simp add: ereal_Rep_SUP_distr mono_denotation_While_n[THEN mono_funD])
   also have "\<dots> = (SUP n. setsum (\<lambda>n'. ereal_Rep_distr (denotation_untyped (While_n_exact n' e p) m) m') {..<n})"
   proof -
     {fix n
@@ -646,6 +651,70 @@ proof -
   also have "\<dots> = (\<Sum>n. ereal_Rep_distr (denotation_untyped (While_n_exact n e p) m) m')"
     by (rule suminf_ereal_eq_SUP[symmetric], simp)
   finally show ?thesis by assumption
+qed
+
+(* TODO move to Misc *)
+lemma SUP_Suc:
+  fixes f :: "nat \<Rightarrow> 'a::complete_lattice"
+  assumes "incseq f"
+  shows "(SUP n. f n) = (SUP n. f (Suc n))"
+using assms
+by (smt SUP_eq bex_UNIV monoD mono_iff_le_Suc order_refl)
+
+(* TODO move to Misc *)
+lemma mono_compose: 
+  assumes "mono f" and "mono g" 
+  shows "mono (\<lambda>n. f (g n))"
+by (meson assms(1) assms(2) mono_def)
+
+lemma while_unfold_untyped: "denotation_untyped (While e p) = denotation_untyped (IfTE e (Seq p (While e p)) Skip)"
+proof -
+  have inc: "\<And>m m'. incseq (\<lambda>n. ereal_Rep_distr (denotation_untyped (While_n n e p) m) m')"
+    apply (rule mono_funD) apply (rule mono_compose[OF mono_ereal_Rep_distr])
+    apply (rule mono_funD) by (rule mono_denotation_While_n)
+  have inc': "\<And>m. incseq (\<lambda>y. denotation_untyped (IfTE e (Seq p (While_n y e p)) Skip) m)" 
+    apply (case_tac "eu_fun e m = embedding True")
+     apply simp apply (rule mono_compose[OF mono_compose_distr1]) close (rule mono_denotation_While_n)
+    by simp
+  have inc3: "\<And>m. incseq (\<lambda>n. compose_distr (denotation_untyped (While_n n e p)) (denotation_untyped p m))" 
+    apply (rule mono_compose[OF mono_compose_distr1]) by (rule mono_denotation_While_n)
+  
+  {fix m m'
+  have "ereal_Rep_distr (denotation_untyped (While e p) m) m' = ereal_Rep_distr ((SUP n. denotation_untyped (While_n n e p)) m) m'"
+    unfolding denotation_untyped_While' by simp
+  also have "\<dots> = (SUP n. ereal_Rep_distr (denotation_untyped (While_n n e p) m) m')"
+    by (simp add: ereal_Rep_SUP_distr mono_denotation_While_n[THEN mono_funD])
+  also have "\<dots> = (SUP n. ereal_Rep_distr (denotation_untyped (While_n (Suc n) e p) m) m')"
+    apply (rule SUP_Suc) by (fact inc)
+  also have "\<dots> = (SUP n. ereal_Rep_distr (denotation_untyped (IfTE e (Seq p (While_n n e p)) Skip) m) m')"
+    by simp
+(*   also have "\<dots> = ereal_Rep_distr ((SUP n. denotation_untyped (IfTE e (Seq p (While_n n e p)) Skip)) m) m'"
+    unfolding SUP_apply apply (subst ereal_Rep_SUP_distr)
+    using inc' by auto *)
+  also have "\<dots> = (if eu_fun e m = embedding True 
+                     then (SUP n. ereal_Rep_distr (denotation_untyped (Seq p (While_n n e p)) m) m')  
+                     else (ereal_Rep_distr (denotation_untyped Skip m) m'))"
+    by auto
+  also have "\<dots> = (if eu_fun e m = embedding True 
+                     then (SUP n. ereal_Rep_distr (compose_distr (denotation_untyped (While_n n e p)) (denotation_untyped p m)) m')  
+                     else (ereal_Rep_distr (denotation_untyped Skip m) m'))"
+    by auto
+  also have "(SUP n. ereal_Rep_distr (compose_distr (denotation_untyped (While_n n e p)) (denotation_untyped p m)) m')
+            = (ereal_Rep_distr (compose_distr (SUP n. denotation_untyped (While_n n e p)) (denotation_untyped p m)) m')"
+    apply (subst compose_distr_SUP_left) close (fact mono_denotation_While_n)
+    apply (subst ereal_Rep_SUP_distr) close (fact inc3)
+    by auto
+  also have "(SUP n. denotation_untyped (While_n n e p)) = denotation_untyped (While e p)"
+    by simp
+  also have "(if eu_fun e m = embedding True 
+      then ereal_Rep_distr (compose_distr (denotation_untyped (While e p)) (denotation_untyped p m)) m'
+      else ereal_Rep_distr (denotation_untyped Skip m) m') 
+      = ereal_Rep_distr (denotation_untyped (IfTE e (Seq p (While e p)) Skip) m) m'"
+    by simp
+  finally have "ereal_Rep_distr (denotation_untyped (While e p) m) m' = ereal_Rep_distr (denotation_untyped (IfTE e (Seq p (While e p)) Skip) m) m'" 
+    by assumption}
+  thus ?thesis  
+    apply (rule_tac ext) apply (rule ereal_Rep_distr_inject[THEN iffD1]) by rule
 qed
 
 subsection {* Misc (free vars, lossless) *}

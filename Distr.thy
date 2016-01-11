@@ -1,5 +1,5 @@
 theory Distr
-imports Main Tools "~~/src/HOL/Probability/Binary_Product_Measure"
+imports Main Tools "~~/src/HOL/Probability/Binary_Product_Measure" Misc
 begin
 
 lemma indicator_singleton: "indicator {x} y = indicator {y} x"
@@ -1247,6 +1247,7 @@ lemma apply_to_distr_compose_distr:
   shows "apply_to_distr f (compose_distr g h) = compose_distr (\<lambda>m. apply_to_distr f (g m)) h"
   by (metis (no_types, lifting) compose_distr_assoc compose_distr_cong compose_point_distr_l)
 
+(* TODO move to Misc *)
 lemma SUP_multc_ereal:
   fixes a::"_ \<Rightarrow> ereal"
   assumes pos: "b \<ge> 0" and finite: "b < \<infinity>" and notempty: "A \<noteq> {}"
@@ -1306,6 +1307,12 @@ proof -
      using inc' move_SUP by simp_all
 qed
 
+lemma compose_distr_SUP_left:
+  assumes "incseq f"
+  shows "compose_distr (SUP n::nat. f n) \<mu> = (SUP n. compose_distr (f n) \<mu>)"
+by later
+
+
 lemma support_distr_SUP: 
   assumes inc: "incseq \<mu>"
   shows "support_distr (SUP i. \<mu> i) = (SUP i. support_distr (\<mu> i))"
@@ -1344,35 +1351,6 @@ lemma compose_distr_0' [simp]: "compose_distr f 0 = 0"
   unfolding ereal_Rep_compose_distr[THEN ext]
   by simp
 
-instantiation "fun" :: (type,zero) zero begin
-definition "0 = (\<lambda>x. 0)"
-instance ..
-end
-instantiation "fun" :: (type,plus) plus begin
-definition "f + g = (\<lambda>x. f x + g x)"
-instance ..
-end
-instantiation "fun" :: (type,semigroup_add) semigroup_add begin
-instance proof
-  fix a b c :: "'a\<Rightarrow>'b"
-  show "a + b + c = a + (b + c)"
-    unfolding plus_fun_def by (rule ext, rule add.assoc)
-qed
-end
-instantiation "fun" :: (type,ab_semigroup_add) ab_semigroup_add begin
-instance proof
-  fix a b :: "'a\<Rightarrow>'b"
-  show "a + b = b + a"
-    unfolding plus_fun_def by (rule ext, rule add.commute)
-qed
-end
-instantiation "fun" :: (type,comm_monoid_add) comm_monoid_add begin
-instance proof
-  fix a :: "'a\<Rightarrow>'b"
-  show "0 + a = a"
-    unfolding plus_fun_def zero_fun_def by (rule ext, rule add.left_neutral)
-qed
-end
 
 
 
