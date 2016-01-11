@@ -186,7 +186,17 @@ lemma rif_rule:
   shows "hoare {P &1 &2} if (\<guillemotleft>e1\<guillemotright>) \<guillemotleft>then1\<guillemotright> else \<guillemotleft>else1\<guillemotright> ~ if (\<guillemotleft>e2\<guillemotright>) \<guillemotleft>then2\<guillemotright> else \<guillemotleft>else2\<guillemotright> {Q &1 &2}"
 unfolding rhoare_untyped apply simp
 apply (rule rif_rule)
-using assms unfolding e_fun_eu_fun rhoare_untyped by auto
+using assms unfolding rhoare_untyped by auto
+
+lemma rwhile_rule:
+  assumes hoare: "hoare {I &1 &2 \<and> e_fun e1 &1} \<guillemotleft>p1\<guillemotright> ~ \<guillemotleft>p2\<guillemotright> {I &1 &2}"
+      and PI: "\<And>m1 m2. P m1 m2 \<Longrightarrow> I m1 m2"
+      and Ieq: "\<And>m1 m2. I m1 m2 \<Longrightarrow> e_fun e1 m1 \<longleftrightarrow> e_fun e2 m2"
+      and IQ: "\<And>m1 m2. \<not> e_fun e1 m1 \<Longrightarrow> \<not> e_fun e2 m2 \<Longrightarrow> I m1 m2 \<Longrightarrow> Q m1 m2"
+  shows "hoare {P &1 &2} while (\<guillemotleft>e1\<guillemotright>) \<guillemotleft>p1\<guillemotright> ~ while (\<guillemotleft>e2\<guillemotright>) \<guillemotleft>p2\<guillemotright> {Q &1 &2}"
+unfolding rhoare_untyped apply simp
+apply (rule rwhile_rule[where I=I])
+using assms unfolding rhoare_untyped by auto
 
 lemma seq_assoc_left_rule: 
   assumes "hoare {P &1 &2} \<guillemotleft>a\<guillemotright>;\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {R &1 &2}"
@@ -554,10 +564,23 @@ proof -
 qed
 
 lemma obseq_context_while: 
-  assumes "obseq_context X C1"
-  assumes "set (e_vars e) \<subseteq> X"
+  assumes C1: "obseq_context X C1"
+  assumes vars: "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. Lang_Typed.while e (C1 c))"
-SORRY
+proof -
+  def eq == "\<lambda>(m1\<Colon>memory) m2\<Colon>memory. \<forall>x\<Colon>variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  have foot: "\<And>m1 m2. eq m1 m2 \<Longrightarrow> e_fun e m1 = e_fun e m2" unfolding eq_def apply (rule e_fun_footprint) using vars by auto
+  note eq = eq_def[symmetric]
+  {fix c d assume rh: "rhoare eq c d eq"
+  have "rhoare eq (Lang_Typed.while e (C1 c)) (Lang_Typed.while e (C1 d)) eq"
+    apply (rule rwhile_rule[where I=eq])
+       apply (rule rconseq_rule[where P'=eq and Q'=eq]) close simp close simp
+       apply (rule obseq_context_as_rule[OF C1, unfolded eq])
+       close (fact rh)
+      using foot by auto}
+  thus ?thesis
+    unfolding obseq_context_def obs_eq_def eq_def by simp
+qed
 
 lemma obseq_context_empty: 
   shows "obseq_context X (\<lambda>c. c)"
@@ -568,7 +591,10 @@ lemma obseq_context_assign:
   assumes "set (p_vars x) \<subseteq> X"
   assumes "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. assign x e)"
-SORRY
+unfolding obseq_context_def apply rule+ apply (thin_tac _)
+unfolding obs_eq_obs_eq_untyped
+apply (rule self_obseq_vars)
+using assms unfolding p_vars_def by auto
 
 lemma obseq_context_skip: "obseq_context X (\<lambda>c. Lang_Typed.skip)"
   unfolding obseq_context_def apply auto unfolding obs_eq_def
@@ -578,15 +604,21 @@ lemma obseq_context_sample:
   assumes "set (p_vars x) \<subseteq> X"
   assumes "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. sample x e)"
-SORRY
+unfolding obseq_context_def apply rule+ apply (thin_tac _)
+unfolding obs_eq_obs_eq_untyped
+apply (rule self_obseq_vars)
+using assms unfolding p_vars_def by auto
 
 lemma obseq_context_callproc_allglobals: 
-  fixes X' defines "X==X' \<union> Collect vu_global"
+  fixes X' defines "X == X' \<union> Collect vu_global"
   assumes "set (p_vars x) \<subseteq> X"
   assumes "set (e_vars a) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. callproc x p a)"
-SORRY
-
+unfolding obseq_context_def apply rule+ apply (thin_tac _)
+unfolding obs_eq_obs_eq_untyped
+apply (rule self_obseq_vars)
+using assms unfolding p_vars_def 
+by (auto simp: vars_proc_untyped_global)
   
 
 lemma hoare_obseq_replace: 
