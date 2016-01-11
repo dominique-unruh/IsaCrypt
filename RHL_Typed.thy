@@ -68,6 +68,10 @@ lemma rseq_rule:
   shows "rhoare P (seq c1 c1') (seq c2 c2') R"
 using assms unfolding rhoare_untyped Rep_seq by (rule rseq_rule)
 
+lemma rsymmetric_rule:
+  assumes "hoare {P &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
+  shows "hoare {P &2 &1} \<guillemotleft>d\<guillemotright> ~ \<guillemotleft>c\<guillemotright> {Q &2 &1}"
+using assms rhoare_untyped rsymmetric_rule by auto
 
 lemma assign_left_rule:
   fixes P Q x e
@@ -174,6 +178,15 @@ apply (case_tac x, auto)
   apply (rule rconseq_rule[where P'=P1 and Q'=Q], auto simp: assms)[2]
 apply (rule iffalse_rule_right)
  by (rule rconseq_rule[where P'=P2 and Q'=Q], auto simp: assms)
+
+lemma rif_rule:
+  assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow> e_fun e1 m1 = e_fun e2 m2"
+  assumes "hoare {P &1 &2 \<and> e_fun e1 &1 \<and> e_fun e2 &2} \<guillemotleft>then1\<guillemotright> ~ \<guillemotleft>then2\<guillemotright> {Q &1 &2}"
+  assumes "hoare {P &1 &2 \<and> \<not> e_fun e1 &1 \<and> \<not> e_fun e2 &2} \<guillemotleft>else1\<guillemotright> ~ \<guillemotleft>else2\<guillemotright> {Q &1 &2}"
+  shows "hoare {P &1 &2} if (\<guillemotleft>e1\<guillemotright>) \<guillemotleft>then1\<guillemotright> else \<guillemotleft>else1\<guillemotright> ~ if (\<guillemotleft>e2\<guillemotright>) \<guillemotleft>then2\<guillemotright> else \<guillemotleft>else2\<guillemotright> {Q &1 &2}"
+unfolding rhoare_untyped apply simp
+apply (rule rif_rule)
+using assms unfolding e_fun_eu_fun rhoare_untyped by auto
 
 lemma seq_assoc_left_rule: 
   assumes "hoare {P &1 &2} \<guillemotleft>a\<guillemotright>;\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {R &1 &2}"
@@ -483,18 +496,62 @@ lemma rskip_rule [simp]:
 lemma rskip_rule_strict: "hoare {P &1 &2} skip ~ skip {P &1 &2}"
   by (simp add: rhoare_untyped RHL_Untyped.rskip_rule)
 
+lemma obseq_context_as_rule:
+  fixes X defines "eq == \<lambda>(m1\<Colon>memory) m2\<Colon>memory. \<forall>x\<Colon>variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  assumes obseq: "obseq_context X C"
+  assumes rh: "rhoare eq c d eq"
+  shows "rhoare eq (C c) (C d) eq"
+using assms unfolding obseq_context_def obs_eq_def eq_def by auto
+
 lemma obseq_context_seq:                                        
   assumes "obseq_context X C1"
   assumes "obseq_context X C2"
   shows "obseq_context X (\<lambda>c. seq (C1 c) (C2 c))"
-SORRY
+proof -
+  def eq == "\<lambda>(m1\<Colon>memory) m2\<Colon>memory. \<forall>x\<Colon>variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  note eq = eq_def[symmetric]
+  {fix c d assume rh: "rhoare eq c d eq"
+  have "rhoare eq (seq (C1 c) (C2 c)) (seq (C1 d) (C2 d)) eq"
+    apply (rule rseq_rule[where Q=eq])
+     apply (rule obseq_context_as_rule[OF assms(1), unfolded eq])
+     close (fact rh)
+    apply (rule obseq_context_as_rule[OF assms(2), unfolded eq])
+    by (fact rh)}
+  thus ?thesis
+    unfolding obseq_context_def obs_eq_def eq_def by simp
+qed
+
+(* TODO move *)
+lemma e_fun_footprint: 
+  assumes "\<And>v. v\<in>set (e_vars e) \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
+  shows "e_fun (e::'a::prog_type expression) m1 = e_fun e m2"
+unfolding e_fun_eu_fun o_def
+apply (tactic \<open>cong_tac @{context} 1\<close>, simp)
+apply (subst eu_fun_footprint)
+using assms unfolding e_vars_eu_vars by auto
 
 lemma obseq_context_ifte: 
-  assumes "obseq_context X C1"
-  assumes "obseq_context X C2"
-  assumes "set (e_vars e) \<subseteq> X"
+  assumes C1: "obseq_context X C1"
+  assumes C2: "obseq_context X C2"
+  assumes vars: "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. ifte e (C1 c) (C2 c))"
-SORRY
+proof -
+  def eq == "\<lambda>(m1\<Colon>memory) m2\<Colon>memory. \<forall>x\<Colon>variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  have foot: "\<And>m1 m2. eq m1 m2 \<Longrightarrow> e_fun e m1 = e_fun e m2" unfolding eq_def apply (rule e_fun_footprint) using vars by auto
+  note eq = eq_def[symmetric]
+  {fix c d assume rh: "rhoare eq c d eq"
+  have "rhoare eq (ifte e (C1 c) (C2 c)) (ifte e (C1 d) (C2 d)) eq"
+    apply (rule rif_rule)
+      close (fact foot)
+     apply (rule rconseq_rule[where P'=eq and Q'=eq]) close simp close simp
+     apply (rule obseq_context_as_rule[OF C1, unfolded eq])
+     close (fact rh)
+    apply (rule rconseq_rule[where P'=eq and Q'=eq]) close simp close simp
+    apply (rule obseq_context_as_rule[OF C2, unfolded eq])
+    by (fact rh)}
+  thus ?thesis
+    unfolding obseq_context_def obs_eq_def eq_def by simp
+qed
 
 lemma obseq_context_while: 
   assumes "obseq_context X C1"
@@ -504,7 +561,7 @@ SORRY
 
 lemma obseq_context_empty: 
   shows "obseq_context X (\<lambda>c. c)"
-SORRY
+unfolding obseq_context_def by simp
 
 
 lemma obseq_context_assign: 
@@ -530,10 +587,6 @@ lemma obseq_context_callproc_allglobals:
   shows "obseq_context X (\<lambda>c. callproc x p a)"
 SORRY
 
-lemma rsymmetric_rule:
-  assumes "hoare {P &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
-  shows "hoare {P &2 &1} \<guillemotleft>d\<guillemotright> ~ \<guillemotleft>c\<guillemotright> {Q &2 &1}"
-using assms rhoare_untyped rsymmetric_rule by auto
   
 
 lemma hoare_obseq_replace: 

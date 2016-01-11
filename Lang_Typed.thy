@@ -146,6 +146,8 @@ lemma Rep_mk_expression_typed [simp]: "Rep_expression (mk_expression_typed e) =
 
 lemma e_fun_eu_fun: "e_fun e = inv embedding o eu_fun (mk_expression_untyped e)"
   unfolding eu_fun_def Rep_mk_expression_untyped o_def by simp
+lemma e_vars_eu_vars: "e_vars e = eu_vars (mk_expression_untyped e)"
+  unfolding eu_vars_def Rep_mk_expression_untyped o_def by simp
 
 lemma mk_expression_typed_inverse:
   assumes "eu_type e=Type TYPE('a)"

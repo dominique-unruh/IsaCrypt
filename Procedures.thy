@@ -1527,15 +1527,6 @@ apply (ind_cases "beta_reduce_prog (CallProc x p e) u" for x p e u, auto)
   close (rename_tac x p e q, case_tac p, auto)
 by (ind_cases "beta_reduce_proc (Proc x y z) u" for x y z u, auto)
 
-
-(*
-lemma well_typed_proc''_well_typed:
-  assumes "well_typed_proc'' [] p (ProcTSimple T)"
-  assumes "beta_reduced p"
-  shows "well_typed_proc p" and "proctype_of p = T"
-SORRY
-*)
-
 lemma well_typed_not_ProcAppl_ProcUnpair:
   fixes p1 p2 T
   assumes p: "p = ProcAppl p1 p2 \<or> p = ProcUnpair b p1"
