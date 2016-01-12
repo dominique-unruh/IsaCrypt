@@ -27,20 +27,34 @@ fun ASSERT_SOLVED' (tac:int->tactic) (exn:term->term list->no_return) =
 
 (** Keyword "close" **)
 
-fun method_error kind pos state =
-  Seq.single (Proof_Display.method_error kind pos (Proof.raw_goal state));
+(* fun method_error kind pos state =
+  Seq.single (Proof_Display.method_error kind pos (Proof.raw_goal state)); *)
 
-fun close_subgoal (text, (pos, _)) =
-  let val nogoals = (ALLGOALS(K no_tac)) |> SIMPLE_METHOD |> K |> Method.Basic
-      val text = Method.Combinator (Method.no_combinator_info,Method.Then,[text,nogoals])
-      val text = Method.Combinator (Method.no_combinator_info,Method.Select_Goals 1,[text])
+fun close_with_error_tac ctx int st =
+  if Thm.nprems_of st > 0 then
+    (if int then (Output.error_message "Method failed to close the subgoal(s)"; 
+                  (print_tac ctx "Remaining goal(s) were" THEN ALLGOALS (Skip_Proof.cheat_tac ctx)) st)
+            else error "Method failed to close the subgoal(s)")
+  else
+    all_tac st
+
+fun close_subgoal (text, (_, _)) num int =
+  let 
+      (* val nogoals = (ALLGOALS(K no_tac)) |> SIMPLE_METHOD |> K |> Method.Basic *)              
+      val close = Method.Basic (fn ctx => close_with_error_tac ctx int |> SIMPLE_METHOD)
+      val text = Method.Combinator (Method.no_combinator_info,Method.Try,[text])
+      val text = Method.Combinator (Method.no_combinator_info,Method.Then,[text,close])
+      val text = Method.Combinator (Method.no_combinator_info,Method.Select_Goals num,[text])
   in
-  Seq.APPEND (Proof.apply text #> Seq.make_results, method_error "" pos)
+  (* Seq.APPEND (Proof.apply text #> Seq.make_results, method_error "" pos) *)
+  Proof.apply text #> Seq.make_results
   end
+
+val auto_text_range : Method.text_range = (Method.Basic (SIMPLE_METHOD o CHANGED_PROP o auto_tac), (Position.none,Position.none))
 
 val _ =
   Outer_Syntax.command @{command_keyword close} "initial refinement step (unstructured)"
-    (Method.parse >> (fn m => (Method.report m; Toplevel.proofs (close_subgoal m))));
+    (Scan.optional Parse.int 1 -- Scan.optional Method.parse auto_text_range >> (fn (num,m) => (Method.report m; Toplevel.proofs' (close_subgoal m num))));
 
 (** Simplifier modulo f **)
 

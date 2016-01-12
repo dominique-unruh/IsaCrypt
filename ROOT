@@ -1,3 +1,6 @@
+session "Tmp" = "HOL" +
+  theories Scratch2
+
 session "IsaCrypt" = "IsaCrypt-Prereqs" +
   options [document = pdf, quick_and_dirty = true, (*z3_non_commercial = yes,*) document_output = "output", browser_info = true]
   theories [document = false]

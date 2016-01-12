@@ -223,11 +223,9 @@ lemma less_eq_ereal_Abs_distr:
   shows "(a \<le> b) = (ereal_Abs_distr a \<le> ereal_Abs_distr b)"
 unfolding less_eq_distr_def'
 apply (subst ereal_Abs_distr_inverse)
-  using assms close auto
- using assms close auto
+  using assms close 2
 apply (subst ereal_Abs_distr_inverse)
-  using assms close auto
- using assms close auto
+  using assms close 2
 by simp
 
 instantiation distr :: (type) order_bot begin
@@ -1144,7 +1142,7 @@ proof -
     apply (subst nn_integral_fst_count_space[symmetric])
     by simp
   also have "\<dots> = (\<integral>\<^sup>+x. \<integral>\<^sup>+y. (ereal_Rep_distr \<mu>1 (x, y)) * (indicator {(x,y)} (x0, y0)) \<partial>count_space UNIV \<partial>count_space UNIV)"
-    apply (subst nn_integral_multc) close auto close auto
+    apply (subst nn_integral_multc) close 2
     apply (subst xy_int) by simp
   also have "\<dots> = ereal_Rep_distr \<mu>1 (x0, y0)"
     apply (subst nn_integral_fst_count_space)
@@ -1163,7 +1161,7 @@ proof -
     apply (subst nn_integral_snd_count_space[symmetric])
     by (subst nn_integral_fst_count_space[symmetric], simp)
   also have "\<dots> = (\<integral>\<^sup>+y. \<integral>\<^sup>+z. (ereal_Rep_distr \<mu>2 (y,z)) *  (indicator {(y,z)} (y0,z0)) \<partial>count_space UNIV \<partial>count_space UNIV)"
-    apply (subst nn_integral_multc) close auto close auto
+    apply (subst nn_integral_multc) close 2
     apply (subst yz_int) by simp
   also have "\<dots> = (ereal_Rep_distr \<mu>2 (y0, z0))"
     apply (subst nn_integral_fst_count_space)

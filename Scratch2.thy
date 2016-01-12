@@ -1,12 +1,12 @@
 theory Scratch2
-imports Procs_Typed
+imports Main Tools
 begin
 
-lemma test: "X = X" by simp
-thm test[where X=1]
 
-lemma test2: "X1 = X1" by simp
-thm test2
-thm test2[where X1=1]
-
+lemma "1=1 \<and> 2=2"
+ apply (rule conjI) 
+  close simp
+ close
+done
+ 
 end
