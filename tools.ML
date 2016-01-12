@@ -40,6 +40,7 @@ fun close_with_error_tac ctx int st =
 
 fun close_subgoal (text, (_, _)) num int =
   let 
+      val _ = writeln ("Interactive: " ^ (if int then "true" else "false"))
       (* val nogoals = (ALLGOALS(K no_tac)) |> SIMPLE_METHOD |> K |> Method.Basic *)              
       val close = Method.Basic (fn ctx => close_with_error_tac ctx int |> SIMPLE_METHOD)
       val text = Method.Combinator (Method.no_combinator_info,Method.Try,[text])
