@@ -1006,6 +1006,10 @@ proof -
     unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation
     unfolding denotation_untyped_CallProc_bad[THEN ext]
     by simp
+  next case ProcUnit show ?case 
+    unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation
+    unfolding denotation_untyped_CallProc_bad[THEN ext]
+    by simp
   qed
   hence "obs_eq_untyped X X c c"
     using vars by simp

@@ -310,6 +310,8 @@ proof -
   next
   case ProcUnpair show ?case
     unfolding program_untyped_readonly_def denotation_readonly_def by simp
+  next case ProcUnit show ?case
+    unfolding program_untyped_readonly_def denotation_readonly_def by simp
   qed
   thus ?thesis by simp
 qed
