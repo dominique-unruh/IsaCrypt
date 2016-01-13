@@ -261,7 +261,7 @@ proof -
   hence t: "t = Type TYPE('a)" using assms by (simp add: ed_type_def) 
   have F: "\<And>F \<mu>. (\<forall>x\<in>support_distr \<mu>. F x = x) \<Longrightarrow> apply_to_distr F \<mu> = \<mu>"
     using apply_to_distr_cong by fastforce
-  have f: "\<And>m. apply_to_distr (\<lambda>x\<Colon>val. embedding (inv embedding x :: 'a)) (f m) = f m"
+  have f: "\<And>m. apply_to_distr (\<lambda>x::val. embedding (inv embedding x :: 'a)) (f m) = f m"
     apply (rule F) using f_supp t
     by (metis embedding_Type_range f_inv_into_f subsetCE)
   show ?thesis
@@ -310,7 +310,7 @@ definition apply_expression :: "('a\<Rightarrow>'b)expression \<Rightarrow> ('a:
   \<lparr> er_fun=\<lambda>m. (e_fun e m) (memory_lookup m v),
     er_vars=mk_variable_untyped v#e_vars e \<rparr>"
 lemma Rep_apply_expression: "Rep_expression_untyped (mk_expression_untyped (apply_expression e v :: 'a expression)) =
-  \<lparr> eur_fun=(\<lambda>m\<Colon>memory. embedding (e_fun e m (memory_lookup m v))),
+  \<lparr> eur_fun=(\<lambda>m::memory. embedding (e_fun e m (memory_lookup m v))),
     eur_type=Type TYPE('a::prog_type),
     eur_vars=mk_variable_untyped v # e_vars e \<rparr>"
   unfolding apply_expression_def 
@@ -338,7 +338,7 @@ lemma e_fun_var_expression [simp]: "e_fun (var_expression v) = (\<lambda>m. memo
 
 subsection {* Procedures *}
 
-typedef ('a::prog_type) pattern = "{pat. pu_type pat = Type TYPE('a)}"
+typedef (overloaded) ('a::prog_type) pattern = "{pat. pu_type pat = Type TYPE('a)}"
   by (rule exI[of _ "pattern_ignore (Type TYPE('a))"], simp)
 (* abbreviation "mk_pattern_untyped == Rep_pattern" *)
 definition "p_vars p = pu_vars (Rep_pattern p)"
@@ -430,7 +430,7 @@ lemma memory_update_pair_pattern':
 
 
 
-record ('a,'b) procedure = 
+record (overloaded) ('a,'b) procedure = 
   p_body :: program
   p_arg :: "'a pattern"
   p_return :: "'b expression"
@@ -867,9 +867,9 @@ proof -
   have vars: "eu_vars (rename_variables_expression (local_variable_name_renaming ren) (mk_expression_untyped e)) =
     map (local_variable_name_renaming ren) (e_vars e)"
     apply (subst eu_vars_rename_variables_expression) by simp_all
-  have fn: "(\<lambda>x\<Colon>val. apply_to_distr embedding (inv embedding x :: 'a distr)) \<circ>
+  have fn: "(\<lambda>x::val. apply_to_distr embedding (inv embedding x :: 'a distr)) \<circ>
     eu_fun (rename_variables_expression (local_variable_name_renaming ren) (mk_expression_untyped e)) =
-    (\<lambda>m\<Colon>memory. apply_to_distr (embedding::'a\<Rightarrow>_) (e_fun e (rename_variables_memory (local_variable_name_renaming ren) m)))"
+    (\<lambda>m::memory. apply_to_distr (embedding::'a\<Rightarrow>_) (e_fun e (rename_variables_memory (local_variable_name_renaming ren) m)))"
     apply (subst eu_fun_rename_variables_expression)
     unfolding mk_expression_untyped_fun[THEN ext] o_def by simp_all
   show ?thesis

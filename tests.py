@@ -7,13 +7,15 @@ import glob, sys, os, random, re, subprocess, time
 import unittest
 import Pyro4
 
+isabelle_home = '/opt/Isabelle2016-RC0'
+
 if 'ISABELLE_DOCKER' in os.environ:
     isabelle_process = ['docker','run','-i',
                         '-v', os.getcwd()+":/home/user/data",
                         'unruh/isabelle:isacrypt-prereqs',
-                        '/opt/Isabelle2015/bin/isabelle_process']
+                        isabelle_home+'/bin/isabelle_process']
 else:
-    isabelle_process = ['/opt/Isabelle2015/bin/isabelle_process']
+    isabelle_process = [isabelle_home+'/bin/isabelle_process']
 
 
 run_theory_ml = r"""

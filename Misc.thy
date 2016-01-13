@@ -32,6 +32,11 @@ instance proof
 qed
 end
 
+instantiation bool :: default begin
+definition "default_bool = False"
+instance by standard
+end
+
 lemma setsum_apply: 
   assumes "finite N"
   shows "(\<Sum>n\<in>N. f n) x = (\<Sum>n\<in>N. f n x)"

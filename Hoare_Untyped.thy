@@ -219,7 +219,7 @@ proof -
      and p2: "\<And>a. hoare_untyped (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x) p2 (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x)"
       using IfTE.hyps[where R=R] unfolding readonly_hoare_untyped using IfTE.prems by auto
     have t: "\<And>a. hoare_untyped (\<lambda>m. if eu_fun e m = embedding True then \<forall>x\<in>R. memory_lookup_untyped m x = a x else \<forall>x\<in>R. memory_lookup_untyped m x = a x)
-        (IfTE e p1 p2) (\<lambda>m\<Colon>memory. \<forall>x\<Colon>variable_untyped\<in>R. memory_lookup_untyped m x = a x)"
+        (IfTE e p1 p2) (\<lambda>m::memory. \<forall>x::variable_untyped\<in>R. memory_lookup_untyped m x = a x)"
       apply (rule Hoare_Untyped.if_case_rule) using p1 close simp using p2 by simp
     show ?case
       apply (subst readonly_hoare_untyped, rule allI)
@@ -229,7 +229,7 @@ proof -
     have p: "\<And>a. hoare_untyped (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x) p (\<lambda>m. \<forall>x\<in>R. memory_lookup_untyped m x = a x)"
       using While.hyps[where R=R] unfolding readonly_hoare_untyped using While.prems by auto
     have p': "\<And>a. hoare_untyped (\<lambda>m. (\<forall>x\<in>R. memory_lookup_untyped m x = a x) \<and> eu_fun e m = embedding True)
-        p (\<lambda>m\<Colon>memory. \<forall>x\<Colon>variable_untyped\<in>R. memory_lookup_untyped m x = a x)"
+        p (\<lambda>m::memory. \<forall>x::variable_untyped\<in>R. memory_lookup_untyped m x = a x)"
       apply (rule Hoare_Untyped.conseq_rule) defer defer close (fact p) by auto
     show ?case
       apply (subst readonly_hoare_untyped, rule allI)
@@ -251,7 +251,7 @@ proof -
         hence y_nin: "y \<notin> set (pu_vars x)" 
           using CallProc.prems by auto
         (* have cases: "\<And>P. \<lbrakk> \<not> vu_global y \<Longrightarrow> P; True \<Longrightarrow> P \<rbrakk> \<Longrightarrow> P" by auto *)
-        obtain r a' b where den2: "den == apply_to_distr (\<lambda>m'\<Colon>memory. memory_update_untyped_pattern (restore_locals m m') x (r m')) b"
+        obtain r a' b where den2: "den == apply_to_distr (\<lambda>m'::memory. memory_update_untyped_pattern (restore_locals m m') x (r m')) b"
                     and b: "b = denotation_untyped body (memory_update_untyped_pattern (init_locals m) pargs a')"
           unfolding den_def by auto
         then obtain m'' where m''1: "m'' \<in> support_distr b" and m''2: "m' = memory_update_untyped_pattern (restore_locals m m'') x (r m'')"

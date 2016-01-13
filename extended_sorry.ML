@@ -26,7 +26,7 @@ fun make_thm_annot annot = make_thm_cterm_annot annot OF @{thms ANNOTATION};
 
 fun cheat_tac_annot msg pos i st =
   SUBGOAL (fn (goal,i) =>
-    rtac (make_thm_annot {thy=Thm.theory_of_thm st, prop=goal, position=pos, message=msg}) i) i st;
+    resolve0_tac [make_thm_annot {thy=Thm.theory_of_thm st, prop=goal, position=pos, message=msg}] i) i st;
 
 fun direct_oracles_of_proof _ _ _ MinProof = ()
   | direct_oracles_of_proof found thy Hs (AbsP(_,t,prf)) =
@@ -158,7 +158,7 @@ fun set_show_oracles ({show_empty, ...}:print_annotated_conf) b
 
 fun print_annotated_oracles (conf:print_annotated_conf) ctx thms =
   let fun render_annot prop msg pos = 
-         let val prop_str = Syntax.pretty_term ctx prop |> Pretty.str_of
+         let val prop_str = Syntax.pretty_term ctx prop |> Pretty.string_of
              val msg_str = (case msg of Const(@{const_name None},_) => ""
                                       | Const(@{const_name Some},_)$str => "\<open>"^HOLogic.dest_string str^"\<close> "
                                       | t => raise (TERM("parsing annotation, message",[t])))

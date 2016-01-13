@@ -202,7 +202,7 @@ fun register_procedure_thm thm lthy =
 (** definition of procedures **)
 
 fun match_inst_tac ctx thms i =
-  match_tac ctx thms i THEN rtac @{thm refl} i
+  match_tac ctx thms i THEN resolve_tac ctx @{thms refl} i
 
 fun procedure_existence_solve_tac' ctx safe unsafe i =
   ((match_inst_tac ctx safe
@@ -221,12 +221,12 @@ fun procedure_existence_tac ctx = procedure_existence_tac' ctx
   (Named_Theorems.get ctx "Procs_Typed.reduce_procfun.unsafe")
 
 fun split_conjunction_tac i = 
-  (rtac @{thm conjunctionI} THEN_ALL_NEW split_conjunction_tac) i
+  (resolve0_tac @{thms conjunctionI} THEN_ALL_NEW split_conjunction_tac) i
   ORELSE all_tac
 
 fun definition_via_specification_tac tac ctx =
   ALLGOALS split_conjunction_tac
-  THEN ALLGOALS (dtac meta_eq_to_obj_eq)
+  THEN ALLGOALS (dresolve_tac ctx [meta_eq_to_obj_eq])
   THEN ALLGOALS (hyp_subst_tac_thin true ctx)
   THEN ALLGOALS (tac ctx)
 
@@ -302,7 +302,7 @@ let val schema_eqs = consts |> map (fn ((b,T),_) =>
     val method : Method.text = tac lthy
                  |> SIMPLE_METHOD |> K |> Method.Basic
     val state = Proof.theorem NONE after_qed [map (fn p => (p,[])) def_thm_props] lthy
-    val state = Proof.apply method state |> Seq.hd 
+    val state = Proof.apply (method,Position.no_range) state |> Seq.the_result "" 
                 handle Option => state
 in state end
 
@@ -323,8 +323,10 @@ val procedure_parser =
       (Parse_Spec.opt_thm_name ":" -- Parse.prop)))
 
 fun procedure_cmd dvs (consts,props) ctx =
-  let val ((consts,props),_) = Specification.read_free_spec consts props ctx
+  let val (((consts,props),_),_) = Specification.read_free_spec consts props ctx
   in dvs consts props ctx end;
+
+val _ = definition_via_specification_solve
 
 val _ = Outer_Syntax.local_theory @{command_keyword procedure}
 "definition of procedures / modules"
@@ -369,7 +371,8 @@ fun instantiate_type_copy_procedure_functor bind abs_type_name tparams rep_type 
            ((Thm.def_binding pfmktyped_bind,[]),
              @{termx "\<lambda>p. ?AbsF (procedure_functor_mk_typed' p :: ?'rep_type::procedure_functor) :: 'abs_type"})) lthy
 
-      val export_target = Proof_Context.init_global thy
+      val export_target = lthy |> Proof_Context.theory_of |> Proof_Context.init_global
+      (* val export_target = Proof_Context.init_global thy *)
       fun export thm = Proof_Context.export lthy export_target [thm] |> hd
 
       (* Declaring: instance apply (rule OFCLASS_procedure_functor_class_I)
@@ -378,16 +381,25 @@ fun instantiate_type_copy_procedure_functor bind abs_type_name tparams rep_type 
                              apply (fact procedure_functor_mk_typed'_AbsType_def)
                              apply (fact Abs_inverse apply (fact Rep_inverse) *)
 
+      (* Exporting necessary because OFCLASS_procedure_functor_class_I refers
+         to global constants and its premises won't match our theorems which
+         use local fixed variables *)
       val pftype_def = export pftype_def
       val pfmktyped_def = export pfmktyped_def
       val pfmkuntyped_def = export pfmkuntyped_def
+      val Abs_inverse = export Abs_inverse
+      val Rep_inverse = export Rep_inverse
 
+(* val pftype_def = Thm.instantiate' [SOME @{ctyp 'a}] [] pftype_def *)
+val _ = writeln (Thm.string_of_thm lthy pftype_def)
       fun instance_tac ctx = 
-        rtac @{thm OFCLASS_procedure_functor_class_I} 1
+        resolve_tac ctx @{thms OFCLASS_procedure_functor_class_I} 1
             THEN solve_tac ctx [pftype_def] 1
             THEN solve_tac ctx [pfmkuntyped_def] 1
             THEN solve_tac ctx [pfmktyped_def] 1
+THEN print_tac ctx "XXX" 
             THEN solve_tac ctx [Abs_inverse] 1
+THEN print_tac ctx "YYY" 
             THEN solve_tac ctx [Rep_inverse] 1
       val thy = Class.prove_instantiation_exit instance_tac lthy
 in ((pftype_def,pfmkuntyped_def,pfmktyped_def),thy) end
@@ -424,7 +436,7 @@ fun declare_module_type (spec:module_type_spec) lthy =
       val proctypes = map snd (#procedures spec)
       val proctypes_tuple = HOLogic.mk_tupleT proctypes
 
-      val lthy_start = lthy
+      (* val lthy_start = lthy *)
 
       (* Declaring: type_synonym ('a,'b) ModuleType_rep = "(unit,unit) procedure * (unit,'b) procedure" *)
       val (rep_type_name,lthy) = Typedecl.abbrev (rep_binding,tparams,NoSyn) proctypes_tuple lthy
@@ -433,13 +445,14 @@ fun declare_module_type (spec:module_type_spec) lthy =
       (* Declaring: typedef ('a,'b) ModuleType = "UNIV :: ('a::prog_type,'b::prog_type) ModuleType_rep set" *)
       val typedef_repset = HOLogic.mk_UNIV (rep_type)
       val ((abs_type_name,typedef_info),lthy) = 
-          Typedef.add_typedef false (#name spec, #type_params spec, NoSyn)
-              typedef_repset NONE (K (rtac @{thm UNIV_witness} 1)) lthy
+(* TODO: is overloaded necessary? https://groups.google.com/forum/#!topic/fa.isabelle/Azn3NBvNSgM *)
+          Typedef.add_typedef {overloaded=true} (#name spec, #type_params spec, NoSyn)
+              typedef_repset NONE (fn ctx => (resolve_tac ctx @{thms UNIV_witness} 1)) lthy
       val abs_type = Type(abs_type_name, map TFree (#type_params spec))
       (* val Rep_MT = Const(#Rep_name (fst typedef_info),abs_type --> rep_type) *)
       val Abs_MT = Const(#Abs_name (fst typedef_info),rep_type --> abs_type)
 
-      fun export thm = Proof_Context.export lthy lthy_start [thm] |> hd
+      fun export thm = thm (* Proof_Context.export lthy lthy_start [thm] |> hd *)
 
       (* Declaring: instantiation ModuleType = (...)procedure_type begin ... end *)
       val inst_global : theory -> (thm*thm*thm)*theory = instantiate_type_copy_procedure_functor 

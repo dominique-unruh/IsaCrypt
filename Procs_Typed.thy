@@ -64,13 +64,26 @@ by (simp add: beta_reduced_beta_reduce_id)
 
 subsubsection "Procedure functions"
 
-typedef ('a::procedure_functor,'b::procedure_functor) procfun = "{p::procedure_rep.
+typedef (overloaded) ('a::procedure_functor,'b::procedure_functor) procfun = "{p::procedure_rep.
   well_typed_proc'' [] p (ProcTFun (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b)))
   \<and> beta_reduced p}"
   apply (rule exI[of _ "ProcAbs (procedure_functor_mk_untyped (undefined::'b))"], auto)
   by (rule wt_ProcAbs, rule well_typed_extend, rule procedure_functor_welltyped)
 
 type_notation "procfun" (infixr "=proc=>" 0)
+
+instantiation unit :: procedure_functor begin
+definition [simp]: "procedure_functor_type (_::unit itself) = ProcTUnit"
+definition "procedure_functor_mk_untyped (_::unit) = undefined"
+definition "procedure_functor_mk_typed' _ == ()"
+instance (* proof
+  show "well_typed_proc'' [] (procedure_functor_mk_untyped p)
+        (procedure_functor_type TYPE(unit))" for p::unit
+    apply (simp add: procedure_functor_mk_untyped_unit_def)
+    sorry
+  show "beta_reduced (procedure_functor_mk_untyped p)" for p::unit
+    sorry *) sorry
+end
 
 instantiation procfun :: (procedure_functor,procedure_functor) procedure_functor begin
 definition [simp]: "procedure_functor_type (_::('a,'b)procfun itself)
@@ -629,7 +642,7 @@ proof (unfold subst_prog1_def, rule conjI)
       close (rule procedure_functor_welltyped[of q, simplified])
      close (rule procedure_functor_welltyped[of p, simplified])
     by simp
-  show "Abs_program (beta_reduce' (subst_proc_in_prog (0\<Colon>nat) (procedure_functor_mk_untyped p) (beta_reduce' q0))) =
+  show "Abs_program (beta_reduce' (subst_proc_in_prog (0::nat) (procedure_functor_mk_untyped p) (beta_reduce' q0))) =
     PROGRAM [ \<guillemotleft>callproc v r a\<guillemotright> ]"
     apply (subst subst_proc_beta_reduce'[where F="[]", simplified])
       close (fact wt_q0)
@@ -728,9 +741,9 @@ lemma Rep_ModuleType'_template:
     and Rep :: "'abs::procedure_functor \<Rightarrow> 'rep::procedure_functor"
   assumes Rep'_def: "Rep' \<equiv> Abs_procfun (ProcAbs (ProcRef 0))"
   assumes procedure_functor_mk_untyped_abs_def: 
-    "procedure_functor_mk_untyped \<equiv> \<lambda>x\<Colon>'abs. procedure_functor_mk_untyped (Rep x)"
+    "procedure_functor_mk_untyped \<equiv> \<lambda>x::'abs. procedure_functor_mk_untyped (Rep x)"
   assumes procedure_functor_type_abs_def:
-    "procedure_functor_type \<equiv> \<lambda>_\<Colon>'abs itself. procedure_functor_type TYPE('rep)"
+    "procedure_functor_type \<equiv> \<lambda>_::'abs itself. procedure_functor_type TYPE('rep)"
   shows "procfun_apply Rep' = Rep"
 apply (rule ext)
 unfolding Rep'_def procfun_apply_def procedure_functor_mk_untyped_abs_def
@@ -751,7 +764,7 @@ lemma Abs_ModuleType'_template:
   assumes procedure_functor_mk_typed'_abs_def: 
     "procedure_functor_mk_typed' \<equiv> \<lambda>p. Abs (procedure_functor_mk_typed' p)"
   assumes procedure_functor_type_abs_def:
-    "procedure_functor_type \<equiv> \<lambda>_\<Colon>'abs itself. procedure_functor_type TYPE('rep)"
+    "procedure_functor_type \<equiv> \<lambda>_::'abs itself. procedure_functor_type TYPE('rep)"
   shows "procfun_apply Abs' = Abs"
 apply (rule ext)
 unfolding Abs'_def procfun_apply_def 

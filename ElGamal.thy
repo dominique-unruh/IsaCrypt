@@ -45,6 +45,7 @@ procedure (in group) DDH1 :: "'G DDH_Adv =proc=> Game" where
 
 subsection {* PKE definitions *}
 
+declare [[ML_exception_trace]]
 
 module_type ('pk,'sk,'m,'c) EncScheme =
   keygen :: "(unit,'pk*'sk) procedure"

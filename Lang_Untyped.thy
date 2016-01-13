@@ -1482,7 +1482,7 @@ proof (unfold denotation_footprint_def, (rule allI)+)
   qed
   thus "Rep_distr (d m) m' =
        Rep_distr (d (memory_combine A m z)) (memory_combine A m' z) *
-       (if memory_combine A default m = memory_combine A default m' then 1\<Colon>real else (0\<Colon>real))"
+       (if memory_combine A default m = memory_combine A default m' then 1::real else (0::real))"
     unfolding dd_def by simp
 qed
 

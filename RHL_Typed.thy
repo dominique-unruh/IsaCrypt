@@ -499,7 +499,7 @@ lemma rskip_rule_strict: "hoare {P &1 &2} skip ~ skip {P &1 &2}"
   by (simp add: rhoare_untyped RHL_Untyped.rskip_rule)
 
 lemma obseq_context_as_rule:
-  fixes X defines "eq == \<lambda>(m1\<Colon>memory) m2\<Colon>memory. \<forall>x\<Colon>variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  fixes X defines "eq == \<lambda>(m1::memory) m2::memory. \<forall>x::variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   assumes obseq: "obseq_context X C"
   assumes rh: "rhoare eq c d eq"
   shows "rhoare eq (C c) (C d) eq"
@@ -510,7 +510,7 @@ lemma obseq_context_seq:
   assumes "obseq_context X C2"
   shows "obseq_context X (\<lambda>c. seq (C1 c) (C2 c))"
 proof -
-  def eq == "\<lambda>(m1\<Colon>memory) m2\<Colon>memory. \<forall>x\<Colon>variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  def eq == "\<lambda>(m1::memory) m2::memory. \<forall>x::variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   note eq = eq_def[symmetric]
   {fix c d assume rh: "rhoare eq c d eq"
   have "rhoare eq (seq (C1 c) (C2 c)) (seq (C1 d) (C2 d)) eq"
@@ -529,7 +529,7 @@ lemma obseq_context_ifte:
   assumes vars: "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. ifte e (C1 c) (C2 c))"
 proof -
-  def eq == "\<lambda>(m1\<Colon>memory) m2\<Colon>memory. \<forall>x\<Colon>variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  def eq == "\<lambda>(m1::memory) m2::memory. \<forall>x::variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   have foot: "\<And>m1 m2. eq m1 m2 \<Longrightarrow> e_fun e m1 = e_fun e m2" unfolding eq_def apply (rule e_fun_footprint) using vars by auto
   note eq = eq_def[symmetric]
   {fix c d assume rh: "rhoare eq c d eq"
@@ -551,7 +551,7 @@ lemma obseq_context_while:
   assumes vars: "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. Lang_Typed.while e (C1 c))"
 proof -
-  def eq == "\<lambda>(m1\<Colon>memory) m2\<Colon>memory. \<forall>x\<Colon>variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  def eq == "\<lambda>m1 m2::memory. \<forall>x::variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   have foot: "\<And>m1 m2. eq m1 m2 \<Longrightarrow> e_fun e m1 = e_fun e m2" unfolding eq_def apply (rule e_fun_footprint) using vars by auto
   note eq = eq_def[symmetric]
   {fix c d assume rh: "rhoare eq c d eq"

@@ -48,10 +48,10 @@ fun close_subgoal (text, (_, _)) num int =
       val text = Method.Combinator (Method.no_combinator_info,Method.Select_Goals num,[text])
   in
   (* Seq.APPEND (Proof.apply text #> Seq.make_results, method_error "" pos) *)
-  Proof.apply text #> Seq.make_results
+  Proof.apply (text,Position.no_range) (* #> Seq.make_results *)
   end
 
-val auto_text_range : Method.text_range = (Method.Basic (SIMPLE_METHOD o CHANGED_PROP o auto_tac), (Position.none,Position.none))
+val auto_text_range : Method.text_range = (Method.Basic (SIMPLE_METHOD o CHANGED_PROP o auto_tac), Position.no_range)
 
 val _ =
   Outer_Syntax.command @{command_keyword close} "initial refinement step (unstructured)"
@@ -65,7 +65,7 @@ fun fun_equiv_simproc_tac intros ctxt =
     case goal of
       Const(@{const_name Trueprop},_) $ (Const(@{const_name fun_equiv},_)$_$_$_) => 
         (resolve0_tac intros THEN_ALL_NEW fun_equiv_simproc_tac intros ctxt) i
-        ORELSE (rtac @{thm fun_equiv_refl} i)
+        ORELSE (resolve_tac ctxt @{thms fun_equiv_refl} i)
     | _ => 
         SOLVED' (simp_tac ctxt) i)
 

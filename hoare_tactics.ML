@@ -37,8 +37,8 @@ fun last_step_tac_lax side i : tactic =
                  | SideRight => (@{thm seq_assoc_right_rule},@{thm seq_rule_lastfirst_right},@{thm addskip_right_rule})
                  | SideBoth => error "last_step_tac_lax: SideBoth not supported"
   in    
-  (REPEAT (rtac assoc i)   THEN   rtac lastfirst i)
-  ORELSE (rtac addskip i   THEN   rtac lastfirst i)
+  (REPEAT (resolve0_tac [assoc] i)   THEN   resolve0_tac [lastfirst] i)
+  ORELSE (resolve0_tac [addskip] i   THEN   resolve0_tac [lastfirst] i)
   end
 
 (* 
@@ -102,7 +102,7 @@ fun wp_if_strict ctx (conf:wp_config) : int -> tactic =
                                      | SideRight => @{thm if_case_rule_right}
                                      | SideBoth => error "wp_if_strict: SideBoth not supported"
   in
-    rtac if_case
+    resolve_tac ctx [if_case]
     THEN' wp_total_strict_tac conf ctx
     THEN' wp_total_strict_tac conf ctx
     THEN' simp_memory_updates_tac ctx
@@ -115,7 +115,7 @@ and wp_total_strict_tac' ctx conf i : tactic =
                                        | SideRight => @{thm rskip_rule_strict}
                                        | SideBoth => error "wp_total_strict_tac': SideBoth not supported"
   in
-    REPEAT_DETERM (wp1_tac' ctx conf i) THEN (rtac skip_rule i)
+    REPEAT_DETERM (wp1_tac' ctx conf i) THEN (resolve_tac ctx [skip_rule] i)
   end
 and wp_total_strict_tac ctx conf = NGOALS 0 (wp_total_strict_tac' conf ctx)
 
@@ -126,10 +126,10 @@ and wp1_tac' ctx conf i st =
                                                   | SideBoth => error "wp1_tac': SideBoth not supported"
   in
     (last_step_tac (#side conf) i
-    THEN ((rtac assign i THEN simp_memory_updates_tac ctx i)
-          ORELSE assert_tac (#nondeterministic_sample conf) (case #side conf of SideHoare => rtac sample i THEN simp_memory_updates_tac ctx i
+    THEN ((resolve_tac ctx [assign] i THEN simp_memory_updates_tac ctx i)
+          ORELSE assert_tac (#nondeterministic_sample conf) (case #side conf of SideHoare => resolve_tac ctx [sample] i THEN simp_memory_updates_tac ctx i
                                                                               | _ => fn _ => error "wp1_tac: nondeterministic_sample not supported for RHL")
-          ORELSE rtac skip i
+          ORELSE resolve_tac ctx [skip] i
           ORELSE wp_if_strict ctx conf i))
     st
   end
@@ -176,7 +176,7 @@ fun dest_denotation (Const (@{const_name denotation}, _) $ p) = p
   instantiating ?d with (seq c1 c2) where c1 are the first n statements of c
 *)
 fun seq_deno_tac ctx n =
-  if n=0 then rtac @{thm denotation_seq_skip[symmetric]} 
+  if n=0 then resolve_tac ctx @{thms denotation_seq_skip[symmetric]} 
   else
   SUBGOAL (fn (goal,i) => 
   let
@@ -184,22 +184,22 @@ fun seq_deno_tac ctx n =
       val lhsprog = dest_denotation (fst (HOLogic.dest_eq (HOLogic.dest_Trueprop concl)))
       val proglen = program_length lhsprog
       val n' = Thm.cterm_of ctx (mk_suc_nat (proglen - n))
-      val insert_split_n = Ctr_Sugar_Util.cterm_instantiate_pos [SOME n'] @{thm insert_split}
+      val insert_split_n = Drule.infer_instantiate' ctx [SOME n'] @{thm insert_split}
   in
-    rtac insert_split_n i  
+    resolve_tac ctx [insert_split_n] i  
     THEN Raw_Simplifier.rewrite_goal_tac ctx @{thms split_program_simps} i
-    THEN rtac @{thm HOL.refl} i
+    THEN resolve_tac ctx @{thms HOL.refl} i
   end)
 
 fun seq_tac ctx n I i =
   let
       val seq_rule_Q = (case I of NONE => @{thm seq_rule}
-                        | SOME I => Ctr_Sugar_Util.cterm_instantiate_pos [NONE,NONE,SOME (Thm.cterm_of ctx I)] 
+                        | SOME I => Drule.infer_instantiate' ctx [NONE,NONE,SOME (Thm.cterm_of ctx I)] 
                                     @{thm seq_rule})
   in
-  rtac @{thm denotation_eq_rule} i
+  resolve_tac ctx @{thms denotation_eq_rule} i
   THEN  seq_deno_tac ctx n i
-  THEN  rtac seq_rule_Q i
+  THEN  resolve_tac ctx [seq_rule_Q] i
   end
 
 

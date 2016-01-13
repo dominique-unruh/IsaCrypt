@@ -32,8 +32,7 @@ lemma nn_integral_singleton_indicator_countspace:
   assumes "f y \<ge> 0" and "y \<in> M"
   shows "(\<integral>\<^sup>+x. f x * indicator {y} x \<partial>count_space M) = f y"
 apply (subst nn_integral_singleton_indicator)
-  using assms apply auto
-  by (metis mult.comm_neutral one_ereal_def)
+  using assms by auto
 
 (* lemma nn_integral_count_space_geq_single:
   assumes "x \<in> M" and "\<And>x. f x \<ge> 0" 
@@ -52,8 +51,8 @@ typedef 'a distr = "{\<mu>::'a\<Rightarrow>real. (\<forall>x. (\<mu> x)\<ge>0) \
   apply (rule exI[where x="\<lambda>x. 0"], auto)
   by (metis ereal_eq_0(2) ereal_less_eq(6) ereal_zero_mult zero_le_one)
 definition "ereal_Rep_distr a m = ereal (Rep_distr a m)"
-definition "ereal_Abs_distr a = Abs_distr (\<lambda>m. real (a m))"
-lemma real_ereal_Rep_distr: "real (ereal_Rep_distr a m) = Rep_distr a m"
+definition "ereal_Abs_distr a = Abs_distr (\<lambda>m. real_of_ereal (a m))"
+lemma real_ereal_Rep_distr: "real_of_ereal (ereal_Rep_distr a m) = Rep_distr a m"
   unfolding ereal_Rep_distr_def by simp
 lemma ereal_Rep_distr: "ereal (Rep_distr a m) = ereal_Rep_distr a m"
   unfolding ereal_Rep_distr_def by simp
@@ -63,11 +62,11 @@ lemma ereal_Abs_distr_inverse:
   shows "ereal_Rep_distr (ereal_Abs_distr a) = a"
 proof -
   {fix m
-  have rpos: "\<And>x. real (a x) \<ge> 0"
+  have rpos: "\<And>x. real_of_ereal (a x) \<ge> 0"
     using pos real_of_ereal_pos by blast
   from leq1 have aleq1: "\<And>x. a x \<le> 1"
     by (meson UNIV_I dual_order.trans nn_integral_ge_point)
-  hence a_real: "\<And>x. ereal (real (a x)) = a x"
+  hence a_real: "\<And>x. ereal (real_of_ereal (a x)) = a x"
     by (metis abs_ereal_ge0 antisym ereal_real' ereal_times(1) pos top_ereal_def top_greatest)
   have "ereal_Rep_distr (ereal_Abs_distr a) m = a m"
     unfolding ereal_Rep_distr_def ereal_Abs_distr_def
@@ -132,7 +131,7 @@ lemma support_distr_0 [simp]: "support_distr 0 = {}"
   unfolding support_distr_def Rep_distr_0 by simp 
 
 definition "ereal_probability \<mu> E = (\<integral>\<^sup>+x. ereal_Rep_distr \<mu> x * indicator E x \<partial>count_space UNIV)" 
-definition "probability \<mu> E = real (\<integral>\<^sup>+x. ereal_Rep_distr \<mu> x * indicator E x \<partial>count_space UNIV)" 
+definition "probability \<mu> E = real_of_ereal (\<integral>\<^sup>+x. ereal_Rep_distr \<mu> x * indicator E x \<partial>count_space UNIV)" 
 lemma probability_singleton [simp]: "probability \<mu> {x} = Rep_distr \<mu> x"
   unfolding probability_def times_ereal.simps(1)[symmetric] ereal_indicator
   apply (subst nn_integral_singleton_indicator_countspace) by (auto simp: real_ereal_Rep_distr)
@@ -430,7 +429,7 @@ proof (rule ccontr)
     have "?union \<ge> {x\<in>A. f x > 0}"
     proof (auto, case_tac "f x \<noteq> \<infinity>", auto, rule exI)
       fix x assume fx_not_inf: "f x \<noteq> \<infinity>" assume fx_pos: "0 < f x"
-      def fx == "real (f x)"
+      def fx == "real_of_ereal (f x)"
       with fx_pos fx_not_inf have "fx > 0"
         by (metis zero_less_real_of_ereal) 
       have ereal_fx: "ereal fx = f x"
@@ -441,16 +440,14 @@ proof (rule ccontr)
       have inv_mono: "\<And>a b. a>0 \<Longrightarrow> b>0 \<Longrightarrow> (a::real) \<ge> 1/b \<Longrightarrow> 1/a \<le> b"
         by (metis divide_inverse divide_le_eq_1_pos inverse_eq_divide mult.commute)
       have "n+1 \<ge> 1/fx"
-        by (metis n_def real_of_int_add real_of_int_floor_add_one_ge real_of_one)
+        by (simp add: n_def)
       hence ineq: "1/(n+1) \<le> fx" apply (rule_tac inv_mono[of "n+1" "fx"])
         close (metis `0 < fx` less_le_trans zero_less_divide_1_iff)
         close (metis `0 < fx`) .
-      have aux1: "\<And>n. real (Suc n) = real n + 1" by auto
-      have aux2: "\<And>n. n \<ge> 0 \<Longrightarrow> real (nat n) = n" by auto
-      show "ereal (1 / real (Suc (nat n))) \<le> f x" 
-        unfolding ereal_fx[symmetric] aux1 apply (subst aux2)
-        close (fact `n\<ge>0`)
-        using ineq by auto
+      (* have aux1: "\<And>n. real (Suc n) = real n + 1" by auto *)
+      (* have aux2: "\<And>n. n \<ge> 0 \<Longrightarrow> real (nat n) = n" by auto *)
+      show "ereal (1 / (1 + real (nat n))) \<le> f x"
+        unfolding ereal_fx[symmetric] using ineq by (simp add: \<open>0 \<le> n\<close> add.commute)
     qed
     with `countable ?union` 
     have "countable {x\<in>A. f x > 0}"
@@ -653,7 +650,7 @@ proof -
 qed *)
 
 definition compose_distr :: "('a \<Rightarrow> 'b distr) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
-  "compose_distr f \<mu> == Abs_distr (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV))"
+  "compose_distr f \<mu> == Abs_distr (\<lambda>b. real_of_ereal (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV))"
 lemma ereal_Rep_compose_distr: "ereal_Rep_distr (compose_distr f \<mu>) b =
   (\<integral>\<^sup>+a. ereal_Rep_distr \<mu> a * ereal_Rep_distr (f a) b \<partial>count_space UNIV)"
 proof -
@@ -690,11 +687,11 @@ proof -
     using ereal_real int_b unfolding ereal_Rep_distr_def by auto
 qed
 lemma Rep_compose_distr: "Rep_distr (compose_distr f \<mu>) b =
-  real (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV)"
+  real_of_ereal (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV)"
   apply (subst ereal_Rep_compose_distr[symmetric, unfolded ereal_Rep_distr_def, simplified]) by simp
 
 definition apply_to_distr :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
-  "apply_to_distr f \<mu> = Abs_distr (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
+  "apply_to_distr f \<mu> = Abs_distr (\<lambda>b. real_of_ereal (\<integral>\<^sup>+a. Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
 lemma ereal_Rep_apply_to_distr: "ereal_Rep_distr (apply_to_distr f \<mu>) b
   = (\<integral>\<^sup>+a. ereal_Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV)"
 proof -
@@ -713,7 +710,7 @@ proof -
       close (fact dpos)
      close simp
     using d_int by (auto simp: one_ereal_def[symmetric])
-  hence leq1': "(\<integral>\<^sup>+ x. ereal (real (\<integral>\<^sup>+ xa. (d xa * indicator {f xa} x) \<partial>count_space UNIV)) \<partial>count_space UNIV) \<le> 1"
+  hence leq1': "(\<integral>\<^sup>+ x. ereal (real_of_ereal (\<integral>\<^sup>+ xa. (d xa * indicator {f xa} x) \<partial>count_space UNIV)) \<partial>count_space UNIV) \<le> 1"
     apply (subst ereal_real') using finite by auto
   show ?thesis
     unfolding apply_to_distr_def ereal_Rep_distr_def
@@ -726,10 +723,6 @@ proof -
     by auto
 qed
 
-(* lemma Rep_apply_to_distr: "Rep_distr (apply_to_distr f \<mu>)
-  = (\<lambda>b. real (\<integral>\<^sup>+a. Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
- *)
-
 lemma ereal_probability_apply_to_distr: "ereal_probability (apply_to_distr f \<mu>) E = ereal_probability \<mu> (f -` E)"
 proof -
   have "\<And>x. (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV)
@@ -741,20 +734,6 @@ proof -
   finally have t2: "\<And>x. \<bar>\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV\<bar> \<noteq> \<infinity>"
     using abs_eq_infinity_cases ereal_infty_less_eq2(1) ereal_times(1) nn_integral_not_MInfty by blast
     
-(*   have "\<And>x. ereal (real (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x) \<partial>count_space UNIV) * indicator E x)
-      = ereal (real (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x) * ereal (indicator E x) \<partial>count_space UNIV))"
-    apply (subst nn_integral_multc)
-      close auto close auto
-    by auto
-  also have "\<And>x. \<dots> x = ereal (real (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV))"
-    by auto
-  also have "\<And>x. \<dots> x = (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV)"
-    find_theorems "ereal (real ?x) = ?x"
-    apply (subst ereal_real') using t2 by auto 
-  finally have t1: "\<And>x. ereal (real (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x) \<partial>count_space UNIV) * indicator E x)
-        = (\<integral>\<^sup>+ xa. ereal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV)"
-    by assumption *)
-
   have ind: "\<And>x. indicator E (f x) = indicator (f -` E) x"
     by (simp add: indicator_def)
 

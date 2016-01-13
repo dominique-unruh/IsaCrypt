@@ -1,5 +1,5 @@
 theory Universe
-imports Main BNF_Cardinal_Order_Relation
+imports Main BNF_Cardinal_Order_Relation Misc
 begin
 
 (* For proving instances of types declared with 
@@ -215,7 +215,7 @@ let val arity = Sign.arity_number thy tycon
     val OFCLASS_thm = OFCLASS_prog_type_typedef OF [Rep_inject]
       handle THM _ => error ("Instance proof failed (when instantiating thm OFCLASS_prog_type_typedef).\nProbably the representing set of the type '"^tycon^"' is not of sort prog_type.")
     val thy = Class.instantiation ([tycon],vs,@{sort "prog_type"}) thy
-    val thy = Class.prove_instantiation_exit (fn _ => rtac OFCLASS_thm 1) thy
+    val thy = Class.prove_instantiation_exit (fn _ => resolve0_tac [OFCLASS_thm] 1) thy
       handle THM _ => error ("Instance proof failed.")
 in
 thy

@@ -27,30 +27,30 @@ fun assertion_footprint_tac ctx = SUBGOAL (fn (goal,i) =>
     Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint},_) $ X $ (Abs(v,T,t))) => 
       if not (has_Bound 0 t) then solve_tac ctx @{thms assertion_footprint_const} i
       else (case t of
-             Const(@{const_name memory_lookup},_) $ Bound 0 $ _ => rtac @{thm assertion_footprint_lookup} i
+             Const(@{const_name memory_lookup},_) $ Bound 0 $ _ => resolve_tac ctx @{thms assertion_footprint_lookup} i
            | t1 $ t2 => 
                 let val ct1 = Abs(v,T,t1) |> Thm.cterm_of ctx
                     val ct2 = Abs(v,T,t2) |> Thm.cterm_of ctx
                     val ctX = X |> Thm.cterm_of ctx
                     val (a,b) = Thm.ctyp_of_cterm ct1 |> range_funCT |> dest_funCT
                 in
-                  (rtac (Drule.instantiate' [SOME a, SOME b] [SOME ctX,SOME ct1,SOME ct2]
-                    @{thm assertion_footprint_app}) THEN_ALL_NEW assertion_footprint_tac ctx) i
+                  (resolve_tac ctx [Thm.instantiate' [SOME a, SOME b] [SOME ctX,SOME ct1,SOME ct2]
+                    @{thm assertion_footprint_app}] THEN_ALL_NEW assertion_footprint_tac ctx) i
                 end
            | _ => raise (TERM( "nyi",[t])))
     | Const(@{const_name Trueprop},_) $ (Const(@{const_name assertion_footprint_left},_) $ X $ (Abs(v1,T1,Abs(v2,T2,t)))) => 
       if not (has_Bound 1 t) then ASSERT_SUCCESS' (solve_tac ctx @{thms assertion_footprint_left_const})
                                   (fn t => TERM ("solve_tac assertion_footprint_left_const failed",[t])) i
       else (case t of
-             Const(@{const_name memory_lookup},_) $ Bound 1 $ _ => rtac @{thm assertion_footprint_left_lookup} i
+             Const(@{const_name memory_lookup},_) $ Bound 1 $ _ => resolve_tac ctx @{thms assertion_footprint_left_lookup} i
            | t1 $ t2 => 
                 let val ct1 = Abs(v1,T1,Abs(v2,T2,t1)) |> Thm.cterm_of ctx
                     val ct2 = Abs(v1,T1,Abs(v2,T2,t2)) |> Thm.cterm_of ctx
                     val ctX = X |> Thm.cterm_of ctx
                     val (a,b) = Thm.ctyp_of_cterm ct1 |> range_funCT |> range_funCT |> dest_funCT
-                    val rule = Drule.instantiate' [SOME a, SOME b] [SOME ctX,SOME ct1,SOME ct2] @{thm assertion_footprint_left_app}
+                    val rule = Thm.instantiate' [SOME a, SOME b] [SOME ctX,SOME ct1,SOME ct2] @{thm assertion_footprint_left_app}
                 in
-                  (ASSERT_SUCCESS' (rtac rule) (fn t => TERM ("rtac assertion_footprint_left_app failed",[t]))
+                  (ASSERT_SUCCESS' (resolve_tac ctx [rule]) (fn t => TERM ("resolve_tac ctx assertion_footprint_left_app failed",[t]))
                    THEN_ALL_NEW assertion_footprint_tac ctx) i
                 end
            | _ => raise (TERM( "nyi",[t])))
@@ -58,15 +58,15 @@ fun assertion_footprint_tac ctx = SUBGOAL (fn (goal,i) =>
       if not (has_Bound 0 t) then ASSERT_SUCCESS' (solve_tac ctx @{thms assertion_footprint_right_const})
                                   (fn t => TERM ("solve_tac assertion_footprint_right_const failed",[t])) i
       else (case t of
-             Const(@{const_name memory_lookup},_) $ Bound 0 $ _ => rtac @{thm assertion_footprint_right_lookup} i
+             Const(@{const_name memory_lookup},_) $ Bound 0 $ _ => resolve_tac ctx @{thms assertion_footprint_right_lookup} i
            | t1 $ t2 => 
                 let val ct1 = Abs(v1,T1,Abs(v2,T2,t1)) |> Thm.cterm_of ctx
                     val ct2 = Abs(v1,T1,Abs(v2,T2,t2)) |> Thm.cterm_of ctx
                     val ctX = X |> Thm.cterm_of ctx
                     val (a,b) = Thm.ctyp_of_cterm ct1 |> range_funCT |> range_funCT |> dest_funCT
-                    val rule = Drule.instantiate' [SOME a, SOME b] [SOME ctX,SOME ct1,SOME ct2] @{thm assertion_footprint_right_app}
+                    val rule = Thm.instantiate' [SOME a, SOME b] [SOME ctX,SOME ct1,SOME ct2] @{thm assertion_footprint_right_app}
                 in
-                  (ASSERT_SUCCESS' (rtac rule) (fn t => TERM ("rtac assertion_footprint_right_app failed",[t]))
+                  (ASSERT_SUCCESS' (resolve_tac ctx [rule]) (fn t => TERM ("resolve_tac ctx assertion_footprint_right_app failed",[t]))
                    THEN_ALL_NEW assertion_footprint_tac ctx) i
                 end
            | _ => raise (TERM( "nyi",[t])))
@@ -80,14 +80,14 @@ fun assertion_footprint_tac ctx = SUBGOAL (fn (goal,i) =>
   let fun app (const,lookup0,lookup1,appl) X (Abs(v,T,t)) i = 
       (if not (has_Bound0 t) then solve_tac ctx [const] i
       else (case t of
-             Const(@{const_name memory_lookup},_) $ Bound 0 $ _ => rtac lookup0 i
+             Const(@{const_name memory_lookup},_) $ Bound 0 $ _ => resolve_tac ctx lookup0 i
            | t1 $ t2 => 
                 let val ct1 = Abs(v,T,t1) |> Thm.cterm_of ctx
                     val ct2 = Abs(v,T,t2) |> Thm.cterm_of ctx
                     val ctX = X |> Thm.cterm_of ctx
                     val cts = Thm.ctyp_of_cterm ct1 |> Thm.dest_ctyp |> (fn x => nth x 1) |> Thm.dest_ctyp
                 in
-                  (rtac (Drule.instantiate' [SOME (hd cts), SOME (hd (tl cts))] [SOME ctX,SOME ct1,SOME ct2]
+                  (resolve_tac ctx (Drule.instantiate' [SOME (hd cts), SOME (hd (tl cts))] [SOME ctX,SOME ct1,SOME ct2]
                     appl) THEN_ALL_NEW assertion_footprint_tac ctx) i
                 end
            | _ => raise (TERM( "nyi",[t]))))
@@ -174,12 +174,12 @@ fun callproc_rule_conditions_tac ctx (procthms:Procs_Typed.procedure_info) i =
   end
 
 fun callproc_rule_tac' ctx (procthms:Procs_Typed.procedure_info) renaming locals non_parg_locals i =
-  let val callproc_rule = @{thm callproc_rule_renamed} |> Drule.instantiate' []
+  let val callproc_rule = @{thm callproc_rule_renamed} |> Thm.instantiate' []
         [SOME (Thm.cterm_of ctx renaming), NONE, SOME (Thm.cterm_of ctx locals), NONE, NONE, NONE, SOME (Thm.cterm_of ctx non_parg_locals)]
 (*       val simp_rules = @{thms vars_variable_pattern[THEN eq_reflection] 
         assign_default_typed_aux[THEN eq_reflection] assign_default_typed_aux_cons[THEN eq_reflection]
         assign_default_typed_aux_nil[THEN eq_reflection]} *) 
-  in rtac callproc_rule i
+  in resolve_tac ctx [callproc_rule] i
      (* THEN print_tac ctx "callproc_rule subgoals" *)
      THEN callproc_rule_conditions_tac ctx procthms i
      (* THEN print_tac ctx "conditions done" *)
@@ -293,7 +293,7 @@ fun obs_eq'_rename_variables_proc _ [] _ = all_tac
 val _ = writeln (Syntax.string_of_term ctx renaming_term)
   in
   (* TODO: use rule obs_eq'_rename_variables_proc[of _ _ renaming_term] *)
-  rtac (Drule.instantiate' [] [NONE, NONE, SOME (Thm.cterm_of ctx renaming_term)] @{thm obs_eq'_rename_variables_proc}) 1
+  resolve_tac ctx (Drule.instantiate' [] [NONE, NONE, SOME (Thm.cterm_of ctx renaming_term)] @{thm obs_eq'_rename_variables_proc}) 1
   end
 *)
 
@@ -401,9 +401,9 @@ fun hoare_obseq_replace_tac ctx redex obseq_tac =
       val program_locals_set = program_locals |> HOLogic.mk_set @{typ variable_untyped} 
       val obs_eq_vars = @{termx "?program_locals_set \<union> Collect (vu_global::variable_untyped\<Rightarrow>_)"} |> Thm.cterm_of ctx
       val redex = Thm.cterm_of ctx redex
-      val obseq_rule = obseq_rule |> Drule.instantiate' [] [SOME obs_eq_vars(*X*),NONE,NONE,SOME redex(*c*)]
+      val obseq_rule = obseq_rule |> Thm.instantiate' [] [SOME obs_eq_vars(*X*),NONE,NONE,SOME redex(*c*)]
   in
-    ASSERT_SUCCESS (rtac obseq_rule i) (THM("Could not apply hoare_obseq_replace",i,[obseq_rule]))
+    ASSERT_SUCCESS (resolve_tac ctx [obseq_rule] i) (THM("Could not apply hoare_obseq_replace",i,[obseq_rule]))
     THEN ASSERT_SOLVED' (fast_force_tac (ctx addSIs @{thms obseq_context_empty obseq_context_seq obseq_context_assign obseq_context_sample  obseq_context_ifte obseq_context_while obseq_context_skip obseq_context_callproc_allglobals}))
          (fn subgoal1 => fn subgoals => raise TERM("While trying to prove (1) using hoare_obseq_replace, I got subgoal (2).\n"^
                                                    "I could not prove that subgoal using 'fastforce obseq_context_empty obseq_context_seq obseq_context_assign obseq_context_sample obseq_context_ifte obseq_context_while obseq_context_skip obseq_context_callproc_allglobals'.\n",
