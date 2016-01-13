@@ -226,6 +226,31 @@ lemma pair_procfun [simp]: "procfun_apply (procfun_apply pair_procfun a) b = (a,
   apply (subst beta_reduce_procedure_functor_mk_untyped)
   by (simp add: procedure_functor_mk_typed'_prod_def)
 
+instantiation unit :: procedure_functor begin
+definition [simp]: "procedure_functor_type (_::unit itself) = ProcTUnit"
+definition "procedure_functor_mk_untyped (_::unit) = ProcUnit"
+definition "procedure_functor_mk_typed' _ = ()"
+instance
+proof (intro_classes)
+  show "\<And>p\<Colon>unit. well_typed_proc'' [] (procedure_functor_mk_untyped p) (procedure_functor_type TYPE(unit))"
+    by (auto simp: procedure_functor_mk_untyped_unit_def wt_ProcUnit_iff)
+  show "\<And>p\<Colon>unit. beta_reduced (procedure_functor_mk_untyped p)"
+    by (auto simp: procedure_functor_mk_untyped_unit_def wt_ProcUnit_iff)
+  next
+    fix q assume "well_typed_proc'' [] q (procedure_functor_type TYPE(unit))"
+    hence wtq: "well_typed_proc'' [] q ProcTUnit" unfolding procedure_functor_type_unit_def by simp
+    moreover assume betaq: "beta_reduced q"
+    ultimately show "procedure_functor_mk_untyped (procedure_functor_mk_typed' q :: unit) = q"
+      unfolding procedure_functor_mk_untyped_unit_def 
+      by (rule well_typed_ProcTUnit_ProcUnit[symmetric])
+  next
+  show "\<And>p\<Colon>unit. procedure_functor_mk_typed' (procedure_functor_mk_untyped p) = p"
+    by (auto simp: procedure_functor_mk_untyped_unit_def wt_ProcUnit_iff) 
+qed
+end
+
+
+
 subsubsection "Procedures"
 
 instantiation procedure_ext :: (prog_type,prog_type,singleton) procedure_functor begin
@@ -255,10 +280,6 @@ instance proof intro_classes
         close (rule wtq[unfolded procedure_functor_type_procedure_ext_def])
         by (rule betaq)  
     hence "well_typed body" unfolding q by simp
-(*    moreover have "\<And>v. v \<in> set args \<Longrightarrow> \<not> vu_global v"
-      by (metis wtq0 q well_typed_proc.simps(1)) 
-    moreover have "distinct args"
-      by (metis wtq0 q well_typed_proc.simps(1)) *)
     moreover
     have pt_q: "proctype_of q = procedure_type TYPE(('a, 'b, 'c) procedure_scheme)"
       apply (rule well_typed_proc''_proctype_of)
@@ -266,10 +287,6 @@ instance proof intro_classes
         by (rule betaq)  
     hence "pu_type args = Type TYPE('a)"
       unfolding procedure_type_def q by auto
-(*    have "args \<in> procargvars TYPE('a)" 
-      apply (rule procedure_type_procargvars)
-        close (fact pt_q[unfolded q])
-        by (fact wtq0[unfolded q]) *)
     moreover have "eu_type ret = Type TYPE('b)" 
       using pt_q by (simp add: q procedure_type_def)
     ultimately show "procedure_functor_mk_untyped (procedure_functor_mk_typed' q::('a, 'b, 'c) procedure_scheme) = q"

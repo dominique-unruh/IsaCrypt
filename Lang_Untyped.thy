@@ -397,6 +397,7 @@ datatype program_rep =
 and procedure_rep =
   Proc program_rep pattern_untyped expression_untyped
 | ProcRef nat (* deBruijn index *)
+| ProcUnit
 | ProcAbs procedure_rep
 | ProcAppl procedure_rep procedure_rep
 | ProcPair procedure_rep procedure_rep
@@ -719,6 +720,7 @@ and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" whe
 | "vars_proc_untyped (ProcAbs p) = vars_proc_untyped p"
 | "vars_proc_untyped (ProcPair p q) = vars_proc_untyped p @ vars_proc_untyped q"
 | "vars_proc_untyped (ProcUnpair _ p) = vars_proc_untyped p"
+| "vars_proc_untyped ProcUnit = []"
 
 definition "vars prog = vars_untyped (Rep_program prog)"
 
@@ -740,6 +742,7 @@ and write_vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped lis
 | "write_vars_proc_untyped (ProcAbs p) = write_vars_proc_untyped p"
 | "write_vars_proc_untyped (ProcPair p q) = write_vars_proc_untyped p @ write_vars_proc_untyped q"
 | "write_vars_proc_untyped (ProcUnpair _ p) = write_vars_proc_untyped p"
+| "write_vars_proc_untyped ProcUnit = []"
 definition "write_vars prog = write_vars_untyped (Rep_program prog)"
 
 lemma write_vars_subset_vars_untyped: 
@@ -1306,7 +1309,7 @@ fun rename_variables_proc where
 | "rename_variables_proc f (ProcPair p1 p2) = ProcPair (rename_variables_proc f p1) (rename_variables_proc f p2)"
 | "rename_variables_proc f (ProcUnpair b p) = ProcUnpair b (rename_variables_proc f p)"
 | "rename_variables_proc f (ProcAppl p1 p2) = ProcAppl (rename_variables_proc f p1) (rename_variables_proc f p2)"
-
+| "rename_variables_proc f ProcUnit = ProcUnit"
 
 lemma rename_variables_proc_id: "rename_variables_proc id p = p" 
   apply (induct p)

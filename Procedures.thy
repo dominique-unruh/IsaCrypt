@@ -2,25 +2,6 @@ theory Procedures
 imports "~~/src/HOL/Proofs/Lambda/Commutation" TypedLambda Lang_Untyped 
 begin
 
-subsection {* Various facts and definitions *}
-
-(*
-lemma proctype_inhabited: "\<exists>p. well_typed_proc p \<and> proctype_of p = pT"
-proof (rule,rule)
-  def args == "fresh_variables_local [] (pt_argtype pT) :: variable_untyped list"
-  def ret == "Abs_expression_untyped \<lparr> eur_fun=(\<lambda>m. t_default (pt_returntype pT)), eur_type=pt_returntype pT, eur_vars=[] \<rparr> :: expression_untyped"
-  def p == "(Proc Skip args ret)"
-  show "well_typed_proc p" 
-    unfolding p_def apply simp
-    unfolding args_def using fresh_variables_local_distinct fresh_variables_local_local
-    by metis
-  show "proctype_of p = pT" 
-    unfolding p_def args_def apply (simp add: fresh_variables_local_type)
-    unfolding ret_def eu_type_def
-    by (subst Abs_expression_untyped_inverse, auto)
-qed
-*)
-
 
 subsection {* Simply-typed lambda calculus over procedures *}
 
@@ -51,6 +32,7 @@ and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \
 | wt_ProcAbs: "well_typed_proc'' (T#E) p U \<Longrightarrow> well_typed_proc'' E (ProcAbs p) (ProcTFun T U)"
 | wt_ProcPair: "well_typed_proc'' E p T \<Longrightarrow> well_typed_proc'' E q U \<Longrightarrow> well_typed_proc'' E (ProcPair p q) (ProcTPair T U)"
 | wt_ProcUnpair: "well_typed_proc'' E p (ProcTPair T U) \<Longrightarrow> well_typed_proc'' E (ProcUnpair b p) (if b then T else U)"
+| wt_ProcUnit: "well_typed_proc'' E ProcUnit ProcTUnit"
 
 lemma wt_Assign_iff[symmetric]: "(eu_type e = pu_type v) = well_typed'' E (Assign v e)"
   apply (rule iffI, simp add: wt_Assign)
@@ -99,6 +81,9 @@ lemma wt_ProcUnpair_iff[symmetric]: "(\<exists>T U. TU = (if b then T else U) \<
   apply (rule iffI, auto simp: wt_ProcUnpair)
   apply (cases rule:well_typed_proc''.cases, auto)
   by (cases b, auto)
+lemma wt_ProcUnit_iff[symmetric]: "T = ProcTUnit = well_typed_proc'' E ProcUnit T"
+  apply (rule iffI, auto simp: wt_ProcUnit)
+  by (cases rule:well_typed_proc''.cases, auto)
 
 lemma well_typed_extend:
   shows "well_typed'' [] p \<Longrightarrow> well_typed'' E p"
@@ -122,6 +107,7 @@ proof -
     next case (ProcPair p q T E F) thus ?case by (auto simp: wt_ProcPair_iff)
     next case (ProcUnpair b p T E F) thus ?case apply (auto simp: wt_ProcUnpair_iff)
       by (cases b, auto)
+    next case ProcUnit thus ?case unfolding wt_ProcUnit_iff by simp
   qed
   from assms this[where F="[]", simplified]
   show "well_typed'' [] p \<Longrightarrow> well_typed'' E p"
@@ -145,6 +131,7 @@ and lift_proc :: "[procedure_rep, nat] \<Rightarrow> procedure_rep" where
 | "lift_proc (ProcPair s t) k = ProcPair (lift_proc s k) (lift_proc t k)"
 | "lift_proc (ProcUnpair b s) k = ProcUnpair b (lift_proc s k)"
 | "lift_proc (ProcAbs s) k = ProcAbs (lift_proc s (Suc k))"
+| "lift_proc ProcUnit k = ProcUnit"
 
 fun subst_proc_in_prog :: "[nat, procedure_rep, program_rep] \<Rightarrow> program_rep"
 and subst_proc :: "[nat, procedure_rep, procedure_rep] \<Rightarrow> procedure_rep"
@@ -164,19 +151,8 @@ where
 | subst_proc_ProcPair: "subst_proc k s (ProcPair t u) = ProcPair (subst_proc k s t) (subst_proc k s u)"
 | subst_proc_ProcUnpair: "subst_proc k s (ProcUnpair b t) = ProcUnpair b (subst_proc k s t)"
 | subst_proc_ProcAbs: "subst_proc k s (ProcAbs t) = ProcAbs (subst_proc (Suc k) (lift_proc s 0) t)"
+| subst_proc_ProcUnit: "subst_proc k s ProcUnit = ProcUnit"
 
-(* TODO remove? Try (seems to be handled automatically by simp anyway) *)
-(* lemma subst_eq [simp]: "subst_proc k u (ProcRef k) = u"
-  by simp
- *)
-(* TODO remove? Try (seems to be handled automatically by simp anyway) *)
-(* lemma subst_gt [simp]: "i < j ==> subst_proc i u (ProcRef j) = ProcRef (j - 1)"
-  by (simp)
- *)
-(* TODO remove? Try (seems to be handled automatically by simp anyway) *)
-(* lemma subst_lt [simp]: "j < i ==> subst_proc i u (ProcRef j) = ProcRef j"
-  by (simp)
- *)
 lemma lift_lift:
   shows "i < k + 1 \<Longrightarrow> lift_proc_in_prog (lift_proc_in_prog p i) (Suc k) = lift_proc_in_prog (lift_proc_in_prog p k) i"
   and   "i < k + 1 \<Longrightarrow> lift_proc (lift_proc t i) (Suc k) = lift_proc (lift_proc t k) i"
@@ -256,6 +232,7 @@ and brc_ProcAbs: "beta_reduce_proc (ProcAbs p) u"
 and brc_ProcPair: "beta_reduce_proc (ProcPair p1 p2) u"
 and brc_ProcUnpair: "beta_reduce_proc (ProcUnpair b p) u"
 and brc_ProcRef: "beta_reduce_proc (ProcRef i) u"
+and brc_ProcUnit: "beta_reduce_proc ProcUnit u"
 
 lemma subst_well_typed_id:
   shows "well_typed p' \<Longrightarrow> subst_proc_in_prog n q p' = p'"
@@ -307,6 +284,7 @@ fun prog_to_dB :: "program_rep \<Rightarrow> dB" and proc_to_dB :: "procedure_re
 | "proc_to_dB (ProcAppl p q) = proc_to_dB p \<degree> proc_to_dB q"
 | "proc_to_dB (ProcPair p q) = MkPair (proc_to_dB p) (proc_to_dB q)"
 | "proc_to_dB (ProcUnpair b p) = Unpair b (proc_to_dB p)"
+| "proc_to_dB ProcUnit = Proc0"
 
 lemma proc_to_dB_lift [iff]:
  shows "prog_to_dB (lift_proc_in_prog p k) = lift (prog_to_dB p) k"
@@ -416,6 +394,7 @@ and par_beta :: "[procedure_rep, procedure_rep] \<Rightarrow> bool" (infixl "\<R
 | pb_CallProc[simp, intro!]: "[| s \<Rightarrow>> s' |] ==> CallProc x s a \<rightarrow>> CallProc x s' a"
 | pb_Proc[simp, intro!]: "[| s \<rightarrow>> s' |] ==> Proc s x y \<Rightarrow>> Proc s' x y"
 | pb_ProcRef [simp, intro!]: "ProcRef n \<Rightarrow>> ProcRef n"
+| pb_ProcUnit [simp, intro!]: "ProcUnit \<Rightarrow>> ProcUnit"
 | pb_ProcAbs [simp, intro!]: "s \<Rightarrow>> t ==> ProcAbs s \<Rightarrow>> ProcAbs t"
 | pb_ProcAppl [simp, intro!]: "[| s \<Rightarrow>> s'; t \<Rightarrow>> t' |] ==> ProcAppl s t \<Rightarrow>> ProcAppl s' t'"
 | pb_ProcPair [simp, intro!]: "[| s \<Rightarrow>> s'; t \<Rightarrow>> t' |] ==> ProcPair s t \<Rightarrow>> ProcPair s' t'"
@@ -440,13 +419,15 @@ inductive_cases par_beta_cases [elim!]:
   "Proc b r a \<Rightarrow>> u"
   "ProcPair p1 p2 \<Rightarrow>> u"
   "ProcUnpair b p \<Rightarrow>> u"
+  "ProcUnit \<Rightarrow>> u"
 
+print_theorems
 lemma par_beta_varL [simp]:
     "(ProcRef n \<Rightarrow>> t) = (t = ProcRef n)"
   by blast
 
 lemma par_beta_refl [simp]: shows "p \<rightarrow>> p" and "t \<Rightarrow>> t"  (* par_beta_refl [intro!] causes search to blow up *)
-  by (induct p and t) simp_all
+  apply (induct p and t) by simp_all
 
 lemma beta_subset_par_beta: 
 shows "beta_reduce_prog <= par_beta'"
@@ -613,6 +594,7 @@ proof (rule_tac [2] predicate2I, rule predicate2I)
   next case (pb_ProcUnpair2 t t' s) thus ?case
     apply (rule_tac Transitive_Closure.converse_rtranclp_into_rtranclp[where b=t], auto)
     using beta_reduce_prog_beta_reduce_proc.intros by (metis (full_types))
+  next case (pb_ProcUnit) show ?case by auto
   qed
 qed
 
@@ -683,6 +665,7 @@ next case While thus ?case by auto
 next case CallProc thus ?case by auto
 next case Proc thus ?case by auto
 next case ProcRef thus ?case by auto
+next case ProcUnit thus ?case by auto
 next case ProcAbs thus ?case by auto
 next case (ProcAppl p q) 
   have "ProcAppl p q \<Rightarrow>> t'" by (fact ProcAppl)
@@ -759,8 +742,9 @@ proof -
     next case pb_CallProc thus ?case by (blast intro!: par_beta_subst)
     next case pb_Proc thus ?case by (blast intro!: par_beta_subst)
     next case pb_ProcRef thus ?case by (blast intro!: par_beta_subst)
-    next case pb_ProcAbs thus ?case by (blast intro!: par_beta_subst)
-    next case pb_ProcAppl thus ?case by (blast intro!: par_beta_subst)
+    next case pb_ProcUnit thus ?case by auto
+    next case pb_ProcAbs thus ?case by auto
+    next case pb_ProcAppl thus ?case  by (blast intro!: par_beta_subst)
     next case pb_ProcPair thus ?case by (blast intro!: par_beta_subst)
     next case pb_beta thus ?case by (blast intro!: par_beta_subst)
     next case pb_ProcUnpair1 thus ?case by (blast intro!: par_beta_subst)
@@ -816,6 +800,7 @@ and cd :: "procedure_rep \<Rightarrow> procedure_rep" where
 | "cd' (CallProc v p e) = CallProc v (cd p) e"
 | "cd (Proc body args ret) = Proc (cd' body) args ret"
 | "cd (ProcRef n) = ProcRef n"
+| "cd ProcUnit = ProcUnit"
 | "cd (ProcAppl (ProcAppl s1 s2) t) = ProcAppl (cd (ProcAppl s1 s2)) (cd t)"
 | "cd (ProcAppl (ProcAbs u) t) = subst_proc 0 (cd t) (cd u)"
 | "cd (ProcAppl t u) = ProcAppl (cd t) (cd u)"
@@ -958,6 +943,7 @@ proof -
       using wt_ProcAbs by auto
   next case wt_ProcPair thus ?case by (auto simp:well_typed''_well_typed_proc''.intros)
   next case wt_ProcUnpair thus ?case by (auto simp:well_typed''_well_typed_proc''.intros)
+  next case wt_ProcUnit thus ?case by (auto simp:well_typed''_well_typed_proc''.intros)
   qed
   with FE_def show "PROP ?thesis1" and "PROP ?thesis2" by auto
 qed
@@ -1009,8 +995,9 @@ proof -
       using wt_ProcAbs by auto
   next case wt_ProcPair thus ?case by (auto simp:well_typed''_well_typed_proc''.intros)
   next case wt_ProcUnpair thus ?case by (auto simp:well_typed''_well_typed_proc''.intros)
+  next case wt_ProcUnit thus ?case by (auto simp:well_typed''_well_typed_proc''.intros)
   qed
-  thus "PROP?thesis1" and "PROP?thesis2" using assms FUE_def by auto
+  thus "PROP ?thesis1" and "PROP ?thesis2" using assms FUE_def by auto
 qed
 
 lemma subject_reduction:
@@ -1467,7 +1454,7 @@ lemma beta_reduced_ProcUnpair [simp]:
    using br_ProcUnpair close blast
   apply (cases x; simp)
  using br_ProcUnpairPair close blast
-by (metis beta_reduce_proofs.beta_reduce_cases(5) procedure_rep.simps(41))
+ by (metis brc_ProcUnpair procedure_rep.case(6))
 
 
 lemma beta_reduced_ProcAppl [simp]: 
@@ -1478,11 +1465,16 @@ lemma beta_reduced_ProcAppl [simp]:
    using br_ProcAppl2 close blast
   apply (cases x; simp)
   using br_beta close blast
- by (metis beta_reduce_proofs.beta_reduce_cases(3) procedure_rep.case(3))
+by (metis beta_reduce_proofs.beta_reduce_cases(3) procedure_rep.simps(52))
  
 
 lemma beta_reduced_ProcRef [simp]: "beta_reduced (ProcRef i)"
-  by (smt beta_reduce_proofs.beta_reduce_cases(1) beta_reduced_def)
+  unfolding beta_reduced_def apply auto
+  apply (rule_tac beta_reduce_proc.cases) by auto
+
+lemma beta_reduced_ProcUnit [simp]: "beta_reduced ProcUnit"
+  unfolding beta_reduced_def apply auto
+  apply (rule_tac beta_reduce_proc.cases) by auto
 
 lemma beta_reduce_beta:
   assumes "well_typed_proc'' (T#E) p U"
@@ -1583,6 +1575,14 @@ using wt apply (cases, auto)
 using red close (metis well_typed_not_ProcAppl_ProcUnpair) 
 using red by (metis well_typed_not_ProcAppl_ProcUnpair)
 
+lemma well_typed_ProcTUnit_ProcUnit:
+  assumes wt: "well_typed_proc'' [] p ProcTUnit"
+  assumes red: "beta_reduced p"
+  shows "p = ProcUnit"
+using wt apply (cases, auto) 
+using red close (metis well_typed_not_ProcAppl_ProcUnpair) 
+using red by (metis well_typed_not_ProcAppl_ProcUnpair)
+
 
 lemma well_typed_ProcTPair_ProcPair:
   assumes wt: "well_typed_proc'' [] p (ProcTPair T U)"
@@ -1623,6 +1623,7 @@ proof -
   next case wt_ProcAppl thus ?case by (metis well_typed''_well_typed_proc''.wt_ProcAppl well_typed_not_ProcAppl_ProcUnpair)
   next case wt_ProcAbs thus ?case by auto
   next case wt_ProcPair thus ?case by auto
+  next case wt_ProcUnit thus ?case by auto
   next case wt_ProcUnpair thus ?case by (metis well_typed_not_ProcAppl_ProcUnpair wt_ProcUnpair_iff)
   qed
   thus "well_typed'' [] p' \<Longrightarrow> beta_reduced' p' \<Longrightarrow> well_typed p'"
