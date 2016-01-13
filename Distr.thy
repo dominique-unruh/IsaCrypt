@@ -126,6 +126,8 @@ definition support_distr :: "'a distr \<Rightarrow> 'a set" where
   "support_distr \<mu> = {x. Rep_distr \<mu> x > 0}"
 lemma support_distr_def': "support_distr \<mu> = {x. ereal_Rep_distr \<mu> x > 0}"
   unfolding support_distr_def ereal_Rep_distr_def by auto
+lemma support_distr_def'': "support_distr \<mu> = {x. ereal_Rep_distr \<mu> x \<noteq> 0}"
+  unfolding support_distr_def' using ereal_Rep_distr_geq0 less_eq_ereal_def by fastforce 
 lemma support_distr_0 [simp]: "support_distr 0 = {}"
   unfolding support_distr_def Rep_distr_0 by simp 
 
@@ -776,6 +778,20 @@ qed
 lemma probability_apply_to_distr: "probability (apply_to_distr f \<mu>) E = probability \<mu> (f -` E)"
   apply (subst ereal.inject[symmetric]) unfolding ereal_probability
   by (rule ereal_probability_apply_to_distr)
+
+lemma ereal_probability_cong:
+  assumes "\<And>x. x \<in> support_distr \<mu> \<Longrightarrow> x\<in>E \<longleftrightarrow> x\<in>F"
+  shows "ereal_probability \<mu> E = ereal_probability \<mu> F"
+unfolding ereal_probability_def
+apply (rule nn_integral_cong, rename_tac x, case_tac "x\<in>support_distr \<mu>")
+ close (simp add: assms indicator_def)
+unfolding support_distr_def'' by auto
+
+lemma probability_cong:
+  assumes "\<And>x. x \<in> support_distr \<mu> \<Longrightarrow> x\<in>E \<longleftrightarrow> x\<in>F"
+  shows "probability \<mu> E = probability \<mu> F"
+apply (rule ereal.inject[THEN iffD1]) unfolding ereal_probability
+apply (rule ereal_probability_cong) using assms by simp
 
 lemma mono_compose_distr1: "mono (\<lambda>f. compose_distr f \<mu>)"
 proof (rule monoI, rename_tac f g)
