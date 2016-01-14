@@ -12,7 +12,7 @@ isabelle_home = '/opt/Isabelle2016-RC0'
 if 'ISABELLE_DOCKER' in os.environ:
     isabelle_process = ['docker','run','-i',
                         '-v', os.getcwd()+":/home/user/data",
-                        'unruh/isabelle:isacrypt-prereqs',
+                        'unruh/isabelle:isacrypt-prereqs2016',
                         isabelle_home+'/bin/isabelle_process']
 else:
     isabelle_process = [isabelle_home+'/bin/isabelle_process']
