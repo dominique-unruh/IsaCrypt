@@ -1407,6 +1407,11 @@ subsection {* Footprints etc. *}
 definition "denotation_footprint X d = (\<forall>m m' z. Rep_distr (d m) m' 
     = Rep_distr (d (memory_combine X m z)) (memory_combine X m' z) 
       * (if memory_combine X default m = memory_combine X default m' then 1 else 0))"
+lemma denotation_footprint_def': "denotation_footprint X d = (\<forall>m m' z. ereal_Rep_distr (d m) m' 
+    = ereal_Rep_distr (d (memory_combine X m z)) (memory_combine X m' z) 
+      * (if memory_combine X default m = memory_combine X default m' then 1 else 0))"
+unfolding ereal_Rep_distr[symmetric] one_ereal_def zero_ereal_def denotation_footprint_def by auto
+
 definition "program_untyped_footprint X c = denotation_footprint X (denotation_untyped c)"
 definition "program_footprint X c = denotation_footprint X (denotation c)"
 

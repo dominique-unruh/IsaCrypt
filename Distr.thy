@@ -127,6 +127,8 @@ lemma support_distr_def': "support_distr \<mu> = {x. ereal_Rep_distr \<mu> x > 0
   unfolding support_distr_def ereal_Rep_distr_def by auto
 lemma support_distr_def'': "support_distr \<mu> = {x. ereal_Rep_distr \<mu> x \<noteq> 0}"
   unfolding support_distr_def' using ereal_Rep_distr_geq0 less_eq_ereal_def by fastforce 
+lemma support_distr_def''': "support_distr \<mu> = {x. Rep_distr \<mu> x \<noteq> 0}"
+  unfolding support_distr_def'' ereal_Rep_distr_def by auto
 lemma support_distr_0 [simp]: "support_distr 0 = {}"
   unfolding support_distr_def Rep_distr_0 by simp 
 

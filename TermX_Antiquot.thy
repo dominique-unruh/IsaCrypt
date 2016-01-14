@@ -39,8 +39,6 @@ val x = @{typ "int list"};
 @{termx "[]::?'x" where "?'x\<Rightarrow>?'a list"}
 *}
 
-declare[[show_types]]
-
 (*
 ML {*
 local
