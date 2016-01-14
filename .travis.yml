@@ -1,6 +1,10 @@
 language: python
 sudo: required
 
+branches:
+  except:
+    weak-normalization
+
 python:
 - "2.7"
 
