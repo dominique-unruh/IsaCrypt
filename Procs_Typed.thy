@@ -72,19 +72,6 @@ typedef (overloaded) ('a::procedure_functor,'b::procedure_functor) procfun = "{p
 
 type_notation "procfun" (infixr "=proc=>" 0)
 
-instantiation unit :: procedure_functor begin
-definition [simp]: "procedure_functor_type (_::unit itself) = ProcTUnit"
-definition "procedure_functor_mk_untyped (_::unit) = undefined"
-definition "procedure_functor_mk_typed' _ == ()"
-instance (* proof
-  show "well_typed_proc'' [] (procedure_functor_mk_untyped p)
-        (procedure_functor_type TYPE(unit))" for p::unit
-    apply (simp add: procedure_functor_mk_untyped_unit_def)
-    sorry
-  show "beta_reduced (procedure_functor_mk_untyped p)" for p::unit
-    sorry *) sorry
-end
-
 instantiation procfun :: (procedure_functor,procedure_functor) procedure_functor begin
 definition [simp]: "procedure_functor_type (_::('a,'b)procfun itself)
      == ProcTFun (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b))"
@@ -232,9 +219,9 @@ definition "procedure_functor_mk_untyped (_::unit) = ProcUnit"
 definition "procedure_functor_mk_typed' _ = ()"
 instance
 proof (intro_classes)
-  show "\<And>p\<Colon>unit. well_typed_proc'' [] (procedure_functor_mk_untyped p) (procedure_functor_type TYPE(unit))"
+  show "\<And>p::unit. well_typed_proc'' [] (procedure_functor_mk_untyped p) (procedure_functor_type TYPE(unit))"
     by (auto simp: procedure_functor_mk_untyped_unit_def wt_ProcUnit_iff)
-  show "\<And>p\<Colon>unit. beta_reduced (procedure_functor_mk_untyped p)"
+  show "\<And>p::unit. beta_reduced (procedure_functor_mk_untyped p)"
     by (auto simp: procedure_functor_mk_untyped_unit_def wt_ProcUnit_iff)
   next
     fix q assume "well_typed_proc'' [] q (procedure_functor_type TYPE(unit))"
@@ -244,7 +231,7 @@ proof (intro_classes)
       unfolding procedure_functor_mk_untyped_unit_def 
       by (rule well_typed_ProcTUnit_ProcUnit[symmetric])
   next
-  show "\<And>p\<Colon>unit. procedure_functor_mk_typed' (procedure_functor_mk_untyped p) = p"
+  show "\<And>p::unit. procedure_functor_mk_typed' (procedure_functor_mk_untyped p) = p"
     by (auto simp: procedure_functor_mk_untyped_unit_def wt_ProcUnit_iff) 
 qed
 end
