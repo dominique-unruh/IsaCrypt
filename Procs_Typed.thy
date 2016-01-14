@@ -72,19 +72,6 @@ typedef (overloaded) ('a::procedure_functor,'b::procedure_functor) procfun = "{p
 
 type_notation "procfun" (infixr "=proc=>" 0)
 
-instantiation unit :: procedure_functor begin
-definition [simp]: "procedure_functor_type (_::unit itself) = ProcTUnit"
-definition "procedure_functor_mk_untyped (_::unit) = undefined"
-definition "procedure_functor_mk_typed' _ == ()"
-instance (* proof
-  show "well_typed_proc'' [] (procedure_functor_mk_untyped p)
-        (procedure_functor_type TYPE(unit))" for p::unit
-    apply (simp add: procedure_functor_mk_untyped_unit_def)
-    sorry
-  show "beta_reduced (procedure_functor_mk_untyped p)" for p::unit
-    sorry *) sorry
-end
-
 instantiation procfun :: (procedure_functor,procedure_functor) procedure_functor begin
 definition [simp]: "procedure_functor_type (_::('a,'b)procfun itself)
      == ProcTFun (procedure_functor_type TYPE('a)) (procedure_functor_type TYPE('b))"
