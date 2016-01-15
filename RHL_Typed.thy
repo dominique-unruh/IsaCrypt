@@ -44,6 +44,16 @@ parse_translation {*
   end
 *}
 
+
+
+print_translation {*
+  [(@{const_syntax RHL_Typed.rhoare}, fn ctx => fn [P,c1,c2,Q] => RHoare_Syntax.trans_hoare_back ctx P c1 c2 Q)]
+*}
+
+(* ML {* val testterm = @{term "hoare {True} skip ~ skip {True}"} *}
+ML {* Syntax.string_of_term @{context} testterm |> writeln *} *)
+
+
 (*
 term "x\<^sub>a"
 ML {* @{print} @{term x\<^sub>a} *}

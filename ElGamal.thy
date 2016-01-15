@@ -111,9 +111,6 @@ procedure (in group) ElGamal :: "('G, nat, 'G, 'G\<times>'G) EncScheme" where
 and "enc<$>ElGamal = LOCAL pk m y. proc(pk,m) { y <- uniform {0..<q}; return (g^y, pk^y * m) }"
 and "dec<$>ElGamal = LOCAL sk c1 c2 gy gm. proc(sk,(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk)) }"
 
-thm group.keygen_ElGamal_def
-print_theorems
-
 procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
   "Correctness <$> E = LOCAL m m2 pk sk c.
   proc(m) {
@@ -196,15 +193,33 @@ proof -
   finally show ?thesis by assumption
 qed  
 
+(* TODO move *)
+lemma denotation_eq_rule_left:
+  assumes "denotation d = denotation c"
+  assumes "hoare {P &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>e\<guillemotright> {Q &1 &2}"
+  shows   "hoare {P &1 &2} \<guillemotleft>d\<guillemotright> ~ \<guillemotleft>e\<guillemotright> {Q &1 &2}"
+using assms unfolding rhoare_def by auto
+
+(* TODO move *)
+lemma lang_simp_whilefalse [lang_simp]: "fun_equiv denotation (assign unit_pattern e) Lang_Typed.skip"
+  sorry
+
 lemma cpa_ddh0:
   "game_probability (CPA_main<$>(ElGamal,A)) () m (\<lambda>res. res)
  = game_probability (DDH0<$>(DDHAdv<$>A)) () m (\<lambda>res. res)" 
+
 apply (rule byequiv_rule)
 apply (inline "CPA_main<$>(ElGamal,A)")
 apply (inline "DDH0<$>(DDHAdv<$>A)")
 apply simp
 apply wp
-SORRY
+
+apply simp
+apply (rule denotation_eq_rule_left)
+apply (tactic \<open>Hoare_Tactics.swap_tac @{context} ([2],6) 1 1\<close>) (* TODO right numbers *)
+apply simp
+
+sorry
 
 (* 
   local lemma cpa_ddh0 &m: 

@@ -19,6 +19,7 @@ fun translate_pattern _ (Const(@{const_name Unity},_)) = @{term "unit_pattern"}
   | translate_pattern known t = 
       (add_var known t; Const(@{const_name variable_pattern},dummyT) $ t)
 
+
 fun is_program_variable ctx (v:string list) (c:string) = 
       if member (op=) v c then true
       else
@@ -151,19 +152,28 @@ fun dest_list (Const(@{const_syntax List.list.Nil}, _)) = []
 
 val dest_string = implode o map (chr o dest_char) o dest_list;
 
+fun translate_variable_back (Const(@{const_syntax LVariable},_) $ x) = Free(dest_string x,dummyT)
+  | translate_variable_back x = x
 
 fun translate_expression_back (Const(@{const_syntax const_expression},_) $ e) = e
   | translate_expression_back (Const(@{const_syntax apply_expression},_) $ e $ x) =
-        Term.betapply (translate_expression_back e, Const("_var_access",dummyT) $ x)
+        Term.betapply (translate_expression_back e, Const("_var_access",dummyT) $ translate_variable_back x)
   | translate_expression_back _ = (raise (ERROR ("translate_expression_back: error")))
+
+fun translate_pattern_back (Const(@{const_syntax unit_pattern},_)) = @{term "()"}
+  | translate_pattern_back (Const(@{const_syntax pair_pattern},_)$a$b) =
+      (Const(@{const_syntax Pair},dummyT) $ translate_pattern_back a $ translate_pattern_back b)
+  | translate_pattern_back (Const(@{const_syntax variable_pattern},_) $ t) = translate_variable_back t
+  | translate_pattern_back _ = raise (ERROR "translate_pattern_back: unknown pattern constructor")
+
 
 fun translate_program_back _ p = 
   let fun trans (Const(@{const_syntax skip},_)) = Const("_skip",dummyT)
         | trans (Const(@{const_syntax assign},_)$x$e) =
-             (Const("_assign",dummyT) $ x $ translate_expression_back e
+             (Const("_assign",dummyT) $ translate_pattern_back x $ translate_expression_back e
               handle ERROR _ => Const("_assign_quote",dummyT) $ x $ e)
         | trans (Const(@{const_syntax sample},_)$x$e) =
-             (Const("_sample",dummyT) $ x $ translate_expression_back e
+             (Const("_sample",dummyT) $ translate_pattern_back x $ translate_expression_back e
               handle ERROR _ => Const("_sample_quote",dummyT) $ x $ e)
         | trans (Const(@{const_syntax label},_)$l$p) =
              Const("_label",dummyT) $ Free(dest_string l,dummyT) $ trans p
@@ -178,6 +188,9 @@ fun translate_program_back _ p =
               handle ERROR _ => Const("_ifte_quote",dummyT) $ e $ trans p $ trans q)
         | trans (Const(@{const_syntax seq},_)$p$q) =
              Const("_seq",dummyT) $ trans p $ trans q
+        | trans (cp as Const(@{const_syntax callproc},dummyT) $ x $ f $ e) =
+              (Const("_callproc",dummyT) $ translate_pattern_back x $ f $ translate_expression_back e
+              handle ERROR _ => Const("_quote",dummyT) $ cp)
         | trans p = Const("_quote",dummyT) $ p
   in trans p end
 

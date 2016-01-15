@@ -40,4 +40,8 @@ struct
         val Q = trans_assert' ctx known Q
     in Const(@{const_syntax rhoare},dummyT) $ P $ c1 $ c2 $ Q end
 
+fun trans_hoare_back ctx P c1 c2 Q =
+    Const("_rhoare",dummyT) $ P $ Lang_Syntax.translate_program_back ctx c1 $ 
+                                  Lang_Syntax.translate_program_back ctx c2 $ Q
+
 end

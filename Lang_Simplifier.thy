@@ -47,7 +47,6 @@ lemma lang_simp_iffalse [lang_simp]: "(\<And>m. \<not> e_fun e m) \<Longrightarr
 lemma lang_simp_whilefalse [lang_simp]: "(\<And>m. \<not> e_fun e m) \<Longrightarrow> fun_equiv denotation (Lang_Typed.while e c) Lang_Typed.skip"
   using lang_simp_iffalse unfolding fun_equiv_def while_unfold by simp
 
-
 lemma lang_simp_ifsame [lang_simp]: "fun_equiv denotation c d \<Longrightarrow> fun_equiv denotation (ifte e c d) c"
   unfolding fun_equiv_def by (subst denotation_ifte[THEN ext], auto)
 lemma lang_simp_selfassign [lang_simp]: "(\<And>m. e_fun e m = memory_lookup m x) \<Longrightarrow> fun_equiv denotation (assign (variable_pattern x) e) Lang_Typed.skip"

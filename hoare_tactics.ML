@@ -202,6 +202,47 @@ fun seq_tac ctx n I i =
   THEN  resolve_tac ctx [seq_rule_Q] i
   end
 
+(* In a goal "denotation xxx = denotation ?c", splits xxx at position n, leaving two such goals *)
+fun split_with_seq_tac ctx n =
+  if n=0 then resolve_tac ctx @{thms denotation_seq_skip[symmetric]} 
+  else if n<0 then error "split_with_seq_tac: n<0"
+  else
+  SUBGOAL (fn (goal,i) => 
+  let
+      val concl = Logic.strip_assums_concl goal
+      val lhsprog = dest_denotation (fst (HOLogic.dest_eq (HOLogic.dest_Trueprop concl)))
+      val proglen = program_length lhsprog
+      val n' = Thm.cterm_of ctx (mk_suc_nat (proglen - n))
+      val insert_split_n = Drule.infer_instantiate' ctx [SOME n'] @{thm insert_split}
+  in
+    resolve_tac ctx [insert_split_n] i  
+    THEN Raw_Simplifier.rewrite_goal_tac ctx @{thms split_program_simps} i
+  end)
+
+(* Takes a range in a program (i.e., a path, and a length), and extracts that range in xxx a goal
+  of the form "denotation xxx = denotation ?x"
+
+  (only partially implemented)
+*)
+fun extract_range_tac _   ([],_)   = error "empty range given"
+  | extract_range_tac ctx ([a],len) =
+      split_with_seq_tac ctx (a-1)
+      THEN' resolve_tac ctx @{thms denotation_eq_seq_snd}
+      THEN' split_with_seq_tac ctx len
+      THEN' resolve_tac ctx @{thms denotation_eq_seq_fst}
+  | extract_range_tac _   (_::_::_,_) = error "extract_range_tac: extracting nested ranges not supported"
+
+(* Swaps two code parts in a goal of the form "denotation xxx = denotation ?c"
+
+  The parts are specified by giving a range (that contains both parts), and an index len1
+  giving the length of the first *)
+fun swap_tac ctx range len1 i =
+  extract_range_tac ctx range i
+  THEN split_with_seq_tac ctx len1 i
+  THEN resolve_tac ctx @{thms seq_swap2} i
+  THEN (simp_tac ctx THEN_ALL_NEW Procs_Typed.procedure_info_varseteq_tac ctx) (i+1)
+  THEN (simp_tac ctx THEN_ALL_NEW Procs_Typed.procedure_info_varseteq_tac ctx) i
+
 
 end
 

@@ -136,6 +136,22 @@ fun procedure_info_conv partial : Proof.context -> conv =
   end
 
 
+(* solves a goal that contains only explicit sets, simple set operations, variables, and
+   references to procedure_info's that can be looked up in the procedure database.
+
+   E.g., "{mk_variable_untyped (LVariable ''a'')} \<union> set (local_vars (p_body f)) 
+        \<subseteq> {mk_variable_untyped (LVariable ''a''), mk_variable_untyped (LVariable ''b'')}"
+*)
+fun procedure_info_varseteq_tac ctx =
+  CONVERSION (procedure_info_conv false ctx)
+  THEN'
+  Tools.ASSERT_SOLVED' (simp_tac ctx)
+         (fn subgoal1 => fn subgoals => 
+            raise TERM("In procedure_info_varseteq_tac, I got subgoal (1).\n"^
+                       "I could not prove that subgoal using simp_tac.\n",
+                         subgoal1::subgoals))
+
+
 fun register_procedure_thm thm lthy = 
   let val thm' = case Thm.concl_of thm of
                    (Const ("Pure.eq", _) $ _ $ _) => thm
@@ -541,6 +557,7 @@ fun declare_module_type_cmd name tparams procedures lthy =
 val _ = Outer_Syntax.local_theory @{command_keyword module_type} "define a module type"
     (Parse.type_args_constrained -- Parse.binding -- (@{keyword "="} |-- Scan.repeat1 Parse.const_binding)
     >> (fn ((tparams,binding), procedures) => declare_module_type_cmd binding tparams procedures))
+
 
 
 end

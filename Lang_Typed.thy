@@ -691,6 +691,9 @@ parse_translation {* [("_local_vars_global", fn ctx => fn p =>
   case p of [vs,body] =>
   Lang_Syntax.translate_local_vars_global ctx vs body)] *}
 
+(* term "LOCAL x y. PROGRAM[ x := x+$z ]"  *)
+(* term "PROGRAM[ x := x ]" *)
+
 subsection {* Concrete grammar for procedures *}
 
 (*
