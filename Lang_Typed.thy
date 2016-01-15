@@ -627,6 +627,18 @@ lemma denotation_seq_assoc: "denotation (seq (seq x y) z) = denotation (seq x (s
   unfolding compose_distr_assoc ..
 
 
+
+lemma denotation_eq_seq_snd:
+  assumes "denotation b = denotation b'"
+  shows "denotation (seq a b) = denotation (seq a b')"
+unfolding denotation_seq[THEN ext] using assms by simp
+    
+lemma denotation_eq_seq_fst:
+  assumes "denotation a = denotation a'"
+  shows "denotation (seq a b) = denotation (seq a' b)"
+unfolding denotation_seq[THEN ext] using assms by simp
+    
+
 subsection {* Concrete syntax for programs *}
 
 subsubsection {* Grammar *}

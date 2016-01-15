@@ -649,5 +649,32 @@ apply (rule rhoare_left_obseq_replace[where C=C])
 apply (rule rsymmetric_rule)
 by (fact assms(4))
 
+lemma program_footprint_vars: "program_footprint (set(vars p)) p"
+  using program_untyped_footprint_vars
+  unfolding program_footprint_def program_untyped_footprint_def vars_def denotation_def.
+
+
+lemma seq_swap2:
+  assumes "set (vars a) \<inter> set (write_vars b) = {}"
+  assumes "set (vars b) \<inter> set (write_vars a) = {}"
+  shows "denotation (seq a b) = denotation (seq b a)"
+proof -
+  def A == "set(vars a)"
+  def B == "set(vars b)"
+  def R == "UNIV - set(write_vars a) - set(write_vars b)"
+  have "program_readonly R a"
+    using R_def denotation_readonly_def program_readonly_def program_readonly_write_vars by (auto,blast) 
+  moreover have "program_readonly R b"
+    using R_def denotation_readonly_def program_readonly_def program_readonly_write_vars by (auto,blast)
+  moreover have "program_footprint A a"
+    using A_def program_footprint_vars by auto
+  moreover have "program_footprint B b"
+    using B_def program_footprint_vars by auto
+  moreover have ABR: "A\<inter>B\<subseteq>R"
+    unfolding A_def B_def R_def using assms by auto
+  ultimately show ?thesis
+    by (rule seq_swap)
+qed    
+
 
 end

@@ -164,6 +164,13 @@ definition "memory_combine X m1 m2 = Abs_memory (\<lambda>x. if x\<in>X then Rep
 lemma Rep_memory_combine [simp]: "Rep_memory (memory_combine X m1 m2) = (\<lambda>x. if x\<in>X then Rep_memory m1 x else Rep_memory m2 x)"
   unfolding memory_combine_def apply (subst Abs_memory_inverse) using Rep_memory by auto
 
+lemma memory_combine_twice_right [simp]:
+  "memory_combine X m1 (memory_combine X m2 m3) = memory_combine X m1 m3"
+  unfolding Rep_memory_inject[symmetric] by auto
+lemma memory_combine_twice_left [simp]:
+  "memory_combine X (memory_combine X m1 m2) m3 = memory_combine X m1 m3"
+  unfolding Rep_memory_inject[symmetric] by auto
+
 subsection {* Expressions *}
 
 record expression_untyped_rep =

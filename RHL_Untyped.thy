@@ -1,5 +1,5 @@
 theory RHL_Untyped
-imports Lang_Untyped Hoare_Untyped
+imports Lang_Untyped Hoare_Untyped 
 begin
 
 definition rhoare_untyped :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> program_rep \<Rightarrow> program_rep \<Rightarrow> (memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightarrow> bool" where
@@ -1405,6 +1405,180 @@ proof (unfold hoare_untyped_def, rule+)
   from m'd and supp have "\<And>x. x\<in>Y \<Longrightarrow> memory_lookup_untyped m' x = memory_lookup_untyped m'd x" by simp
   thus "Q m'"
     using Q `Q m'd` unfolding assertion_footprint_def by blast 
+qed
+
+
+lemma program_untyped_footprint_hoare:  
+  assumes obseq: "obs_eq_untyped X X p p"
+  assumes ro: "program_untyped_readonly (-X) p"
+  shows "program_untyped_footprint X p"
+unfolding program_untyped_footprint_def denotation_footprint_def apply auto
+proof -
+  fix m1 m1' z assume m1m1'_match: "memory_combine X default m1 = memory_combine X default m1'"
+  def f == "\<lambda>m. if (memory_combine X default m = memory_combine X default m1) 
+                then memory_combine X m z
+                else (if (memory_combine X default m = memory_combine X default z) then memory_combine X m m1 else m)"
+
+  {fix m consider "memory_combine X default m = memory_combine X default m1" and
+                  "memory_combine X default m = memory_combine X default z"
+                | "memory_combine X default m \<noteq> memory_combine X default m1" and
+                  "memory_combine X default m = memory_combine X default z"
+                | "memory_combine X default m = memory_combine X default m1" and
+                  "memory_combine X default m \<noteq> memory_combine X default z"
+                | "memory_combine X default m \<noteq> memory_combine X default m1" and
+                  "memory_combine X default m \<noteq> memory_combine X default z" by atomize_elim auto}
+  then have ff: "f (f m) = m" for m
+  proof (cases m)
+  case 1
+    have m1: "x \<notin> X \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m x" for x
+      using 1 unfolding Rep_memory_inject[symmetric] by (auto, metis)
+    have z: "x \<notin> X \<Longrightarrow> memory_lookup_untyped z x = memory_lookup_untyped m x" for x
+      using 1 unfolding Rep_memory_inject[symmetric] by (auto, metis)
+    have "f m = memory_combine X m z"
+      unfolding Rep_memory_inject[symmetric]
+      apply (rule ext, rename_tac x, case_tac "x\<in>X")
+      unfolding f_def using m1 by (simp_all add: 1)
+    also have "memory_combine X m z = m"
+      unfolding Rep_memory_inject[symmetric]
+      apply (rule ext, rename_tac x, case_tac "x\<in>X")
+      using z by simp_all
+    finally show ?thesis by simp
+  next case 2
+    have z: "x \<notin> X \<Longrightarrow> memory_lookup_untyped z x = memory_lookup_untyped m x" for x
+      using 2 unfolding Rep_memory_inject[symmetric] by (auto, metis)
+    have m1z: "memory_combine X default z \<noteq> memory_combine X default m1"
+      using 2 by simp
+    have "f m = memory_combine X m m1"
+      unfolding Rep_memory_inject[symmetric]
+      apply (rule ext, rename_tac x, case_tac "x\<in>X")
+      unfolding f_def by (auto simp: m1z 2)
+    also have "f (memory_combine X m m1) = memory_combine X m z"
+      unfolding Rep_memory_inject[symmetric]
+      apply (rule ext, rename_tac x, case_tac "x\<in>X")
+      unfolding f_def by (auto simp: m1z 2)
+    also have "memory_combine X m z = m"
+      unfolding Rep_memory_inject[symmetric]
+      apply (rule ext, rename_tac x, case_tac "x\<in>X")
+      unfolding f_def by (auto simp: z 2)
+    finally show ?thesis by assumption
+  next case 3
+    have m1: "x \<notin> X \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m x" for x
+      using 3 unfolding Rep_memory_inject[symmetric] by (auto, metis)
+    have m1z: "memory_combine X default z \<noteq> memory_combine X default m1"
+      using 3 by simp
+    have "f m = memory_combine X m z"
+      unfolding Rep_memory_inject[symmetric]
+      apply (rule ext, rename_tac x, case_tac "x\<in>X")
+      unfolding f_def by (auto simp: 3)
+    also have "f (memory_combine X m z) = memory_combine X m m1"
+      unfolding Rep_memory_inject[symmetric]
+      apply (rule ext, rename_tac x, case_tac "x\<in>X")
+      unfolding f_def by (auto simp: m1z 3)
+    also have "memory_combine X m m1 = m"
+      unfolding Rep_memory_inject[symmetric]
+      apply (rule ext, rename_tac x, case_tac "x\<in>X")
+      using m1 by simp_all
+    finally show ?thesis by simp
+  next case 4
+    have "f m = m"
+      unfolding Rep_memory_inject[symmetric] 
+      unfolding f_def by (simp add: 4)
+    then show ?thesis by simp
+  qed
+  
+  def m2 == "f m1"
+  def eqX == "\<lambda>m1 m2. \<forall>x\<in>X. Rep_memory m1 x = Rep_memory m2 x"
+  have "rhoare_untyped eqX p p eqX"
+    using obseq unfolding obs_eq_untyped_def eqX_def by simp
+  moreover have "eqX m1 m2"
+    by (simp add: eqX_def f_def m2_def)
+  ultimately obtain \<mu> where fst\<mu>: "apply_to_distr fst \<mu> = denotation_untyped p m1"
+                      and snd\<mu>: "apply_to_distr snd \<mu> = denotation_untyped p m2"
+                      and supp\<mu>: "\<And>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<Longrightarrow> eqX m1' m2'"
+    unfolding rhoare_untyped_rhoare_denotation rhoare_denotation_def apply atomize_elim by auto
+  have "\<forall>m1'\<in>support_distr (denotation_untyped p m1). memory_combine X default m1' = memory_combine X default m1"
+    apply (subst Rep_memory_inject[symmetric])
+    using ro unfolding program_untyped_readonly_def denotation_readonly_def by force
+  then have supp\<mu>1: "\<And>m1' m2'. (m1',m2')\<in>support_distr \<mu> \<Longrightarrow>  memory_combine X default m1' = memory_combine X default m1"
+    by (metis fst\<mu> fst_conv image_eqI support_apply_to_distr)
+  have supp\<mu>2': "\<forall>m2'\<in>support_distr (denotation_untyped p m2). memory_combine X default m2' = memory_combine X default m2"
+    apply (subst Rep_memory_inject[symmetric])
+    using ro unfolding program_untyped_readonly_def denotation_readonly_def by force
+  have supp\<mu>2: "(m1',m2')\<in>support_distr \<mu>
+        \<Longrightarrow>  memory_combine X default m2' = memory_combine X default m2" for m1' m2'
+  proof -
+    assume "(m1',m2')\<in>support_distr \<mu>"
+    hence "m2' \<in> support_distr (apply_to_distr snd \<mu>)"
+      by force 
+    hence "m2' \<in> support_distr (denotation_untyped p m2)" using snd\<mu> by auto
+    thus ?thesis using supp\<mu>2' by fastforce
+  qed
+  have m2z: "memory_combine X default m2 = memory_combine X default z"
+    unfolding m2_def f_def apply (subst Rep_memory_inject[symmetric])+ by auto
+  have supp\<mu>_f: "(m1',m2')\<in>support_distr \<mu> \<Longrightarrow> m2' = f m1'" for m1' m2'
+  proof -
+    assume supp: "(m1',m2')\<in>support_distr \<mu>"
+    have t1: "x\<in>X \<Longrightarrow> memory_lookup_untyped m1' x = memory_lookup_untyped m2' x" for x
+      using supp\<mu> supp eqX_def by fastforce
+    have "memory_combine X default m1' = memory_combine X default m1"
+      using supp\<mu>1 supp by simp
+    hence t2: "x\<notin>X \<Longrightarrow> Rep_memory m1' x = Rep_memory m1 x" for x
+      unfolding Rep_memory_inject[symmetric] by (auto, metis)
+    have "memory_combine X default m2' = memory_combine X default z"
+      using supp\<mu>2 supp m2z by simp
+    hence t3: "x\<notin>X \<Longrightarrow> Rep_memory m2' x = Rep_memory z x" for x
+      unfolding Rep_memory_inject[symmetric] by (auto, metis)
+    show ?thesis
+      unfolding Rep_memory_inject[symmetric] f_def
+      using t1 t2 t3 by (auto, metis)
+  qed
+  def \<mu>' == "apply_to_distr (\<lambda>(m1',m2'). (m1',f m2')) \<mu>"
+  have "\<And>m1' m2'. (m1',m2')\<in>support_distr \<mu>' \<Longrightarrow> m2' = m1'" 
+    unfolding \<mu>'_def using supp\<mu>_f ff by auto 
+  then have \<mu>'eq: "apply_to_distr fst \<mu>' = apply_to_distr snd \<mu>'"
+    by (metis apply_to_distr_cong prod.collapse)
+  
+  have "denotation_untyped p m1 = apply_to_distr fst \<mu>"
+    by (simp add: fst\<mu>)
+  also have "\<dots> = apply_to_distr fst \<mu>'"
+    unfolding \<mu>'_def apply simp
+    apply (rewrite at "\<lambda>x. fst (case x of (m1',m2') \<Rightarrow> (m1',f m2'))" to fst   eq_reflection)
+    by auto
+  also have "\<dots> = apply_to_distr snd \<mu>'" 
+    by (simp add: \<mu>'eq)
+  also have "\<dots> = apply_to_distr f (apply_to_distr snd \<mu>)"
+    unfolding \<mu>'_def apply simp
+    apply (rewrite at "\<lambda>x. snd (case x of (m1',m2') \<Rightarrow> (m1',f m2'))" to "\<lambda>x. f (snd x)"  eq_reflection)
+    by auto
+  also have "\<dots> = apply_to_distr f (denotation_untyped p m2)"
+    by (simp add: snd\<mu>)
+  finally have "denotation_untyped p m1 = apply_to_distr f (denotation_untyped p m2)" by assumption
+  
+  then have "Rep_distr (denotation_untyped p m1) m1' = Rep_distr (apply_to_distr f (denotation_untyped p m2)) m1'" 
+    unfolding Rep_distr_inject[symmetric] by simp
+  also have "\<dots> = Rep_distr (denotation_untyped p m2) (f m1')"
+    apply (rule Rep_apply_distr_biject) by (fact ff)+
+  also have "m2 = memory_combine X m1 z"
+    unfolding m2_def f_def apply (subst Rep_memory_inject[symmetric])+ by auto
+  also have "f m1' = memory_combine X m1' z"
+    unfolding f_def apply (subst Rep_memory_inject[symmetric])+ using m1m1'_match by auto
+  finally show "Rep_distr (denotation_untyped p m1) m1' =
+                Rep_distr (denotation_untyped p (memory_combine X m1 z)) (memory_combine X m1' z)" by assumption
+next
+  fix m m' assume "memory_combine X default m \<noteq> memory_combine X default m'"
+  then show "Rep_distr (denotation_untyped p m) m' = 0" (* TODO remove ereal, change support_distr_def'' *)
+    using ro unfolding program_untyped_readonly_def denotation_readonly_def support_distr_def'''
+    apply (subst (asm) Rep_memory_inject[symmetric]) by fastforce
+qed
+
+lemma program_untyped_footprint_vars: "program_untyped_footprint (set(vars_untyped p)) p"
+proof -
+  have "obs_eq_untyped (set(vars_untyped p)) (set(vars_untyped p)) p p"
+    by (simp add: self_obseq_vars)
+  moreover have "program_untyped_readonly (- set(vars_untyped p)) p"
+    by (meson Compl_anti_mono denotation_readonly_def program_untyped_readonly_def program_untyped_readonly_write_vars subsetCE write_vars_subset_vars_untyped(1))
+  ultimately show ?thesis
+    by (rule program_untyped_footprint_hoare)
 qed
 
 

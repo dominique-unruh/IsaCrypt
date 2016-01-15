@@ -187,4 +187,28 @@ lemma if_case_rule:
   apply (rule iffalse_rule)
   by (rule conseq_rule[where P'=P2 and Q'=Q], auto simp: assms)
 
+lemma readonly_hoare:
+  shows "program_readonly X c = (\<forall>a. hoare {\<forall>x\<in>X. memory_lookup_untyped &m x = a x} \<guillemotleft>c\<guillemotright> {\<forall>x\<in>X. memory_lookup_untyped &m x = a x})"
+using denotation_def hoare_untyped program_readonly_def program_untyped_readonly_def readonly_hoare_untyped by auto
+
+lemma seq_swap:
+  fixes A B R
+  assumes a_ro: "program_readonly R a"
+  assumes b_ro: "program_readonly R b"
+  assumes foot_a: "program_footprint A a"
+  assumes foot_b: "program_footprint B b"
+  assumes ABR: "A\<inter>B\<subseteq>R"
+  shows "denotation (seq a b) = denotation (seq b a)"
+unfolding denotation_def apply simp apply (rule seq_swap_untyped[THEN ext])
+using assms
+unfolding program_readonly_def program_untyped_readonly_def denotation_def program_footprint_def program_untyped_footprint_def
+by auto
+
+
+lemma program_readonly_write_vars: "program_readonly (- set(write_vars p)) p"
+  using program_untyped_readonly_write_vars[of "Rep_program p"]
+  unfolding program_readonly_def program_untyped_readonly_def write_vars_def denotation_def 
+  by assumption
+
+
 end
