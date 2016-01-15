@@ -12,14 +12,14 @@ services:
 - docker
 
 before_install:
-- docker pull unruh/isabelle:isacrypt-prereqs
+- docker pull unruh/isabelle:isacrypt-prereqs2016
 
 install:
 - pip install pyro4 serpent
 
 script:
 - make test_with_docker
-- docker run -v "$PWD:/home/user/data" unruh/isabelle:isacrypt-prereqs isabelle build -d . IsaCrypt-Nodocs
+- docker run -v "$PWD:/home/user/data" unruh/isabelle:isacrypt-prereqs2016 isabelle build -d . IsaCrypt-Nodocs
 
 after_failure:
 - cat .isabelle-server-out.log
