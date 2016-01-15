@@ -1311,7 +1311,7 @@ next case (Fun T U)
   qed
   ultimately show ?case
     by simp
-next case (Prod T U) thus ?case by later
+next case (Prod T U) thus ?case sorry
 qed
 
 lemma type_implies_IT:
