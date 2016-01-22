@@ -1,16 +1,10 @@
 theory TypedLambda
-imports Main Tools Extended_Sorry "~~/src/HOL/Proofs/Lambda/ListOrder" SN_Pairs
+imports Main Tools "~~/src/HOL/Proofs/Lambda/ListOrder" TypedLambdaNominal
 begin
 
 locale typed_lambda begin (* to hide syntax *)
 
 declare [[syntax_ambiguity_warning = false]]
-
-(* 
-The following contains a proof sketch for the conjectures below:
-
-http://math.cmu.edu/~wgunther/SN.pdf 
-*)
 
 subsection {* Lambda-terms in de Bruijn notation and substitution *}
 
@@ -580,16 +574,16 @@ lemma fresh_name: "fresh_name (xs::name list) \<sharp> xs"
   unfolding fresh_name_def apply (rule someI_ex) apply (rule exists_fresh') by finite_guess
 
 fun dB_to_lam :: "name list \<Rightarrow> dB \<Rightarrow> lam" where
-  "dB_to_lam n (Var i) = (if i<length n then Lam_Funs_Pairs.Var (n!i) else Lam[undefined]. Lam_Funs_Pairs.Var undefined)" (* If i too big, use arbitrary closed term, to avoid inventing names *)
+  "dB_to_lam n (Var i) = (if i<length n then TypedLambdaNominal.Var (n!i) else Lam[undefined]. TypedLambdaNominal.Var undefined)" (* If i too big, use arbitrary closed term, to avoid inventing names *)
 | "dB_to_lam n (Abs p) = (let x = fresh_name n in Lam[x].(dB_to_lam (x#n) p))"
-| "dB_to_lam n (App p q) = Lam_Funs_Pairs.App (dB_to_lam n p) (dB_to_lam n q)"
-| "dB_to_lam n (MkPair p q) = Lam_Funs_Pairs.MkPair (dB_to_lam n p) (dB_to_lam n q)"
-| "dB_to_lam n (Unpair b p) = Lam_Funs_Pairs.Unpair b (dB_to_lam n p)"
+| "dB_to_lam n (App p q) = TypedLambdaNominal.App (dB_to_lam n p) (dB_to_lam n q)"
+| "dB_to_lam n (MkPair p q) = TypedLambdaNominal.MkPair (dB_to_lam n p) (dB_to_lam n q)"
+| "dB_to_lam n (Unpair b p) = TypedLambdaNominal.Unpair b (dB_to_lam n p)"
 
 lemma fresh_list': "(x) \<sharp> ts \<Longrightarrow> (t) \<in> set ts \<Longrightarrow> x \<sharp> t"
   apply (induction ts) by (auto simp: fresh_list_cons)
 
-lemma fresh_id [simp]: shows "(x::name) \<sharp> [y]. Lam_Funs_Pairs.Var y" and "(x::name) \<sharp> Lam[y]. Lam_Funs_Pairs.Var y" 
+lemma fresh_id [simp]: shows "(x::name) \<sharp> [y]. TypedLambdaNominal.Var y" and "(x::name) \<sharp> Lam[y]. TypedLambdaNominal.Var y" 
   by (auto simp: abs_fresh fresh_atm)
 
 (* lemma perm_one: "((x::name,y) # \<theta>) \<bullet> t = swap (x,y) (\<theta> \<bullet> t)"
@@ -602,7 +596,7 @@ lemma permute_id [simp]:
     and "\<theta> \<bullet> Lam[y]. lam.Var y = Lam[y]. lam.Var y" (is ?thesis2)
 apply auto
 apply (smt abs_fun_pi alpha' at_name_inst fresh_atm lam.fresh(1) lam.perm(1) pt_name_inst swap_simps(2))
-by (simp add: Lam_Funs_Pairs.name_prm_name_def alpha fresh_atm lam.inject(3) name_prm_name.simps(2) swap_simps(2))
+by (simp add: TypedLambdaNominal.name_prm_name_def alpha fresh_atm lam.inject(3) name_prm_name.simps(2) swap_simps(2))
 
 lemma id_undefined: 
   assumes "NO_MATCH undefined y"
@@ -761,7 +755,7 @@ case (Abs E T p U)
 
   show ?case
     unfolding abs apply simp
-    using x_zip apply (rule SN_Pairs.typing.intros)
+    using x_zip apply (rule TypedLambdaNominal.typing.intros)
     using IH by simp        
 
 next case (Var E i T) 
@@ -947,7 +941,7 @@ qed
 lemma nclosed_pres: "p \<rightarrow>\<^sub>\<beta> p' \<Longrightarrow> nclosed n p \<Longrightarrow> nclosed n p'"
   apply (induction arbitrary:n rule:beta.induct) using nclosed_subst by auto
 
-lemma well_typed_beta_reduce:
+lemma type_implies_termi:
   assumes wt: "typing E p T" shows "termip beta p"
 proof -
   obtain i where nclosed: "nclosed i p" apply atomize_elim apply (induction p) using nclosed_mono apply auto
@@ -975,10 +969,9 @@ proof -
   case (SN_intro t)
     have termip_succ: "termip beta p'" if p': "p \<rightarrow>\<^sub>\<beta> p'" for p'
     proof -
-thm SN_intro
       have succ: "t \<longrightarrow>\<^sub>\<beta> dB_to_lam n p'"
         unfolding SN_intro apply (rule translate_beta)
-         close (fact p') using SN_intro length_n by simp
+         close (fact p') using SN_intro length_n distinct_n by auto
       have ncl: "nclosed i p'" using p' SN_intro.prems(2) by (rule nclosed_pres)
       show ?thesis
         apply (rule SN_intro.IH) using succ ncl by auto
@@ -989,365 +982,6 @@ thm SN_intro
 qed
 
 
-
-subsection {* Terminating lambda terms *}
-
-fun inMkPair where "inMkPair f True (MkPair a b) = f a" | "inMkPair f False (MkPair a b) = f b" | "inMkPair f b _ = False"
-
-lemma inMkPair_mono: "f\<le>g \<Longrightarrow> inMkPair f \<le> inMkPair g" 
-  apply rule apply (rename_tac b p)
-  apply (case_tac p, simp_all)
-  by (case_tac b, auto) 
-
-inductive IT :: "dB => bool"
-  where
-    Var [intro]: "listsp IT rs ==> IT (Var n \<degree>\<degree> rs)"
-  | Lambda [intro]: "IT r ==> IT (Abs r)"
-  | Beta [intro]: "IT ((r[s/0]) \<degree>\<degree> ss) ==> IT s ==> IT ((Abs r \<degree> s) \<degree>\<degree> ss)"
-  | MkPair [intro]: "IT r \<Longrightarrow> IT s \<Longrightarrow> listsp IT rs \<Longrightarrow> IT ((MkPair r s) \<degree>\<degree> rs)"
-  | Unpair [intro]: "IT r \<Longrightarrow> inMkPair IT b r \<Longrightarrow> listsp IT rs \<Longrightarrow> IT ((Unpair b r) \<degree>\<degree> rs)"
-monos inMkPair_mono
-
-subsection {* Every term in @{text "IT"} terminates *}
-
-lemma double_induction_lemma [rule_format]:
-  "termip beta s ==> \<forall>t. termip beta t -->
-    (\<forall>r ss. t = r[s/0] \<degree>\<degree> ss --> termip beta (Abs r \<degree> s \<degree>\<degree> ss))"
-  apply (erule accp_induct)
-  apply (rule allI)
-  apply (rule impI)
-  apply (erule thin_rl)
-  apply (erule accp_induct)
-  apply clarify
-  apply (rule accp.accI)
-  apply (safe del: apps_betasE elim!: apps_betasE)
-    apply (blast intro: subst_preserves_beta apps_preserves_beta)
-   apply (blast intro: apps_preserves_beta2 subst_preserves_beta2 rtranclp_converseI
-     dest: accp_downwards)  (* FIXME: acc_downwards can be replaced by acc(R ^* ) = acc(r) *)
-  apply (blast dest: apps_preserves_betas)
-  done
-
-lemma double_induction_lemma_Unpair [rule_format]:
-  "termip beta s ==> \<forall>t. termip beta t -->
-    (\<forall>r ss. t = r[s/0] \<degree>\<degree> ss --> termip beta (Abs r \<degree> s \<degree>\<degree> ss))"
-  apply (erule accp_induct)
-  apply (rule allI)
-  apply (rule impI)
-  apply (erule thin_rl)
-  apply (erule accp_induct)
-  apply clarify
-  apply (rule accp.accI)
-  apply (safe del: apps_betasE elim!: apps_betasE)
-    apply (blast intro: subst_preserves_beta apps_preserves_beta)
-   apply (blast intro: apps_preserves_beta2 subst_preserves_beta2 rtranclp_converseI
-     dest: accp_downwards)  (* FIXME: acc_downwards can be replaced by acc(R ^* ) = acc(r) *)
-  apply (blast dest: apps_preserves_betas)
-  done
-
-lemma IT_implies_termi: "IT t ==> termip beta t"
-apply (insert assms) SORRY "termination of beta reduction"
-
-subsection {* Every terminating term is in @{text "IT"} *}
-
-
-lemma [simp]:
-  "(Abs r \<degree> s \<degree>\<degree> ss = Abs r' \<degree> s' \<degree>\<degree> ss') = (r = r' \<and> s = s' \<and> ss = ss')"
-  by (simp add: foldl_Cons [symmetric] del: foldl_Cons)
-
-inductive_cases [elim!]:
-  "IT (Var n \<degree>\<degree> ss)"
-  "IT (Abs t)"
-  "IT (Abs r \<degree> s \<degree>\<degree> ts)"
-  "IT (MkPair t u)"
-  "IT (Unpair b t)"
-
-
-text {*
-Formalization by Stefan Berghofer. Partly based on a paper proof by
-Felix Joachimski and Ralph Matthes \cite{Matthes-Joachimski-AML}.
-*}
-
-
-subsection {* Properties of @{text IT} *}
-
-(*
-lemma lift_IT [intro!]: "IT t \<Longrightarrow> IT (lift t i)"
-  apply (induct arbitrary: i set: IT)
-    apply (simp (no_asm))
-    apply (rule conjI)
-     apply
-      (rule impI,
-       rule IT.Var,
-       erule listsp.induct,
-       simp (no_asm),
-       simp (no_asm),
-       rule listsp.Cons,
-       blast,
-       assumption)+
-     apply auto
-   done
-
-lemma subst_Var_IT: "IT r \<Longrightarrow> IT (r[Var i/j])"
-  apply (induct arbitrary: i j set: IT)
-    txt {* Case @{term Var}: *}
-    apply (simp (no_asm) add: subst_Var)
-    apply
-    ((rule conjI impI)+,
-      rule IT.Var,
-      erule listsp.induct,
-      simp (no_asm),
-      simp (no_asm),
-      rule listsp.Cons,
-      fast,
-      assumption)+
-   txt {* Case @{term Lambda}: *}
-   apply atomize
-   apply simp
-   apply (rule IT.Lambda)
-   apply fast
-  txt {* Case @{term Beta}: *}
-  apply atomize
-  apply (simp (no_asm_use) add: subst_subst [symmetric])
-  apply (rule IT.Beta)
-   apply auto
-  done
-*)
-lemma Var_IT: "IT (Var n)"
-  apply (subgoal_tac "IT (Var n \<degree>\<degree> [])")
-   apply simp
-  apply (rule IT.Var)
-  apply (rule listsp.Nil)
-  done
-
-(*
-lemma app_Var_IT: "IT t \<Longrightarrow> IT (t \<degree> Var i)"
-proof (induct set: IT)
-case Var thus ?case
-    apply (subst app_last)
-    apply (rule IT.Var)
-    apply simp
-    apply (rule listsp.Cons)
-     close (rule Var_IT)
-    by (rule listsp.Nil)
-next case Lambda show ?case
-  apply (insert Lambda)
-  apply (rule IT.Beta [where ?ss = "[]", unfolded foldl_Nil [THEN eq_reflection]])
-  close (erule subst_Var_IT)
-  by (rule Var_IT)
-next case Beta thus ?case
-  apply (subst app_last)
-  apply (rule IT.Beta)
-   apply (subst app_last [symmetric])
-   close assumption
-  by assumption
-next case (MkPair r s) thus ?case
-  apply (insert MkPair)
-  apply (rule IT.Beta [where ?ss = "[]", unfolded foldl_Nil [THEN eq_reflection]])
-  close (erule subst_Var_IT)
-  by (rule Var_IT)
-qed
-*)
-
-subsection {* Well-typed substitution preserves termination *}
-
-(*
-lemma subst_type_IT:
-  "\<And>t e T u i. IT t \<Longrightarrow> e\<langle>i:U\<rangle> \<turnstile> t : T \<Longrightarrow>
-    IT u \<Longrightarrow> e \<turnstile> u : U \<Longrightarrow> IT (t[u/i])"
-  (is "PROP ?P U" is "\<And>t e T u i. _ \<Longrightarrow> PROP ?Q t e T u i U")
-proof (induct U)
-  fix T t
-  assume MI1: "\<And>T1 T2. T = T1 \<Rightarrow> T2 \<Longrightarrow> PROP ?P T1"
-  assume MI2: "\<And>T1 T2. T = T1 \<Rightarrow> T2 \<Longrightarrow> PROP ?P T2"
-  assume "IT t"
-  thus "\<And>e T' u i. PROP ?Q t e T' u i T"
-  proof induct
-    fix e T' u i
-    assume uIT: "IT u"
-    assume uT: "e \<turnstile> u : T"
-    {
-      case (Var rs n e1 T'1 u1 i1)
-      assume nT: "e\<langle>i:T\<rangle> \<turnstile> Var n \<degree>\<degree> rs : T'"
-      let ?ty = "\<lambda>t. \<exists>T'. e\<langle>i:T\<rangle> \<turnstile> t : T'"
-      let ?R = "\<lambda>t. \<forall>e T' u i.
-        e\<langle>i:T\<rangle> \<turnstile> t : T' \<longrightarrow> IT u \<longrightarrow> e \<turnstile> u : T \<longrightarrow> IT (t[u/i])"
-      show "IT ((Var n \<degree>\<degree> rs)[u/i])"
-      proof (cases "n = i")
-        case True
-        show ?thesis
-        proof (cases rs)
-          case Nil
-          with uIT True show ?thesis by simp
-        next
-          case (Cons a as)
-          with nT have "e\<langle>i:T\<rangle> \<turnstile> Var n \<degree> a \<degree>\<degree> as : T'" by simp
-          then obtain Ts
-              where headT: "e\<langle>i:T\<rangle> \<turnstile> Var n \<degree> a : Ts \<Rrightarrow> T'"
-              and argsT: "e\<langle>i:T\<rangle> \<tturnstile> as : Ts"
-            by (rule list_app_typeE)
-          from headT obtain T''
-              where varT: "e\<langle>i:T\<rangle> \<turnstile> Var n : T'' \<Rightarrow> Ts \<Rrightarrow> T'"
-              and argT: "e\<langle>i:T\<rangle> \<turnstile> a : T''"
-            by cases simp_all
-          from varT True have T: "T = T'' \<Rightarrow> Ts \<Rrightarrow> T'"
-            by cases auto
-          with uT have uT': "e \<turnstile> u : T'' \<Rightarrow> Ts \<Rrightarrow> T'" by simp
-          from T have "IT ((Var 0 \<degree>\<degree> map (\<lambda>t. lift t 0)
-            (map (\<lambda>t. t[u/i]) as))[(u \<degree> a[u/i])/0])"
-          proof (rule MI2)
-            from T have "IT ((lift u 0 \<degree> Var 0)[a[u/i]/0])"
-            proof (rule MI1)
-              have "IT (lift u 0)" by (rule lift_IT [OF uIT])
-              thus "IT (lift u 0 \<degree> Var 0)" by (rule app_Var_IT)
-              show "e\<langle>0:T''\<rangle> \<turnstile> lift u 0 \<degree> Var 0 : Ts \<Rrightarrow> T'"
-              proof (rule typing.App)
-                show "e\<langle>0:T''\<rangle> \<turnstile> lift u 0 : T'' \<Rightarrow> Ts \<Rrightarrow> T'"
-                  by (rule lift_type) (rule uT')
-                show "e\<langle>0:T''\<rangle> \<turnstile> Var 0 : T''"
-                  by (rule typing.Var) simp
-              qed
-              from Var have "?R a" by cases (simp_all add: Cons)
-              with argT uIT uT show "IT (a[u/i])" by simp
-              from argT uT show "e \<turnstile> a[u/i] : T''"
-                by (rule subst_lemma) simp
-            qed
-            thus "IT (u \<degree> a[u/i])" by simp
-            from Var have "listsp ?R as"
-              by cases (simp_all add: Cons)
-            moreover from argsT have "listsp ?ty as"
-              by (rule lists_typings)
-            ultimately have "listsp (\<lambda>t. ?R t \<and> ?ty t) as"
-              by simp
-            hence "listsp IT (map (\<lambda>t. lift t 0) (map (\<lambda>t. t[u/i]) as))"
-              (is "listsp IT (?ls as)")
-            proof induct
-              case Nil
-              show ?case by fastforce
-            next
-              case (Cons b bs)
-              hence I: "?R b" by simp
-              from Cons obtain U where "e\<langle>i:T\<rangle> \<turnstile> b : U" by fast
-              with uT uIT I have "IT (b[u/i])" by simp
-              hence "IT (lift (b[u/i]) 0)" by (rule lift_IT)
-              hence "listsp IT (lift (b[u/i]) 0 # ?ls bs)"
-                by (rule listsp.Cons) (rule Cons)
-              thus ?case by simp
-            qed
-            thus "IT (Var 0 \<degree>\<degree> ?ls as)" by (rule IT.Var)
-            have "e\<langle>0:Ts \<Rrightarrow> T'\<rangle> \<turnstile> Var 0 : Ts \<Rrightarrow> T'"
-              by (rule typing.Var) simp
-            moreover from uT argsT have "e \<tturnstile> map (\<lambda>t. t[u/i]) as : Ts"
-              by (rule substs_lemma)
-            hence "e\<langle>0:Ts \<Rrightarrow> T'\<rangle> \<tturnstile> ?ls as : Ts"
-              by (rule lift_types)
-            ultimately show "e\<langle>0:Ts \<Rrightarrow> T'\<rangle> \<turnstile> Var 0 \<degree>\<degree> ?ls as : T'"
-              by (rule list_app_typeI)
-            from argT uT have "e \<turnstile> a[u/i] : T''"
-              by (rule subst_lemma) (rule refl)
-            with uT' show "e \<turnstile> u \<degree> a[u/i] : Ts \<Rrightarrow> T'"
-              by (rule typing.App)
-          qed
-          with Cons True show ?thesis
-            by (simp add: comp_def)
-        qed
-      next
-        case False
-        from Var have "listsp ?R rs" by simp
-        moreover from nT obtain Ts where "e\<langle>i:T\<rangle> \<tturnstile> rs : Ts"
-          by (rule list_app_typeE)
-        hence "listsp ?ty rs" by (rule lists_typings)
-        ultimately have "listsp (\<lambda>t. ?R t \<and> ?ty t) rs"
-          by simp
-        hence "listsp IT (map (\<lambda>x. x[u/i]) rs)"
-        proof induct
-          case Nil
-          show ?case by fastforce
-        next
-          case (Cons a as)
-          hence I: "?R a" by simp
-          from Cons obtain U where "e\<langle>i:T\<rangle> \<turnstile> a : U" by fast
-          with uT uIT I have "IT (a[u/i])" by simp
-          hence "listsp IT (a[u/i] # map (\<lambda>t. t[u/i]) as)"
-            by (rule listsp.Cons) (rule Cons)
-          thus ?case by simp
-        qed
-        with False show ?thesis by (auto simp add: subst_Var)
-      qed
-    next
-      case (Lambda r e1 T'1 u1 i1)
-      assume "e\<langle>i:T\<rangle> \<turnstile> Abs r : T'"
-        and "\<And>e T' u i. PROP ?Q r e T' u i T"
-      with uIT uT show "IT (Abs r[u/i])"
-        by fastforce
-    next
-      case (Beta r a as e1 T'1 u1 i1)
-      assume T: "e\<langle>i:T\<rangle> \<turnstile> Abs r \<degree> a \<degree>\<degree> as : T'"
-      assume SI1: "\<And>e T' u i. PROP ?Q (r[a/0] \<degree>\<degree> as) e T' u i T"
-      assume SI2: "\<And>e T' u i. PROP ?Q a e T' u i T"
-      have "IT (Abs (r[lift u 0/Suc i]) \<degree> a[u/i] \<degree>\<degree> map (\<lambda>t. t[u/i]) as)"
-      proof (rule IT.Beta)
-        have "Abs r \<degree> a \<degree>\<degree> as \<rightarrow>\<^sub>\<beta> r[a/0] \<degree>\<degree> as"
-          by (rule apps_preserves_beta) (rule beta.beta)
-        with T have "e\<langle>i:T\<rangle> \<turnstile> r[a/0] \<degree>\<degree> as : T'"
-          by (rule subject_reduction)
-        hence "IT ((r[a/0] \<degree>\<degree> as)[u/i])"
-          using uIT uT by (rule SI1)
-        thus "IT (r[lift u 0/Suc i][a[u/i]/0] \<degree>\<degree> map (\<lambda>t. t[u/i]) as)"
-          by (simp del: subst_map add: subst_subst subst_map [symmetric])
-        from T obtain U where "e\<langle>i:T\<rangle> \<turnstile> Abs r \<degree> a : U"
-          by (rule list_app_typeE) fast
-        then obtain T'' where "e\<langle>i:T\<rangle> \<turnstile> a : T''" by cases simp_all
-        thus "IT (a[u/i])" using uIT uT by (rule SI2)
-      qed
-      thus "IT ((Abs r \<degree> a \<degree>\<degree> as)[u/i])" by simp
-    }
-  qed
-qed
-*)
-
-subsection {* Well-typed terms are strongly normalizing *}
-
-lemma type_implies_IT:
-  assumes "e \<turnstile> t : T"
-  shows "IT t"
-apply (insert assms) SORRY "termination of beta reduction"
-(*
-  using assms
-proof induct
-  case Var
-  show ?case by (rule Var_IT)
-next
-  case Abs
-  show ?case by (rule IT.Lambda) (rule Abs)
-next
-  case (App e s T U t)
-  have "IT ((Var 0 \<degree> lift t 0)[s/0])"
-  proof (rule subst_type_IT)
-    have "IT (lift t 0)" using `IT t` by (rule lift_IT)
-    hence "listsp IT [lift t 0]" by (rule listsp.Cons) (rule listsp.Nil)
-    hence "IT (Var 0 \<degree>\<degree> [lift t 0])" by (rule IT.Var)
-    also have "Var 0 \<degree>\<degree> [lift t 0] = Var 0 \<degree> lift t 0" by simp
-    finally show "IT \<dots>" .
-    have "e\<langle>0:T \<Rightarrow> U\<rangle> \<turnstile> Var 0 : T \<Rightarrow> U"
-      by (rule typing.Var) simp
-    moreover have "e\<langle>0:T \<Rightarrow> U\<rangle> \<turnstile> lift t 0 : T"
-      by (rule lift_type) (rule App.hyps)
-    ultimately show "e\<langle>0:T \<Rightarrow> U\<rangle> \<turnstile> Var 0 \<degree> lift t 0 : U"
-      by (rule typing.App)
-    show "IT s" by fact
-    show "e \<turnstile> s : T \<Rightarrow> U" by fact
-  qed
-  thus ?case by simp
-qed
-*)
-
-theorem type_implies_termi: "e \<turnstile> t : T \<Longrightarrow> termip beta t"
-apply (insert assms) SORRY "termination of beta reduction"
-(*proof -
-  assume "e \<turnstile> t : T"
-  hence "IT t" by (rule type_implies_IT)
-  thus ?thesis by (rule IT_implies_termi)
-qed*)
 
 end
 
