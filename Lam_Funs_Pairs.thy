@@ -13,7 +13,7 @@ nominal_datatype lam =
     Var "name"
   | App "lam" "lam"
   | Lam "\<guillemotleft>name\<guillemotright>lam" ("Lam [_]._" [100,100] 100)
-  | Pair lam lam
+  | MkPair lam lam
   | Unpair bool lam 
 
 
@@ -24,7 +24,7 @@ nominal_primrec
 where
   "depth (Var x) = 1"
 | "depth (App t1 t2) = (max (depth t1) (depth t2)) + 1"
-| "depth (Pair t1 t2) = (max (depth t1) (depth t2)) + 1"
+| "depth (MkPair t1 t2) = (max (depth t1) (depth t2)) + 1"
 | "depth (Unpair b t) = depth t + 1"
 | "depth (Lam [a].t) = depth t + 1"
   apply(finite_guess)+
@@ -45,7 +45,7 @@ nominal_primrec (invariant: "\<lambda>s::name set. finite s")
 where
   "frees (Var a) = {a}"
 | "frees (App t1 t2) = (frees t1) \<union> (frees t2)"
-| "frees (Pair t1 t2) = (frees t1) \<union> (frees t2)"
+| "frees (MkPair t1 t2) = (frees t1) \<union> (frees t2)"
 | "frees (Unpair b t) = frees t"
 | "frees (Lam [a].t) = (frees t) - {a}"
 apply(finite_guess)+
@@ -88,7 +88,7 @@ nominal_primrec
 where
   "\<theta><(Var x)> = (lookup \<theta> x)"
 | "\<theta><(App e\<^sub>1 e\<^sub>2)> = App (\<theta><e\<^sub>1>) (\<theta><e\<^sub>2>)"
-| "\<theta><(Pair e\<^sub>1 e\<^sub>2)> = Pair (\<theta><e\<^sub>1>) (\<theta><e\<^sub>2>)"
+| "\<theta><(MkPair e\<^sub>1 e\<^sub>2)> = MkPair (\<theta><e\<^sub>1>) (\<theta><e\<^sub>2>)"
 | "\<theta><(Unpair b e)> = Unpair b (\<theta><e>)"
 | "x\<sharp>\<theta> \<Longrightarrow> \<theta><(Lam [x].e)> = Lam [x].(\<theta><e>)"
 apply(finite_guess)+
@@ -112,7 +112,7 @@ where
 lemma subst[simp]:
   shows "(Var x)[y::=t'] = (if x=y then t' else (Var x))"
   and   "(App t1 t2)[y::=t'] = App (t1[y::=t']) (t2[y::=t'])"
-  and   "(Pair t1 t2)[y::=t'] = Pair (t1[y::=t']) (t2[y::=t'])"
+  and   "(MkPair t1 t2)[y::=t'] = MkPair (t1[y::=t']) (t2[y::=t'])"
   and   "(Unpair b t)[y::=t'] = Unpair b (t[y::=t'])"
   and   "x\<sharp>(y,t') \<Longrightarrow> (Lam [x].t)[y::=t'] = Lam [x].(t[y::=t'])"
 by (simp_all add: fresh_list_cons fresh_list_nil)
@@ -124,6 +124,7 @@ apply(auto simp add: lam.supp supp_atm fresh_prod abs_supp supp_bool)
 apply(blast)+
 done
 
+(* 
 text {* 
   Contexts - lambda-terms with a single hole.
   Note that the lambda case in contexts does not bind a 
@@ -133,8 +134,8 @@ nominal_datatype clam =
     Hole ("\<box>" 1000)  
   | CAppL "clam" "lam"
   | CAppR "lam" "clam" 
-  | CPairL "clam" "lam"
-  | CPairR "lam" "clam" 
+  | CMkPairL "clam" "lam"
+  | CMkPairR "lam" "clam" 
   | CUnpair bool clam
   | CLam "name" "clam"  ("CLam [_]._" [100,100] 100) 
 
@@ -146,8 +147,8 @@ where
   "\<box>\<lbrakk>t\<rbrakk> = t"
 | "(CAppL E t')\<lbrakk>t\<rbrakk> = App (E\<lbrakk>t\<rbrakk>) t'"
 | "(CAppR t' E)\<lbrakk>t\<rbrakk> = App t' (E\<lbrakk>t\<rbrakk>)"
-| "(CPairL E t')\<lbrakk>t\<rbrakk> = Pair (E\<lbrakk>t\<rbrakk>) t'"
-| "(CPairR t' E)\<lbrakk>t\<rbrakk> = Pair t' (E\<lbrakk>t\<rbrakk>)"
+| "(CMkPairL E t')\<lbrakk>t\<rbrakk> = MkPair (E\<lbrakk>t\<rbrakk>) t'"
+| "(CMkPairR t' E)\<lbrakk>t\<rbrakk> = MkPair t' (E\<lbrakk>t\<rbrakk>)"
 | "(CUnpair b E)\<lbrakk>t\<rbrakk> = Unpair b (E\<lbrakk>t\<rbrakk>)"
 | "(CLam [x].E)\<lbrakk>t\<rbrakk> = Lam [x].(E\<lbrakk>t\<rbrakk>)" 
 by (rule TrueI)+
@@ -160,14 +161,14 @@ where
   "\<box> \<circ> E' = E'"
 | "(CAppL E t') \<circ> E' = CAppL (E \<circ> E') t'"
 | "(CAppR t' E) \<circ> E' = CAppR t' (E \<circ> E')"
-| "(CPairL E t') \<circ> E' = CPairL (E \<circ> E') t'"
-| "(CPairR t' E) \<circ> E' = CPairR t' (E \<circ> E')"
+| "(CMkPairL E t') \<circ> E' = CMkPairL (E \<circ> E') t'"
+| "(CMkPairR t' E) \<circ> E' = CMkPairR t' (E \<circ> E')"
 | "(CUnpair b E) \<circ> E' = CUnpair b (E \<circ> E')"
 | "(CLam [x].E) \<circ> E' = CLam [x].(E \<circ> E')"
 by (rule TrueI)+
   
 lemma clam_compose:
   shows "(E1 \<circ> E2)\<lbrakk>t\<rbrakk> = E1\<lbrakk>E2\<lbrakk>t\<rbrakk>\<rbrakk>"
-by (induct E1 rule: clam.induct) (auto)
+by (induct E1 rule: clam.induct) (auto) *)
 
 end

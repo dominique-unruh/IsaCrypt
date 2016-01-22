@@ -4,7 +4,7 @@ begin
 
 text {* Strong Normalisation proof from the Proofs and Types book *}
 
-section {* Beta Reduction *}
+section {* Beta Reduction *}                                                            
 
 lemma subst_rename: 
   assumes a: "c\<sharp>t1"
@@ -77,13 +77,12 @@ where
 | b2[intro!]: "s1 \<longrightarrow>\<^sub>\<beta> s2 \<Longrightarrow> App t s1 \<longrightarrow>\<^sub>\<beta> App t s2"
 | b3[intro!]: "s1 \<longrightarrow>\<^sub>\<beta> s2 \<Longrightarrow> Lam [a].s1 \<longrightarrow>\<^sub>\<beta> Lam [a].s2"
 | b4[intro!]: "a\<sharp>s2 \<Longrightarrow> App (Lam [a].s1) s2\<longrightarrow>\<^sub>\<beta> (s1[a::=s2])"
-| b5[intro!]: "s1 \<longrightarrow>\<^sub>\<beta> s2 \<Longrightarrow> Pair s1 t \<longrightarrow>\<^sub>\<beta> Pair s2 t"
-| b6[intro!]: "s1 \<longrightarrow>\<^sub>\<beta> s2 \<Longrightarrow> Pair t s1 \<longrightarrow>\<^sub>\<beta> Pair t s2"
+| b5[intro!]: "s1 \<longrightarrow>\<^sub>\<beta> s2 \<Longrightarrow> MkPair s1 t \<longrightarrow>\<^sub>\<beta> MkPair s2 t"
+| b6[intro!]: "s1 \<longrightarrow>\<^sub>\<beta> s2 \<Longrightarrow> MkPair t s1 \<longrightarrow>\<^sub>\<beta> MkPair t s2"
 | b7[intro!]: "s1 \<longrightarrow>\<^sub>\<beta> s2 \<Longrightarrow> Unpair b s1 \<longrightarrow>\<^sub>\<beta> Unpair b s2"
-| b8[intro!]: "Unpair True (Pair s1 s2) \<longrightarrow>\<^sub>\<beta> s1"
-| b9[intro!]: "Unpair False (Pair s1 s2) \<longrightarrow>\<^sub>\<beta> s2"     
+| b8[intro!]: "Unpair True (MkPair s1 s2) \<longrightarrow>\<^sub>\<beta> s1"
+| b9[intro!]: "Unpair False (MkPair s1 s2) \<longrightarrow>\<^sub>\<beta> s2"     
 
-print_theorems
 equivariance Beta
 
 nominal_inductive Beta
@@ -157,7 +156,7 @@ where
   t1[intro]: "\<lbrakk>valid \<Gamma>; (a,\<tau>)\<in>set \<Gamma>\<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile> Var a : \<tau>"
 | t2[intro]: "\<lbrakk>\<Gamma> \<turnstile> t1 : \<tau>\<rightarrow>\<sigma>; \<Gamma> \<turnstile> t2 : \<tau>\<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile> App t1 t2 : \<sigma>"
 | t3[intro]: "\<lbrakk>a\<sharp>\<Gamma>;((a,\<tau>)#\<Gamma>) \<turnstile> t : \<sigma>\<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile> Lam [a].t : \<tau>\<rightarrow>\<sigma>"
-| t4[intro]: "\<lbrakk>\<Gamma> \<turnstile> t1 : \<tau>; \<Gamma> \<turnstile> t2 : \<sigma>\<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile> Pair t1 t2 : TPair \<tau> \<sigma>"
+| t4[intro]: "\<lbrakk>\<Gamma> \<turnstile> t1 : \<tau>; \<Gamma> \<turnstile> t2 : \<sigma>\<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile> MkPair t1 t2 : TPair \<tau> \<sigma>"
 | t5[intro]: "\<Gamma> \<turnstile> t : TPair \<tau> \<sigma> \<Longrightarrow> \<Gamma> \<turnstile> Unpair True t : \<tau>"
 | t6[intro]: "\<Gamma> \<turnstile> t : TPair \<tau> \<sigma> \<Longrightarrow> \<Gamma> \<turnstile> Unpair False t : \<sigma>"
 
@@ -260,7 +259,7 @@ where
   "fst_app_aux (Var a)     = None"
 | "fst_app_aux (App t1 t2) = Some t1"
 | "fst_app_aux (Lam [x].t) = None"
-| "fst_app_aux (Pair t1 t2) = None"
+| "fst_app_aux (MkPair t1 t2) = None"
 | "fst_app_aux (Unpair b t) = None"
 apply(finite_guess)+
 apply(rule TrueI)+
@@ -656,16 +655,16 @@ next case (Lam a t)
   moreover have "finite ?choices" using Lam by auto
   ultimately show ?case
     using infinite_super by auto
-next case (Pair t1 t2)
-  let ?choices = "{Pair t1' t2 | t1'. t1 \<longrightarrow>\<^sub>\<beta> t1'} \<union> {Pair t1 t2' | t2'. t2 \<longrightarrow>\<^sub>\<beta> t2'}"
-  have "{t'. Pair t1 t2 \<longrightarrow>\<^sub>\<beta> t'} \<subseteq> ?choices"
+next case (MkPair t1 t2)
+  let ?choices = "{MkPair t1' t2 | t1'. t1 \<longrightarrow>\<^sub>\<beta> t1'} \<union> {MkPair t1 t2' | t2'. t2 \<longrightarrow>\<^sub>\<beta> t2'}"
+  have "{t'. MkPair t1 t2 \<longrightarrow>\<^sub>\<beta> t'} \<subseteq> ?choices"
     apply auto apply (cases rule: Beta.cases)
     by (auto simp: lam.inject)
-  moreover have "finite ?choices" using Pair by auto
+  moreover have "finite ?choices" using MkPair by auto
   ultimately show ?case
     using infinite_super by auto
 next case (Unpair b t)
-  obtain t1 t2 where t_pair: "t = Pair t1 t2 \<or> \<not> (\<exists>t1 t2. t = Pair t1 t2)" by blast
+  obtain t1 t2 where t_pair: "t = MkPair t1 t2 \<or> \<not> (\<exists>t1 t2. t = MkPair t1 t2)" by blast
   let ?choices = "{Unpair b t' | t'. t \<longrightarrow>\<^sub>\<beta> t'} \<union> {if b then t1 else t2}"
   have "t' \<in> ?choices" if beta: "Unpair b t \<longrightarrow>\<^sub>\<beta> t'" for t'
   using beta proof (cases)
@@ -677,11 +676,11 @@ next case (Unpair b t)
     next case b6 thus ?thesis by (auto simp: lam.inject)
     next case b7 thus ?thesis by (auto simp: lam.inject)
     next case (b8 s2)
-      have b: "b = True" and t: "t = Pair t' s2" using b8 by (auto simp: lam.inject)
+      have b: "b = True" and t: "t = MkPair t' s2" using b8 by (auto simp: lam.inject)
       from t have "t'=t1" using t_pair by (auto simp: lam.inject)
       with b show ?thesis by auto
     next case (b9 s1)
-      have b: "b = False" and t: "t = Pair s1 t'" using b9 by (auto simp: lam.inject)
+      have b: "b = False" and t: "t = MkPair s1 t'" using b9 by (auto simp: lam.inject)
       from t have "t'=t2" using t_pair by (auto simp: lam.inject)
       with b show ?thesis by auto
   qed
@@ -718,7 +717,7 @@ qed
 
 lemma pair_RED:
   assumes s_RED: "s \<in> RED \<sigma>" and t_RED: "t \<in> RED \<tau>"
-  shows "Pair s t \<in> RED (TPair \<sigma> \<tau>)"
+  shows "MkPair s t \<in> RED (TPair \<sigma> \<tau>)"
 proof -
   from assms have "SN s" and "SN t"
     using CR1_def RED_props(1) by blast+
@@ -726,11 +725,11 @@ proof -
   from \<open>SN t\<close> obtain nt where nt: "len_bound t nt" apply atomize_elim by (rule SN_len_bound)
   def n == "ns + nt"
 
-  have fst_red: "Unpair True (Pair s t) \<in> RED \<sigma>"
+  have fst_red: "Unpair True (MkPair s t) \<in> RED \<sigma>"
     using n_def[THEN meta_eq_to_obj_eq] ns nt s_RED
   proof (induction n arbitrary: ns nt s t rule:nat_less_induct)
   case (1 n)
-    have "u \<in> RED \<sigma>" if beta: "Unpair True (Pair s t) \<longrightarrow>\<^sub>\<beta> u" for u
+    have "u \<in> RED \<sigma>" if beta: "Unpair True (MkPair s t) \<longrightarrow>\<^sub>\<beta> u" for u
     using beta proof cases
     case b1 thus ?thesis by auto
     next case b2 thus ?thesis by auto
@@ -741,7 +740,7 @@ proof -
     next case b9 thus ?thesis by (auto simp: lam.inject)
     next case (b8) thus ?thesis using 1 by (auto simp: lam.inject)
     next case (b7 s1 s' b)
-      hence s': "Pair s t \<longrightarrow>\<^sub>\<beta> s'" and u: "u = Unpair True s'" by (auto simp: lam.inject)
+      hence s': "MkPair s t \<longrightarrow>\<^sub>\<beta> s'" and u: "u = Unpair True s'" by (auto simp: lam.inject)
       show ?thesis
       using s' proof cases
       case b1 thus ?thesis by auto
@@ -752,22 +751,22 @@ proof -
       next case b8 thus ?thesis by (auto simp: lam.inject)
       next case b9 thus ?thesis by (auto simp: lam.inject)
       next case (b5 _ s'')
-        hence s': "s' = Pair s'' t" and ss'': "s \<longrightarrow>\<^sub>\<beta> s''" by (auto simp: lam.inject)
+        hence s': "s' = MkPair s'' t" and ss'': "s \<longrightarrow>\<^sub>\<beta> s''" by (auto simp: lam.inject)
         obtain ns'' where ns'': "len_bound s'' ns''" and ns''_bound: "ns'' < ns"
           using `len_bound s ns` ss'' by (metis NORMAL_def len_bound.simps lessI)
         have s''_RED: "s'' \<in> RED \<sigma>" using ss'' "1.prems"
           using CR2_def RED_props(2) by blast
-        have "Unpair True (Pair s'' t) \<in> RED \<sigma>"
+        have "Unpair True (MkPair s'' t) \<in> RED \<sigma>"
           apply (rule "1.IH"[rule_format, rotated 2]) 
              apply (fact ns'') apply (fact "1.prems") apply (fact s''_RED)
            by (simp_all add: "1.prems"(1) ns''_bound)
         thus ?thesis
           unfolding u s' by simp
       next case (b6 _ t'')
-        hence s': "s' = Pair s t''" and tt'': "t \<longrightarrow>\<^sub>\<beta> t''" by (auto simp: lam.inject)
+        hence s': "s' = MkPair s t''" and tt'': "t \<longrightarrow>\<^sub>\<beta> t''" by (auto simp: lam.inject)
         obtain nt'' where nt'': "len_bound t'' nt''" and nt''_bound: "nt'' < nt"
           using `len_bound t nt` tt'' by (metis NORMAL_def len_bound.simps lessI)
-        have "Unpair True (Pair s t'') \<in> RED \<sigma>"
+        have "Unpair True (MkPair s t'') \<in> RED \<sigma>"
           apply (rule "1.IH"[rule_format, rotated 2]) 
              apply (fact "1.prems") apply (fact nt'') apply (fact "1.prems")
            by (simp_all add: "1.prems"(1) nt''_bound)
@@ -779,11 +778,11 @@ proof -
       using CR3_RED_def CR3_def NEUT_def RED_props(3) by blast
   qed
 
-  have snd_red: "Unpair False (Pair s t) \<in> RED \<tau>"
+  have snd_red: "Unpair False (MkPair s t) \<in> RED \<tau>"
     using n_def[THEN meta_eq_to_obj_eq] ns nt t_RED
   proof (induction n arbitrary: ns nt s t rule:nat_less_induct)
   case (1 n)
-    have "u \<in> RED \<tau>" if beta: "Unpair False (Pair s t) \<longrightarrow>\<^sub>\<beta> u" for u
+    have "u \<in> RED \<tau>" if beta: "Unpair False (MkPair s t) \<longrightarrow>\<^sub>\<beta> u" for u
     using beta proof cases
     case b1 thus ?thesis by auto
     next case b2 thus ?thesis by auto
@@ -794,7 +793,7 @@ proof -
     next case b8 thus ?thesis by (auto simp: lam.inject)
     next case b9 thus ?thesis using 1 by (auto simp: lam.inject)
     next case (b7 s1 s' b)
-      hence s': "Pair s t \<longrightarrow>\<^sub>\<beta> s'" and u: "u = Unpair False s'" by (auto simp: lam.inject)
+      hence s': "MkPair s t \<longrightarrow>\<^sub>\<beta> s'" and u: "u = Unpair False s'" by (auto simp: lam.inject)
       show ?thesis
       using s' proof cases
       case b1 thus ?thesis by auto
@@ -805,22 +804,22 @@ proof -
       next case b8 thus ?thesis by (auto simp: lam.inject)
       next case b9 thus ?thesis by (auto simp: lam.inject)
       next case (b5 _ s'')
-        hence s': "s' = Pair s'' t" and ss'': "s \<longrightarrow>\<^sub>\<beta> s''" by (auto simp: lam.inject)
+        hence s': "s' = MkPair s'' t" and ss'': "s \<longrightarrow>\<^sub>\<beta> s''" by (auto simp: lam.inject)
         obtain ns'' where ns'': "len_bound s'' ns''" and ns''_bound: "ns'' < ns"
           using `len_bound s ns` ss'' by (metis NORMAL_def len_bound.simps lessI)
-        have "Unpair False (Pair s'' t) \<in> RED \<tau>"
+        have "Unpair False (MkPair s'' t) \<in> RED \<tau>"
           apply (rule "1.IH"[rule_format, rotated 2]) 
              apply (fact ns'') apply (fact "1.prems") apply (fact "1.prems")
            by (simp_all add: "1.prems"(1) ns''_bound)
         thus ?thesis
           unfolding u s' by simp
       next case (b6 _ t'')
-        hence s': "s' = Pair s t''" and tt'': "t \<longrightarrow>\<^sub>\<beta> t''" by (auto simp: lam.inject)
+        hence s': "s' = MkPair s t''" and tt'': "t \<longrightarrow>\<^sub>\<beta> t''" by (auto simp: lam.inject)
         obtain nt'' where nt'': "len_bound t'' nt''" and nt''_bound: "nt'' < nt"
           using `len_bound t nt` tt'' by (metis NORMAL_def len_bound.simps lessI)
         have t''_RED: "t'' \<in> RED \<tau>" using tt'' "1.prems"
           using CR2_def RED_props(2) by blast
-        have "Unpair False (Pair s t'') \<in> RED \<tau>"
+        have "Unpair False (MkPair s t'') \<in> RED \<tau>"
           apply (rule "1.IH"[rule_format, rotated 2]) 
              apply (fact "1.prems") apply (fact nt'') apply (fact t''_RED)
            by (simp_all add: "1.prems"(1) nt''_bound)
@@ -833,7 +832,7 @@ proof -
   qed
 
 
-  show "Pair s t \<in> RED (TPair \<sigma> \<tau>)"
+  show "MkPair s t \<in> RED (TPair \<sigma> \<tau>)"
     using fst_red snd_red by simp 
 qed
 

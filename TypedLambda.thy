@@ -1,5 +1,5 @@
 theory TypedLambda
-imports Main Tools Extended_Sorry "~~/src/HOL/Proofs/Lambda/ListOrder"
+imports Main Tools Extended_Sorry "~~/src/HOL/Proofs/Lambda/ListOrder" SN_Pairs
 begin
 
 locale typed_lambda begin (* to hide syntax *)
@@ -573,6 +573,422 @@ lemma apps_preserves_betas [simp]:
   apply blast
   done
 
+subsection {* Reducting strong normalization to strong normalization in nominal *}
+
+definition "fresh_name (xs::name list) = (SOME x::name. x \<sharp> xs)"
+lemma fresh_name: "fresh_name (xs::name list) \<sharp> xs"
+  unfolding fresh_name_def apply (rule someI_ex) apply (rule exists_fresh') by finite_guess
+
+fun dB_to_lam :: "name list \<Rightarrow> dB \<Rightarrow> lam" where
+  "dB_to_lam n (Var i) = (if i<length n then Lam_Funs_Pairs.Var (n!i) else Lam[undefined]. Lam_Funs_Pairs.Var undefined)" (* If i too big, use arbitrary closed term, to avoid inventing names *)
+| "dB_to_lam n (Abs p) = (let x = fresh_name n in Lam[x].(dB_to_lam (x#n) p))"
+| "dB_to_lam n (App p q) = Lam_Funs_Pairs.App (dB_to_lam n p) (dB_to_lam n q)"
+| "dB_to_lam n (MkPair p q) = Lam_Funs_Pairs.MkPair (dB_to_lam n p) (dB_to_lam n q)"
+| "dB_to_lam n (Unpair b p) = Lam_Funs_Pairs.Unpair b (dB_to_lam n p)"
+
+lemma fresh_list': "(x) \<sharp> ts \<Longrightarrow> (t) \<in> set ts \<Longrightarrow> x \<sharp> t"
+  apply (induction ts) by (auto simp: fresh_list_cons)
+
+lemma fresh_id [simp]: shows "(x::name) \<sharp> [y]. Lam_Funs_Pairs.Var y" and "(x::name) \<sharp> Lam[y]. Lam_Funs_Pairs.Var y" 
+  by (auto simp: abs_fresh fresh_atm)
+
+(* lemma perm_one: "((x::name,y) # \<theta>) \<bullet> t = swap (x,y) (\<theta> \<bullet> t)"
+by (simp add: calc_atm(1)) *)
+
+(* find_theorems "?\<theta> \<bullet> ?t = ?t" *)
+
+lemma permute_id [simp]:
+  shows "(\<theta>::name prm) \<bullet> ([y]. lam.Var y) = [y]. lam.Var y" (is ?thesis1)
+    and "\<theta> \<bullet> Lam[y]. lam.Var y = Lam[y]. lam.Var y" (is ?thesis2)
+apply auto
+apply (smt abs_fun_pi alpha' at_name_inst fresh_atm lam.fresh(1) lam.perm(1) pt_name_inst swap_simps(2))
+by (simp add: Lam_Funs_Pairs.name_prm_name_def alpha fresh_atm lam.inject(3) name_prm_name.simps(2) swap_simps(2))
+
+lemma id_undefined: 
+  assumes "NO_MATCH undefined y"
+  shows "[y]. lam.Var y = [undefined]. lam.Var undefined" (is ?thesis1)
+    and "Lam[y]. lam.Var y = Lam[undefined]. lam.Var undefined" (is ?thesis2)
+proof -
+  show ?thesis1
+    by (smt alpha' fresh_atm lam.fresh(1) lam.perm(1) swap_simps(2)) 
+  thus ?thesis2
+    by (simp add: lam.inject(3))     
+qed
+
+thm id_undefined
+(*
+proof - 
+  show ?thesis1
+    apply (induction \<theta>) close
+    apply auto apply (subst at_prm_fresh)
+thm at_prm_fresh
+thm at2
+
+find_theorems "(_#_) \<bullet> _ = swap _ _"
+  thm calc_atm *)
+
+lemma fresh_dB_to_lam: 
+  assumes "(x::name) \<sharp> n"
+  shows "x \<sharp> dB_to_lam n p"
+using assms proof (induction p arbitrary: n)
+case (Var i n) 
+  show ?case
+  proof auto
+    assume "i < length n" 
+    hence "n!i \<in> set n" by auto
+    with Var show "x \<sharp> n!i" 
+      by (rule fresh_list')
+  qed
+next case (Abs p)
+  def y == "fresh_name n" 
+  have "dB_to_lam n (Abs p) = Lam [y].dB_to_lam (y#n) p"
+    by (simp add: Let_def y_def)
+  also have "x \<sharp> \<dots>"
+    unfolding lam.fresh abs_fresh
+    apply (cases "x=y")
+     apply simp
+    apply simp
+    apply (rule Abs.IH)
+    unfolding fresh_list_cons
+    using Abs.prems fresh_atm by auto
+  finally show ?case by simp
+qed (auto simp: abs_fresh fresh_bool)
+
+fun typ_conv :: "lambda_type \<Rightarrow> ty" where
+  "typ_conv (Atom i) = TVar i"
+| "typ_conv (Fun t u) = TArr (typ_conv t) (typ_conv u)"
+| "typ_conv (Prod t u) = TPair (typ_conv t) (typ_conv u)"
+
+lemma fresh_distinct [simp]: 
+  fixes x :: name
+  assumes "x\<sharp>xs"
+  assumes "distinct xs"
+  shows "distinct (x#xs)"
+using assms proof (induction xs arbitrary: x) 
+case Nil show ?case by simp
+next case (Cons x' xs) 
+  hence "x \<sharp> x'" and "x \<sharp> xs" unfolding fresh_list_cons by auto
+  from \<open>x \<sharp> x'\<close> have "x \<noteq> x'" using fresh_atm by auto
+  from \<open>x \<sharp> xs\<close> have "x \<notin> set xs" using Cons by auto
+  have "x' \<notin> set xs" using Cons by simp
+  have "distinct xs" using Cons by simp
+  show ?case
+    using \<open>x\<noteq>x'\<close> \<open>x\<notin>set xs\<close> \<open>x'\<notin>set xs\<close> \<open>distinct xs\<close> by auto 
+qed
+
+lemma fresh_zip [simp]: 
+  assumes "(x::name) \<sharp> l1" and "x \<sharp> l2" shows "x \<sharp> zip l1 l2"
+using assms proof (induction l2 arbitrary: l1)
+case Nil show ?case by (simp add: fresh_list_nil)
+next case Cons2: (Cons x2 l2)
+  thus ?case 
+  proof (cases l1)
+  case Nil thus ?thesis by (simp add: fresh_list_nil)
+  next case (Cons x1 l1')
+    from `x \<sharp> l1` have xl1: "x \<sharp> l1'" using `l1 = x1 # l1'` by (auto simp: fresh_list_cons)
+    have xl2: "x \<sharp> l2"       using Cons2.prems(2) fresh_list_cons by force
+    have fr1: "x \<sharp> (x1, x2)"
+      by (metis Cons2.prems(1) Cons2.prems(2) fresh_list_cons fresh_prod local.Cons)
+    have fr2: "x \<sharp> zip l1' l2"
+      using xl1 xl2 by (rule Cons2.IH)
+    show ?thesis unfolding Cons using fr1 fr2 by (auto simp: fresh_list_cons)
+  qed
+qed
+
+lemma fresh_ty_list [simp]: "(x::name) \<sharp> (ty :: ty list)"
+  apply (induction ty)
+   close (simp add: fresh_list_nil)
+  apply (subst fresh_list_cons, auto)
+  by (rule fresh_ty)
+
+lemma fresh_list: "(x::name) \<notin> set l \<Longrightarrow> x \<sharp> l"
+  apply (induction l)
+  by (auto simp: fresh_list_cons fresh_atm fresh_list_nil)
+
+lemma valid_zip: "distinct names \<Longrightarrow> valid (zip names E)"
+  apply (induction names arbitrary: E)
+   close
+  apply (case_tac E)
+   close
+  by (auto del: v2 intro!: v2 fresh_zip fresh_list)
+
+fun map_index' :: "nat \<Rightarrow> (nat \<Rightarrow> 'a \<Rightarrow> 'b) \<Rightarrow> 'a list \<Rightarrow> 'b list" where
+  "map_index' n f [] = []"
+| "map_index' n f (x#xs) = f n x # map_index' (Suc n) f xs"
+abbreviation "map_index == map_index' 0"
+
+fun env_conv where
+  "env_conv E [] = []"
+| "env_conv E (x#xs) = (x,typ_conv (E 0)) # env_conv (\<lambda>i. E (Suc i)) xs"
+
+lemma fresh_env_conv [intro]: "(n::name) \<sharp> names \<Longrightarrow> n \<sharp> env_conv E names"
+apply (induction names arbitrary: E) by (auto simp: fresh_list_nil fresh_list_cons fresh_prod fresh_ty)
+
+lemma valid_env_conv: "distinct names \<Longrightarrow> valid (env_conv E names)"
+  apply (induction names arbitrary: E)
+  apply auto apply (rule_tac v2)
+  apply simp apply (rule_tac fresh_env_conv)
+  by (simp add: typed_lambda.fresh_list)
+
+fun nclosed where
+  "nclosed n (Var i) = (i<n)"
+| "nclosed n (App p q) = (nclosed n p \<and> nclosed n q)"
+| "nclosed n (MkPair p q) = (nclosed n p \<and> nclosed n q)"
+| "nclosed n (Unpair b p) = nclosed n p"
+| "nclosed n (Abs p) = nclosed (Suc n) p"
+
+
+lemma typ_pres:
+  "E \<turnstile> p : T \<Longrightarrow> distinct names \<Longrightarrow> nclosed (length names) p \<Longrightarrow> env_conv E names \<turnstile> dB_to_lam names p : typ_conv T"
+proof (induction E p T arbitrary: names and names rule:typing.induct)
+case (Abs E T p U) 
+  def x == "fresh_name names"
+  (* obtain x::name where x_fresh: "x \<sharp> names" apply atomize_elim apply (rule exists_fresh') by (finite_guess) *)
+  have x_fresh: "x \<sharp> names"
+    by (simp add: fresh_name x_def)
+  have distinct: "distinct (x#names)" using x_fresh `distinct names` by (rule fresh_distinct)
+  have nclosed: "nclosed (length (x#names)) p"
+    using Abs.prems by simp
+  (* have length: "length (x#names) = length (T#E)" using wt_ProcAbs by simp *)
+  have IH: "env_conv (E\<langle>0:T\<rangle>) (x#names) \<turnstile> dB_to_lam (x#names) p : typ_conv U"
+    using distinct nclosed by (rule Abs.IH)
+
+  have abs: "dB_to_lam names (Abs p) = Lam [x].dB_to_lam (x # names) p"
+    apply simp unfolding Let_def x_def by simp
+
+  have x_zip: "x \<sharp> env_conv E names"
+    apply (rule fresh_env_conv) using `x \<sharp> names` by assumption
+
+  show ?case
+    unfolding abs apply simp
+    using x_zip apply (rule SN_Pairs.typing.intros)
+    using IH by simp        
+
+next case (Var E i T) 
+  have aux: "E i = T \<Longrightarrow> i < length names \<Longrightarrow> (names ! i, typ_conv T) \<in> set (env_conv E names)"
+    apply (induction names arbitrary: E i) close
+    apply (case_tac i) by auto
+  show ?case
+    using Var apply simp  
+    using valid_env_conv aux by (rule t1)
+
+qed (auto del: typing.intros intro!: typing.intros valid_zip)
+
+lemma length_perm_list [simp]: "length (\<theta> \<bullet> l) = length l"
+apply (induction l) by auto
+
+
+
+lemma perm_nth: "n < length l \<Longrightarrow> \<theta> \<bullet> l ! n = (\<theta> \<bullet> l) ! n"
+apply (induction l arbitrary: n)
+using less_Suc_eq_0_disj by auto
+
+lemma rename_dB_to_lam: 
+  shows "(\<theta>::name prm) \<bullet> dB_to_lam n p = dB_to_lam (\<theta> \<bullet> n) p"
+proof (induction p arbitrary: \<theta> n)
+case App thus ?case by auto
+next case Var show ?case by (auto simp: perm_nth id_undefined perm_bool lam.inject)
+next case (Abs p) 
+  def y == "fresh_name n"
+  def x == "fresh_name (\<theta> \<bullet> n)"
+  have fresh_x1: "x \<sharp> \<theta> \<bullet> n" unfolding x_def by (rule fresh_name)
+  have simp1: "[(x, \<theta> \<bullet> y)] \<bullet> \<theta> \<bullet> n = \<theta> \<bullet> n"
+    by (simp add: fresh_bij fresh_x1 perm_fresh_fresh typed_lambda.fresh_name y_def)
+  have "\<theta> \<bullet> dB_to_lam n (Abs p) = Lam[(\<theta>\<bullet>y)].dB_to_lam (\<theta>\<bullet>y#\<theta>\<bullet>n) p"
+    by (simp add: Let_def y_def[symmetric] Abs.IH) 
+  also have "\<dots> = Lam[x].dB_to_lam (x # \<theta> \<bullet> n) p"
+    using fresh_x1 
+    by (auto simp: simp1 swap_simps Abs.IH lam.inject alpha' fresh_list_cons fresh_atm intro!: fresh_dB_to_lam)
+  also have "\<dots> = dB_to_lam (\<theta> \<bullet> n) (Abs p)"
+    by (simp add: Let_def x_def)
+  finally show ?case by assumption
+next case MkPair thus ?case by auto
+next case Unpair thus ?case by (auto simp: perm_bool)
+qed
+
+
+lemma lift_translate: 
+  "dB_to_lam (x#n) (lift t 0) = dB_to_lam n t"
+proof -
+  def m == "[] :: name list"
+  have "dB_to_lam (m@x#n) (lift t (length m)) = dB_to_lam (m@n) t"
+  proof (induction t arbitrary: x m)  
+  case (Abs t)
+    def y == "fresh_name (m @ x # n)"
+    hence "y \<sharp> (m@x#n)" by (simp add: fresh_name)
+    hence "y \<sharp> m" and "y \<sharp> x" and "y \<sharp> n" by (auto simp: fresh_list_cons fresh_list_append)
+    def y' == "fresh_name (m @ n)"
+
+    have ym: "[(y, y')] \<bullet> m = m"
+      using \<open>y \<sharp> m\<close> fresh_list_append perm_fresh_fresh typed_lambda.fresh_name y'_def by fastforce
+    have yn: "[(y, y')] \<bullet> n = n"
+      using \<open>y \<sharp> n\<close> fresh_list_append perm_fresh_fresh typed_lambda.fresh_name y'_def by fastforce
+    have "dB_to_lam (m @ x # n) (lift (Abs t) (length m)) = Lam [y].dB_to_lam ((y#m)@x#n) (lift t (length (y#m)))"
+      by (simp add: y_def[symmetric] Let_def)
+    also have "\<dots> = Lam [y].dB_to_lam (y#m @ n) t"
+      by (subst Abs, simp)
+    also have "\<dots> = Lam [y'].dB_to_lam (y'#m@n) t"
+      unfolding lam.inject alpha 
+      using `y\<sharp>m` `y\<sharp>n` ym yn
+      by (auto simp: rename_dB_to_lam swap_simps append_eqvt fresh_list_cons fresh_list_append fresh_atm intro!: fresh_dB_to_lam)
+    also have "\<dots> = dB_to_lam (m @ n) (Abs t)"
+      by (simp add: y'_def[symmetric] Let_def)
+    finally show ?case by assumption
+  qed (auto simp: Let_def nth_append)
+  thus ?thesis unfolding m_def by simp
+qed
+
+
+lemma subst_translate: 
+  assumes "distinct (x#n)"
+  shows "(dB_to_lam (x#n) p)[x::=dB_to_lam n t] = dB_to_lam n (subst p t 0)" (is ?thesis2)
+proof -
+
+  def m == "[] :: name list"
+  have distinct: "distinct (m@x#n)" unfolding m_def using assms by simp
+  have "dB_to_lam (m@x#n) p[x::=dB_to_lam (m@n) t] = dB_to_lam (m@n) (subst p t (length m))"
+  using distinct proof (induction p arbitrary: m t)
+  next case (Abs q) 
+    def y == "fresh_name (m@x#n)"
+    hence "y \<sharp> (m@x#n)" using typed_lambda.fresh_name by auto
+    hence "y \<sharp> m" and "y\<sharp>x" and "y\<sharp>n"
+      by (auto simp: fresh_list_append fresh_list_cons)
+    hence "y \<sharp> (m@n)" by (simp add: fresh_list_append)
+    have fresh_y: "y \<sharp> [(x, dB_to_lam (m @ n) t)]"                  
+      using `y\<sharp>x` `y\<sharp>(m@n)` by (auto simp: fresh_list_cons fresh_prod fresh_list_nil intro!: fresh_dB_to_lam)
+    def y' == "fresh_name (m@n)"
+    hence "y' \<sharp> (m@n)" using fresh_name by auto
+    hence "y' \<sharp> m" and "y' \<sharp> n"      by (auto simp: fresh_list_append)
+    have fresh_y': "y\<noteq>y' \<Longrightarrow> y' \<sharp> dB_to_lam (y # m @ n) (q[lift t 0/Suc (length m)])"
+      using `y'\<sharp>(m@n)` by (auto simp: fresh_list_cons fresh_prod fresh_list_nil fresh_atm intro!: fresh_dB_to_lam)
+
+    have IH: "\<And>t. dB_to_lam ((y#m) @ x # n) q[x::=dB_to_lam ((y#m) @ n) t] = dB_to_lam ((y#m) @ n) (q[t/length (y#m)])"
+      apply (rule Abs.IH[where m="y#m"]) using Abs.prems `y\<sharp>x` `y\<sharp>m` `y\<sharp>n` fresh_distinct by (auto simp: fresh_atm)
+      
+    have "dB_to_lam (m @ x # n) (Abs q)[x::=dB_to_lam (m @ n) t] 
+       = (Lam [y].dB_to_lam (y#m@x#n) q)[x::=dB_to_lam (m @ n) t]"
+       by (simp add: y_def Let_def)
+    also have "\<dots> = Lam [y].((dB_to_lam ((y#m)@x#n) q)[x::=dB_to_lam (m @ n) t])"
+      apply (subst psubst.simps) using fresh_y by auto
+    also have "... = Lam [y].((dB_to_lam ((y#m)@x#n) q)[x::=dB_to_lam ((y#m)@n) (lift t 0)])" by (simp add: lift_translate)
+    also have "(dB_to_lam ((y # m) @ x # n) q)[x::=dB_to_lam ((y # m) @ n) (lift t 0)]
+             = dB_to_lam ((y#m) @ n) (subst q (lift t 0) (length (y#m)))"
+      by (subst IH, simp)
+    also have "Lam [y].dB_to_lam ((y#m)@n) (subst q (lift t 0) (length (y#m)))
+             = Lam [y'].dB_to_lam (y'#m@n) (subst q (lift t 0) (length (y#m)))"
+      apply (subst lam.inject) unfolding alpha'
+      apply (cases "y'=y") close
+      using `y\<sharp>m` `y'\<sharp>m` `y\<sharp>n` `y'\<sharp>n` fresh_y' by (auto simp: rename_dB_to_lam swap_simps append_eqvt perm_fresh_fresh)
+    also have "\<dots> = dB_to_lam (m @ n) (subst (Abs q) t (length m))"
+      by (simp add: Let_def y'_def)
+
+    finally show ?case by assumption
+  next case (Var i)
+    consider (m) "i<length m" | (x) "i=length m" | (n) "i>length m" and "i<length m+length n+1" | (out) "i\<ge>length m+length n+1" apply atomize_elim by auto
+    then show ?case proof cases
+      case out then show ?thesis by (simp add: forget)
+      next case n thus ?thesis apply (auto simp: nth_append)
+        by (metis One_nat_def add_diff_cancel_left' add_less_cancel_left assms diff_Suc_1 diff_Suc_eq_diff_pred distinct.simps(2) less_imp_Suc_add nth_mem)
+      next case m thus ?thesis apply (auto simp: nth_append)
+        using Var.prems by auto
+      next case x thus ?thesis by auto
+    qed
+  qed auto
+  thus ?thesis unfolding m_def by auto
+qed
+
+fun fresh_names where
+  "fresh_names 0 = []"
+| "fresh_names (Suc n) = fresh_name (fresh_names n) # fresh_names n"
+
+lemma length_fresh_names: "length (fresh_names i) = i"
+  by (induction i, auto)
+lemma distinct_fresh_names: "distinct (fresh_names i)"
+  apply (induction i) using typed_lambda.fresh_distinct typed_lambda.fresh_name by auto
+
+lemma translate_beta: 
+  assumes "beta p q" and "nclosed (length n) p" and "distinct n"
+  shows "(dB_to_lam n p) \<longrightarrow>\<^sub>\<beta> (dB_to_lam n q)"
+using assms proof (induction arbitrary: n)
+case (beta s t) 
+  def x == "fresh_name n"
+  have "x \<sharp> n" unfolding x_def by (rule fresh_name)
+  have "dB_to_lam n (Abs s \<degree> t) = lam.App (Lam [x].dB_to_lam (x#n) s) (dB_to_lam n t)"
+    by (simp add: Let_def x_def)
+  also have "\<dots> \<longrightarrow>\<^sub>\<beta> (dB_to_lam (x#n) s) [ x ::= dB_to_lam n t ]"
+    apply (rule b4) using `x\<sharp>n` by (rule fresh_dB_to_lam)
+  also have "\<dots> = dB_to_lam n (s[t/0])"
+    apply (subst subst_translate)
+     using beta.prems `x\<sharp>n` fresh_distinct by (auto simp: fresh_atm)
+  finally show ?case by assumption
+next case appL thus ?case by auto
+next case appR thus ?case by auto
+next case abs thus ?case 
+  apply auto by (metis b3 fresh_name length_Cons fresh_distinct)
+next case pairL thus ?case by auto
+next case pairR thus ?case by auto
+next case unpair thus ?case by auto
+next case fst thus ?case by auto
+next case snd thus ?case by auto
+qed
+
+lemma nclosed_mono: "n \<le> m \<Longrightarrow> nclosed n p \<Longrightarrow> nclosed m p" 
+  apply (induction p arbitrary:n m) apply auto by blast
+lemma nclosed_lift: assumes "nclosed n t" shows "nclosed (Suc n) (lift t i)"
+  using assms apply (induction t arbitrary: n i) by auto
+lemma nclosed_subst: assumes "nclosed (Suc n) s" and "nclosed n t" shows "nclosed n (s[t::dB/0])"
+proof -
+  def i == "0::nat"
+  hence i_n: "i \<le> n" by simp
+  show ?thesis
+    unfolding i_def[symmetric] using assms i_n
+    apply (induction s arbitrary: i n t) by (auto simp: subst_Var nclosed_lift)
+qed
+lemma nclosed_pres: "p \<rightarrow>\<^sub>\<beta> p' \<Longrightarrow> nclosed n p \<Longrightarrow> nclosed n p'"
+  apply (induction arbitrary:n rule:beta.induct) using nclosed_subst by auto
+
+lemma well_typed_beta_reduce:
+  assumes wt: "typing E p T" shows "termip beta p"
+proof -
+  obtain i where nclosed: "nclosed i p" apply atomize_elim apply (induction p) using nclosed_mono apply auto
+    apply (tactic {* distinct_subgoals_tac *})
+   using nat_le_linear close blast 
+  using Suc_n_not_le_n nat_le_linear by blast
+  def n == "fresh_names i"
+  have distinct_n: "distinct n"
+    unfolding n_def by (rule distinct_fresh_names) 
+  have length_n: "length n = i"
+    by (simp add: n_def typed_lambda.length_fresh_names)
+
+  def lam_p == "dB_to_lam n p"
+  have sn: "SN lam_p"
+    unfolding lam_p_def
+    apply (rule typing_implies_SN)
+    apply (rule typ_pres)
+      close (fact wt) close (fact distinct_n)
+    using nclosed length_n by simp
+
+
+  from sn lam_p_def[THEN meta_eq_to_obj_eq] nclosed 
+  show "termip beta p"
+  proof (induction arbitrary: p)
+  case (SN_intro t)
+    have termip_succ: "termip beta p'" if p': "p \<rightarrow>\<^sub>\<beta> p'" for p'
+    proof -
+thm SN_intro
+      have succ: "t \<longrightarrow>\<^sub>\<beta> dB_to_lam n p'"
+        unfolding SN_intro apply (rule translate_beta)
+         close (fact p') using SN_intro length_n by simp
+      have ncl: "nclosed i p'" using p' SN_intro.prems(2) by (rule nclosed_pres)
+      show ?thesis
+        apply (rule SN_intro.IH) using succ ncl by auto
+    qed
+    show ?case
+      apply (rule accpI) using termip_succ by blast
+  qed
+qed
+
+
 
 subsection {* Terminating lambda terms *}
 
@@ -630,73 +1046,6 @@ lemma double_induction_lemma_Unpair [rule_format]:
 
 lemma IT_implies_termi: "IT t ==> termip beta t"
 apply (insert assms) SORRY "termination of beta reduction"
-(*proof (induct set: IT)
-case Var thus ?case 
-    apply (drule_tac rev_predicate1D [OF _ listsp_mono [where B="termip beta"]])
-    close (fast del: predicate1I intro!: predicate1I)
-    apply (drule lists_accD)
-    apply (erule accp_induct)
-    apply (rule accp.accI)
-    by (blast dest: head_Var_reduction)
-next case Lambda thus ?case
-   apply (erule_tac accp_induct)
-   apply (rule accp.accI)
-   by blast
-next case Beta thus ?case
-  by (blast intro: double_induction_lemma)
-next case (MkPair r s rs) 
-  have term_rs: "termip op => rs"
-    by (metis (full_types) ListOrder.lists_accD MkPair.hyps(5) listsp_conj_eq step1_converse)
-  have term_MkPair: "termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s)"
-    apply (insert `termip op \<rightarrow>\<^sub>\<beta> s`)
-    using `termip op \<rightarrow>\<^sub>\<beta> r` proof (induction arbitrary: s, simp)
-    fix r s
-    assume r:"termip op \<rightarrow>\<^sub>\<beta> r"
-    assume s:"termip op \<rightarrow>\<^sub>\<beta> s"
-    assume rIH: "\<And>r' s. r \<rightarrow>\<^sub>\<beta> r' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> s \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r' s)"
-    show "termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s)"
-      using s proof (induction)
-      fix s assume s:"termip op \<rightarrow>\<^sub>\<beta> s" 
-      assume "\<And>s'. op \<rightarrow>\<^sub>\<beta>\<inverse>\<inverse> s' s \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s')"
-      hence sIH: "\<And>s'. s \<rightarrow>\<^sub>\<beta> s' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s')" by simp
-      show "termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s)"
-        apply (rule accpI, simp)
-        apply (erule beta_cases, clarify)
-        close (erule rIH, rule s) 
-        by (simp, erule sIH)
-    qed
-  qed
-  show ?case
-    apply (insert term_MkPair)
-    using term_rs apply (induction arbitrary: r s, simp) apply (rename_tac rs' r s)
-    proof -
-    fix rs r s
-    assume rs: "termip op => rs" 
-    assume MkPair: "termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s)"
-    assume rsIH: "\<And>rs' r s. rs => rs' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s) \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s \<degree>\<degree> rs')"
-    show "termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r s \<degree>\<degree> rs)"
-      using MkPair apply (induction pair=="MkPair r s" arbitrary: r s) proof -
-      fix r s assume MkPair:"termip op \<rightarrow>\<^sub>\<beta> (MkPair r s)"
-      assume "\<And>r' s'. op \<rightarrow>\<^sub>\<beta>\<inverse>\<inverse> (dB.MkPair r' s') (dB.MkPair r s) \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r' s' \<degree>\<degree> rs)"
-      hence pairIH: "\<And>r' s'. dB.MkPair r s  \<rightarrow>\<^sub>\<beta>  dB.MkPair r' s' \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (dB.MkPair r' s' \<degree>\<degree> rs)" by simp
-      show "termip op \<rightarrow>\<^sub>\<beta> (MkPair r s \<degree>\<degree> rs)"
-      proof (rule accpI, simp) fix y assume "dB.MkPair r s \<degree>\<degree> rs \<rightarrow>\<^sub>\<beta> y" thus "termip op \<rightarrow>\<^sub>\<beta> y"  
-      proof (cases rule: apps_betasE)
-      case head thus "termip op \<rightarrow>\<^sub>\<beta> y" by (metis beta_cases(4) pairIH)
-      next case (tail rs') thus "termip op \<rightarrow>\<^sub>\<beta> y" by (metis MkPair rsIH) 
-      next case beta thus "termip op \<rightarrow>\<^sub>\<beta> y" by auto
-      qed qed
-    qed
-  qed
-next case (Unpair r b rs) 
-  from Unpair show ?case
-   apply (erule_tac accp_induct)
-   apply (rule accp.accI, simp)
-   apply (erule beta_cases, auto)
-   close (metixs (no_types) accp.cases fst not_accp_down pairL) 
-   by (mextis (no_types) accp.cases snd not_accp_down pairR) 
-qed
-*)
 
 subsection {* Every terminating term is in @{text "IT"} *}
 
