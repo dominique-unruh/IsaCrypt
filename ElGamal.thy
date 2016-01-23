@@ -2,6 +2,10 @@ theory ElGamal
 imports Hoare_Tactics Procs_Typed Tactic_Inline Lang_Simplifier RHL_Typed
 begin
 
+(* Working EC version with elgamal.ec:
+  47f69a002b66340bb3b4967b46973670a0e46750 (2015-10-16)  
+*)
+
 subsection {* General setup *}
 
 default_sort prog_type
@@ -132,7 +136,7 @@ apply (wp sample) apply skip apply auto
 unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat])
 apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
  *)
-SORRY "uncommented for speed"
+sorry (* "uncommented for speed" *)
 
 type_synonym 'g ElGamal_Adv = "('g, nat, 'g, 'g\<times>'g) CPA_Adv"
 
@@ -173,7 +177,7 @@ proof -
   have "game_probability p1 a1 m E = probability (denotation PROGRAM[ ?res1' := call p1(a1) ] m) {m. E (memory_lookup m ?res1')}" 
     unfolding game_probability_def program_def by simp
   also have "\<dots> = probability (denotation ?pr1 m) {m. E (memory_lookup m ?res1)}"
-    SORRY
+    sorry
   also have "... = probability (apply_to_distr fst \<mu>) {m. E (memory_lookup m ?res1)}"
     unfolding fst by simp
   also have "\<dots> = probability \<mu> {m12. E (memory_lookup (fst m12) ?res1)}"
@@ -186,7 +190,7 @@ proof -
   also have "\<dots> = probability (denotation ?pr2 m) {m. F (memory_lookup m ?res2)}"
     unfolding snd by simp
   also have "\<dots> = probability (denotation PROGRAM[ ?res2' := call p2(a2) ] m) {m. F (memory_lookup m ?res2')}" 
-    SORRY
+    sorry
   also have "\<dots> = game_probability p2 a2 m F"
     unfolding game_probability_def program_def by simp
 
@@ -204,6 +208,48 @@ using assms unfolding rhoare_def by auto
 lemma lang_simp_whilefalse [lang_simp]: "fun_equiv denotation (assign unit_pattern e) Lang_Typed.skip"
   sorry
 
+lemma LVariable_notin_write_vars_proc_global [simp]: "mk_variable_untyped (LVariable x) \<notin> set (write_vars_proc_global f)" sorry
+lemma LVariable_notin_vars_proc_global [simp]: "mk_variable_untyped (LVariable x) \<notin> set (vars_proc_global f)" sorry
+
+abbreviation "res == LVariable ''res''"
+abbreviation "args == LVariable ''args''"
+
+(* TODO: define product_type on untyped level *)
+(* TODO define pair pattern on untyped level *)
+definition pair_pattern_untyped :: "pattern_untyped \<Rightarrow> pattern_untyped \<Rightarrow> pattern_untyped" where
+  "pair_pattern_untyped = undefined"
+lemma Rep_pair_pattern': "Rep_pattern (pair_pattern x y) = pair_pattern_untyped (Rep_pattern x) (Rep_pattern y)"
+  sorry
+
+fun list_pattern :: "variable_untyped list \<Rightarrow> pattern_untyped" where
+  "list_pattern [] = pattern_ignore unit_type"
+| "list_pattern (x#xs) = pair_pattern_untyped (pattern_1var x) (list_pattern xs)"
+
+(*
+{P} f ~ g {Q}
+{A} p ~ q {  P{y_1/arg_1, y_2/arg_2}  /\  
+      \forall gR,gL,yL,yR.   Q{gL/glob f1,gR/glob f2,yL/res_1,yR/res_2}
+                                ==> B{gL/glob f1,gR/glob f2,yL/x_1,yR/x_2}  }
+-----------------------------------------------
+{A} p;x=f(y) ~ q;x=f(y) {B}  
+*)
+lemma call_rule:
+  fixes globals_f1 globals_f2
+  assumes "set(vars_proc_global f1) \<subseteq> set globals_f1"
+  assumes "set(vars_proc_global f2) \<subseteq> set globals_f2"
+  assumes "rhoare P
+              (callproc (variable_pattern res) f1 (var_expression args))
+              (callproc (variable_pattern res) f2 (var_expression args))
+              Q"
+  assumes "rhoare A p1 p2 (\<lambda>m1 m2.
+      P (memory_update m1 args (e_fun y1 m1)) (memory_update m2 args (e_fun y2 m2)) \<and>
+      (\<forall>gL gR xL xR. Q (memory_update (memory_update_untyped_pattern m1 (list_pattern globals_f1) gL) res xL) 
+                       (memory_update (memory_update_untyped_pattern m2 (list_pattern globals_f2)  gL) res xR)
+                \<longrightarrow> B (memory_update_pattern (memory_update_untyped_pattern m1 (list_pattern globals_f1) gL) x1 xL) 
+                      (memory_update_pattern (memory_update_untyped_pattern m2 (list_pattern globals_f2) gL) x2 xR)))"
+  shows "rhoare A (seq p1 (callproc x1 f1 y1)) (seq p2 (callproc x2 f2 y2)) B"
+sorry
+
 lemma cpa_ddh0:
   "game_probability (CPA_main<$>(ElGamal,A)) () m (\<lambda>res. res)
  = game_probability (DDH0<$>(DDHAdv<$>A)) () m (\<lambda>res. res)" 
@@ -211,13 +257,64 @@ lemma cpa_ddh0:
 apply (rule byequiv_rule)
 apply (inline "CPA_main<$>(ElGamal,A)")
 apply (inline "DDH0<$>(DDHAdv<$>A)")
+apply (inline "keygen <$> ElGamal")
+apply (inline "enc <$> ElGamal")
 apply simp
-apply wp
 
+(*
+pre = (glob A){2} = (glob A){m} /\ (glob A){1} = (glob A){m}
+
+sk0 <$ FDistr.dt            (1)  x <$ FDistr.dt                        
+(pk, sk) <- (g ^ sk0, sk0)  (2)  y <$ FDistr.dt                        
+(m0, m1) <@ A.choose(pk)    (3)  gx <- g ^ x                           
+b <$ {0,1}                  (4)  gy <- g ^ y                           
+pk0 <- pk                   (5)  gz <- g ^ (x * y)                     
+m <- b ? m1 : m0            (6)  (m0, m1) <@ A.choose(gx)              
+y <$ FDistr.dt              (7)  b0 <$ {0,1}                           
+c <- (g ^ y, pk0 ^ y * m)   (8)  b' <@ A.guess(gy, gz * (b0 ? m1 : m0))
+b' <@ A.guess(c)            (9)  b <- b' = b0                          
+
+post = (b'{1} = b{1}) = b{2}
+*)
+
+apply (rule denotation_eq_rule_left) apply (tactic \<open>Hoare_Tactics.swap_tac @{context} ([10],6) 4 false 1\<close>) (* TODO right numbers *)
 apply simp
-apply (rule denotation_eq_rule_left)
-apply (tactic \<open>Hoare_Tactics.swap_tac @{context} ([2],6) 1 1\<close>) (* TODO right numbers *)
+
+(*
+pre = (glob A){2} = (glob A){m} /\ (glob A){1} = (glob A){m}
+
+sk0 <$ FDistr.dt            (1)  x <$ FDistr.dt                        
+y <$ FDistr.dt              (2)  y <$ FDistr.dt                        
+(pk, sk) <- (g ^ sk0, sk0)  (3)  gx <- g ^ x                           
+(m0, m1) <@ A.choose(pk)    (4)  gy <- g ^ y                           
+b <$ {0,1}                  (5)  gz <- g ^ (x * y)                     
+pk0 <- pk                   (6)  (m0, m1) <@ A.choose(gx)              
+m <- b ? m1 : m0            (7)  b0 <$ {0,1}                           
+c <- (g ^ y, pk0 ^ y * m)   (8)  b' <@ A.guess(gy, gz * (b0 ? m1 : m0))
+b' <@ A.guess(c)            (9)  b <- b' = b0                          
+
+post = (b'{1} = b{1}) = b{2}
+*)
+
+apply wp
 apply simp
+
+(*
+pre = (glob A){2} = (glob A){m} /\ (glob A){1} = (glob A){m}
+
+sk0 <$ FDistr.dt            (1)  x <$ FDistr.dt                        
+y <$ FDistr.dt              (2)  y <$ FDistr.dt                        
+(pk, sk) <- (g ^ sk0, sk0)  (3)  gx <- g ^ x                           
+(m0, m1) <@ A.choose(pk)    (4)  gy <- g ^ y                           
+b <$ {0,1}                  (5)  gz <- g ^ (x * y)                     
+pk0 <- pk                   (6)  (m0, m1) <@ A.choose(gx)              
+m <- b ? m1 : m0            (7)  b0 <$ {0,1}                           
+c <- (g ^ y, pk0 ^ y * m)   (8)  b' <@ A.guess(gy, gz * (b0 ? m1 : m0))
+b' <@ A.guess(c)            (9)                                        
+
+post = (b'{1} = b{1}) = (b'{2} = b0{2})
+*)
+
 
 sorry
 

@@ -141,15 +141,20 @@ fun procedure_info_conv partial : Proof.context -> conv =
 
    E.g., "{mk_variable_untyped (LVariable ''a'')} \<union> set (local_vars (p_body f)) 
         \<subseteq> {mk_variable_untyped (LVariable ''a''), mk_variable_untyped (LVariable ''b'')}"
+
+   With leave=true, leaves unsolvable subgoals instead of failing
 *)
-fun procedure_info_varseteq_tac ctx =
-  CONVERSION (procedure_info_conv false ctx)
-  THEN'
-  Tools.ASSERT_SOLVED' (simp_tac ctx)
-         (fn subgoal1 => fn subgoals => 
-            raise TERM("In procedure_info_varseteq_tac, I got subgoal (1).\n"^
-                       "I could not prove that subgoal using simp_tac.\n",
-                         subgoal1::subgoals))
+fun procedure_info_varseteq_tac ctx leave =
+  if leave then 
+    CONVERSION (procedure_info_conv false ctx) THEN' simp_tac ctx
+  else
+    CONVERSION (procedure_info_conv false ctx)
+    THEN'
+    Tools.ASSERT_SOLVED' (simp_tac ctx)
+           (fn subgoal1 => fn subgoals => 
+              raise TERM("In procedure_info_varseteq_tac, I got subgoal (1).\n"^
+                         "I could not prove that subgoal using simp_tac.\n",
+                           subgoal1::subgoals))
 
 
 fun register_procedure_thm thm lthy = 

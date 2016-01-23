@@ -1,7 +1,40 @@
 theory Scratch2
-imports Procs_Typed
+imports Main Rewrite
 begin
 
+ML "open Rewrite"
+
+lemma 
+  fixes x :: nat
+  assumes x: "x=2"
+  shows "4*4=8"
+  apply (rewrite at 4 eq_reflection)
+proof -
+
+ML_val {*
+  val pat = [At, Term (@{term "4::nat"},[])]
+  val res = rewrite_conv @{context} (pat,NONE) @{thms eq_reflection}
+            @{cterm "4*4=8"}
+*}
+  apply (rewrite at x x)
+  
+
+
+
+ML {*
+  val pc0 : Rewrite.patconv = rewrs_pconv NONE @{thms refl}
+  val pc : Rewrite.patconv =  pc0 
+  (* |> (fn p => Rewrite.match_pconv p (@{term "5::int"},[]))  *)
+  |> params_pconv o concl_pconv
+  (* |> in_pconv *)
+;;
+  
+  pc
+  @{context} (Vartab.empty,[]) @{cterm "x*5=x"}
+*}
+
+
+ML
 module_type ('pk) EncScheme =
   keygen :: "(unit,unit) procedure"
 

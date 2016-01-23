@@ -235,13 +235,16 @@ fun extract_range_tac _   ([],_)   = error "empty range given"
 (* Swaps two code parts in a goal of the form "denotation xxx = denotation ?c"
 
   The parts are specified by giving a range (that contains both parts), and an index len1
-  giving the length of the first *)
-fun swap_tac ctx range len1 i =
+  giving the length of the first
+
+  If leave=false, leaves unsolved subgoals instead of failing
+ *)
+fun swap_tac ctx range len1 leave i =
   extract_range_tac ctx range i
   THEN split_with_seq_tac ctx len1 i
   THEN resolve_tac ctx @{thms seq_swap2} i
-  THEN (simp_tac ctx THEN_ALL_NEW Procs_Typed.procedure_info_varseteq_tac ctx) (i+1)
-  THEN (simp_tac ctx THEN_ALL_NEW Procs_Typed.procedure_info_varseteq_tac ctx) i
+  THEN (simp_tac ctx THEN_ALL_NEW Procs_Typed.procedure_info_varseteq_tac ctx leave) (i+1)
+  THEN (simp_tac ctx THEN_ALL_NEW Procs_Typed.procedure_info_varseteq_tac ctx leave) i
 
 
 end

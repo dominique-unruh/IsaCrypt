@@ -6,23 +6,6 @@ begin
 
 
 
-
-
-
-
-
-
-ML {*
-
-*}
-
-ML {*
-*}
-
-
-ML {*
-*}
-
 procedure f where "f = LOCAL x. proc () { x := (1::int); return () }"
 
 procedure g where "g = LOCAL x. proc () { x := call f(); return () }"
