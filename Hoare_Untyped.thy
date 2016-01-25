@@ -6,7 +6,7 @@ definition hoare_untyped :: "(memory \<Rightarrow> bool) \<Rightarrow> program_r
   "hoare_untyped pre prog post =
   (\<forall>m. pre m \<longrightarrow> (\<forall>m'. m' \<in> support_distr (denotation_untyped prog m) 
                   \<longrightarrow> post m'))"
-
+                                                                               
 definition hoare_denotation :: "(memory \<Rightarrow> bool) \<Rightarrow> _ \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> bool" where
   "hoare_denotation pre prog post = (\<forall>m. pre m \<longrightarrow> (\<forall>m'. m' \<in> support_distr (prog m) \<longrightarrow> post m'))"
 lemma hoare_denotation_0': 

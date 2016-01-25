@@ -7,14 +7,16 @@ subsection {* Types *}
 definition "Type (_::('a::prog_type) itself) 
     = Abs_type \<lparr> tr_domain=range (embedding::'a\<Rightarrow>val),
                  tr_default=embedding (default::'a) \<rparr>"
-
-lemma bool_type: "bool_type = Type TYPE(bool)"
-  unfolding bool_type_def Type_def ..
+lemma Rep_type_Type: "Rep_type (Type (T::'a::prog_type itself)) = 
+               \<lparr> tr_domain=range (embedding::'a\<Rightarrow>val),
+                 tr_default=embedding (default::'a) \<rparr>"
+  unfolding Type_def by (subst Abs_type_inverse, auto)
 
 lemma embedding_Type: "embedding (x::'a::prog_type) \<in> t_domain (Type TYPE('a))"
   unfolding Type_def t_domain_def
   by (subst Abs_type_inverse, auto)
-lemma embedding_Type_range: "range (embedding::'a\<Rightarrow>val) = t_domain (Type TYPE('a::prog_type))"
+(* lemma embedding_Type_range: "range (embedding::'a\<Rightarrow>val) = t_domain (Type TYPE('a::prog_type))" *) (* t_domain_Type[symmetric] *)
+lemma t_domain_Type [simp]: "t_domain (Type TYPE('a::prog_type)) = range (embedding::'a\<Rightarrow>val)"
   unfolding Type_def t_domain_def
   by (subst Abs_type_inverse, auto)
 
@@ -25,8 +27,15 @@ lemma embedding_inv_embedding:
   assumes "x \<in> t_domain (Type TYPE('a::prog_type))"
   shows "embedding (inv embedding x :: 'a) = x"
 unfolding inv_def apply (rule exE_some[where P="\<lambda>y. embedding y = x"])
-using assms unfolding embedding_Type_range[symmetric] by auto
+using assms by auto
 
+lemma bool_type: "bool_type = Type TYPE(bool)"
+  unfolding bool_type_def Type_def ..
+
+lemma prod_type: "prod_type (Type TYPE('a::prog_type)) (Type TYPE('b::prog_type)) = Type TYPE('a\<times>'b)"
+  apply (subst Rep_type_inject[symmetric])
+  unfolding Rep_prod_type Rep_type_Type apply auto
+  unfolding embedding_def embedding'_prod_def default_prod_def image_def by auto  
 
 subsection {* Variables *}
 
@@ -98,7 +107,7 @@ proof -
   have v_type: "v \<in> t_domain (Type TYPE('a))"
     by (metis v_def memory_lookup_untyped_type mk_variable_untyped_type)
   have v_range: "v \<in> range (embedding::'a\<Rightarrow>val)"
-    by (simp add: embedding_Type_range v_type)
+    by (simp del: t_domain_Type add: t_domain_Type[symmetric] v_type)
   have "v = embedding (inv embedding v :: 'a)"
     by (simp add: v_range f_inv_into_f)
   thus ?thesis unfolding v_def memory_lookup_def .
@@ -174,7 +183,7 @@ proof (rule trans[OF _ Rep_expression_untyped_inverse], cases "Rep_expression_un
     by (subst Abs_expression_inverse, auto, metis f_touches)
   have inv: "\<And>m. embedding (inv embedding (f m)::'a) = f m"
     apply (subst f_inv_into_f[where f=embedding], auto)
-    using f_t unfolding t embedding_Type_range .
+    using f_t unfolding t by simp
   have h1: "mk_expression_untyped (Abs_expression \<lparr>er_fun = \<lambda>m. inv embedding (f m), er_vars = v\<rparr> :: 'a expression) =
     Abs_expression_untyped \<lparr>eur_fun = f, eur_type = t, eur_vars = v\<rparr>"
     unfolding mk_expression_untyped_def 
@@ -227,7 +236,6 @@ lemma Rep_mk_expression_distr: "Rep_expression_distr (mk_expression_distr (e::('
     edr_vars=e_vars e \<rparr>"
       unfolding mk_expression_distr_def
       apply (subst Abs_expression_distr_inverse, auto)
-       using embedding_Type_range close blast
       by (metis embedding_inv' eu_fun_footprint mk_expression_untyped_fun mk_expression_untyped_vars)
 
 definition mk_expression_distr_typed :: "expression_distr \<Rightarrow> 'a::prog_type distr expression" where
@@ -262,8 +270,7 @@ proof -
   have F: "\<And>F \<mu>. (\<forall>x\<in>support_distr \<mu>. F x = x) \<Longrightarrow> apply_to_distr F \<mu> = \<mu>"
     using apply_to_distr_cong by fastforce
   have f: "\<And>m. apply_to_distr (\<lambda>x::val. embedding (inv embedding x :: 'a)) (f m) = f m"
-    apply (rule F) using f_supp t
-    by (metis embedding_Type_range f_inv_into_f subsetCE)
+    apply (rule F) using f_supp t embedding_inv_embedding by blast
   show ?thesis
     apply (rule Rep_expression_distr_inject[THEN iffD1])
     apply (subst Rep_mk_expression_distr)
@@ -355,11 +362,17 @@ lemma Rep_unit_pattern: "Rep_pattern_untyped (Rep_pattern unit_pattern) = \<lpar
 
 lemma vars_unit_pattern [simp]: "p_vars unit_pattern = []"
   unfolding p_vars_def unit_pattern_def apply (subst Abs_pattern_inverse) by (auto simp: Type_def unit_type_def)
-definition "pair_pattern (p1::'a pattern) (p2::'b pattern) = (Abs_pattern (Abs_pattern_untyped 
+(*definition "pair_pattern (p1::'a pattern) (p2::'b pattern) = (Abs_pattern (Abs_pattern_untyped 
   \<lparr> pur_var_getters=(map (\<lambda>(v,g). (v,g o embedding o fst o inv (embedding::'a*'b\<Rightarrow>_))) (p_var_getters p1))
                   @ (map (\<lambda>(v,g). (v,g o embedding o snd o inv (embedding::'a*'b\<Rightarrow>_))) (p_var_getters p2)),
-    pur_type=Type TYPE('a::prog_type*'b::prog_type) \<rparr>) :: ('a*'b) pattern)"
-lemma Rep_pair_pattern: "Rep_pattern_untyped (Rep_pattern (pair_pattern (p1::'a pattern) (p2::'b pattern))) = 
+    pur_type=Type TYPE('a::prog_type*'b::prog_type) \<rparr>) :: ('a*'b) pattern)"*)
+definition "pair_pattern (p1::'a::prog_type pattern) (p2::'b::prog_type pattern) = (Abs_pattern (pair_pattern_untyped (Rep_pattern p1) (Rep_pattern p2)) :: ('a\<times>'b) pattern)"
+
+lemma Rep_pair_pattern: "Rep_pattern (pair_pattern (p1::'a::prog_type pattern) (p2::'b::prog_type pattern))
+                      = pair_pattern_untyped (Rep_pattern p1) (Rep_pattern p2)"
+unfolding pair_pattern_def apply (subst Abs_pattern_inverse) using prod_type by auto
+
+(* lemma Rep_pair_pattern: "Rep_pattern_untyped (Rep_pattern (pair_pattern (p1::'a pattern) (p2::'b pattern))) = 
   \<lparr> pur_var_getters=(map (\<lambda>(v,g). (v,g o embedding o fst o inv (embedding::'a*'b\<Rightarrow>_))) (p_var_getters p1))
                   @ (map (\<lambda>(v,g). (v,g o embedding o snd o inv (embedding::'a*'b\<Rightarrow>_))) (p_var_getters p2)),
     pur_type=Type TYPE('a::prog_type*'b::prog_type) \<rparr>"
@@ -369,16 +382,26 @@ lemma Rep_pair_pattern: "Rep_pattern_untyped (Rep_pattern (pair_pattern (p1::'a 
   apply (metis (mono_tags, lifting) Rep_pattern_untyped mem_Collect_eq old.prod.case p_var_getters_def pu_var_getters_def)
   apply (subst Abs_pattern_untyped_inverse, auto)
   apply (metis (mono_tags, lifting) Rep_pattern_untyped mem_Collect_eq old.prod.case p_var_getters_def pu_var_getters_def)
-  by (metis (mono_tags, lifting) Rep_pattern_untyped mem_Collect_eq old.prod.case p_var_getters_def pu_var_getters_def)
+  by (metis (mono_tags, lifting) Rep_pattern_untyped mem_Collect_eq old.prod.case p_var_getters_def pu_var_getters_def) *)
 
 lemma var_getters_pair_pattern: "p_var_getters (pair_pattern (p1::'a::prog_type pattern) (p2::'b::prog_type pattern)) = 
-    map (\<lambda>(v,g). (v, g \<circ> embedding \<circ> fst \<circ> inv (embedding::'a*'b\<Rightarrow>_)))  (p_var_getters p1) @
-    map (\<lambda>(v, g). (v, g \<circ> embedding \<circ> snd \<circ> inv (embedding::'a*'b\<Rightarrow>_))) (p_var_getters p2)"
-  unfolding p_var_getters_def pu_var_getters_def Rep_pair_pattern by simp
-
+(let T = Type TYPE('a\<times>'b)
+ in map (\<lambda>(v, g). (v, \<lambda>x. if x \<in> t_domain T then (g \<circ> fst \<circ> inv val_prod_embedding) x else t_default (vu_type v))) (p_var_getters p1) @
+    map (\<lambda>(v, g). (v, \<lambda>x. if x \<in> t_domain T then (g \<circ> snd \<circ> inv val_prod_embedding) x else t_default (vu_type v))) (p_var_getters p2))"
+unfolding p_var_getters_def Rep_pair_pattern pu_var_getters_pair_pattern
+unfolding pu_type_pair_pattern prod_type Rep_pu_type
+by simp
+(*proof -
+  find_theorems "inv (_ o _)"
+  have t1: "g o fst \<circ> inv val_prod_embedding = g o embedding \<circ> fst \<circ> inv (embedding::'a\<times>'b\<Rightarrow>_)" for g::"val\<Rightarrow>val"
+    unfolding embedding_def embedding'_prod_def o_def[symmetric] apply simp
+sorry
+  have t2: "\<And>g::val\<Rightarrow>val. g o snd \<circ> inv val_prod_embedding = g o embedding \<circ> snd \<circ> inv (embedding::'a\<times>'b\<Rightarrow>_)" sorry
+  show ?thesis
+    unfolding p_var_getters_def pu_var_getters_def Rep_pair_pattern Rep_pair_pattern_untyped t1 t2 by simp
+qed*)
 lemma vars_pair_pattern [simp]: "p_vars (pair_pattern p1 p2) = p_vars p1 @ p_vars p2"
-    unfolding p_vars_def pu_vars_def apply (subst pu_var_getters_def) unfolding Rep_pair_pattern apply simp
-    unfolding p_var_getters_def[symmetric] by auto
+    unfolding p_vars_def pu_vars_def unfolding Rep_pair_pattern by auto
 
 
 
@@ -399,10 +422,49 @@ lemma memory_update_variable_pattern [simp]: "memory_update_pattern m (variable_
   apply (subst Abs_pattern_inverse)
    close simp
   by (simp add: embedding_Type memory_update_def)
-lemma memory_update_pair_pattern [simp]:
-(*  fixes p1 p2 and m::memory and x1::"'a::prog_type" and x2::"'b::prog_type"
-  shows *) "memory_update_pattern m (pair_pattern p1 p2) (x1,x2) = memory_update_pattern (memory_update_pattern m p1 x1) p2 x2"
+
+
+(* TODO move to Lang_Untyped *)
+lemma memory_update_pair_pattern_untyped:
+  assumes "x1 \<in> t_domain (pu_type p1)" and "x2 \<in> t_domain (pu_type p2)"
+  shows "memory_update_untyped_pattern m (pair_pattern_untyped p1 p2) (val_prod_embedding (x1,x2)) = memory_update_untyped_pattern (memory_update_untyped_pattern m p1 x1) p2 x2"
 proof -
+  def p1vg == "pu_var_getters p1"
+  def p2vg == "pu_var_getters p2"
+  def T == "pu_type (pair_pattern_untyped p1 p2)"
+  def fstg == "\<lambda>(v::variable_untyped) g. \<lambda>x. if x \<in> t_domain T then (g \<circ> fst \<circ> inv val_prod_embedding) x else t_default (vu_type v)"
+  def sndg == "\<lambda>(v::variable_untyped) g. \<lambda>x. if x \<in> t_domain T then (g \<circ> snd \<circ> inv val_prod_embedding) x else t_default (vu_type v)"
+
+  from assms have x1x2_T: "val_prod_embedding (x1,x2) \<in> t_domain T"
+    unfolding T_def pu_type_pair_pattern t_domain_prod by simp
+
+  have fst_simp: "memory_update_untyped m (fst vf) (fstg (fst vf) (snd vf) (val_prod_embedding (x1, x2)))
+     = memory_update_untyped m (fst vf) (snd vf x1)" for vf m 
+     unfolding fstg_def apply (simp add: x1x2_T) apply (subst inv_f_f[OF inj_val_prod_embedding]) by simp
+  have snd_simp: "memory_update_untyped m (fst vf) (sndg (fst vf) (snd vf) (val_prod_embedding (x1, x2)))
+     = memory_update_untyped m (fst vf) (snd vf x2)" for vf m 
+     unfolding sndg_def apply (simp add: x1x2_T) apply (subst inv_f_f[OF inj_val_prod_embedding]) by simp
+
+  have "foldl (\<lambda>m (v, f). memory_update_untyped m v (f (val_prod_embedding (x1, x2)))) m
+     (map (\<lambda>(v, g). (v, fstg v g)) p1vg @
+      map (\<lambda>(v, g). (v, sndg v g)) p2vg) =
+    foldl (\<lambda>m (v, f). memory_update_untyped m v (f x2)) (foldl (\<lambda>m (v, f). memory_update_untyped m v (f x1)) m p1vg) p2vg"
+      unfolding foldl_append split_def foldl_map apply simp
+      unfolding fst_simp snd_simp by simp
+
+  thus ?thesis
+    unfolding memory_update_untyped_pattern_def pu_var_getters_pair_pattern p1vg_def[symmetric] 
+        p2vg_def[symmetric] T_def[symmetric] fstg_def sndg_def Let_def by simp
+qed
+
+
+lemma memory_update_pair_pattern [simp]:
+  "memory_update_pattern m (pair_pattern p1 p2) (x1,x2) = memory_update_pattern (memory_update_pattern m p1 x1) p2 x2"
+unfolding memory_update_pattern_def Rep_pair_pattern embedding_def embedding'_prod_def apply simp
+apply (rule memory_update_pair_pattern_untyped)
+by (simp_all add: embedding_def)
+
+(*proof -
   def p1vg == "p_var_getters p1"
   def p2vg == "p_var_getters p2"
   have tmp: "inv embedding (embedding (x1, x2)) = (x1,x2)"
@@ -423,7 +485,8 @@ note [[show_types,show_sorts,show_consts]]
     unfolding memory_update_pattern_def memory_update_untyped_pattern_def p_var_getters_def[symmetric]
       var_getters_pair_pattern p1vg_def p2vg_def
     by auto
-qed
+qed*)
+
 lemma memory_update_pair_pattern':
   "memory_update_pattern m (pair_pattern p1 p2) x = memory_update_pattern (memory_update_pattern m p1 (fst x)) p2 (snd x)"
   by (cases x, simp)
@@ -920,18 +983,11 @@ lemma rename_local_variables_pair_pattern [simp]:
   "rename_local_variables_pattern R (pair_pattern p1 p2)
   = pair_pattern (rename_local_variables_pattern R p1) (rename_local_variables_pattern R p2)"
   apply (rule Rep_pattern_inject[THEN iffD1])
-  apply (subst Rep_rename_local_variables_pattern)
-  apply (rule Rep_pattern_untyped_inject[THEN iffD1])
   apply (subst Rep_pair_pattern)
-  apply (subst Rep_rename_variables_pattern) close simp
-  apply (subst pu_var_getters_def)
-  apply (subst Rep_pair_pattern)
-  apply auto
-  unfolding p_var_getters_def
   apply (subst Rep_rename_local_variables_pattern)+
-  apply (subst pu_var_getters_rename_variables_pattern[OF local_variable_name_renaming_type])+
-  unfolding apfst_def map_prod_def id_def
-  by auto  
+  apply (subst Rep_pair_pattern)
+  apply (subst rename_variables_pair_pattern) close auto
+  by (rule refl)
 
 lemma e_vars_rename_local_variables_expression [simp]: "e_vars (rename_local_variables_expression ren e) = 
   map (local_variable_name_renaming ren) (e_vars e)"

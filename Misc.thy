@@ -60,4 +60,9 @@ lemma mono_funD: "\<And>x. mono f \<Longrightarrow> mono (\<lambda>i. f i x)"
 lemma mono_funI: "(\<And>x. mono (\<lambda>i. f i x)) \<Longrightarrow> mono f"
   unfolding mono_def le_fun_def by auto
 
+instantiation prod :: (default,default) default begin
+definition "default_prod = (default,default)"
+instance by intro_classes
+end
+
 end

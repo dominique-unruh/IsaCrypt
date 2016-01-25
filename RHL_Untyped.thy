@@ -757,7 +757,7 @@ lemma obseq_mono1:
   assumes "X' \<ge> X"
   assumes "obs_eq_untyped X Y c d"
   shows "obs_eq_untyped X' Y c d"
-by (smt assms(1) assms(2) obs_eq_untyped_def rconseq_rule rev_subsetD)
+by (smt assms(1) assms(2) obs_eq_untyped_def rconseq_rule set_mp)
 
 lemma obseq_mono2: 
   assumes "Y' \<le> Y"

@@ -30,6 +30,17 @@ definition "bool_type =
 definition "unit_type =
       Abs_type \<lparr> tr_domain=range (embedding::unit\<Rightarrow>val),
                  tr_default=embedding (default::unit) \<rparr>"
+definition "prod_type T1 T2 = 
+      Abs_type \<lparr> tr_domain = val_prod_embedding ` (t_domain T1 \<times> t_domain T2),
+                 tr_default = val_prod_embedding (t_default T1, t_default T2) \<rparr>"
+lemma Rep_prod_type: "Rep_type (prod_type T1 T2)
+            = \<lparr>tr_domain = val_prod_embedding ` (t_domain T1 \<times> t_domain T2),
+               tr_default = val_prod_embedding (t_default T1, t_default T2)\<rparr>"
+    unfolding prod_type_def apply (subst Abs_type_inverse) by auto
+
+lemma t_domain_prod [simp]: "t_domain (prod_type T1 T2) = val_prod_embedding ` (t_domain T1 \<times> t_domain T2)" (is ?domain)
+  and t_default_prod [simp]: "t_default (prod_type T1 T2) = val_prod_embedding (t_default T1, t_default T2)" (is ?default)
+unfolding t_domain_def t_default_def Rep_prod_type by auto
 
 definition "freshvar vs = (SOME vn. \<forall>v\<in>set vs. vn \<noteq> vu_name v)"
 lemma freshvar_def2: "\<forall>v\<in>set vs. (freshvar vs) \<noteq> vu_name v"
@@ -254,7 +265,7 @@ record pattern_rep =
 
 typedef pattern_untyped = "{(p::pattern_rep). 
   (\<forall>(v,f)\<in>set(pur_var_getters p). 
-    (\<forall>x(*\<in>t_domain (pur_type p)*). f x \<in> t_domain (vu_type v)))}"
+    ((\<forall>x. f x \<in> t_domain (vu_type v)) \<and> (\<forall>x\<in>-t_domain (pur_type p). f x = t_default (vu_type v))))}"
   by (rule exI[of _ "\<lparr> pur_var_getters=[], pur_type=undefined \<rparr>"], simp)
 
 
@@ -275,12 +286,35 @@ lemma p_type_pattern_1var [simp]: "pu_type (pattern_1var v) = vu_type v"
   by (simp add: Abs_pattern_untyped_inverse pu_type_def pattern_1var_def)
 
 definition "pattern_ignore T = Abs_pattern_untyped \<lparr> pur_var_getters=[], pur_type=T \<rparr>"
+lemma Rep_pattern_ignore: "Rep_pattern_untyped (pattern_ignore T) = \<lparr> pur_var_getters=[], pur_type=T \<rparr>"
+  by (simp add: Abs_pattern_untyped_inverse pattern_ignore_def)
 lemma p_var_getters_pattern_ignore [simp]: "pu_var_getters (pattern_ignore T) = []"
   by (simp add: Abs_pattern_untyped_inverse pu_var_getters_def pattern_ignore_def)
 lemma p_vars_pattern_ignore [simp]: "pu_vars (pattern_ignore T) = []"
   unfolding pu_vars_def by simp
 lemma p_type_pattern_ignore [simp]: "pu_type (pattern_ignore T) = T"
   by (simp add: Abs_pattern_untyped_inverse pu_type_def pattern_ignore_def)
+
+definition pair_pattern_untyped :: "pattern_untyped \<Rightarrow> pattern_untyped \<Rightarrow> pattern_untyped" where
+  "pair_pattern_untyped p1 p2 = (let T = prod_type (pu_type p1) (pu_type p2) in Abs_pattern_untyped 
+  \<lparr> pur_var_getters=(map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o fst o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p1))
+                  @ (map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o snd o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p2)),
+    pur_type=T \<rparr>)"
+lemma Rep_pair_pattern_untyped: "Rep_pattern_untyped (pair_pattern_untyped p1 p2) = (let T = prod_type (pu_type p1) (pu_type p2) in
+  \<lparr> pur_var_getters=(map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o fst o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p1))
+                  @ (map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o snd o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p2)),
+    pur_type=T \<rparr>)"
+unfolding pair_pattern_untyped_def Let_def
+apply (subst Abs_pattern_untyped_inverse)
+apply auto
+using Rep_pattern_untyped pu_var_getters_def by fastforce+
+lemma pu_type_pair_pattern [simp]: "pu_type (pair_pattern_untyped p1 p2) = prod_type (pu_type p1) (pu_type p2)"
+  unfolding pu_type_def Rep_pair_pattern_untyped by simp
+lemma pu_var_getters_pair_pattern [simp]: "pu_var_getters (pair_pattern_untyped p1 p2) = 
+    (let T = pu_type (pair_pattern_untyped p1 p2) in
+                    (map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o fst o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p1))
+                  @ (map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o snd o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p2)))"
+  unfolding pu_var_getters_def Rep_pair_pattern_untyped by simp                                          
 
 definition memory_update_untyped_pattern :: "memory \<Rightarrow> pattern_untyped \<Rightarrow> val \<Rightarrow> memory" where
   "memory_update_untyped_pattern m p x = 
@@ -299,7 +333,7 @@ proof -
     using assms getters_def pu_vars_def by auto
   def good \<equiv> "\<lambda>(v::variable_untyped,f::val\<Rightarrow>val). (\<forall>x. f x \<in> t_domain (vu_type v))"
   have good: "\<forall>getter \<in> set getters. good getter"
-    using Rep_pattern_untyped getters_def good_def pu_var_getters_def by auto
+    using Rep_pattern_untyped unfolding getters_def good_def pu_var_getters_def apply auto by blast
   show ?thesis
     unfolding memory_update_untyped_pattern_def memory_update_untyped_pattern_getter_def getters_def[symmetric]
   proof (insert vgetters, insert good, induct getters arbitrary: m v rule:rev_induct)
@@ -781,7 +815,8 @@ lemma Rep_rename_variables_pattern:
          \<lparr> pur_var_getters=map (apfst f) (pu_var_getters p), pur_type=pu_type p \<rparr>"
   unfolding rename_variables_pattern_def
   apply (subst Abs_pattern_untyped_inverse) apply auto
-  using Rep_pattern_untyped assms pu_var_getters_def by fastforce
+  using Rep_pattern_untyped assms unfolding pu_var_getters_def pu_type_def by fastforce+
+  
 lemma pu_var_getters_rename_variables_pattern:
   assumes "\<And>x. vu_type (f x) = vu_type x"
   shows "pu_var_getters (rename_variables_pattern f p) = map (apfst f) (pu_var_getters p)"
@@ -795,6 +830,7 @@ lemma pu_vars_rename_variables_pattern:
 unfolding pu_vars_def
 apply (subst pu_var_getters_rename_variables_pattern[OF assms])
 by simp
+
 
 
 definition rename_variables_memory where
@@ -1408,6 +1444,18 @@ proof -
     qed simp_all
   thus ?thesis by simp
 qed
+
+lemma rename_variables_pair_pattern: 
+  assumes type: "\<And>x. vu_type (R x) = vu_type x"
+  shows "rename_variables_pattern R (pair_pattern_untyped p1 p2)
+      = pair_pattern_untyped (rename_variables_pattern R p1) (rename_variables_pattern R p2)"
+    apply (rule Rep_pattern_untyped_inject[THEN iffD1])
+    apply (subst Rep_rename_variables_pattern[OF type])
+    apply (subst Rep_pair_pattern_untyped) unfolding Let_def
+    apply (subst pu_var_getters_pair_pattern) unfolding Let_def apfst_def map_prod_def
+    apply (subst pu_var_getters_rename_variables_pattern[OF type])+
+    apply (subst pu_type_rename_variables[OF type])+ 
+    apply auto unfolding type by auto
 
 subsection {* Footprints etc. *}
 
