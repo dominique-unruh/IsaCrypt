@@ -353,15 +353,27 @@ lemma Rep_pu_type [simp]: "pu_type (Rep_pattern (p::'a pattern)) = Type TYPE('a:
   using Rep_pattern by simp
 definition "p_var_getters p = pu_var_getters (Rep_pattern p)"
 
+definition "ignore_pattern = (Abs_pattern (pattern_ignore (Type TYPE('a))) :: 'a::prog_type pattern)"
+lemma Rep_ignore_pattern: "Rep_pattern_untyped (Rep_pattern (ignore_pattern :: 'a::prog_type pattern)) = 
+    \<lparr> pur_var_getters=[], pur_type=Type TYPE('a) \<rparr>"
+  unfolding ignore_pattern_def apply (subst Abs_pattern_inverse)
+   close (simp add: Type_def unit_type_def)
+  unfolding pattern_ignore_def apply (subst Abs_pattern_untyped_inverse)
+   by (simp_all add: Type_def unit_type_def)
+
+lemma vars_ignore_pattern [simp]: "p_vars ignore_pattern = []"
+  unfolding p_vars_def ignore_pattern_def apply (subst Abs_pattern_inverse) by (auto simp: Type_def unit_type_def)
+
+(*(* TODO: unit_pattern can be made an abbreviation for ignore_pattern *)
 definition "unit_pattern = (Abs_pattern (pattern_ignore unit_type) :: unit pattern)"
 lemma Rep_unit_pattern: "Rep_pattern_untyped (Rep_pattern unit_pattern) = \<lparr> pur_var_getters=[], pur_type=Type TYPE(unit) \<rparr>"
   unfolding unit_pattern_def apply (subst Abs_pattern_inverse)
    close (simp add: Type_def unit_type_def)
   unfolding pattern_ignore_def apply (subst Abs_pattern_untyped_inverse)
-   by (simp_all add: Type_def unit_type_def)
+   by (simp_all add: Type_def unit_type_def)*)
 
-lemma vars_unit_pattern [simp]: "p_vars unit_pattern = []"
-  unfolding p_vars_def unit_pattern_def apply (subst Abs_pattern_inverse) by (auto simp: Type_def unit_type_def)
+(*lemma vars_unit_pattern [simp]: "p_vars unit_pattern = []"
+  unfolding p_vars_def unit_pattern_def apply (subst Abs_pattern_inverse) by (auto simp: Type_def unit_type_def) *)
 (*definition "pair_pattern (p1::'a pattern) (p2::'b pattern) = (Abs_pattern (Abs_pattern_untyped 
   \<lparr> pur_var_getters=(map (\<lambda>(v,g). (v,g o embedding o fst o inv (embedding::'a*'b\<Rightarrow>_))) (p_var_getters p1))
                   @ (map (\<lambda>(v,g). (v,g o embedding o snd o inv (embedding::'a*'b\<Rightarrow>_))) (p_var_getters p2)),
@@ -395,8 +407,8 @@ by simp
   find_theorems "inv (_ o _)"
   have t1: "g o fst \<circ> inv val_prod_embedding = g o embedding \<circ> fst \<circ> inv (embedding::'a\<times>'b\<Rightarrow>_)" for g::"val\<Rightarrow>val"
     unfolding embedding_def embedding'_prod_def o_def[symmetric] apply simp
-sorry
-  have t2: "\<And>g::val\<Rightarrow>val. g o snd \<circ> inv val_prod_embedding = g o embedding \<circ> snd \<circ> inv (embedding::'a\<times>'b\<Rightarrow>_)" sorry
+by later
+  have t2: "\<And>g::val\<Rightarrow>val. g o snd \<circ> inv val_prod_embedding = g o embedding \<circ> snd \<circ> inv (embedding::'a\<times>'b\<Rightarrow>_)" by later
   show ?thesis
     unfolding p_var_getters_def pu_var_getters_def Rep_pair_pattern Rep_pair_pattern_untyped t1 t2 by simp
 qed*)
@@ -414,8 +426,11 @@ lemma vars_variable_pattern [simp]: "p_vars (variable_pattern v) = [mk_variable_
 definition "memory_update_pattern m (v::'a pattern) (a::'a::prog_type) =
   memory_update_untyped_pattern m (Rep_pattern v) (embedding a)"
 
-lemma memory_update_unit_pattern [simp]: "memory_update_pattern m unit_pattern x = m"
+(* lemma memory_update_unit_pattern [simp]: "memory_update_pattern m unit_pattern x = m"
   unfolding memory_update_pattern_def memory_update_untyped_pattern_def pu_var_getters_def Rep_unit_pattern
+  by simp *)
+lemma memory_update_ignore_pattern [simp]: "memory_update_pattern m ignore_pattern x = m"
+  unfolding memory_update_pattern_def memory_update_untyped_pattern_def pu_var_getters_def Rep_ignore_pattern
   by simp
 lemma memory_update_variable_pattern [simp]: "memory_update_pattern m (variable_pattern v) x = memory_update m v x"
   unfolding memory_update_pattern_def memory_update_untyped_pattern_def variable_pattern_def
@@ -1174,13 +1189,13 @@ qed
 
 
 
-lemma rename_local_variables_unit_pattern [simp]: "rename_local_variables_pattern ren unit_pattern = unit_pattern"
+lemma rename_local_variables_ignore_pattern [simp]: "rename_local_variables_pattern ren ignore_pattern = ignore_pattern"
   apply (rule Rep_pattern_inject[THEN iffD1])
   apply (subst Rep_rename_local_variables_pattern)
   apply (rule Rep_pattern_untyped_inject[THEN iffD1])
   apply (subst Rep_rename_variables_pattern[OF local_variable_name_renaming_type])
   unfolding pu_var_getters_def
-  apply (subst Rep_unit_pattern)+
+  apply (subst Rep_ignore_pattern)+
   by simp
 
 lemma rename_local_variables_variable_pattern [simp]: "rename_local_variables_pattern ren (variable_pattern v) = variable_pattern (rename_local_variables_var ren v)"

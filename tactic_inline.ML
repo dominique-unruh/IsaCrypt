@@ -10,7 +10,7 @@ fun has_Bound i t =
         | h (a$b) i = h a i orelse h b i
         | h (Abs(_,_,t)) i = h t (i+1)
         | h (Const _) _ = false
-  in h t i end
+  in h t i end         
 
 fun dest_funCT ct = 
   let val t = Thm.typ_of ct
@@ -125,7 +125,7 @@ fun some _ (SOME x) = x : thm
      error ("Could not access body etc. of "^ppat)
      end
 
-val callproc_rule_conditions_tac_simpset =
+(*val callproc_rule_conditions_tac_simpset =
   let val subgoaler_ss = 
             (put_simpset HOL_basic_ss @{context})
               addsimps @{thms List.list.inject String.char.inject String.nibble.distinct HOL.simp_thms}
@@ -137,16 +137,37 @@ val callproc_rule_conditions_tac_simpset =
   callproc_conditions_simp.filter_local'_cons1 callproc_conditions_simp.filter_local'_cons2 callproc_conditions_simp.filter_local'_nil callproc_conditions_simp.filter_local_insert1
   callproc_conditions_simp.filter_local_empty callproc_conditions_simp.local_variable_name_renaming_insert callproc_conditions_simp.local_variable_name_renaming_union
   callproc_conditions_simp.local_variable_name_renaming_nil callproc_conditions_simp.local_variable_name_renaming_same image_empty[THEN eq_reflection]
-  vars_unit_pattern[THEN eq_reflection] vars_pair_pattern[THEN eq_reflection] 
+  vars_ignore_pattern[THEN eq_reflection] vars_pair_pattern[THEN eq_reflection] 
+  append_Cons[THEN eq_reflection] append_Nil[THEN eq_reflection]
+  rename_local_variables_pattern_id[THEN eq_reflection] callproc_conditions_simp.local_variable_name_renaming_id
+  callproc_conditions_simp.local_variable_name_renaming_set callproc_conditions_simp.local_variable_name_renaming_cons 
+  callproc_conditions_simp.local_variable_name_renaming_nil2 callproc_conditions_simp.local_variable_name_renaming_notsame
+  callproc_conditions_simp.filter_local_insert2 list.simps HOL.simp_thms
+  callproc_conditions_simp.filter_global_empty callproc_conditions_simp.filter_global_insert1 callproc_conditions_simp.filter_global_insert2
+  }
+  |> Simplifier.set_subgoaler (fn ctx => (@{print} "init_subgoaler"; simp_tac (put_simpset subgoaler_ss ctx)))
+  |> Raw_Simplifier.simpset_of
+  end;;*)
+
+val callproc_rule_conditions_tac_simpset =
+  (put_simpset HOL_basic_ss @{context})
+  addsimps @{thms callproc_conditions_simp.filter_global' callproc_conditions_simp.filter_global'_cons1 callproc_conditions_simp.filter_global'_cons2
+  callproc_conditions_simp.filter_global'_nil callproc_conditions_simp.filter_local_union callproc_conditions_simp.filter_local' vars_variable_pattern[THEN eq_reflection]
+  callproc_conditions_simp.filter_local'_cons1 callproc_conditions_simp.filter_local'_cons2 callproc_conditions_simp.filter_local'_nil callproc_conditions_simp.filter_local_insert1
+  callproc_conditions_simp.filter_local_empty callproc_conditions_simp.local_variable_name_renaming_insert callproc_conditions_simp.local_variable_name_renaming_union
+  callproc_conditions_simp.local_variable_name_renaming_nil callproc_conditions_simp.local_variable_name_renaming_same image_empty[THEN eq_reflection]
+  vars_ignore_pattern[THEN eq_reflection] vars_pair_pattern[THEN eq_reflection] 
   append_Cons[THEN eq_reflection] append_Nil[THEN eq_reflection]
   rename_local_variables_pattern_id[THEN eq_reflection] callproc_conditions_simp.local_variable_name_renaming_id
   callproc_conditions_simp.local_variable_name_renaming_set callproc_conditions_simp.local_variable_name_renaming_cons 
   callproc_conditions_simp.local_variable_name_renaming_nil2 callproc_conditions_simp.local_variable_name_renaming_notsame
   callproc_conditions_simp.filter_local_insert2
+  list.simps HOL.simp_thms
+  String.char.inject String.nibble.distinct 
+  callproc_conditions_simp.filter_global_empty callproc_conditions_simp.filter_global_insert1 callproc_conditions_simp.filter_global_insert2
   }
-  |> Simplifier.set_subgoaler (fn ctx => (@{print} "init_subgoaler"; simp_tac (put_simpset subgoaler_ss ctx)))
   |> Raw_Simplifier.simpset_of
-  end;;
+
 
 (* If the number of precondition of "callproc_rule" changed, need to change the number after NGOALS accordingly.
    callproc_rule_conditions_tac is supposed to solve all subgoals of "callproc_rule" except the last one. *) 
@@ -162,15 +183,15 @@ fun callproc_rule_conditions_tac ctx (procthms:Procs_Typed.procedure_info) i =
                       #return_vars procthms |> some procthms, 
                       #args procthms |> some procthms]
   in
-  NGOALS i 6 (fn i =>
-    if i=4 then ASSERT_SUCCESS' (solve_tac ctx @{thms callproc_conditions_simp.callproc_goal4})
+  NGOALS i 6 (fn j =>
+    if j=3+i then ASSERT_SUCCESS' (solve_tac ctx @{thms callproc_conditions_simp.callproc_goal4})
                   (fn t => TERM("callproc_rule_conditions_tac, goal 4", [t])) 4
     else
-      simp_tac simpset i
+      (* simp_tac simpset j *)
       (* THEN print_tac ctx ("condition "^string_of_int i) *)
       (* TODO: what is the fasted tactic for set equalities? *)
-      THEN (ASSERT_SOLVED' (simp_tac ctx) 
-         (fn _ => fn subgoals => raise TERM("callproc_rule_conditions_tac, goal "^string_of_int i,[nth subgoals (i-1)])) i))
+      (ASSERT_SOLVED' (simp_tac simpset THEN_ALL_NEW simp_tac ctx) 
+         (fn goal => fn subgoals => raise TERM("callproc_rule_conditions_tac, goal "^string_of_int j,[goal, nth subgoals (j-1)])) j))
   end
 
 fun callproc_rule_tac' ctx (procthms:Procs_Typed.procedure_info) renaming locals non_parg_locals i =
@@ -200,7 +221,7 @@ fun procedure_local_vars ctx proc (procthms:Procs_Typed.procedure_info) =
                      | _ => raise TERM ("While trying to extract local variables from body/return-expression of procedure (1), got the expression (2), which contains the unexpected term (3).\n" ^
                                         "Probably you need to add additional lemmas to 'procedure_info' to rewrite term (3)",
                                         [proc,args,v]))
-        | extr1 _ (Const(@{const_name unit_pattern},_)) = []
+        | extr1 _ (Const(@{const_name ignore_pattern},_)) = []
         | extr1 args (Const(@{const_name pair_pattern},_) $ a $ b) = extr1 args a @ extr1 args b
         | extr1 args t = raise TERM ("While trying to extract variables from the arguments of procedure (1), got the expression (2), which contains the unexpected term (3).\n" ^
                                      "Probably you need to add additional lemmas to 'procedure_info' to rewrite term (3)",
@@ -356,7 +377,7 @@ and expression_local_vars' (Const(@{const_name apply_expression},_)$e$v) = var_i
 and pattern_local_vars' (Const(@{const_name variable_pattern},_)$v) = var_if_local' v
   | pattern_local_vars' (Const(@{const_name pair_pattern},_) $ p1 $ p2) =
       pattern_local_vars' p1 @ pattern_local_vars' p2
-  | pattern_local_vars' (Const(@{const_name unit_pattern},_)) = []
+  | pattern_local_vars' (Const(@{const_name ignore_pattern},_)) = []
   | pattern_local_vars' t = raise TERM("program_local_vars\<rightarrow>pattern",[t])
 
 fun program_local_vars t = program_local_vars' t |> distinct (op aconv)
@@ -436,7 +457,7 @@ Lang_Typed.rename_local_variables_sample
 Lang_Typed.rename_local_variables_assign
 Lang_Typed.rename_local_variables_callproc
 Lang_Typed.rename_local_variables_pair_pattern
-Lang_Typed.rename_local_variables_unit_pattern
+Lang_Typed.rename_local_variables_ignore_pattern
 Lang_Typed.rename_local_variables_const_expression
 Lang_Typed.rename_local_variables_apply_expression
 rename_local_variables_var_same

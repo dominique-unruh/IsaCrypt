@@ -33,7 +33,7 @@ procedure (in group) DDH0 :: "'G DDH_Adv =proc=> Game" where
       x <- uniform {0..<q};
       y <- uniform {0..<q};
       b := call A (g^x, g^y, g^(x*y));
-      return True
+      return b
     }"
 
 procedure (in group) DDH1 :: "'G DDH_Adv =proc=> Game" where
@@ -44,12 +44,10 @@ procedure (in group) DDH1 :: "'G DDH_Adv =proc=> Game" where
       y <- uniform {0..<q};
       z <- uniform {0..<q};
       b := call A (g^x, g^y, g^z);
-      return True
+      return b
     }"
 
 subsection {* PKE definitions *}
-
-declare [[ML_exception_trace]]
 
 module_type ('pk,'sk,'m,'c) EncScheme =
   keygen :: "(unit,'pk*'sk) procedure"
@@ -205,25 +203,55 @@ lemma denotation_eq_rule_left:
 using assms unfolding rhoare_def by auto
 
 (* TODO move *)
-lemma lang_simp_whilefalse [lang_simp]: "fun_equiv denotation (assign unit_pattern e) Lang_Typed.skip"
+lemma lang_simp_assign_ignore [lang_simp]: "fun_equiv denotation (assign ignore_pattern e) Lang_Typed.skip"
   sorry
 
 lemma LVariable_notin_write_vars_proc_global [simp]: "mk_variable_untyped (LVariable x) \<notin> set (write_vars_proc_global f)" sorry
 lemma LVariable_notin_vars_proc_global [simp]: "mk_variable_untyped (LVariable x) \<notin> set (vars_proc_global f)" sorry
 
-abbreviation "res == LVariable ''res''"
-abbreviation "args == LVariable ''args''"
+(* abbreviation "res == LVariable ''res''"
+abbreviation "args == LVariable ''args''" *)
 
 (* TODO: define product_type on untyped level *)
 (* TODO define pair pattern on untyped level *)
-definition pair_pattern_untyped :: "pattern_untyped \<Rightarrow> pattern_untyped \<Rightarrow> pattern_untyped" where
-  "pair_pattern_untyped = undefined"
+(*definition pair_pattern_untyped :: "pattern_untyped \<Rightarrow> pattern_untyped \<Rightarrow> pattern_untyped" where
+  "pair_pattern_untyped p1 p2 = Abs_pattern_untyped 
+  \<lparr> pur_var_getters=(map (\<lambda>(v,g). (v,g o fst o inv val_prod_embedding)) (pu_var_getters p1))
+                  @ (map (\<lambda>(v,g). (v,g o snd o inv val_prod_embedding)) (pu_var_getters p2)),
+    pur_type=Type TYPE('a::prog_type*'b::prog_type) \<rparr>) :: ('a*'b) pattern) \<rparr>"
 lemma Rep_pair_pattern': "Rep_pattern (pair_pattern x y) = pair_pattern_untyped (Rep_pattern x) (Rep_pattern y)"
-  sorry
+  sorry*)
 
-fun list_pattern :: "variable_untyped list \<Rightarrow> pattern_untyped" where
-  "list_pattern [] = pattern_ignore unit_type"
-| "list_pattern (x#xs) = pair_pattern_untyped (pattern_1var x) (list_pattern xs)"
+(* fun list_pattern_untyped :: "variable_untyped list \<Rightarrow> pattern_untyped" where
+  "list_pattern_untyped [] = pattern_ignore unit_type"
+| "list_pattern_untyped (x#xs) = pair_pattern_untyped (pattern_1var x) (list_pattern_untyped xs)" *)
+
+(*
+lemma list_pattern_untyped_nil: "list_pattern_untyped [] = Rep_pattern unit_pattern"
+  apply simp apply (subst Rep_pattern_untyped_inject[symmetric]) unfolding Rep_unit_pattern Rep_pattern_ignore by (auto simp: Type_def unit_type_def)
+lemma list_pattern_untyped_cons: "list_pattern_untyped (mk_variable_untyped x # xs)
+     = Rep_pattern (pair_pattern (variable_pattern x) (Abs_pattern (list_pattern_untyped xs)))"
+  apply simp unfolding Rep_pair_pattern Rep_variable_pattern
+  apply (subst Abs_pattern_inverse) apply simp
+sorry
+*)
+
+(* abbreviation "list_pattern xs == Abs_pattern (list_pattern_untyped xs)"
+
+abbreviation "x1 == LVariable ''x1'' :: int variable"
+abbreviation "x2 == LVariable ''x2'' :: bool variable"
+abbreviation "x3 == LVariable ''x3'' :: (nat\<Rightarrow>nat) variable"
+
+lemma t1: "pattern_ignore unit_type = Rep_pattern unit_pattern" 
+  apply (rule Rep_pattern_untyped_inject[THEN iffD1])
+  unfolding Rep_unit_pattern Rep_pattern_ignore
+  by (simp add: Type_def unit_type_def) 
+
+lemma "list_pattern [mk_variable_untyped x1, mk_variable_untyped x2, mk_variable_untyped x3] = 
+(pair_pattern (variable_pattern x1) (pair_pattern (variable_pattern x2) (pair_pattern (variable_pattern x3) unit_pattern)))"
+using[[show_consts]]
+  by (simp add: t1 Rep_variable_pattern[symmetric] Rep_pair_pattern[symmetric] Rep_pattern_inverse) *)
+
 
 (*
 {P} f ~ g {Q}
@@ -233,34 +261,74 @@ fun list_pattern :: "variable_untyped list \<Rightarrow> pattern_untyped" where
 -----------------------------------------------
 {A} p;x=f(y) ~ q;x=f(y) {B}  
 *)
-lemma call_rule:
-  fixes globals_f1 globals_f2
-  assumes "set(vars_proc_global f1) \<subseteq> set globals_f1"
-  assumes "set(vars_proc_global f2) \<subseteq> set globals_f2"
-  assumes "rhoare P
-              (callproc (variable_pattern res) f1 (var_expression args))
-              (callproc (variable_pattern res) f2 (var_expression args))
-              Q"
-  assumes "rhoare A p1 p2 (\<lambda>m1 m2.
-      P (memory_update m1 args (e_fun y1 m1)) (memory_update m2 args (e_fun y2 m2)) \<and>
-      (\<forall>gL gR xL xR. Q (memory_update (memory_update_untyped_pattern m1 (list_pattern globals_f1) gL) res xL) 
-                       (memory_update (memory_update_untyped_pattern m2 (list_pattern globals_f2)  gL) res xR)
-                \<longrightarrow> B (memory_update_pattern (memory_update_untyped_pattern m1 (list_pattern globals_f1) gL) x1 xL) 
-                      (memory_update_pattern (memory_update_untyped_pattern m2 (list_pattern globals_f2) gL) x2 xR)))"
-  shows "rhoare A (seq p1 (callproc x1 f1 y1)) (seq p2 (callproc x2 f2 y2)) B"
-sorry
+
+definition "var_expression_untyped v == Abs_expression_untyped
+  \<lparr> eur_fun=\<lambda>m. memory_lookup_untyped m v,
+    eur_type=vu_type v,
+    eur_vars=[v] \<rparr>"
+
+lemma rhoare_untypedI: 
+  assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow>
+            (\<exists>\<mu>. apply_to_distr fst \<mu> = denotation_untyped p1 m1 \<and>
+                  apply_to_distr snd \<mu> = denotation_untyped p2 m2 \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2'))"
+  shows "rhoare_untyped P p1 p2 Q"
+unfolding rhoare_untyped_rhoare_denotation rhoare_denotation_def using assms by simp
+
+lemma rhoare_untypedE: 
+  assumes "rhoare_untyped P p1 p2 Q"
+  assumes "P m1 m2"
+  shows "\<exists>\<mu>. apply_to_distr fst \<mu> = denotation_untyped p1 m1 \<and>
+                  apply_to_distr snd \<mu> = denotation_untyped p2 m2 \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2')"
+using assms unfolding rhoare_untyped_rhoare_denotation rhoare_denotation_def by simp
+
+lemma frame_rule_untyped: 
+  assumes foot1: "assertion_footprint_left X R" and foot2: "assertion_footprint_right Y R"
+  assumes ro1: "program_untyped_readonly X p1" and ro2: "program_untyped_readonly Y p2"
+  assumes rhoare: "rhoare_untyped P p1 p2 Q"
+  shows "rhoare_untyped (\<lambda>m1 m2. P m1 m2 \<and> R m1 m2) p1 p2 (\<lambda>m1 m2. Q m1 m2 \<and> R m1 m2)"
+proof (rule rhoare_untypedI, goal_cases)
+case (1 m1 m2) 
+  hence P: "P m1 m2" and R: "R m1 m2" by simp_all
+  then obtain \<mu> where fst: "apply_to_distr fst \<mu> = denotation_untyped p1 m1"
+                and snd: "apply_to_distr snd \<mu> = denotation_untyped p2 m2" 
+                and supp: "\<And>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<Longrightarrow> Q m1' m2'"
+    apply atomize_elim by (rule rhoare[THEN rhoare_untypedE])
+  have QR: "Q m1' m2' \<and> R m1' m2'" if m1m2': "(m1',m2') \<in> support_distr \<mu>" for m1' m2'
+  proof -
+    from m1m2' have "m1' \<in> support_distr (denotation_untyped p1 m1)"
+      unfolding fst[symmetric] by (simp add: rev_image_eqI) 
+    hence m1_ro: "\<And>x. x\<in>X \<Longrightarrow> Rep_memory m1 x = Rep_memory m1' x"
+      using ro1 unfolding program_untyped_readonly_def denotation_readonly_def by auto
+    from m1m2' have "m2' \<in> support_distr (denotation_untyped p2 m2)"
+      unfolding snd[symmetric] by (simp add: rev_image_eqI) 
+    hence m2_ro: "\<And>x. x\<in>Y \<Longrightarrow> Rep_memory m2 x = Rep_memory m2' x"
+      using ro2 unfolding program_untyped_readonly_def denotation_readonly_def by auto
+    from m1_ro and m2_ro have "R m1' m2'"
+      using R foot1 foot2 unfolding assertion_footprint_left_def assertion_footprint_right_def
+      apply auto by blast
+    thus ?thesis
+      by (simp add: supp m1m2')
+  qed
+
+  show ?case
+    apply (rule exI[of _ \<mu>]) using fst snd QR by simp
+qed
+
 
 lemma cpa_ddh0:
   "game_probability (CPA_main<$>(ElGamal,A)) () m (\<lambda>res. res)
- = game_probability (DDH0<$>(DDHAdv<$>A)) () m (\<lambda>res. res)" 
+ = game_probability (DDH0<$>(DDHAdv<$>A)) () m (\<lambda>res. res)"
 
 apply (rule byequiv_rule)
 apply (inline "CPA_main<$>(ElGamal,A)")
 apply (inline "DDH0<$>(DDHAdv<$>A)")
 apply (inline "keygen <$> ElGamal")
 apply (inline "enc <$> ElGamal")
+apply (inline "DDHAdv<$>A")
 apply simp
 
+
+find_theorems "fun_equiv denotation (assign (?x) ?e) Lang_Typed.skip"
 (*
 pre = (glob A){2} = (glob A){m} /\ (glob A){1} = (glob A){m}
 

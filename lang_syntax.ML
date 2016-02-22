@@ -13,7 +13,7 @@ fun add_var known (Free(v,_)) = (if not (member (op=) (!known) v) then known := 
   | add_var _ _ = ()
 
 
-fun translate_pattern _ (Const(@{const_name Unity},_)) = @{term "unit_pattern"}
+fun translate_pattern _ (Const(@{const_name Unity},_)) = @{term "ignore_pattern :: unit pattern"}
   | translate_pattern known (Const(@{const_syntax Pair},_)$a$b) =
           Const(@{const_name pair_pattern},dummyT) $ translate_pattern known a $ translate_pattern known b
   | translate_pattern known t = 
@@ -160,7 +160,7 @@ fun translate_expression_back (Const(@{const_syntax const_expression},_) $ e) = 
         Term.betapply (translate_expression_back e, Const("_var_access",dummyT) $ translate_variable_back x)
   | translate_expression_back _ = (raise (ERROR ("translate_expression_back: error")))
 
-fun translate_pattern_back (Const(@{const_syntax unit_pattern},_)) = @{term "()"}
+fun translate_pattern_back (Const(@{const_syntax ignore_pattern},_)) = @{term "()"}
   | translate_pattern_back (Const(@{const_syntax pair_pattern},_)$a$b) =
       (Const(@{const_syntax Pair},dummyT) $ translate_pattern_back a $ translate_pattern_back b)
   | translate_pattern_back (Const(@{const_syntax variable_pattern},_) $ t) = translate_variable_back t

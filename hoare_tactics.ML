@@ -22,7 +22,7 @@ fun simp_memory_updates_tac ctx =
                                     e_fun_apply_expression
                                     memory_update_variable_pattern
                                     memory_update_pair_pattern
-                                    memory_update_unit_pattern
+                                    memory_update_ignore_pattern
                                     memory_lookup_update_notsame
                                     memory_lookup_update_same'}
       val simpset = Simplifier.set_subgoaler (fn _ => asm_simp_tac ctx) simpset

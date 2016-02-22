@@ -21,6 +21,7 @@ thm obs_eq'_rename_variables_proc[of _ _ "[]"]
 
 locale callproc_conditions_simp begin
 
+(* TODO remove ? *)
 definition "filter_global' == filter vu_global"
 definition "filter_local' == filter (\<lambda>x. \<not> vu_global x)"
 
@@ -66,25 +67,43 @@ lemma filter_local': "filter_local (set X) == set (filter_local' X)"
 
 lemma filter_global'_nil: "filter_global' [] == []"
   unfolding filter_global'_def by simp
+lemma filter_global_empty: "filter_global {} == {}"
+  unfolding filter_global_def by simp
+
 
 lemma filter_global'_cons1: "filter_global' (mk_variable_untyped (Variable n :: 'a::prog_type variable) # X) ==
                              mk_variable_untyped (Variable n :: 'a variable) # filter_global' X"
   unfolding filter_global'_def by auto 
+lemma filter_global_insert1: "filter_global (insert (mk_variable_untyped (Variable n :: 'a::prog_type variable)) X) ==
+                             insert (mk_variable_untyped (Variable n :: 'a variable)) (filter_global X)"
+  apply (rule eq_reflection) unfolding filter_global_def by auto 
 
 lemma filter_global'_cons2: "filter_global' (mk_variable_untyped (LVariable n :: 'a::prog_type variable) # X) ==
                              filter_global' X"
   unfolding filter_global'_def by auto 
+lemma filter_global_insert2: "filter_global (insert (mk_variable_untyped (LVariable n :: 'a::prog_type variable)) X) ==
+                             filter_global X"
+  apply (rule eq_reflection) unfolding filter_global_def by auto 
 
 lemma filter_local'_nil: "filter_local' [] == []"
   unfolding filter_local'_def by simp
+(* lemma filter_local_empty: "filter_local {} == {}"
+  unfolding filter_local_def by simp *)
 
 lemma filter_local'_cons1: "filter_local' (mk_variable_untyped (LVariable n :: 'a::prog_type variable) # X) ==
                              mk_variable_untyped (LVariable n :: 'a variable) # filter_local' X"
   unfolding filter_local'_def by auto 
+(* lemma filter_local_insert1: "filter_local (insert (mk_variable_untyped (LVariable n :: 'a::prog_type variable)) X) ==
+                             insert (mk_variable_untyped (LVariable n :: 'a variable)) (filter_local X)"
+  unfolding filter_local_def apply auto
+  by (smt Collect_cong LVariable_local insert_Collect)  *)
 
 lemma filter_local'_cons2: "filter_local' (mk_variable_untyped (Variable n :: 'a::prog_type variable) # X) ==
                              filter_local' X"
   unfolding filter_local'_def by auto 
+(* lemma filter_local_insert2: "filter_local (insert (mk_variable_untyped (Variable n :: 'a::prog_type variable)) X) ==
+                             filter_local X"
+  unfolding filter_local_def by auto  *)
 
 lemma filter_local_union: "filter_local (X \<union> Y) == filter_local X \<union> filter_local Y"
   apply (rule eq_reflection) unfolding filter_local_def by auto

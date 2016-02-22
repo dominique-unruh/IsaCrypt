@@ -1,5 +1,5 @@
 theory Universe
-imports Main BNF_Cardinal_Order_Relation Misc Tools TermX_Antiquot Nat_Bijection
+imports Main BNF_Cardinal_Order_Relation Misc Tools TermX_Antiquot Nat_Bijection Rewrite
 begin
 
 (* For proving instances of types declared with 
@@ -232,11 +232,37 @@ function val_embed_up :: "nat \<Rightarrow> nat \<Rightarrow> val \<Rightarrow> 
 | "m > n \<Longrightarrow> val_embed_up n m x = val_set_embedding (m-1) {val_embed_up n (m-1) x}"
 | "m < n \<Longrightarrow> val_embed_up n m x = undefined"
 apply auto apply atomize_elim by auto
+termination by lexicographic_order
+
+
+lemma range_val_embed_up: 
+  "m\<ge>n \<Longrightarrow> x \<in> val_powertower n \<Longrightarrow> val_embed_up n m x \<in> val_powertower m"
+proof (induction "m-n" arbitrary: m)
+case 0 thus ?case by simp
+next case (Suc m_n)
+  from Suc have "m > n" by auto
+  hence m: "m = Suc (m - Suc 0)" by auto
+  show ?case
+    apply (simp add: \<open>m > n\<close>)
+    apply (subst m, rule val_set_embedding_range)
+    using Suc by simp
+qed
 
 lemma inj_val_embed_up: 
-  "m\<ge>n \<Longrightarrow> val_embed_up n m xa = val_embed_up n m xb \<Longrightarrow>
-       xa \<in> val_powertower n \<Longrightarrow> xb \<in> val_powertower n \<Longrightarrow> xa = xb"
-sorry
+  "m\<ge>n \<Longrightarrow> val_embed_up n m x = val_embed_up n m y \<Longrightarrow>
+       x \<in> val_powertower n \<Longrightarrow> y \<in> val_powertower n \<Longrightarrow> x = y"
+proof (induction "m-n" arbitrary: m)
+case 0 thus ?case by simp
+next case (Suc m_n)
+  from Suc have "m > n" by auto
+  with Suc.prems have set: "val_set_embedding (m-1) {val_embed_up n (m-1) x} = val_set_embedding (m-1) {val_embed_up n (m-1) y}" by auto
+  have "{val_embed_up n (m-1) x} = {val_embed_up n (m-1) y}"
+    apply (rule val_set_embedding_inj[THEN inj_onD, of "m-1"])
+      using set close
+    using range_val_embed_up Suc.hyps Suc.prems by auto
+  with Suc.hyps(1)[of "m-1"] show ?case apply auto
+    by (metis One_nat_def Suc.hyps(2) Suc.prems(3) Suc.prems(4) Suc_diff_Suc \<open>n < m\<close> diff_Suc_1 le_add1 less_imp_Suc_add)
+qed
 
 definition val_sum_embedding :: "nat \<Rightarrow> nat \<Rightarrow> val+val \<Rightarrow> val" where
   "val_sum_embedding n m x = (let mn = prod_encode (n,m) in val_set_embedding (Suc mn) (val_set_embedding mn ` 
@@ -245,21 +271,42 @@ lemma inj_val_sum_embedding: "inj_on (val_sum_embedding n m) (val_powertower n <
   and range_val_sum_embedding: "x \<in> val_powertower n <+> val_powertower m 
               \<Longrightarrow> val_sum_embedding n m x \<in> val_powertower (prod_encode (n,m) + 2)"
 proof -
+  have range2: "\<And>x. x \<in> val_powertower n <+> val_powertower m \<Longrightarrow>
+           (case x of Inl a \<Rightarrow> {{val_embed_up n (prod_encode(n,m)) a}} | Inr b \<Rightarrow> {{val_embed_up m (prod_encode(n,m)) b}, {}})
+           \<subseteq> Pow (val_powertower (prod_encode(n,m)))" 
+    apply auto 
+     close (rule range_val_embed_up, auto intro: le_prod_encode_1)
+    by (rule range_val_embed_up, auto intro: le_prod_encode_2)
   have range1: "\<And>x. x \<in> val_powertower n <+> val_powertower m \<Longrightarrow>
            val_set_embedding (prod_encode(n,m)) `
            (case x of Inl a \<Rightarrow> {{val_embed_up n (prod_encode(n,m)) a}} 
                    | Inr b \<Rightarrow> {{val_embed_up m (prod_encode(n,m)) b}, {}})
-           \<in> Pow (val_powertower (Suc (prod_encode(n,m))))" sorry
-  have range2: "\<And>x. x \<in> val_powertower n <+> val_powertower m \<Longrightarrow>
-           (case x of Inl a \<Rightarrow> {{val_embed_up n (prod_encode(n,m)) a}} | Inr b \<Rightarrow> {{val_embed_up m (prod_encode(n,m)) b}, {}})
-           \<subseteq> Pow (val_powertower (prod_encode(n,m)))" sorry
+           \<in> Pow (val_powertower (Suc (prod_encode(n,m))))" 
+    apply (simp add: image_subset_iff, rule ballI)
+    apply (rule val_set_embedding_range)
+    using range2 by auto
+  have range2: "(case x of Inl a \<Rightarrow> {{val_embed_up n (prod_encode(n,m)) a}} 
+                         | Inr b \<Rightarrow> {{val_embed_up m (prod_encode(n,m)) b}, {}})
+                   \<subseteq> Pow (val_powertower (prod_encode(n,m)))" 
+           if "x \<in> val_powertower n <+> val_powertower m" for x
+    apply (cases x; simp)
+     apply (rule range_val_embed_up) using le_prod_encode_1 that close 2
+    apply (rule range_val_embed_up) using le_prod_encode_2 that by auto
   have inj1: "\<And>xa xb. val_embed_up n (prod_encode(n,m)) xa = val_embed_up n (prod_encode(n,m)) xb \<Longrightarrow>
              xa \<in> val_powertower n \<Longrightarrow> xb \<in> val_powertower n \<Longrightarrow> xa = xb" using inj_val_embed_up
     using le_prod_encode_1 by blast
   have inj2: "\<And>ya yb. {{val_embed_up m (prod_encode(n,m)) ya}, {}} = {{val_embed_up m (prod_encode(n,m)) yb}, {}} \<Longrightarrow>
              ya \<in> val_powertower m \<Longrightarrow> yb \<in> val_powertower m \<Longrightarrow> ya = yb"
     by (metis doubleton_eq_iff inj_val_embed_up le_prod_encode_2)
-  show "x \<in> val_powertower n <+> val_powertower m \<Longrightarrow> val_sum_embedding n m x \<in> val_powertower (prod_encode(n,m) + 2)" sorry
+  show "val_sum_embedding n m x \<in> val_powertower (prod_encode(n,m) + 2)"
+          if "x \<in> val_powertower n <+> val_powertower m" 
+    unfolding val_sum_embedding_def Let_def apply simp
+    apply (rule val_set_embedding_range)
+    apply (rule image_subset_iff[THEN iffD2, rule_format])
+    apply (rule val_set_embedding_range)
+    apply (cases x, auto)
+     apply (rule range_val_embed_up) using le_prod_encode_1 that close 2
+    apply (rule range_val_embed_up) using le_prod_encode_2 that by auto
   show "inj_on (val_sum_embedding n m) (val_powertower n <+> val_powertower m)"
     apply (rule inj_onI) unfolding val_sum_embedding_def Let_def
     apply (subst (asm) val_set_embedding_inj[THEN inj_on_eq_iff])
@@ -276,7 +323,21 @@ definition "(embedding' :: ('a+'b) val_embedding) =
   (\<lambda>x. val_sum_embedding (snd (embedding'::'a val_embedding)) (snd (embedding'::'b val_embedding))
     (map_sum (fst embedding') (fst embedding') x), 
   prod_encode (snd (embedding'::'a val_embedding), snd (embedding'::'b val_embedding)) + 2)"
-instance sorry
+instance proof (intro_classes, goal_cases)
+case 1
+  show ?case unfolding embedding'_sum_def 
+    apply auto apply (rule range_val_sum_embedding[simplified])
+    apply (case_tac xa) using embedding'_range by auto
+case 2
+  show ?case unfolding embedding'_sum_def
+    apply (rule injI) apply simp 
+    apply (drule_tac inj_val_sum_embedding[THEN inj_onD])
+    unfolding map_sum_def
+      close (case_tac x; auto intro!: embedding'_range[unfolded image_subset_iff, rule_format]) 
+     close (case_tac y; auto intro!: embedding'_range[unfolded image_subset_iff, rule_format]) 
+    apply (case_tac x; case_tac y; simp)
+    using inj_embedding'[THEN injD] by auto
+qed
 end
 
 (*instantiation sum :: (prog_type,prog_type) prog_type begin
@@ -309,9 +370,36 @@ end*)
 
 definition val_prod_embedding' :: "nat \<Rightarrow> nat \<Rightarrow> val*val \<Rightarrow> val" where
   "val_prod_embedding' n m x = val_set_embedding (prod_encode(n,m) + 2) (val_sum_embedding n m ` {Inl (fst x), Inr (snd x)})"
-lemma inj_val_prod_embedding': "inj_on (val_prod_embedding' n m) (val_powertower n \<times> val_powertower m)"
-  and range_val_prod_embedding': "x \<in> val_powertower n \<times> val_powertower m \<Longrightarrow> val_prod_embedding' n m x \<in> val_powertower (prod_encode(n,m) + 3)"
-sorry
+lemma inj_val_prod_embedding': "inj_on (val_prod_embedding' n m) (val_powertower n \<times> val_powertower m)" (is ?inj)
+  and range_val_prod_embedding': "x \<in> val_powertower n \<times> val_powertower m \<Longrightarrow> val_prod_embedding' n m x \<in> val_powertower (prod_encode(n,m) + 3)" (is "?assm \<Longrightarrow> ?range")
+proof -
+  have range1: "val_sum_embedding n m ` {Inl (fst x), Inr (snd x)} \<in> Pow (val_powertower (prod_encode (n, m) + 2))" 
+               if "x \<in> val_powertower n \<times> val_powertower m" for x
+    apply auto
+     apply (rule range_val_sum_embedding[simplified])
+     using that close
+    apply (rule range_val_sum_embedding[simplified])
+    using that by auto
+  have inj1: "inj_on (val_sum_embedding n m) ({Inl (fst x), Inr (snd x)} \<union> {Inl (fst y), Inr (snd y)})" 
+             if "x \<in> val_powertower n \<times> val_powertower m" and "y \<in> val_powertower n \<times> val_powertower m" for x y
+    apply (rule inj_onI)
+    apply (drule inj_val_sum_embedding[THEN inj_onD])
+    using that by auto
+  show ?inj
+    apply (rule inj_onI)
+    unfolding val_prod_embedding'_def
+    apply (drule val_set_embedding_inj[THEN inj_onD])
+      using range1 close 2
+    apply (subst (asm) inj_on_Un_image_eq_iff[where f="val_sum_embedding n m"])
+     using inj1 close
+    by force
+  assume ?assm
+  show ?range
+    unfolding val_prod_embedding'_def
+    apply (rewrite at "_ + 3" to "Suc (_ + 2)" eq_reflection) close
+    apply (rule val_set_embedding_range)
+    using range1[OF `?assm`] by auto
+qed
 
 definition val_prod_embedding :: "val\<times>val \<Rightarrow> val" where
   "val_prod_embedding xy = val_prod_embedding' (val_powertower_level (fst xy)) (val_powertower_level (snd xy)) xy"
