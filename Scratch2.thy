@@ -145,17 +145,141 @@ lemma
 oops
 
 lemma callproc_equiv: 
-  assumes "set (vars_proc_global f) \<subseteq> V1"
-  assumes "V2 \<subseteq> V1"
-  assumes "set (p_vars x1) \<inter> V2 = {}"
-  assumes "set (p_vars x2) \<inter> V2 = {}"
+  assumes globals_V1: "set (vars_proc_global f) \<subseteq> V1"
+  assumes V2V1: "V2 \<subseteq> V1"
+  assumes x1V2: "set (p_vars x1) \<inter> V2 = {}"
+  assumes x2V2: "set (p_vars x2) \<inter> V2 = {}"
   shows "rhoare (\<lambda>m1 m2. (\<forall>v\<in>V1. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v)
                       \<and> e_fun e1 m1 = e_fun e2 m2)
                    (callproc x1 f e1) (callproc x2 f e2)
                 (\<lambda>m1 m2. (\<forall>v\<in>V2. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v)
                       \<and> memory_pattern_related x1 x2 m1 m2)"
-proof -
+proof (rule rhoareI, goal_cases)
+case (1 m1 m2)  
+  hence eq_m1_m2: "memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
+        if "v\<in>V1" for v 
+    using that by auto
+  from 1 have e1e2: "e_fun e1 m1 = e_fun e2 m2" by simp
+  def argval == "e_fun e1 m1"
+  def m1a == "init_locals m1"
+  def m1b == "memory_update_pattern m1a (p_arg f) argval"
+  def m2a == "init_locals m2"
+  def m2b == "memory_update_pattern m2a (p_arg f) argval"
+
+  have eq_m12a: "memory_lookup_untyped m1a v = memory_lookup_untyped m2a v" if "v\<in>V1" for v 
+    using that eq_m1_m2 by (simp add: Rep_init_locals m1a_def m2a_def)
+  have eq_m12a_loc: "memory_lookup_untyped m1a v = memory_lookup_untyped m2a v" if "\<not> vu_global v" for v 
+    using that by (simp add: Rep_init_locals m1a_def m2a_def)
+  have eq_m12b_V1: "memory_lookup_untyped m1b v = memory_lookup_untyped m2b v" if "v\<in>V1" for v 
+    unfolding m1b_def m2b_def memory_update_pattern_def using that eq_m12a
+    by (metis lookup_memory_update_untyped_pattern_getter memory_lookup_update_pattern_notsame)
+  have eq_m12b_loc: "memory_lookup_untyped m1b v = memory_lookup_untyped m2b v" if "\<not> vu_global v" for v 
+    unfolding m1b_def m2b_def memory_update_pattern_def using eq_m12a_loc that
+    by (metis lookup_memory_update_untyped_pattern_getter memory_lookup_update_pattern_notsame)
+(*   have "memory_lookup_untyped m1b v = memory_lookup_untyped m2b v" if "v \<in> set(p_vars(p_arg f))" for v 
+    using that by auto *)
+
+  def V1loc == "V1 \<union> {x. \<not> vu_global x}"
+
+  have vars_V1loc: "set(vars(p_body f)) \<subseteq> V1loc"
+    using globals_V1 unfolding vars_proc_global_def V1loc_def by auto
+  with eq_m12b_V1 eq_m12b_loc
+  have eq_m12b: "memory_lookup_untyped m1b v = memory_lookup_untyped m2b v" if "v \<in> V1loc" for v
+    using that V1loc_def by auto
+
+  have "obs_eq V1loc V1loc (p_body f) (p_body f)"
+    unfolding obs_eq_obs_eq_untyped
+    apply (rule self_obseq_vars)
+    using vars_V1loc by (simp_all add: vars_def) 
   
+  then obtain \<mu> where \<mu>fst: "apply_to_distr fst \<mu> = denotation (p_body f) m1b"
+                  and \<mu>snd: "apply_to_distr snd \<mu> = denotation (p_body f) m2b"
+                  and \<mu>post: "\<And>m1' m2' x. (m1',m2') \<in> support_distr \<mu> \<Longrightarrow> x\<in>V1loc \<Longrightarrow> 
+                                memory_lookup_untyped m1' x = memory_lookup_untyped m2' x"
+    unfolding obs_eq_def rhoare_def
+    using eq_m12b by blast 
+
+  def finalize == "\<lambda>m x. \<lambda>m'. let res = e_fun (p_return f) m'; m' = restore_locals m m' in memory_update_pattern m' x res"
+
+  def \<mu>' == "apply_to_distr (\<lambda>(m1',m2'). (finalize m1 x1 m1', finalize m2 x2 m2')) \<mu>"
+
+  have "apply_to_distr fst \<mu>' = apply_to_distr (\<lambda>m1'. finalize m1 x1 m1') (apply_to_distr fst \<mu>)"
+    unfolding \<mu>'_def by (simp add: split_def)
+  also have "\<dots> = apply_to_distr (\<lambda>m1'. finalize m1 x1 m1') (denotation (p_body f) m1b)"
+    using \<mu>fst by simp
+  also have "\<dots> = denotation (callproc x1 f e1) m1"
+    unfolding argval_def m1a_def m1b_def finalize_def
+    apply (subst denotation_callproc) by auto
+  finally have \<mu>'fst: "apply_to_distr fst \<mu>' = denotation (callproc x1 f e1) m1" by assumption
+
+  have "apply_to_distr snd \<mu>' = apply_to_distr (\<lambda>m2'. finalize m2 x2 m2') (apply_to_distr snd \<mu>)"
+    unfolding \<mu>'_def by (simp add: split_def)
+  also have "\<dots> = apply_to_distr (\<lambda>m2'. finalize m2 x2 m2') (denotation (p_body f) m2b)"
+    using \<mu>snd by simp
+  also have "\<dots> = denotation (callproc x2 f e2) m2"
+    unfolding argval_def m2a_def m2b_def finalize_def e1e2
+    apply (subst denotation_callproc) by auto
+  finally have \<mu>'snd: "apply_to_distr snd \<mu>' = denotation (callproc x2 f e2) m2"
+    by assumption
+
+  have \<mu>'post: "\<And>x. x\<in>V2 \<Longrightarrow> memory_lookup_untyped m1' x = memory_lookup_untyped m2' x"
+   and \<mu>'post2: "memory_pattern_related x1 x2 m1' m2'"
+               if supp: "(m1',m2') \<in> support_distr \<mu>'" 
+               for m1' m2'
+  proof -
+    from supp obtain m1'' m2'' where 
+        m1': "m1' = finalize m1 x1 m1''" and m2': "m2' = finalize m2 x2 m2''" and "(m1'',m2'') \<in> support_distr \<mu>"
+        unfolding \<mu>'_def by auto
+    hence eq_m12'': "\<And>x. x\<in>V1loc \<Longrightarrow> memory_lookup_untyped m1'' x = memory_lookup_untyped m2'' x"
+      using \<mu>post by simp
+
+    have ret_V1loc: "set (e_vars (p_return f)) \<subseteq> V1loc"
+      unfolding V1loc_def using globals_V1 unfolding vars_proc_global_def by auto
+    have ret12: "e_fun (p_return f) m1'' = e_fun (p_return f) m2''"
+      apply (rule e_fun_footprint)
+      apply (rule eq_m12'') 
+      using ret_V1loc by auto
+
+    show "memory_pattern_related x1 x2 m1' m2'"
+      apply (rule memory_pattern_relatedI)
+      unfolding m1' m2' finalize_def ret12 by auto
+
+    show "memory_lookup_untyped m1' x = memory_lookup_untyped m2' x" if "x\<in>V2" for x
+    proof -
+      def ret == "e_fun (p_return f) m1''"
+      def m1l == "restore_locals m1 m1''"
+      def m2l == "restore_locals m2 m2''"
+      have "m1' = memory_update_pattern m1l x1 ret"
+        unfolding ret_def m1' finalize_def m1l_def by auto
+      have "m2' = memory_update_pattern m2l x2 ret"
+        unfolding ret_def m2' finalize_def m2l_def ret12 by auto
+
+      have xx1: "x \<notin> set (p_vars x1)" and xx2: "x \<notin> set (p_vars x2)"
+        using x1V2 x2V2 that by auto
+
+      have "memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+        using V2V1 eq_m1_m2 that by blast
+      moreover have "memory_lookup_untyped m1'' x = memory_lookup_untyped m2'' x"
+        using V1loc_def V2V1 eq_m12'' that by auto
+      ultimately have "memory_lookup_untyped (restore_locals m1 m1'') x = memory_lookup_untyped (restore_locals m2 m2'') x" 
+        unfolding Rep_restore_locals by simp
+
+      then have "memory_lookup_untyped (memory_update_pattern (restore_locals m1 m1'') x1 ret) x =
+                 memory_lookup_untyped (memory_update_pattern (restore_locals m2 m2'') x2 ret) x"
+        unfolding memory_update_pattern_def
+        apply (subst memory_lookup_update_pattern_notsame) close (metis p_vars_def xx1)
+        apply (subst memory_lookup_update_pattern_notsame) close (metis p_vars_def xx2)
+        by assumption
+      then show ?thesis
+        unfolding m1' m2' finalize_def ret_def[symmetric] ret12[symmetric] by simp
+    qed
+  qed
+
+  from \<mu>'fst \<mu>'snd \<mu>'post \<mu>'post2 show ?case
+    apply (rule_tac exI[of _ \<mu>']) by auto
+qed
+
+(* TODO: use callproc_equiv and transitivity for some callproc_subst-variant below *)
 
 lemma callproc_subst:
   fixes x1::"'x1::prog_type pattern" and x2::"'x2::prog_type pattern" and y1 y2 and x1e::"'x1 expression" and x2e::"'x2 expression"
