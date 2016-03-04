@@ -279,7 +279,52 @@ case (1 m1 m2)
     apply (rule_tac exI[of _ \<mu>']) by auto
 qed
 
+lemma rtrans3_rule:
+  assumes p:"\<And>m1 m2. P m1 m2 \<Longrightarrow> \<exists>m m'. P1 m1 m \<and> P2 m m' \<and> P3 m' m2"
+      and q:"\<And>m1 m2 m m'. Q1 m1 m \<Longrightarrow> Q2 m m' \<Longrightarrow> Q3 m' m2 \<Longrightarrow> Q m1 m2"
+      and rhl1: "hoare {P1 &1 &2} \<guillemotleft>c1\<guillemotright> ~ \<guillemotleft>c2\<guillemotright> {Q1 &1 &2}"
+      and rhl2: "hoare {P2 &1 &2} \<guillemotleft>c2\<guillemotright> ~ \<guillemotleft>c3\<guillemotright> {Q2 &1 &2}"
+      and rhl3: "hoare {P3 &1 &2} \<guillemotleft>c3\<guillemotright> ~ \<guillemotleft>c4\<guillemotright> {Q3 &1 &2}"
+  shows "hoare {P &1 &2} \<guillemotleft>c1\<guillemotright> ~ \<guillemotleft>c4\<guillemotright> {Q &1 &2}"
+proof -
+  def Q12 == "\<lambda>m1 m'. \<exists>m. Q1 m1 m \<and> Q2 m m'"
+  def P12 == "\<lambda>m1 m'. \<exists>m. P1 m1 m \<and> P2 m m'"
+  have rhl12: "rhoare P12 c1 c3 Q12"
+    apply (rule rtrans_rule[OF _ _ rhl1 rhl2])
+    unfolding P12_def Q12_def by auto
+  show ?thesis
+    apply (rule rtrans_rule[OF _ _ rhl12 rhl3])
+    unfolding P12_def Q12_def
+     using p close metis
+    using q by metis
+qed
+
 (* TODO: use callproc_equiv and transitivity for some callproc_subst-variant below *)
+
+lemma callproc_subst:
+  fixes x1::"'x1::prog_type pattern" and x2::"'x2::prog_type pattern" and y1 y2 and x1e::"'x1 expression" and x2e::"'x2 expression"
+  assumes p: "\<And>m1 m2. P m1 m2 \<Longrightarrow> \<exists>m1' m2'.
+            ((\<forall>v\<in>V1. memory_lookup_untyped m1 v = memory_lookup_untyped m1' v) \<and> e_fun y1 m1 = e_fun y1' m1'
+             \<and> P' m1' m2' \<and> 
+             (\<forall>v\<in>V1. memory_lookup_untyped m2 v = memory_lookup_untyped m2' v) \<and> e_fun y1 m2 = e_fun y1' m2')"
+  assumes rhoare: "rhoare P' (callproc x1' f1 y1') (callproc x2' f2 y2') Q'"
+  shows "rhoare P (callproc x1 f1 y1) (callproc x2 f2 y2) Q"
+proof -
+  have rhoare1: 
+      "rhoare (\<lambda>m1 m1'. (\<forall>v\<in>V1. memory_lookup_untyped m1 v = memory_lookup_untyped m1' v) \<and> e_fun y1 m1 = e_fun y1' m1') 
+          (callproc x1 f1 y1) (callproc x1' f1 y1')
+          (\<lambda>m1 m1'. (\<forall>v\<in>V2. memory_lookup_untyped m1 v = memory_lookup_untyped m1' v)
+                      \<and> memory_pattern_related x1 x1' m1 m1')"
+    apply (rule callproc_equiv)
+    by later
+  show ?thesis
+    apply (rule rtrans3_rule[OF _ _ _ rhoare])
+    defer defer
+    apply (rule callproc_equiv)
+    prefer 5
+    apply (rule callproc_equiv)
+    
+    
 
 lemma callproc_subst:
   fixes x1::"'x1::prog_type pattern" and x2::"'x2::prog_type pattern" and y1 y2 and x1e::"'x1 expression" and x2e::"'x2 expression"
