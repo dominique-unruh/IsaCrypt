@@ -11,6 +11,14 @@ definition rhoare :: "(memory \<Rightarrow> memory \<Rightarrow> bool) \<Rightar
         \<and> apply_to_distr snd \<mu> = denotation c2 m2
         \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> post m1' m2')))"
 
+
+lemma rhoareI: 
+  assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow>
+            (\<exists>\<mu>. apply_to_distr fst \<mu> = denotation p1 m1 \<and>
+                  apply_to_distr snd \<mu> = denotation p2 m2 \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2'))"
+  shows "rhoare P p1 p2 Q"
+unfolding rhoare_def using assms by simp
+
 lemma rhoare_untyped: "rhoare P c1 c2 Q = rhoare_untyped P (Rep_program c1) (Rep_program c2) Q"
   unfolding rhoare_def rhoare_untyped_def denotation_def by rule
 

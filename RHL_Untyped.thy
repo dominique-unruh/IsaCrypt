@@ -40,6 +40,13 @@ using assms unfolding rhoare_untyped_rhoare_denotation rhoare_denotation_def by 
 
 definition "assertion_footprint_left X P == (\<forall>m1 m1' m2 m2'. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m1' x) \<longrightarrow> (m2::memory)=m2' \<longrightarrow> P m1 m2 = P m1' m2')"
 
+
+lemma assertion_footprint_left_mono:
+  assumes "X \<subseteq> Y"
+  assumes "assertion_footprint_left X P"
+  shows   "assertion_footprint_left Y P"
+using assms unfolding assertion_footprint_left_def by blast
+
 lemma assertion_footprint_leftI: 
   assumes "\<And>m1 m1' m2 m2'. (\<And>x. x\<in>X \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m1' x) \<Longrightarrow> (m2::memory)=m2' \<Longrightarrow> P m1 m2 = P m1' m2'"
   shows "assertion_footprint_left X P"
@@ -71,6 +78,9 @@ lemma assertion_footprint_left_update_untyped:
 using assms unfolding assertion_footprint_left_def apply auto
 by (smt insertE memory_lookup_update_untyped subsetCE)
 
+lemma assertion_footprint_leftE: 
+  "assertion_footprint_left X P \<Longrightarrow> (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m1' x) \<Longrightarrow> (m2::memory)=m2' \<Longrightarrow> P m1 m2 = P m1' m2'"
+unfolding assertion_footprint_left_def by simp
 
 
 lemma assertion_footprint_left_forall: 
@@ -83,6 +93,16 @@ lemma assertion_footprint_right_const: "assertion_footprint_right X (\<lambda>m 
   unfolding assertion_footprint_right_def by simp
 lemma assertion_footprint_right_app: "assertion_footprint_right X P \<Longrightarrow> assertion_footprint_right X Q \<Longrightarrow> assertion_footprint_right X (\<lambda>m m'. (P m m') (Q m m'))"
   unfolding assertion_footprint_right_def by auto
+
+lemma assertion_footprint_rightE:
+   "assertion_footprint_right X P \<Longrightarrow> (\<forall>x\<in>X. memory_lookup_untyped m2 x = memory_lookup_untyped m2' x) \<Longrightarrow> (m1::memory)=m1' \<Longrightarrow> P m1 m2 = P m1' m2'"
+unfolding assertion_footprint_right_def by simp
+
+lemma assertion_footprint_right_mono:
+  assumes "X \<subseteq> Y"
+  assumes "assertion_footprint_right X P"
+  shows   "assertion_footprint_right Y P"
+using assms unfolding assertion_footprint_right_def by blast
 
 lemma assertion_footprint_right_op2: 
   assumes "assertion_footprint_right X P"

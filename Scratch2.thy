@@ -2,16 +2,6 @@ theory Scratch2
 imports Main Hoare_Tactics Procs_Typed RHL_Typed
 begin
 
-abbreviation "res == LVariable ''res''"
-abbreviation "args == LVariable ''args''"
-
-lemma rhoare_untypedI: 
-  assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow>
-            (\<exists>\<mu>. apply_to_distr fst \<mu> = denotation_untyped p1 m1 \<and>
-                  apply_to_distr snd \<mu> = denotation_untyped p2 m2 \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2'))"
-  shows "rhoare_untyped P p1 p2 Q"
-unfolding rhoare_untyped_rhoare_denotation rhoare_denotation_def using assms by simp
-
 lemma rhoare_untypedE: 
   assumes "rhoare_untyped P p1 p2 Q"
   assumes "P m1 m2"
@@ -26,46 +16,8 @@ lemma rhoareE:
                   apply_to_distr snd \<mu> = denotation p2 m2 \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2')"
 using assms unfolding rhoare_def by simp
 
-definition var_expression_untyped :: "variable_untyped \<Rightarrow> expression_untyped" where
-"var_expression_untyped v = Abs_expression_untyped
-  \<lparr> eur_fun=\<lambda>m. memory_lookup_untyped m v,
-    eur_type=vu_type v,
-    eur_vars=[v] \<rparr>"
-lemma Rep_var_expression_untyped: "Rep_expression_untyped (var_expression_untyped v) = 
-  \<lparr> eur_fun=\<lambda>m. memory_lookup_untyped m v,
-    eur_type=vu_type v,
-    eur_vars=[v] \<rparr>"
-  unfolding var_expression_untyped_def
-  apply (subst Abs_expression_untyped_inverse)
-  by auto
-lemma eu_type_var_expression_untyped [simp]: "eu_type (var_expression_untyped x) = vu_type x"
-  unfolding eu_type_def using Rep_var_expression_untyped by simp
-lemma eu_fun_var_expression_untyped [simp]: "eu_fun (var_expression_untyped x) = (\<lambda>m. memory_lookup_untyped m x)"
-  unfolding eu_fun_def using Rep_var_expression_untyped by simp
 
-lemma eu_fun_type [simp]: "eu_fun e m \<in> t_domain (eu_type e)"
-  using Rep_expression_untyped eu_fun_def eu_type_def by auto
 
-definition pair_expression_untyped :: "expression_untyped \<Rightarrow> expression_untyped \<Rightarrow> expression_untyped" where
-  "pair_expression_untyped e1 e2 = Abs_expression_untyped
-   \<lparr> eur_fun = (\<lambda>m. val_prod_embedding (eu_fun e1 m, eu_fun e2 m)),
-     eur_type = prod_type (eu_type e1) (eu_type e2),
-     eur_vars = eu_vars e1 @ eu_vars e2 \<rparr>"
-lemma Rep_pair_expression_untyped: "Rep_expression_untyped (pair_expression_untyped e1 e2) =
-   \<lparr> eur_fun = (\<lambda>m. val_prod_embedding (eu_fun e1 m, eu_fun e2 m)),
-     eur_type = prod_type (eu_type e1) (eu_type e2),
-     eur_vars = eu_vars e1 @ eu_vars e2 \<rparr>"
-  unfolding pair_expression_untyped_def
-  apply (subst Abs_expression_untyped_inverse)
-  apply auto by (metis UnCI eu_fun_footprint)
-lemma eu_fun_pair_expression_untyped: "eu_fun (pair_expression_untyped e1 e2) = (\<lambda>m. val_prod_embedding (eu_fun e1 m, eu_fun e2 m))"
-  using Rep_pair_expression_untyped unfolding eu_fun_def by auto
-lemma eu_type_pair_expression_untyped [simp]: "eu_type (pair_expression_untyped e1 e2) = prod_type (eu_type e1) (eu_type e2)"
-  using Rep_pair_expression_untyped unfolding eu_type_def by auto
-
-fun list_expression_untyped :: "variable_untyped list \<Rightarrow> expression_untyped" where
-  "list_expression_untyped [] = const_expression_untyped unit_type (embedding (default::unit))"
-| "list_expression_untyped (x#xs) = pair_expression_untyped (var_expression_untyped x) (list_expression_untyped xs)"
 
 fun list_pattern_untyped :: "variable_untyped list \<Rightarrow> pattern_untyped" where
   "list_pattern_untyped [] = pattern_ignore unit_type"

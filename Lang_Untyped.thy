@@ -197,6 +197,10 @@ definition "eu_fun e == eur_fun (Rep_expression_untyped e)"
 definition "eu_type e == eur_type (Rep_expression_untyped e)"
 definition "eu_vars e == eur_vars (Rep_expression_untyped e)"
 
+
+lemma eu_fun_type [simp]: "eu_fun e m \<in> t_domain (eu_type e)"
+  using Rep_expression_untyped eu_fun_def eu_type_def by auto
+
 lemma expression_type_inhabited: "\<exists>e. eu_type e = T"
   apply (rule exI[where x="Abs_expression_untyped \<lparr> eur_fun=(\<lambda>x. t_default T), eur_type=T, eur_vars=[] \<rparr>"])
   unfolding eu_type_def by (subst Abs_expression_untyped_inverse, auto)
@@ -251,10 +255,48 @@ lemma ed_vars_const_expression_untyped [simp]: "ed_vars (expression_distr_zero T
   unfolding expression_distr_zero_def ed_vars_def
   by (subst Abs_expression_distr_inverse, auto)
 
+definition var_expression_untyped :: "variable_untyped \<Rightarrow> expression_untyped" where
+"var_expression_untyped v = Abs_expression_untyped
+  \<lparr> eur_fun=\<lambda>m. memory_lookup_untyped m v,
+    eur_type=vu_type v,
+    eur_vars=[v] \<rparr>"
+lemma Rep_var_expression_untyped: "Rep_expression_untyped (var_expression_untyped v) = 
+  \<lparr> eur_fun=\<lambda>m. memory_lookup_untyped m v,
+    eur_type=vu_type v,
+    eur_vars=[v] \<rparr>"
+  unfolding var_expression_untyped_def
+  apply (subst Abs_expression_untyped_inverse)
+  by auto
+lemma eu_type_var_expression_untyped [simp]: "eu_type (var_expression_untyped x) = vu_type x"
+  unfolding eu_type_def using Rep_var_expression_untyped by simp
+lemma eu_fun_var_expression_untyped [simp]: "eu_fun (var_expression_untyped x) = (\<lambda>m. memory_lookup_untyped m x)"
+  unfolding eu_fun_def using Rep_var_expression_untyped by simp
+
+definition pair_expression_untyped :: "expression_untyped \<Rightarrow> expression_untyped \<Rightarrow> expression_untyped" where
+  "pair_expression_untyped e1 e2 = Abs_expression_untyped
+   \<lparr> eur_fun = (\<lambda>m. val_prod_embedding (eu_fun e1 m, eu_fun e2 m)),
+     eur_type = prod_type (eu_type e1) (eu_type e2),
+     eur_vars = eu_vars e1 @ eu_vars e2 \<rparr>"
+lemma Rep_pair_expression_untyped: "Rep_expression_untyped (pair_expression_untyped e1 e2) =
+   \<lparr> eur_fun = (\<lambda>m. val_prod_embedding (eu_fun e1 m, eu_fun e2 m)),
+     eur_type = prod_type (eu_type e1) (eu_type e2),
+     eur_vars = eu_vars e1 @ eu_vars e2 \<rparr>"
+  unfolding pair_expression_untyped_def
+  apply (subst Abs_expression_untyped_inverse)
+  apply auto by (metis UnCI eu_fun_footprint)
+lemma eu_fun_pair_expression_untyped: "eu_fun (pair_expression_untyped e1 e2) = (\<lambda>m. val_prod_embedding (eu_fun e1 m, eu_fun e2 m))"
+  using Rep_pair_expression_untyped unfolding eu_fun_def by auto
+lemma eu_type_pair_expression_untyped [simp]: "eu_type (pair_expression_untyped e1 e2) = prod_type (eu_type e1) (eu_type e2)"
+  using Rep_pair_expression_untyped unfolding eu_type_def by auto
+
+fun list_expression_untyped :: "variable_untyped list \<Rightarrow> expression_untyped" where
+  "list_expression_untyped [] = const_expression_untyped unit_type (embedding (default::unit))"
+| "list_expression_untyped (x#xs) = pair_expression_untyped (var_expression_untyped x) (list_expression_untyped xs)"
+
 
 (* TODO remove *)
-type_synonym id0 = string
-type_synonym id = "id0 list"
+(* type_synonym id0 = string *)
+(* type_synonym id = "id0 list" *)
 
 subsection {* Patterns *}
 
@@ -911,7 +953,6 @@ proof -
 
   show ?thesis
     unfolding rename_variables_expression_def apply (subst Abs_expression_untyped_inverse, auto)
-    using Rep_expression_untyped eu_fun_def eu_type_def close auto
     using t by simp
 qed
 
