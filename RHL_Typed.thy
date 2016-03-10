@@ -686,5 +686,13 @@ proof -
     by (rule seq_swap)
 qed    
 
+lemma frame_rule: 
+  assumes foot1: "assertion_footprint_left X R" and foot2: "assertion_footprint_right Y R"
+  assumes ro1: "program_readonly X p1" and ro2: "program_readonly Y p2"
+  assumes rhoare: "rhoare P p1 p2 Q"
+  shows "rhoare (\<lambda>m1 m2. P m1 m2 \<and> R m1 m2) p1 p2 (\<lambda>m1 m2. Q m1 m2 \<and> R m1 m2)"
+unfolding rhoare_untyped
+apply (rule frame_rule_untyped)
+using assms unfolding program_readonly_def program_untyped_readonly_def denotation_def rhoare_untyped by auto
 
 end

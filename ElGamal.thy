@@ -267,52 +267,6 @@ definition "var_expression_untyped v == Abs_expression_untyped
     eur_type=vu_type v,
     eur_vars=[v] \<rparr>"
 
-lemma rhoare_untypedI: 
-  assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow>
-            (\<exists>\<mu>. apply_to_distr fst \<mu> = denotation_untyped p1 m1 \<and>
-                  apply_to_distr snd \<mu> = denotation_untyped p2 m2 \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2'))"
-  shows "rhoare_untyped P p1 p2 Q"
-unfolding rhoare_untyped_rhoare_denotation rhoare_denotation_def using assms by simp
-
-lemma rhoare_untypedE: 
-  assumes "rhoare_untyped P p1 p2 Q"
-  assumes "P m1 m2"
-  shows "\<exists>\<mu>. apply_to_distr fst \<mu> = denotation_untyped p1 m1 \<and>
-                  apply_to_distr snd \<mu> = denotation_untyped p2 m2 \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2')"
-using assms unfolding rhoare_untyped_rhoare_denotation rhoare_denotation_def by simp
-
-lemma frame_rule_untyped: 
-  assumes foot1: "assertion_footprint_left X R" and foot2: "assertion_footprint_right Y R"
-  assumes ro1: "program_untyped_readonly X p1" and ro2: "program_untyped_readonly Y p2"
-  assumes rhoare: "rhoare_untyped P p1 p2 Q"
-  shows "rhoare_untyped (\<lambda>m1 m2. P m1 m2 \<and> R m1 m2) p1 p2 (\<lambda>m1 m2. Q m1 m2 \<and> R m1 m2)"
-proof (rule rhoare_untypedI, goal_cases)
-case (1 m1 m2) 
-  hence P: "P m1 m2" and R: "R m1 m2" by simp_all
-  then obtain \<mu> where fst: "apply_to_distr fst \<mu> = denotation_untyped p1 m1"
-                and snd: "apply_to_distr snd \<mu> = denotation_untyped p2 m2" 
-                and supp: "\<And>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<Longrightarrow> Q m1' m2'"
-    apply atomize_elim by (rule rhoare[THEN rhoare_untypedE])
-  have QR: "Q m1' m2' \<and> R m1' m2'" if m1m2': "(m1',m2') \<in> support_distr \<mu>" for m1' m2'
-  proof -
-    from m1m2' have "m1' \<in> support_distr (denotation_untyped p1 m1)"
-      unfolding fst[symmetric] by (simp add: rev_image_eqI) 
-    hence m1_ro: "\<And>x. x\<in>X \<Longrightarrow> Rep_memory m1 x = Rep_memory m1' x"
-      using ro1 unfolding program_untyped_readonly_def denotation_readonly_def by auto
-    from m1m2' have "m2' \<in> support_distr (denotation_untyped p2 m2)"
-      unfolding snd[symmetric] by (simp add: rev_image_eqI) 
-    hence m2_ro: "\<And>x. x\<in>Y \<Longrightarrow> Rep_memory m2 x = Rep_memory m2' x"
-      using ro2 unfolding program_untyped_readonly_def denotation_readonly_def by auto
-    from m1_ro and m2_ro have "R m1' m2'"
-      using R foot1 foot2 unfolding assertion_footprint_left_def assertion_footprint_right_def
-      apply auto by blast
-    thus ?thesis
-      by (simp add: supp m1m2')
-  qed
-
-  show ?case
-    apply (rule exI[of _ \<mu>]) using fst snd QR by simp
-qed
 
 
 lemma cpa_ddh0:

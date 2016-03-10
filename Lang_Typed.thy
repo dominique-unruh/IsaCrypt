@@ -439,40 +439,6 @@ lemma memory_update_variable_pattern [simp]: "memory_update_pattern m (variable_
   by (simp add: embedding_Type memory_update_def)
 
 
-(* TODO move to Lang_Untyped *)
-lemma memory_update_pair_pattern_untyped:
-  assumes "x1 \<in> t_domain (pu_type p1)" and "x2 \<in> t_domain (pu_type p2)"
-  shows "memory_update_untyped_pattern m (pair_pattern_untyped p1 p2) (val_prod_embedding (x1,x2)) = memory_update_untyped_pattern (memory_update_untyped_pattern m p1 x1) p2 x2"
-proof -
-  def p1vg == "pu_var_getters p1"
-  def p2vg == "pu_var_getters p2"
-  def T == "pu_type (pair_pattern_untyped p1 p2)"
-  def fstg == "\<lambda>(v::variable_untyped) g. \<lambda>x. if x \<in> t_domain T then (g \<circ> fst \<circ> inv val_prod_embedding) x else t_default (vu_type v)"
-  def sndg == "\<lambda>(v::variable_untyped) g. \<lambda>x. if x \<in> t_domain T then (g \<circ> snd \<circ> inv val_prod_embedding) x else t_default (vu_type v)"
-
-  from assms have x1x2_T: "val_prod_embedding (x1,x2) \<in> t_domain T"
-    unfolding T_def pu_type_pair_pattern t_domain_prod by simp
-
-  have fst_simp: "memory_update_untyped m (fst vf) (fstg (fst vf) (snd vf) (val_prod_embedding (x1, x2)))
-     = memory_update_untyped m (fst vf) (snd vf x1)" for vf m 
-     unfolding fstg_def apply (simp add: x1x2_T) apply (subst inv_f_f[OF inj_val_prod_embedding]) by simp
-  have snd_simp: "memory_update_untyped m (fst vf) (sndg (fst vf) (snd vf) (val_prod_embedding (x1, x2)))
-     = memory_update_untyped m (fst vf) (snd vf x2)" for vf m 
-     unfolding sndg_def apply (simp add: x1x2_T) apply (subst inv_f_f[OF inj_val_prod_embedding]) by simp
-
-  have "foldl (\<lambda>m (v, f). memory_update_untyped m v (f (val_prod_embedding (x1, x2)))) m
-     (map (\<lambda>(v, g). (v, fstg v g)) p1vg @
-      map (\<lambda>(v, g). (v, sndg v g)) p2vg) =
-    foldl (\<lambda>m (v, f). memory_update_untyped m v (f x2)) (foldl (\<lambda>m (v, f). memory_update_untyped m v (f x1)) m p1vg) p2vg"
-      unfolding foldl_append split_def foldl_map apply simp
-      unfolding fst_simp snd_simp by simp
-
-  thus ?thesis
-    unfolding memory_update_untyped_pattern_def pu_var_getters_pair_pattern p1vg_def[symmetric] 
-        p2vg_def[symmetric] T_def[symmetric] fstg_def sndg_def Let_def by simp
-qed
-
-
 lemma memory_update_pair_pattern [simp]:
   "memory_update_pattern m (pair_pattern p1 p2) (x1,x2) = memory_update_pattern (memory_update_pattern m p1 x1) p2 x2"
 unfolding memory_update_pattern_def Rep_pair_pattern embedding_def embedding'_prod_def apply simp

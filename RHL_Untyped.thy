@@ -22,11 +22,61 @@ lemma rhoare_untyped_rhoare_denotation: "rhoare_untyped pre c1 c2 post = rhoare_
 lemma rhoare_denotation_0 [simp]: "rhoare_denotation P (\<lambda>x. 0) (\<lambda>x. 0) Q"
   using apply_to_distr_0 rhoare_denotation_def by fastforce
 
+lemma rhoare_untypedI: 
+  assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow>
+            (\<exists>\<mu>. apply_to_distr fst \<mu> = denotation_untyped p1 m1 \<and>
+                  apply_to_distr snd \<mu> = denotation_untyped p2 m2 \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2'))"
+  shows "rhoare_untyped P p1 p2 Q"
+unfolding rhoare_untyped_rhoare_denotation rhoare_denotation_def using assms by simp
+
+lemma rhoare_untypedE: 
+  assumes "rhoare_untyped P p1 p2 Q"
+  assumes "P m1 m2"
+  shows "\<exists>\<mu>. apply_to_distr fst \<mu> = denotation_untyped p1 m1 \<and>
+                  apply_to_distr snd \<mu> = denotation_untyped p2 m2 \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2')"
+using assms unfolding rhoare_untyped_rhoare_denotation rhoare_denotation_def by simp
+
+
+
 definition "assertion_footprint_left X P == (\<forall>m1 m1' m2 m2'. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m1' x) \<longrightarrow> (m2::memory)=m2' \<longrightarrow> P m1 m2 = P m1' m2')"
+
+lemma assertion_footprint_leftI: 
+  assumes "\<And>m1 m1' m2 m2'. (\<And>x. x\<in>X \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m1' x) \<Longrightarrow> (m2::memory)=m2' \<Longrightarrow> P m1 m2 = P m1' m2'"
+  shows "assertion_footprint_left X P"
+unfolding assertion_footprint_left_def using assms by metis
 lemma assertion_footprint_left_const: "assertion_footprint_left X (\<lambda>m. P)"
   unfolding assertion_footprint_left_def by simp
 lemma assertion_footprint_left_app: "assertion_footprint_left X P \<Longrightarrow> assertion_footprint_left X Q \<Longrightarrow> assertion_footprint_left X (\<lambda>m m'. (P m m') (Q m m'))"
   unfolding assertion_footprint_left_def by auto
+lemma assertion_footprint_left_op2: 
+  assumes "assertion_footprint_left X P"
+      and "assertion_footprint_left X Q"
+  shows "assertion_footprint_left X (\<lambda>m m'. f (P m m') (Q m m'))"
+  using assms unfolding assertion_footprint_left_def by auto
+lemma assertion_footprint_left_update_pattern_untyped:
+  assumes "Y \<subseteq> X \<union> set (pu_vars pat)"
+  assumes "assertion_footprint_left Y P"
+  shows "assertion_footprint_left X (\<lambda>m m'. P (memory_update_untyped_pattern m pat x) m')"
+using assms unfolding assertion_footprint_left_def apply auto
+by (smt UnE lookup_memory_update_untyped_pattern_getter memory_lookup_update_pattern_notsame subsetCE)
+lemma assertion_footprint_left_map_other: 
+  assumes "assertion_footprint_left X P"
+  shows "assertion_footprint_left X (\<lambda>m m'. P m (f m'))"
+using assms unfolding assertion_footprint_left_def by auto
+
+lemma assertion_footprint_left_update_untyped:
+  assumes "Y \<subseteq> insert x X"
+  assumes "assertion_footprint_left Y P"
+  shows "assertion_footprint_left X (\<lambda>m m'. P (memory_update_untyped m x v) m')"
+using assms unfolding assertion_footprint_left_def apply auto
+by (smt insertE memory_lookup_update_untyped subsetCE)
+
+
+
+lemma assertion_footprint_left_forall: 
+  assumes "\<And>x. assertion_footprint_left X (\<lambda>m1 m2. f x m1 m2)"
+  shows "assertion_footprint_left X (\<lambda>m1 m2. \<forall>x. f x m1 m2)"
+  using assms unfolding assertion_footprint_left_def by auto
 
 definition "assertion_footprint_right X P == (\<forall>m1 m1' m2 m2'. (\<forall>x\<in>X. memory_lookup_untyped m2 x = memory_lookup_untyped m2' x)\<longrightarrow> (m1::memory)=m1' \<longrightarrow> P m1 m2 = P m1' m2')"
 lemma assertion_footprint_right_const: "assertion_footprint_right X (\<lambda>m m'. P m)"
@@ -34,6 +84,35 @@ lemma assertion_footprint_right_const: "assertion_footprint_right X (\<lambda>m 
 lemma assertion_footprint_right_app: "assertion_footprint_right X P \<Longrightarrow> assertion_footprint_right X Q \<Longrightarrow> assertion_footprint_right X (\<lambda>m m'. (P m m') (Q m m'))"
   unfolding assertion_footprint_right_def by auto
 
+lemma assertion_footprint_right_op2: 
+  assumes "assertion_footprint_right X P"
+      and "assertion_footprint_right X Q"
+  shows "assertion_footprint_right X (\<lambda>m m'. f (P m m') (Q m m'))"
+  using assms unfolding assertion_footprint_right_def by auto
+lemma assertion_footprint_right_update_pattern_untyped:
+  assumes "Y \<subseteq> X \<union> set (pu_vars pat)"
+  assumes "assertion_footprint_right Y P"
+  shows "assertion_footprint_right X (\<lambda>m m'. P m (memory_update_untyped_pattern m' pat x))"
+using assms unfolding assertion_footprint_right_def apply auto
+by (smt UnE lookup_memory_update_untyped_pattern_getter memory_lookup_update_pattern_notsame subsetCE)
+lemma assertion_footprint_right_map_other: 
+  assumes "assertion_footprint_right X P"
+  shows "assertion_footprint_right X (\<lambda>m m'. P (f m) m')"
+using assms unfolding assertion_footprint_right_def by auto
+
+lemma assertion_footprint_right_update_untyped:
+  assumes "Y \<subseteq> insert x X"
+  assumes "assertion_footprint_right Y P"
+  shows "assertion_footprint_right X (\<lambda>m m'. P m (memory_update_untyped m' x v))"
+using assms unfolding assertion_footprint_right_def apply auto
+by (smt insertE memory_lookup_update_untyped subsetCE)
+
+
+
+lemma assertion_footprint_right_forall: 
+  assumes "\<And>x. assertion_footprint_right X (\<lambda>m1 m2. f x m1 m2)"
+  shows "assertion_footprint_right X (\<lambda>m1 m2. \<forall>x. f x m1 m2)"
+  using assms unfolding assertion_footprint_right_def by auto
 
 lemma rskip_rule:
   assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q m1 m2"
@@ -1579,6 +1658,40 @@ proof -
     by (meson Compl_anti_mono denotation_readonly_def program_untyped_readonly_def program_untyped_readonly_write_vars subsetCE write_vars_subset_vars_untyped(1))
   ultimately show ?thesis
     by (rule program_untyped_footprint_hoare)
+qed
+
+
+lemma frame_rule_untyped: 
+  assumes foot1: "assertion_footprint_left X R" and foot2: "assertion_footprint_right Y R"
+  assumes ro1: "program_untyped_readonly X p1" and ro2: "program_untyped_readonly Y p2"
+  assumes rhoare: "rhoare_untyped P p1 p2 Q"
+  shows "rhoare_untyped (\<lambda>m1 m2. P m1 m2 \<and> R m1 m2) p1 p2 (\<lambda>m1 m2. Q m1 m2 \<and> R m1 m2)"
+proof (rule rhoare_untypedI, goal_cases)
+case (1 m1 m2) 
+  hence P: "P m1 m2" and R: "R m1 m2" by simp_all
+  then obtain \<mu> where fst: "apply_to_distr fst \<mu> = denotation_untyped p1 m1"
+                and snd: "apply_to_distr snd \<mu> = denotation_untyped p2 m2" 
+                and supp: "\<And>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<Longrightarrow> Q m1' m2'"
+    apply atomize_elim by (rule rhoare[THEN rhoare_untypedE])
+  have QR: "Q m1' m2' \<and> R m1' m2'" if m1m2': "(m1',m2') \<in> support_distr \<mu>" for m1' m2'
+  proof -
+    from m1m2' have "m1' \<in> support_distr (denotation_untyped p1 m1)"
+      unfolding fst[symmetric] by (simp add: rev_image_eqI) 
+    hence m1_ro: "\<And>x. x\<in>X \<Longrightarrow> Rep_memory m1 x = Rep_memory m1' x"
+      using ro1 unfolding program_untyped_readonly_def denotation_readonly_def by auto
+    from m1m2' have "m2' \<in> support_distr (denotation_untyped p2 m2)"
+      unfolding snd[symmetric] by (simp add: rev_image_eqI) 
+    hence m2_ro: "\<And>x. x\<in>Y \<Longrightarrow> Rep_memory m2 x = Rep_memory m2' x"
+      using ro2 unfolding program_untyped_readonly_def denotation_readonly_def by auto
+    from m1_ro and m2_ro have "R m1' m2'"
+      using R foot1 foot2 unfolding assertion_footprint_left_def assertion_footprint_right_def
+      apply auto by blast
+    thus ?thesis
+      by (simp add: supp m1m2')
+  qed
+
+  show ?case
+    apply (rule exI[of _ \<mu>]) using fst snd QR by simp
 qed
 
 

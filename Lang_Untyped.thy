@@ -117,7 +117,7 @@ typedef memory = "{(m::variable_untyped\<Rightarrow>val). (\<forall>v. m v \<in>
 *)
 
 abbreviation "memory_lookup_untyped m v \<equiv> Rep_memory m v"
-lemma memory_lookup_untyped_type: "memory_lookup_untyped m v \<in> t_domain (vu_type v)"
+lemma memory_lookup_untyped_type [simp]: "memory_lookup_untyped m v \<in> t_domain (vu_type v)"
   using Rep_memory by auto
 
 definition "memory_update_untyped m v x = 
@@ -137,8 +137,7 @@ lemma Rep_memory_update_untyped:
 lemma memory_lookup_update_same_untyped: "a \<in> t_domain (vu_type v) \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m v a) v = a"
   unfolding memory_update_untyped_def 
   apply auto
-  apply (subst Abs_memory_inverse, auto)
-  using Rep_memory by auto
+  by (subst Abs_memory_inverse, auto)
 
 
 lemma memory_lookup_update_notsame_untyped: 
@@ -158,7 +157,7 @@ lemma memory_lookup_update_untyped: "memory_lookup_untyped (memory_update_untype
   unfolding memory_update_untyped_def Let_def
   using Abs_memory_inverse Rep_memory Rep_type t_default_def t_domain_def by auto
 
-lemma memory_update_lookup_untyped: "memory_update_untyped m x (memory_lookup_untyped m x) = m"
+lemma memory_update_lookup_untyped [simp]: "memory_update_untyped m x (memory_lookup_untyped m x) = m"
   apply (rule Rep_memory_inject[THEN iffD1])
   apply (subst Rep_memory_update_untyped)
   using memory_lookup_untyped_type close auto
@@ -300,6 +299,7 @@ definition pair_pattern_untyped :: "pattern_untyped \<Rightarrow> pattern_untype
   \<lparr> pur_var_getters=(map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o fst o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p1))
                   @ (map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o snd o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p2)),
     pur_type=T \<rparr>)"
+
 lemma Rep_pair_pattern_untyped: "Rep_pattern_untyped (pair_pattern_untyped p1 p2) = (let T = prod_type (pu_type p1) (pu_type p2) in
   \<lparr> pur_var_getters=(map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o fst o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p1))
                   @ (map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o snd o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p2)),
@@ -308,13 +308,20 @@ unfolding pair_pattern_untyped_def Let_def
 apply (subst Abs_pattern_untyped_inverse)
 apply auto
 using Rep_pattern_untyped pu_var_getters_def by fastforce+
+
 lemma pu_type_pair_pattern [simp]: "pu_type (pair_pattern_untyped p1 p2) = prod_type (pu_type p1) (pu_type p2)"
   unfolding pu_type_def Rep_pair_pattern_untyped by simp
+
 lemma pu_var_getters_pair_pattern [simp]: "pu_var_getters (pair_pattern_untyped p1 p2) = 
     (let T = pu_type (pair_pattern_untyped p1 p2) in
                     (map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o fst o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p1))
                   @ (map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o snd o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p2)))"
   unfolding pu_var_getters_def Rep_pair_pattern_untyped by simp                                          
+
+lemma pu_vars_pair_pattern [simp]: "pu_vars (pair_pattern_untyped p1 p2) = pu_vars p1 @ pu_vars p2"
+  unfolding pu_vars_def by (simp add: case_prod_unfold)
+
+
 
 definition memory_update_untyped_pattern :: "memory \<Rightarrow> pattern_untyped \<Rightarrow> val \<Rightarrow> memory" where
   "memory_update_untyped_pattern m p x = 
@@ -419,6 +426,40 @@ by (simp add: assms memory_update_untyped_pattern_def)
 lemma memory_update_untyped_pattern_ignore [simp]:
   "memory_update_untyped_pattern m (pattern_ignore x) = (\<lambda>_. m)"
 by (rule ext, simp add: memory_update_untyped_pattern_def)
+
+lemma memory_update_pair_pattern_untyped:
+  assumes "x1 \<in> t_domain (pu_type p1)" and "x2 \<in> t_domain (pu_type p2)"
+  shows "memory_update_untyped_pattern m (pair_pattern_untyped p1 p2) (val_prod_embedding (x1,x2)) = memory_update_untyped_pattern (memory_update_untyped_pattern m p1 x1) p2 x2"
+proof -
+  def p1vg == "pu_var_getters p1"
+  def p2vg == "pu_var_getters p2"
+  def T == "pu_type (pair_pattern_untyped p1 p2)"
+  def fstg == "\<lambda>(v::variable_untyped) g. \<lambda>x. if x \<in> t_domain T then (g \<circ> fst \<circ> inv val_prod_embedding) x else t_default (vu_type v)"
+  def sndg == "\<lambda>(v::variable_untyped) g. \<lambda>x. if x \<in> t_domain T then (g \<circ> snd \<circ> inv val_prod_embedding) x else t_default (vu_type v)"
+
+  from assms have x1x2_T: "val_prod_embedding (x1,x2) \<in> t_domain T"
+    unfolding T_def pu_type_pair_pattern t_domain_prod by simp
+
+  have fst_simp: "memory_update_untyped m (fst vf) (fstg (fst vf) (snd vf) (val_prod_embedding (x1, x2)))
+     = memory_update_untyped m (fst vf) (snd vf x1)" for vf m 
+     unfolding fstg_def apply (simp add: x1x2_T) apply (subst inv_f_f[OF inj_val_prod_embedding]) by simp
+  have snd_simp: "memory_update_untyped m (fst vf) (sndg (fst vf) (snd vf) (val_prod_embedding (x1, x2)))
+     = memory_update_untyped m (fst vf) (snd vf x2)" for vf m 
+     unfolding sndg_def apply (simp add: x1x2_T) apply (subst inv_f_f[OF inj_val_prod_embedding]) by simp
+
+  have "foldl (\<lambda>m (v, f). memory_update_untyped m v (f (val_prod_embedding (x1, x2)))) m
+     (map (\<lambda>(v, g). (v, fstg v g)) p1vg @
+      map (\<lambda>(v, g). (v, sndg v g)) p2vg) =
+    foldl (\<lambda>m (v, f). memory_update_untyped m v (f x2)) (foldl (\<lambda>m (v, f). memory_update_untyped m v (f x1)) m p1vg) p2vg"
+      unfolding foldl_append split_def foldl_map apply simp
+      unfolding fst_simp snd_simp by simp
+
+  thus ?thesis
+    unfolding memory_update_untyped_pattern_def pu_var_getters_pair_pattern p1vg_def[symmetric] 
+        p2vg_def[symmetric] T_def[symmetric] fstg_def sndg_def Let_def by simp
+qed
+
+
 
 subsection {* Procedures *}
 

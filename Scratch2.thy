@@ -33,13 +33,78 @@ lemma rhoareE:
                   apply_to_distr snd \<mu> = denotation p2 m2 \<and> (\<forall>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<longrightarrow> Q m1' m2')"
 using assms unfolding rhoare_def by simp
 
+definition var_expression_untyped :: "variable_untyped \<Rightarrow> expression_untyped" where
+"var_expression_untyped v = Abs_expression_untyped
+  \<lparr> eur_fun=\<lambda>m. memory_lookup_untyped m v,
+    eur_type=vu_type v,
+    eur_vars=[v] \<rparr>"
+lemma Rep_var_expression_untyped: "Rep_expression_untyped (var_expression_untyped v) = 
+  \<lparr> eur_fun=\<lambda>m. memory_lookup_untyped m v,
+    eur_type=vu_type v,
+    eur_vars=[v] \<rparr>"
+  unfolding var_expression_untyped_def
+  apply (subst Abs_expression_untyped_inverse)
+  by auto
+lemma eu_type_var_expression_untyped [simp]: "eu_type (var_expression_untyped x) = vu_type x"
+  unfolding eu_type_def using Rep_var_expression_untyped by simp
+lemma eu_fun_var_expression_untyped [simp]: "eu_fun (var_expression_untyped x) = (\<lambda>m. memory_lookup_untyped m x)"
+  unfolding eu_fun_def using Rep_var_expression_untyped by simp
+
+lemma eu_fun_type [simp]: "eu_fun e m \<in> t_domain (eu_type e)"
+  using Rep_expression_untyped eu_fun_def eu_type_def by auto
+
+definition pair_expression_untyped :: "expression_untyped \<Rightarrow> expression_untyped \<Rightarrow> expression_untyped" where
+  "pair_expression_untyped e1 e2 = Abs_expression_untyped
+   \<lparr> eur_fun = (\<lambda>m. val_prod_embedding (eu_fun e1 m, eu_fun e2 m)),
+     eur_type = prod_type (eu_type e1) (eu_type e2),
+     eur_vars = eu_vars e1 @ eu_vars e2 \<rparr>"
+lemma Rep_pair_expression_untyped: "Rep_expression_untyped (pair_expression_untyped e1 e2) =
+   \<lparr> eur_fun = (\<lambda>m. val_prod_embedding (eu_fun e1 m, eu_fun e2 m)),
+     eur_type = prod_type (eu_type e1) (eu_type e2),
+     eur_vars = eu_vars e1 @ eu_vars e2 \<rparr>"
+  unfolding pair_expression_untyped_def
+  apply (subst Abs_expression_untyped_inverse)
+  apply auto by (metis UnCI eu_fun_footprint)
+lemma eu_fun_pair_expression_untyped: "eu_fun (pair_expression_untyped e1 e2) = (\<lambda>m. val_prod_embedding (eu_fun e1 m, eu_fun e2 m))"
+  using Rep_pair_expression_untyped unfolding eu_fun_def by auto
+lemma eu_type_pair_expression_untyped [simp]: "eu_type (pair_expression_untyped e1 e2) = prod_type (eu_type e1) (eu_type e2)"
+  using Rep_pair_expression_untyped unfolding eu_type_def by auto
+
+fun list_expression_untyped :: "variable_untyped list \<Rightarrow> expression_untyped" where
+  "list_expression_untyped [] = const_expression_untyped unit_type (embedding (default::unit))"
+| "list_expression_untyped (x#xs) = pair_expression_untyped (var_expression_untyped x) (list_expression_untyped xs)"
 
 fun list_pattern_untyped :: "variable_untyped list \<Rightarrow> pattern_untyped" where
   "list_pattern_untyped [] = pattern_ignore unit_type"
 | "list_pattern_untyped (x#xs) = pair_pattern_untyped (pattern_1var x) (list_pattern_untyped xs)"
 
-definition "memory_pattern_related p1 p2 m1 m2 = (\<exists>v. m1 = memory_update_pattern m1 p1 v \<and> m2 = memory_update_pattern m2 p2 v)"
+lemma pu_vars_list_pattern_untyped [simp]: "pu_vars (list_pattern_untyped xs) = xs"
+  apply (induction xs) by auto
 
+lemma list_pattern_untyped_list_expression_untyped: "memory_update_untyped_pattern m (list_pattern_untyped xs) (eu_fun (list_expression_untyped xs) m) = m"
+proof (induction xs arbitrary: m)
+case Nil show ?case by auto
+next case (Cons x xs')
+  have type: "pu_type (list_pattern_untyped xs) = eu_type (list_expression_untyped xs)" for xs
+  proof (induction xs)
+  case Nil show ?case apply simp apply (subst eu_type_const_expression_untyped) apply (metis Type_def embedding_Type unit_type_def) by simp
+  next case Cons thus ?case by auto
+  qed
+  have u1: "memory_update_untyped_pattern m (pattern_1var x) (eu_fun (var_expression_untyped x) m) = m"
+    by simp
+  have u2: "memory_update_untyped_pattern (memory_update_untyped_pattern m (pattern_1var x) (eu_fun (var_expression_untyped x) m))
+     (list_pattern_untyped xs') (eu_fun (list_expression_untyped xs') m) = m"
+    apply (subst u1) by (fact Cons)
+
+  show ?case
+    apply (simp add: eu_fun_pair_expression_untyped)
+    apply (subst memory_update_pair_pattern_untyped)
+      close (auto simp: Rep_var_expression_untyped eu_fun_def)
+     using type close simp
+    using u2 by simp
+qed
+
+definition "memory_pattern_related p1 p2 m1 m2 = (\<exists>v. m1 = memory_update_pattern m1 p1 v \<and> m2 = memory_update_pattern m2 p2 v)"
 
 definition kill_vars_pattern :: "'a pattern \<Rightarrow> variable_untyped set \<Rightarrow> 'a pattern" where
   "kill_vars_pattern = undefined"
@@ -82,7 +147,7 @@ proof (rule iffI)
      close (subst m1, rule refl)
     by (subst m2, rule refl)
 
-  moreover have "memory_pattern_related (kill_vars_pattern a1 (p_vars a2)) (kill_vars_pattern b1 (p_vars b2)) m1 m2"
+  moreover have "memory_pattern_related (kill_vars_pattern a1 (set (p_vars a2))) (kill_vars_pattern b1 (set (p_vars b2))) m1 m2"
     apply (rule memory_pattern_relatedI)
      apply (subst memory_update_pattern_swap[symmetric])
      close (subst m1, rule refl)
@@ -92,12 +157,12 @@ proof (rule iffI)
   ultimately show "?rhs" by simp
 next
   assume "?rhs"
-  hence 2: "memory_pattern_related a2 b2 m1 m2" and 1: "memory_pattern_related (kill_vars_pattern a1 (p_vars a2)) (kill_vars_pattern b1 (p_vars b2)) m1 m2"
+  hence 2: "memory_pattern_related a2 b2 m1 m2" and 1: "memory_pattern_related (kill_vars_pattern a1 (set (p_vars a2))) (kill_vars_pattern b1 (set (p_vars b2))) m1 m2"
     by simp_all
   from 2 obtain v where m1a2: "m1 = memory_update_pattern m1 a2 v" and m2b2: "m2 = memory_update_pattern m2 b2 v"
     unfolding memory_pattern_related_def by auto
-  from 1 obtain w where m1a1: "m1 = memory_update_pattern m1 (kill_vars_pattern a1 (p_vars a2)) w" and
-          m2b1: "m2 = memory_update_pattern m2 (kill_vars_pattern b1 (p_vars b2)) w"
+  from 1 obtain w where m1a1: "m1 = memory_update_pattern m1 (kill_vars_pattern a1 (set (p_vars a2))) w" and
+          m2b1: "m2 = memory_update_pattern m2 (kill_vars_pattern b1 (set (p_vars b2))) w"
     unfolding memory_pattern_related_def by auto
   have "m1 = memory_update_pattern m1 (pair_pattern a1 a2) (w,v)"
     unfolding memory_update_pair_pattern 
@@ -301,6 +366,21 @@ qed
 
 (* TODO: use callproc_equiv and transitivity for some callproc_subst-variant below *)
 
+
+
+(*
+lemma callproc_subst:
+  fixes x1::"'x1::prog_type pattern" and x2::"'x2::prog_type pattern" and y1 y2 and x1e::"'x1 expression" and x2e::"'x2 expression"
+  assumes rhoare: "rhoare P' (callproc x1' f1 y1') (callproc x2' f2 y2') Q'"
+  shows "rhoare P (callproc x1 f1 y1) (callproc x2 f2 y2) Q"
+apply (rule rtrans_rule) defer defer 
+apply (rule rtrans_rule) defer defer defer
+apply (fact rhoare)
+apply (rule callproc_equiv)  defer defer defer defer defer defer defer defer
+apply (rule callproc_equiv)
+*)
+
+(*
 lemma callproc_subst:
   fixes x1::"'x1::prog_type pattern" and x2::"'x2::prog_type pattern" and y1 y2 and x1e::"'x1 expression" and x2e::"'x2 expression"
   assumes p: "\<And>m1 m2. P m1 m2 \<Longrightarrow> \<exists>m1' m2'.
@@ -323,9 +403,10 @@ proof -
     apply (rule callproc_equiv)
     prefer 5
     apply (rule callproc_equiv)
-    
-    
+oops    
+*)  
 
+(*
 lemma callproc_subst:
   fixes x1::"'x1::prog_type pattern" and x2::"'x2::prog_type pattern" and y1 y2 and x1e::"'x1 expression" and x2e::"'x2 expression"
   assumes rhoare: "rhoare P' (callproc x1' f1 y1') (callproc x2' f2 y2') Q'"
@@ -361,6 +442,7 @@ by later
     unfolding \<mu>_def using supp' by (auto intro!: Q'_Q)
   from fst snd supp show ?case by auto
 qed
+oops
 
 lemma callproc_subst:
   fixes x1::"'x1::prog_type pattern" and x2::"'x2::prog_type pattern" and y1 y2 and x1e::"'x1 expression" and x2e::"'x2 expression"
@@ -390,58 +472,373 @@ proof -
 
   *)
 thm callproc_rule
-qed
+oops
+*)
+
+lemma assertion_footprint_leftE: 
+  "assertion_footprint_left X P \<Longrightarrow> (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m1' x) \<Longrightarrow> (m2::memory)=m2' \<Longrightarrow> P m1 m2 = P m1' m2'"
+unfolding assertion_footprint_left_def by simp
+lemma assertion_footprint_rightE:
+   "assertion_footprint_right X P \<Longrightarrow> (\<forall>x\<in>X. memory_lookup_untyped m2 x = memory_lookup_untyped m2' x) \<Longrightarrow> (m1::memory)=m1' \<Longrightarrow> P m1 m2 = P m1' m2'"
+unfolding assertion_footprint_right_def by simp
+
+lemma program_readonly_mono:
+  assumes mono: "A \<le> B"
+  assumes foot: "program_readonly B d"
+  shows "program_readonly A d"
+by (meson denotation_readonly_def foot mono program_readonly_def subset_iff)
+
+lemma assertion_footprint_left_update_pattern:
+  assumes "Y \<subseteq> X \<union> set (p_vars pat)"
+  assumes "assertion_footprint_left Y P"
+  shows "assertion_footprint_left X (\<lambda>m m'. P (memory_update_pattern m pat x) m')"
+unfolding memory_update_pattern_def
+apply (rule assertion_footprint_left_update_pattern_untyped)
+using assms unfolding p_vars_def by auto
+
+lemma assertion_footprint_left_update:
+  assumes "Y \<subseteq> insert (mk_variable_untyped x) X"
+  assumes "assertion_footprint_left Y P"
+  shows "assertion_footprint_left X (\<lambda>m m'. P (memory_update m x v) m')"
+unfolding memory_update_def
+apply (rule assertion_footprint_left_update_untyped)
+using assms by auto
+
+lemma assertion_footprint_right_update_pattern:
+  assumes "Y \<subseteq> X \<union> set (p_vars pat)"
+  assumes "assertion_footprint_right Y P"
+  shows "assertion_footprint_right X (\<lambda>m m'. P m (memory_update_pattern m' pat x))"
+unfolding memory_update_pattern_def
+apply (rule assertion_footprint_right_update_pattern_untyped)
+using assms unfolding p_vars_def by auto
+
+lemma assertion_footprint_right_update:
+  assumes "Y \<subseteq> insert (mk_variable_untyped x) X"
+  assumes "assertion_footprint_right Y P"
+  shows "assertion_footprint_right X (\<lambda>m m'. P m (memory_update m' x v))"
+unfolding memory_update_def
+apply (rule assertion_footprint_right_update_untyped)
+using assms by auto
+
+lemma memory_lookup_inject: "memory_lookup_untyped m = memory_lookup_untyped m' \<Longrightarrow> m=m'"
+  apply (cases m, cases m', simp)
+  apply (subst (asm) Abs_memory_inverse) close simp
+  apply (subst (asm) Abs_memory_inverse) close simp
+  by simp
+
+lemma assertion_footprint_left_UNIV: 
+  shows "assertion_footprint_left UNIV P"
+    unfolding assertion_footprint_left_def
+    using memory_lookup_inject[OF ext] by auto
+
+lemma assertion_footprint_right_UNIV: 
+  shows "assertion_footprint_right UNIV P"
+    unfolding assertion_footprint_right_def
+    using memory_lookup_inject[OF ext] by auto
+
+lemma assertion_footprint_left_mono:
+  assumes "X \<subseteq> Y"
+  assumes "assertion_footprint_left X P"
+  shows   "assertion_footprint_left Y P"
+using assms unfolding assertion_footprint_left_def by blast
+
+lemma assertion_footprint_right_mono:
+  assumes "X \<subseteq> Y"
+  assumes "assertion_footprint_right X P"
+  shows   "assertion_footprint_right Y P"
+using assms unfolding assertion_footprint_right_def by blast
 
 lemma call_rule:
-  fixes globals_f1 globals_f2 and x1::"'x1::prog_type pattern" and x2::"'x2::prog_type pattern" and y1 y2 A B P Q
-  assumes "set(vars_proc_global f1) \<subseteq> set globals_f1"
-  assumes "set(vars_proc_global f2) \<subseteq> set globals_f2"
-  assumes "rhoare P
-              (callproc (variable_pattern res) f1 (var_expression args))
-              (callproc (variable_pattern res) f2 (var_expression args))
+  fixes globals_f1 globals_f2 and x1::"'x1::prog_type pattern" and x2::"'x2::prog_type pattern" 
+    and y1::"'y1::prog_type expression" and y2::"'y2::prog_type expression" 
+    and res1::"'x1 variable" and res2::"'x2 variable" and A B P Q 
+  assumes globals_f1: "set(write_vars_proc_global f1) \<subseteq> set globals_f1"
+  assumes globals_f2: "set(write_vars_proc_global f2) \<subseteq> set globals_f2"
+  assumes args1_nin_f1: "mk_variable_untyped args1 \<notin> set (vars_proc_global f1)"
+  assumes args2_nin_f2: "mk_variable_untyped args2 \<notin> set (vars_proc_global f2)"
+  assumes footQ1: "assertion_footprint_left (-{mk_variable_untyped args1}) Q"
+  assumes footQ2: "assertion_footprint_right (-{mk_variable_untyped args2}) Q"
+  assumes f1f2: "rhoare P
+              (callproc (variable_pattern res1) f1 (var_expression args1))
+              (callproc (variable_pattern res2) f2 (var_expression args2))
               Q"
-  defines "QB == (\<lambda>m1 m2. (\<forall>gL gR xL xR. Q (memory_update (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f1) gL) res xL) 
-                       (memory_update (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f2)  gL) res xR)
-                \<longrightarrow> B (memory_update_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f1) gL) x1 xL) 
-                      (memory_update_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f2) gL) x2 xR)))"
-  defines "C == (\<lambda>m1 m2. P (memory_update m1 args (e_fun y1 m1)) (memory_update m2 args (e_fun y2 m2)) \<and> QB m1 m2)"
-  assumes "rhoare A p1 p2 C"
+  defines "QB == (\<lambda>m1 m2. (\<forall>gL gR xL xR x'L x'R. 
+                     Q (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f1) gL) (list_pattern_untyped (p_vars x1)) x'L) res1 xL)
+                       (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f2) gR) (list_pattern_untyped (p_vars x2)) x'R) res2 xR)
+                \<longrightarrow> B (memory_update_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f1) gL) x1 xL)
+                      (memory_update_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f2) gR) x2 xR)))"
+  defines "C == (\<lambda>m1 m2. P (memory_update m1 args1 (e_fun y1 m1)) (memory_update m2 args2 (e_fun y2 m2)) \<and> QB m1 m2)"
+  assumes p1p2: "rhoare A p1 p2 C"
   shows "rhoare A (seq p1 (callproc x1 f1 y1)) (seq p2 (callproc x2 f2 y2)) B"
 proof -
-  def x1e == "undefined::'x1 expression" def x2e == "undefined::'x2 expression" (* TODO *)
-  def P' == "\<lambda>m1 m2. P (memory_update m1 args (e_fun y1 m1)) (memory_update m2 args (e_fun y2 m2))"
-  def Q' == "\<lambda>m1 m2. Q (memory_update m1 res (e_fun x1e m1)) (memory_update m2 res (e_fun x2e m2))"
+  def P' == "\<lambda>m1 m2. P (memory_update m1 args1 (e_fun y1 m1)) (memory_update m2 args2 (e_fun y2 m2))"
+  def x1l == "list_pattern_untyped (p_vars x1)"
+  def x2l == "list_pattern_untyped (p_vars x2)"
+  def Q' == "\<lambda>m1 m2. (\<exists>res1_val res2_val x1_val x2_val. 
+      memory_update_pattern m1 x1 res1_val = m1 \<and> memory_update_pattern m2 x2 res2_val = m2 \<and>
+      Q (memory_update (memory_update_untyped_pattern m1 x1l x1_val) res1 res1_val) (memory_update (memory_update_untyped_pattern m2 x2l x2_val) res2 res2_val))"
 
-  have "obs_eq' V (callproc ?x ?p ?args)
-     (seq (seq (seq (assign (p_arg ?p) ?args) (assign_default_typed ?non_parg_locals)) (p_body ?p)) (assign ?x (p_return ?p)))"
-thm callproc_rule 
+  def VV1 == "- {mk_variable_untyped args1}"
+  def VV2 == "UNIV - {mk_variable_untyped args1, mk_variable_untyped res1} - set(p_vars x1)"
+  def VV1' == "- {mk_variable_untyped args2}"
+  def VV2' == "UNIV - {mk_variable_untyped args2, mk_variable_untyped res2} - set(p_vars x2)"
 
-  have Q'_foot1: "assertion_footprint_left XXX Q'" sorry
-  have Q'_foot2: "assertion_footprint_right YYY Q'" sorry
+  have y1_VV1: "mk_variable_untyped (args1::'y1 variable) \<notin> VV1" unfolding VV1_def by simp
+  have vv1_1: "set (vars_proc_global f1) \<subseteq> VV1" unfolding VV1_def using args1_nin_f1 by auto
 
-  have "rhoare P' (callproc x1 f1 y1) (callproc x2 f2 y2) Q'"
-    using obseq_context_empty Q'_foot1 apply (rule rhoare_left_obseq_replace[where C="\<lambda>x. x"])
-     apply (rule callproc_rule)
-     close 6 (tactic "ALLGOALS (Skip_Proof.cheat_tac @{context})") (* sorry *)
-    using obseq_context_empty Q'_foot2 apply (rule rhoare_right_obseq_replace[where C="\<lambda>x. x"])
-     apply (rule callproc_rule)
-     close 6 (tactic "ALLGOALS (Skip_Proof.cheat_tac @{context})") (* sorry *)
+  have y2_VV1': "mk_variable_untyped (args2::'y2 variable) \<notin> VV1'" unfolding VV1'_def by simp
+  have x1: "set (vars_proc_global f2) \<subseteq> VV1'" unfolding VV1'_def using args2_nin_f2 by auto
+
+  have vv1_2: "VV2 \<subseteq> VV1" unfolding VV2_def VV1_def by auto
+  have x1_vv2: "set (p_vars x1) \<inter> VV2 = {}" unfolding VV2_def by auto
+  have res_vv2: "set (p_vars (variable_pattern res1 :: 'x1 pattern)) \<inter> VV2 = {}" unfolding VV2_def by auto
+
+  have x2: "VV2' \<subseteq> VV1'" unfolding VV2'_def VV1'_def by auto
+  have x3: "set (p_vars (variable_pattern res2 :: 'x2 pattern)) \<inter> VV2' = {}" unfolding VV2'_def by auto
+  have x4: "set (p_vars x2) \<inter> VV2' = {}" unfolding VV2'_def by auto
+
+  have foot_Q1: "assertion_footprint_left (insert (mk_variable_untyped (res1::'x1 variable)) VV2 \<union> set(p_vars x1)) Q" 
+    apply (rule assertion_footprint_left_mono[OF _ footQ1]) unfolding VV2_def by auto
+
+  have foot_Q2: "assertion_footprint_right (insert (mk_variable_untyped (res2::'x2 variable)) VV2' \<union> set(p_vars x2)) Q"
+    apply (rule assertion_footprint_right_mono[OF _ footQ2]) unfolding VV2'_def by auto
+  (* have foot_Q1': "assertion_footprint_left (insert (mk_variable_untyped (res1::'x1 variable)) {x. vu_global x}) Q" 
+  have foot_Q2': "assertion_footprint_right (insert (mk_variable_untyped (res2::'x2 variable)) {x. vu_global x}) Q" 
+  have foot_B1: "assertion_footprint_left {x. vu_global x} B" 
+  have foot_B2: "assertion_footprint_right {x. vu_global x} B"  *)
+
+
+  have x1_f1_res_f1: "hoare {\<lambda>m1 m2. (\<forall>v\<in>VV1. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<and> e_fun y1 m1 = e_fun (var_expression args1) m2}
+          \<guillemotleft>callproc x1 f1 y1\<guillemotright> ~ \<guillemotleft>callproc (variable_pattern res1) f1 (var_expression args1)\<guillemotright>
+        {\<lambda>m1 m2. (\<forall>v\<in>VV2. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<and> memory_pattern_related x1 (variable_pattern res1) m1 m2}"
+    apply (rule callproc_equiv)
+    using vv1_1 vv1_2 x1_vv2 res_vv2 by auto
+
+  have res_f2_x2_f2: "hoare {\<lambda>m1 m2. (\<forall>v\<in>VV1'. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<and> e_fun (var_expression args2) m1 = e_fun y2 m2}
+        \<guillemotleft>callproc (variable_pattern res2) f2 (var_expression args2)\<guillemotright> ~ \<guillemotleft>callproc x2 f2 y2\<guillemotright> 
+          {\<lambda>m1 m2. (\<forall>v\<in>VV2'. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<and> memory_pattern_related (variable_pattern res2) x2 m1 m2}"
+    apply (rule callproc_equiv)
+    using x1 x2 x3 x4 by auto
+
+  have t3: "\<exists>m m'. ((\<forall>v\<in>VV1. memory_lookup_untyped m1 v = memory_lookup_untyped m v) \<and>
+                     e_fun y1 m1 = e_fun (var_expression args1) m) \<and>
+                    P m m' \<and>
+                    (\<forall>v\<in>VV1'. memory_lookup_untyped m' v = memory_lookup_untyped m2 v) \<and> e_fun (var_expression args2) m' = e_fun y2 m2"
+                    if "P' m1 m2" for m1 m2
+    apply (rule exI[of _ "memory_update m1 args1 (e_fun y1 m1)"], rule exI[of _ "memory_update m2 args2 (e_fun y2 m2)"])
+    using y1_VV1 y2_VV1' that unfolding P'_def by simp
+
+  have t4: "Q' m1 m2"
+       if eq2: "\<forall>v\<in>VV2'. memory_lookup_untyped m' v = memory_lookup_untyped m2 v" 
+       and res_x2: "memory_pattern_related (variable_pattern res2) x2 m' m2" 
+       and eq1: "\<forall>v\<in>VV2. memory_lookup_untyped m1 v = memory_lookup_untyped m v" 
+       and x1_res: "memory_pattern_related x1 (variable_pattern res1) m1 m"
+       and "Q m m'" for m1 m2 m m'
+  proof -
+    def res1_val == "memory_lookup m res1 :: 'x1"
+    def res2_val == "memory_lookup m' res2 :: 'x2"
+    def x1_val == "eu_fun (list_expression_untyped (p_vars x1)) m"
+    def x2_val == "eu_fun (list_expression_untyped (p_vars x2)) m'"
+
+    from x1_res
+    obtain v where x1_v: "m1 = memory_update_pattern m1 x1 v" and res_v: "m = memory_update_pattern m (variable_pattern res1) v"
+      unfolding memory_pattern_related_def by auto
+    have "v = res1_val" unfolding res1_val_def apply (subst res_v) by simp
+    have x1_res1_val: "memory_update_pattern m1 x1 res1_val = m1" using x1_v `v=res1_val` by simp
+
+    from res_x2
+    obtain w where res_w: "m' = memory_update_pattern m' (variable_pattern res2) w" and x2_w: "m2 = memory_update_pattern m2 x2 w"
+      unfolding memory_pattern_related_def by auto
+    have "w = res2_val" unfolding res2_val_def apply (subst res_w) by simp
+    have x2_res2_val: "memory_update_pattern m2 x2 res2_val = m2" using x2_w `w=res2_val` by simp
+
+(*     have x1l: "memory_update_untyped_pattern m1 x1l x1_val = m1"
+      unfolding x1l_def x1_val_def x2l_def x2_val_def 
+      unfolding list_pattern_untyped_list_expression_untyped by simp *)
+
+    have "Q (memory_update (memory_update_untyped_pattern m1 x1l x1_val) res1 res1_val) (memory_update (memory_update_untyped_pattern m2 x2l x2_val) res2 res2_val) = Q m (memory_update (memory_update_untyped_pattern m2 x2l x2_val) res2 res2_val)"
+      apply (rule assertion_footprint_leftE[OF foot_Q1])
+      using res1_val_def eq1 apply auto
+       close (metis list_pattern_untyped_list_expression_untyped lookup_memory_update_untyped_pattern_getter memory_lookup_update_pattern_notsame x1_val_def x1l_def)
+      by (metis list_pattern_untyped_list_expression_untyped lookup_memory_update_untyped_pattern_getter pu_vars_list_pattern_untyped x1_val_def x1l_def) 
+    also have "\<dots> = Q m m'"
+      apply (rule assertion_footprint_rightE[OF foot_Q2])
+      using res2_val_def eq2 apply auto
+       close (metis list_pattern_untyped_list_expression_untyped lookup_memory_update_untyped_pattern_getter memory_lookup_update_pattern_notsame x2_val_def x2l_def)
+      by (metis list_pattern_untyped_list_expression_untyped lookup_memory_update_untyped_pattern_getter pu_vars_list_pattern_untyped x2_val_def x2l_def) 
+  finally have Q': "Q (memory_update (memory_update_untyped_pattern m1 x1l x1_val) res1 res1_val)  
+                      (memory_update (memory_update_untyped_pattern m2 x2l x2_val) res2 res2_val)"
+    using that by simp                      
+      
+
+(*     have "Q (memory_update m1 res1 res1_val) (memory_update m2 res2 res2_val) = Q m (memory_update m2 res2 res2_val)"
+      apply (rule assertion_footprint_leftE[OF foot_Q1])
+      using res1_val_def eq1 by auto
+    also have "\<dots> = Q m m'"
+      apply (rule assertion_footprint_rightE[OF foot_Q2])
+      using res2_val_def eq2 by auto
+    finally have "Q (memory_update m1 res1 res1_val) (memory_update m2 res2 res2_val)"
+      using `Q m m'` by simp
+    hence Q': "Q (memory_update (memory_update_untyped_pattern m1 x1l x1_val) res1 res1_val)  
+                 (memory_update (memory_update_untyped_pattern m2 x2l x2_val) res2 res2_val)"
+      unfolding x1l_def x1_val_def x2l_def x2_val_def 
+      unfolding list_pattern_untyped_list_expression_untyped by assumption *)
+
+    from Q' x1_res1_val x2_res2_val show ?thesis unfolding Q'_def by auto
+  qed
+
+  have rhoareP'Q': "rhoare P' (callproc x1 f1 y1) (callproc x2 f2 y2) Q'"
+    apply (rule rtrans3_rule[OF _ _ x1_f1_res_f1 f1f2 res_f2_x2_f2])
+     close (rule t3, simp)
+    by (rule t4, simp_all)
+
+(*   have foot_QB1: "assertion_footprint_left ({x. vu_global x} - set globals_f1 - set (p_vars x1)) QB"
+    unfolding QB_def
+    apply (rule assertion_footprint_left_forall)+
+    apply (rule assertion_footprint_left_op2[where f="op\<longrightarrow>"])
+     apply (rule assertion_footprint_left_update_pattern_untyped[where Y="{x. vu_global x} - set (p_vars x1)"])
+      close (simp, blast)
+     apply (rule assertion_footprint_left_update_pattern[where Y="{x. vu_global x}"])
+      close simp
+     apply (rule assertion_footprint_left_update[where Y="insert (mk_variable_untyped res1) {x. vu_global x}"])
+      close (simp)
+     apply (rule assertion_footprint_left_map_other)
+     close (fact foot_Q1')
+    apply (rule assertion_footprint_left_update_pattern_untyped[where Y="{x. vu_global x} - set (p_vars x1)"])
+      close (simp, blast)
+     apply (rule assertion_footprint_left_update_pattern[where Y="{x. vu_global x}"])
+      close simp
+     apply (rule assertion_footprint_left_map_other)
+     by (fact foot_B1)
+ *) (*  have foot_QB2: "assertion_footprint_right ({x. vu_global x} - set globals_f2 - set (p_vars x2)) QB"
+    unfolding QB_def
+    apply (rule assertion_footprint_right_forall)+
+    apply (rule assertion_footprint_right_op2[where f="op\<longrightarrow>"])
+     apply (rule assertion_footprint_right_update_pattern_untyped[where Y="{x. vu_global x} - set (p_vars x2)"])
+      close (simp, blast)
+     apply (rule assertion_footprint_right_update_pattern[where Y="{x. vu_global x}"])
+      close simp
+     apply (rule assertion_footprint_right_update[where Y="insert (mk_variable_untyped res2) {x. vu_global x}"])
+      close (simp)
+     apply (rule assertion_footprint_right_map_other)
+     close (fact foot_Q2')
+    apply (rule assertion_footprint_right_update_pattern_untyped[where Y="{x. vu_global x} - set (p_vars x2)"])
+      close (simp, blast)
+     apply (rule assertion_footprint_right_update_pattern[where Y="{x. vu_global x}"])
+      close simp
+     apply (rule assertion_footprint_right_map_other)
+     by (fact foot_B2) *)
+
+  have foot_QB1: "assertion_footprint_left (UNIV - set globals_f1 - set (p_vars x1)) QB"
+    unfolding QB_def
+    apply (rule assertion_footprint_left_forall)+
+    apply (rule assertion_footprint_left_op2[where f="op\<longrightarrow>"])
+     apply (rule assertion_footprint_left_update_pattern_untyped[where Y="UNIV - set (p_vars x1)"])
+      close (simp, blast)
+     apply (rule assertion_footprint_left_update_pattern_untyped[where Y="UNIV"])
+      close simp
+     apply (rule assertion_footprint_left_update[where Y="UNIV"])
+      close
+     close (rule assertion_footprint_left_UNIV)
+    apply (rule assertion_footprint_left_update_pattern_untyped[where Y="UNIV - set (p_vars x1)"])
+     close (simp, blast)
+    apply (rule assertion_footprint_left_update_pattern[where Y="UNIV"])
+     close simp
+    by (rule assertion_footprint_left_UNIV)
+  have foot_QB2: "assertion_footprint_right (UNIV - set globals_f2 - set (p_vars x2)) QB"
+    unfolding QB_def
+    apply (rule assertion_footprint_right_forall)+
+    apply (rule assertion_footprint_right_op2[where f="op\<longrightarrow>"])
+     apply (rule assertion_footprint_right_update_pattern_untyped[where Y="UNIV - set (p_vars x2)"])
+      close (simp, blast)
+     apply (rule assertion_footprint_right_update_pattern_untyped[where Y="UNIV"])
+      close simp
+     apply (rule assertion_footprint_right_update[where Y="UNIV"])
+      close
+     close (rule assertion_footprint_right_UNIV)
+    apply (rule assertion_footprint_right_update_pattern_untyped[where Y="UNIV - set (p_vars x2)"])
+     close (simp, blast)
+    apply (rule assertion_footprint_right_update_pattern[where Y="UNIV"])
+     close simp
+    by (rule assertion_footprint_right_UNIV)
     
-    find_theorems "obseq_context _ (\<lambda>x. x)" 
-thm rhoare_left_obseq_replace
-(* Proof plan: 
+(*   have ro_f1: "program_readonly ({x. vu_global x} - set globals_f1 - set (p_vars x1)) (callproc x1 f1 y1)"
+    apply (rule program_readonly_mono[rotated])
+     close (rule program_readonly_write_vars)
+    using globals_f1 by auto
+  have ro_f2: "program_readonly ({x. vu_global x} - set globals_f2 - set (p_vars x2)) (callproc x2 f2 y2)"
+    apply (rule program_readonly_mono[rotated])
+     close (rule program_readonly_write_vars)
+    using globals_f2 by auto
+ *)
+  have ro_f1: "program_readonly (UNIV - set globals_f1 - set (p_vars x1)) (callproc x1 f1 y1)"
+    apply (rule program_readonly_mono[rotated])
+     close (rule program_readonly_write_vars)
+    using globals_f1 by auto
+  have ro_f2: "program_readonly (UNIV - set globals_f2 - set (p_vars x2)) (callproc x2 f2 y2)"
+    apply (rule program_readonly_mono[rotated])
+     close (rule program_readonly_write_vars)
+    using globals_f2 by auto
 
-- Show:  rhoare    P{args/y}  (callproc x=f(y))  Q{x/res}    (substitution)
-- Show:  footprint QB   disjoint of   callproc x=f(y)
-- Show:  rhoare    C=P{args/y}\<and>QB     (callproc x=f(y))   Q{res/x}\<and>QB   (frame_rule)
-- Show:  Q{res/x} \<and> QB \<Longrightarrow> Q
-- Show:  rhoare    C     (callproc x=f(y))   Q    (conseq)
-- Show:  rhoare    P     (p; callproc x=f(y))   Q    (seq with assm)
+  have rhoareQB: "hoare {P' &1 &2 \<and> QB &1 &2} \<guillemotleft>callproc x1 f1 y1\<guillemotright> ~ \<guillemotleft>callproc x2 f2 y2\<guillemotright> {Q' &1 &2 \<and> QB &1 &2}"
+    apply (rule frame_rule)
+        close (fact foot_QB1)
+       close (fact foot_QB2)
+      close (fact ro_f1)
+     close (fact ro_f2)
+    by (fact rhoareP'Q')
 
-*)
-find_theorems assertion_footprint
-  show ?thesis sorry
+  have QB_Q: "B m1 m2" if Q'm1m2: "Q' m1 m2" and QBm1m2: "QB m1 m2" for m1 m2
+  proof -
+    from Q'm1m2 obtain res1_val res2_val x1_val x2_val
+      where ux1: "memory_update_pattern m1 x1 res1_val = m1"
+        and ux2: "memory_update_pattern m2 x2 res2_val = m2"
+        and Q: "Q (memory_update (memory_update_untyped_pattern m1 x1l x1_val) res1 res1_val) 
+                  (memory_update (memory_update_untyped_pattern m2 x2l x2_val) res2 res2_val)"
+      unfolding Q'_def by auto
+
+    def gL == "eu_fun (list_expression_untyped globals_f1) m1"
+    def gR == "eu_fun (list_expression_untyped globals_f2) m2"
+
+    have Q2: "Q (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f1) gL) x1l x1_val) res1 res1_val)
+                (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f2) gR) x2l x2_val) res2 res2_val)"
+      unfolding gL_def apply (subst list_pattern_untyped_list_expression_untyped)
+      unfolding gR_def apply (subst list_pattern_untyped_list_expression_untyped)
+      unfolding ux1 ux2 by (fact Q)
+
+    from QBm1m2[unfolded QB_def, folded x1l_def x2l_def, rule_format, of gL x1_val res1_val gR x2_val res2_val] 
+    have B2: "B (memory_update_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f1) gL) x1 res1_val)
+                (memory_update_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f2) gR) x2 res2_val)"
+    unfolding QB_def using that Q2 by simp
+
+    show "B m1 m2"
+      using B2
+      unfolding gL_def apply (subst (asm) list_pattern_untyped_list_expression_untyped)
+      unfolding gR_def apply (subst (asm) list_pattern_untyped_list_expression_untyped)
+      unfolding ux1 ux2 by simp
+  qed
+
+  have rhoareCQ: "hoare {C &1 &2} \<guillemotleft>callproc x1 f1 y1\<guillemotright> ~ \<guillemotleft>callproc x2 f2 y2\<guillemotright> {B &1 &2}"
+    apply (rule rconseq_rule[rotated -1])
+      close (fact rhoareQB)
+     unfolding C_def P'_def close
+    using QB_Q by auto
+
+  show ?thesis
+    apply (rule rseq_rule)
+     close (fact p1p2)
+    by (fact rhoareCQ)
 qed
 
+(* Proof plan: 
+
+- Show:  rhoare    P{args/y}  (callproc x=f(y))  Q{x/res}    (substitution)   \<longrightarrow>  rhoareP'Q'
+- Show:  footprint QB   disjoint of   callproc x=f(y)
+- Show:  rhoare    C=P{args/y}\<and>QB     (callproc x=f(y))   Q{res/x}\<and>QB   (frame_rule) \<longrightarrow> rhoareQB
+- Show:  Q{res/x} \<and> QB \<Longrightarrow> B
+- Show:  rhoare    C     (callproc x=f(y))   B    (conseq)
+- Show:  rhoare    A     (p; callproc x=f(y))   B    (seq with assm)
+
+*)
 
 end
