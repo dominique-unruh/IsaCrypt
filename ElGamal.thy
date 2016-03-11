@@ -332,7 +332,9 @@ b' <@ A.guess(c)            (9)
 post = (b'{1} = b{1}) = (b'{2} = b0{2})
 *)
 
-
+(* TODO: make a call_rule_abstract *)
+apply (rule call_rule)
+ 
 sorry
 
 (* 

@@ -7,7 +7,7 @@ import glob, sys, os, random, re, subprocess, time
 import unittest
 import Pyro4
 
-isabelle_home = '/opt/Isabelle2016-RC1'
+isabelle_home = '/opt/Isabelle2016'
 
 if 'ISABELLE_DOCKER' in os.environ:
     isabelle_process = ['docker','run','-i',
@@ -210,6 +210,7 @@ def get_server():
         os.system("nohup python2 tests.py ISABELLE_SERVER >.isabelle-server-out.log 2>&1 &")
         time.sleep(1)
         connect()
+        print("Done...")
 
     if isabelle_server!=None: 
         isabelle_server.check()
