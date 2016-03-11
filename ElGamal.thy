@@ -262,11 +262,6 @@ using[[show_consts]]
 {A} p;x=f(y) ~ q;x=f(y) {B}  
 *)
 
-definition "var_expression_untyped v == Abs_expression_untyped
-  \<lparr> eur_fun=\<lambda>m. memory_lookup_untyped m v,
-    eur_type=vu_type v,
-    eur_vars=[v] \<rparr>"
-
 
 
 lemma cpa_ddh0:
@@ -319,7 +314,7 @@ post = (b'{1} = b{1}) = b{2}
 *)
 
 apply wp
-apply simp
+apply simp?
 
 (*
 pre = (glob A){2} = (glob A){m} /\ (glob A){1} = (glob A){m}

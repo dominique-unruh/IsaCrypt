@@ -88,6 +88,12 @@ lemma assertion_footprint_left_forall:
   shows "assertion_footprint_left X (\<lambda>m1 m2. \<forall>x. f x m1 m2)"
   using assms unfolding assertion_footprint_left_def by auto
 
+lemma assertion_footprint_left_UNIV: 
+  shows "assertion_footprint_left UNIV P"
+    unfolding assertion_footprint_left_def
+    using memory_lookup_untyped_inject[OF ext] by auto
+
+
 definition "assertion_footprint_right X P == (\<forall>m1 m1' m2 m2'. (\<forall>x\<in>X. memory_lookup_untyped m2 x = memory_lookup_untyped m2' x)\<longrightarrow> (m1::memory)=m1' \<longrightarrow> P m1 m2 = P m1' m2')"
 lemma assertion_footprint_right_const: "assertion_footprint_right X (\<lambda>m m'. P m)"
   unfolding assertion_footprint_right_def by simp
@@ -133,6 +139,13 @@ lemma assertion_footprint_right_forall:
   assumes "\<And>x. assertion_footprint_right X (\<lambda>m1 m2. f x m1 m2)"
   shows "assertion_footprint_right X (\<lambda>m1 m2. \<forall>x. f x m1 m2)"
   using assms unfolding assertion_footprint_right_def by auto
+
+lemma assertion_footprint_right_UNIV: 
+  shows "assertion_footprint_right UNIV P"
+    unfolding assertion_footprint_right_def
+    using memory_lookup_untyped_inject[OF ext] by auto
+
+
 
 lemma rskip_rule:
   assumes "\<forall>m1 m2. P m1 m2 \<longrightarrow> Q m1 m2"
@@ -797,10 +810,10 @@ proof (unfold rhoare_denotation_def, auto del: exI intro!: exI )
     unfolding \<mu>2_def by auto
   have RepAbs_ab: "Rep_memory (Abs_memory (\<lambda>x. if x \<notin> X then a x else b x)) = (\<lambda>x. if x \<notin> X then a x else b x)"
     apply (subst Abs_memory_inverse)
-     by (simp_all add: a b project_other_def project_def memory_lookup_untyped_type)
+     by (simp_all add: a b project_other_def project_def)
   have RepAbs_bc: "Rep_memory (Abs_memory (\<lambda>x. if x \<in> X then b x else c x)) = (\<lambda>x. if x \<in> X then b x else c x)"
     apply (subst Abs_memory_inverse)
-     by (simp_all add: b c project_other_def project_def memory_lookup_untyped_type)
+     by (simp_all add: b c project_other_def project_def)
 
   assume "x \<in> X"
   thus "memory_lookup_untyped m1' x = memory_lookup_untyped m2' x"

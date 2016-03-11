@@ -30,6 +30,13 @@ definition "bool_type =
 definition "unit_type =
       Abs_type \<lparr> tr_domain=range (embedding::unit\<Rightarrow>val),
                  tr_default=embedding (default::unit) \<rparr>"
+lemma Rep_unit_type: "Rep_type unit_type = \<lparr> tr_domain=range (embedding::unit\<Rightarrow>val),
+                                             tr_default=embedding () \<rparr>"
+  unfolding unit_type_def apply (subst Abs_type_inverse) by auto
+lemma t_domain_unit [simp]: "t_domain unit_type = {embedding ()}"
+  unfolding t_domain_def Rep_unit_type by auto
+lemma t_default_unit [simp]: "t_default unit_type = embedding ()"
+  unfolding t_default_def Rep_unit_type by auto
 definition "prod_type T1 T2 = 
       Abs_type \<lparr> tr_domain = val_prod_embedding ` (t_domain T1 \<times> t_domain T2),
                  tr_default = val_prod_embedding (t_default T1, t_default T2) \<rparr>"
@@ -120,6 +127,13 @@ abbreviation "memory_lookup_untyped m v \<equiv> Rep_memory m v"
 lemma memory_lookup_untyped_type [simp]: "memory_lookup_untyped m v \<in> t_domain (vu_type v)"
   using Rep_memory by auto
 
+
+lemma memory_lookup_untyped_inject: "memory_lookup_untyped m = memory_lookup_untyped m' \<Longrightarrow> m=m'"
+  apply (cases m, cases m', simp)
+  apply (subst (asm) Abs_memory_inverse) close simp
+  apply (subst (asm) Abs_memory_inverse) close simp
+  by simp
+
 definition "memory_update_untyped m v x = 
     Abs_memory ((Rep_memory m)(v:=if x\<in>t_domain(vu_type v) then x else t_default(vu_type v)))"
 
@@ -180,6 +194,13 @@ lemma memory_combine_twice_right [simp]:
 lemma memory_combine_twice_left [simp]:
   "memory_combine X (memory_combine X m1 m2) m3 = memory_combine X m1 m3"
   unfolding Rep_memory_inject[symmetric] by auto
+
+lemma memory_update_untyped_footprint:
+  assumes "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
+  assumes "w \<in> X"
+  shows   "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m1 w x) v = memory_lookup_untyped (memory_update_untyped m2 w x) v"
+by (simp add: assms(1) memory_lookup_update_untyped)
+
 
 subsection {* Expressions *}
 
@@ -293,11 +314,6 @@ fun list_expression_untyped :: "variable_untyped list \<Rightarrow> expression_u
   "list_expression_untyped [] = const_expression_untyped unit_type (embedding (default::unit))"
 | "list_expression_untyped (x#xs) = pair_expression_untyped (var_expression_untyped x) (list_expression_untyped xs)"
 
-
-(* TODO remove *)
-(* type_synonym id0 = string *)
-(* type_synonym id = "id0 list" *)
-
 subsection {* Patterns *}
 
 record pattern_rep =
@@ -336,6 +352,18 @@ lemma p_vars_pattern_ignore [simp]: "pu_vars (pattern_ignore T) = []"
 lemma p_type_pattern_ignore [simp]: "pu_type (pattern_ignore T) = T"
   by (simp add: Abs_pattern_untyped_inverse pu_type_def pattern_ignore_def)
 
+
+lemma no_vars_ignore_pattern_untyped: "pu_vars p = [] \<Longrightarrow> p = pattern_ignore (pu_type p)"
+proof -
+  assume "pu_vars p = []"
+  hence "pu_var_getters p = []"
+    unfolding pu_vars_def pu_var_getters_def by auto
+  moreover have "pu_type p = pu_type (pattern_ignore (pu_type p))"
+    by simp
+  ultimately show ?thesis
+    by (metis (full_types) Rep_pattern_untyped_inverse old.unit.exhaust pattern_ignore_def pattern_rep.surjective pu_type_def pu_var_getters_def) 
+qed
+
 definition pair_pattern_untyped :: "pattern_untyped \<Rightarrow> pattern_untyped \<Rightarrow> pattern_untyped" where
   "pair_pattern_untyped p1 p2 = (let T = prod_type (pu_type p1) (pu_type p2) in Abs_pattern_untyped 
   \<lparr> pur_var_getters=(map (\<lambda>(v,g). (v,\<lambda>x. if x\<in>t_domain T then (g o fst o inv val_prod_embedding) x else t_default (vu_type v))) (pu_var_getters p1))
@@ -362,6 +390,7 @@ lemma pu_var_getters_pair_pattern [simp]: "pu_var_getters (pair_pattern_untyped 
 
 lemma pu_vars_pair_pattern [simp]: "pu_vars (pair_pattern_untyped p1 p2) = pu_vars p1 @ pu_vars p2"
   unfolding pu_vars_def by (simp add: case_prod_unfold)
+
 
 
 
@@ -407,12 +436,6 @@ proof -
     qed
   qed
 qed
-
-lemma memory_update_untyped_footprint:
-  assumes "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
-  assumes "w \<in> X"
-  shows   "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m1 w x) v = memory_lookup_untyped (memory_update_untyped m2 w x) v"
-by (simp add: assms(1) memory_lookup_update_untyped)
 
 lemma memory_update_untyped_pattern_footprint:
   assumes "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
@@ -502,6 +525,114 @@ proof -
 qed
 
 
+fun list_pattern_untyped :: "variable_untyped list \<Rightarrow> pattern_untyped" where
+  "list_pattern_untyped [] = pattern_ignore unit_type"
+| "list_pattern_untyped (x#xs) = pair_pattern_untyped (pattern_1var x) (list_pattern_untyped xs)"
+
+
+lemma pu_vars_list_pattern_untyped [simp]: "pu_vars (list_pattern_untyped xs) = xs"
+  apply (induction xs) by auto
+
+
+lemma list_pattern_untyped_list_expression_untyped: "memory_update_untyped_pattern m (list_pattern_untyped xs) (eu_fun (list_expression_untyped xs) m) = m"
+proof (induction xs arbitrary: m)
+case Nil show ?case by auto
+next case (Cons x xs')
+  have type: "pu_type (list_pattern_untyped xs) = eu_type (list_expression_untyped xs)" for xs
+  proof (induction xs)
+  case Nil show ?case apply simp apply (subst eu_type_const_expression_untyped) by auto
+  next case Cons thus ?case by auto
+  qed
+  have u1: "memory_update_untyped_pattern m (pattern_1var x) (eu_fun (var_expression_untyped x) m) = m"
+    by simp
+  have u2: "memory_update_untyped_pattern (memory_update_untyped_pattern m (pattern_1var x) (eu_fun (var_expression_untyped x) m))
+     (list_pattern_untyped xs') (eu_fun (list_expression_untyped xs') m) = m"
+    apply (subst u1) by (fact Cons)
+
+  show ?case
+    apply (simp add: eu_fun_pair_expression_untyped)
+    apply (subst memory_update_pair_pattern_untyped)
+      close (auto simp: Rep_var_expression_untyped eu_fun_def)
+     using type close simp
+    using u2 by simp
+qed
+
+
+
+definition "kill_vars_pattern_untyped p X = Abs_pattern_untyped
+  \<lparr> pur_var_getters = filter (\<lambda>(v,g). v \<notin> X) (pu_var_getters p),
+    pur_type = pu_type p \<rparr>"
+lemma Rep_kill_vars_pattern_untyped: "Rep_pattern_untyped (kill_vars_pattern_untyped p X) =
+  \<lparr> pur_var_getters = filter (\<lambda>(v,g). v \<notin> X) (pu_var_getters p),
+    pur_type = pu_type p \<rparr>"
+      unfolding kill_vars_pattern_untyped_def apply (rule Abs_pattern_untyped_inverse)
+      apply auto
+      using Rep_pattern_untyped pu_var_getters_def close force
+      using Rep_pattern_untyped unfolding pu_var_getters_def split_def
+      using pu_type_def by fastforce 
+lemma pu_type_kill_vars_pattern_untyped [simp]: "pu_type (kill_vars_pattern_untyped p X) = pu_type p"
+  unfolding pu_type_def Rep_kill_vars_pattern_untyped by simp
+lemma pu_var_getters_kill_vars_pattern_untyped: "pu_var_getters (kill_vars_pattern_untyped p X) = filter (\<lambda>(v,g). v \<notin> X) (pu_var_getters p)"
+  unfolding pu_var_getters_def Rep_kill_vars_pattern_untyped by simp
+lemma pu_vars_kill_vars_pattern_untyped: "pu_vars (kill_vars_pattern_untyped p X) = filter (\<lambda>v. v \<notin> X) (pu_vars p)"
+  unfolding pu_vars_def pu_var_getters_kill_vars_pattern_untyped split_def filter_map o_def by simp
+
+
+lemma memory_update_pattern_getter_kill_vars_pattern_untyped:
+  assumes "x \<notin> X"
+  shows "memory_update_untyped_pattern_getter (kill_vars_pattern_untyped p X) x = memory_update_untyped_pattern_getter p x"
+proof -
+  def rg == "rev (pu_var_getters p)"
+  have t: "find (\<lambda>p. x = fst p) [p\<leftarrow>rg . fst p \<notin> X] = find (\<lambda>p. x = fst p) rg"
+    apply (induction rg) close
+    using `x\<notin>X` by auto
+  show ?thesis
+    unfolding memory_update_untyped_pattern_getter_def pu_var_getters_kill_vars_pattern_untyped 
+          split_def rev_filter rg_def[symmetric]
+    using t by simp
+qed
+
+lemma memory_update_pattern_twice_kill_untyped: 
+  "memory_update_untyped_pattern (memory_update_untyped_pattern m p x) q y = 
+   memory_update_untyped_pattern (memory_update_untyped_pattern m (kill_vars_pattern_untyped p (set (pu_vars q))) x) q y"
+proof (rule memory_lookup_untyped_inject[OF ext], case_tac "v \<in> set (pu_vars q)")
+  fix v
+  assume v: "v \<in> set (pu_vars q)"
+  show "memory_lookup_untyped (memory_update_untyped_pattern (memory_update_untyped_pattern m p x) q y) v =
+         memory_lookup_untyped
+          (memory_update_untyped_pattern (memory_update_untyped_pattern m (kill_vars_pattern_untyped p (set (pu_vars q))) x) q y) v"
+    apply (subst lookup_memory_update_untyped_pattern_getter) using v close
+    apply (subst lookup_memory_update_untyped_pattern_getter) using v close
+    by simp    
+next
+  fix v
+  assume vq: "v \<notin> set (pu_vars q)"
+  have eqp: "memory_lookup_untyped (memory_update_untyped_pattern m p x) v =
+             memory_lookup_untyped (memory_update_untyped_pattern m (kill_vars_pattern_untyped p (set (pu_vars q))) x) v"
+  proof (cases "v\<in>set(pu_vars p)")
+  case True
+    hence vkill: "v \<in> set (pu_vars (kill_vars_pattern_untyped p (set (pu_vars q))))"
+      unfolding pu_vars_kill_vars_pattern_untyped using vq by simp
+    show ?thesis 
+      apply (subst lookup_memory_update_untyped_pattern_getter) using True close
+      apply (subst lookup_memory_update_untyped_pattern_getter) using vkill close
+      apply (subst memory_update_pattern_getter_kill_vars_pattern_untyped) using vq close
+      by simp
+  next case False
+    hence vkill: "v \<notin> set (pu_vars (kill_vars_pattern_untyped p (set (pu_vars q))))"
+      unfolding pu_vars_kill_vars_pattern_untyped by simp
+    show ?thesis 
+      apply (subst memory_lookup_update_pattern_notsame) using False close
+      apply (subst memory_lookup_update_pattern_notsame) using vkill close
+      by simp
+  qed
+  show "memory_lookup_untyped (memory_update_untyped_pattern (memory_update_untyped_pattern m p x) q y) v =
+         memory_lookup_untyped
+          (memory_update_untyped_pattern (memory_update_untyped_pattern m (kill_vars_pattern_untyped p (set (pu_vars q))) x) q y) v"
+    apply (subst memory_lookup_update_pattern_notsame[where p=q]) using vq close
+    apply (subst memory_lookup_update_pattern_notsame[where p=q]) using vq close
+    using eqp by simp
+qed
 
 subsection {* Procedures *}
 
@@ -1559,6 +1690,14 @@ definition "program_untyped_readonly X c = denotation_readonly X (denotation_unt
 lemma denotation_readonly_0 [simp]: "denotation_readonly X (\<lambda>m. 0)"
   unfolding denotation_readonly_def
   by (simp add: support_distr_def)
+
+
+lemma program_readonly_mono:
+  assumes mono: "A \<le> B"
+  assumes foot: "program_readonly B d"
+  shows "program_readonly A d"
+by (meson denotation_readonly_def foot mono program_readonly_def subset_iff)
+
 
 
 lemma denotation_footprint_mono:
