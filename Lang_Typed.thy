@@ -342,6 +342,9 @@ definition var_expression :: "('a::prog_type) variable \<Rightarrow> 'a expressi
 lemma e_fun_var_expression [simp]: "e_fun (var_expression v) = (\<lambda>m. memory_lookup m v)"
   unfolding e_fun_def var_expression_def memory_lookup_def
   by (subst Abs_expression_inverse, auto)
+lemma e_vars_var_expression [simp]: "e_vars (var_expression v) = [mk_variable_untyped v]"
+  unfolding e_vars_def var_expression_def
+  by (subst Abs_expression_inverse, auto)
 
 subsection {* Patterns *}
 

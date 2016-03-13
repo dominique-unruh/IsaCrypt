@@ -51,6 +51,7 @@ lemma assertion_footprint_leftI:
   assumes "\<And>m1 m1' m2 m2'. (\<And>x. x\<in>X \<Longrightarrow> memory_lookup_untyped m1 x = memory_lookup_untyped m1' x) \<Longrightarrow> (m2::memory)=m2' \<Longrightarrow> P m1 m2 = P m1' m2'"
   shows "assertion_footprint_left X P"
 unfolding assertion_footprint_left_def using assms by metis
+
 lemma assertion_footprint_left_const: "assertion_footprint_left X (\<lambda>m. P)"
   unfolding assertion_footprint_left_def by simp
 lemma assertion_footprint_left_app: "assertion_footprint_left X P \<Longrightarrow> assertion_footprint_left X Q \<Longrightarrow> assertion_footprint_left X (\<lambda>m m'. (P m m') (Q m m'))"
@@ -99,6 +100,14 @@ lemma assertion_footprint_right_const: "assertion_footprint_right X (\<lambda>m 
   unfolding assertion_footprint_right_def by simp
 lemma assertion_footprint_right_app: "assertion_footprint_right X P \<Longrightarrow> assertion_footprint_right X Q \<Longrightarrow> assertion_footprint_right X (\<lambda>m m'. (P m m') (Q m m'))"
   unfolding assertion_footprint_right_def by auto
+
+lemma assertion_footprint_right_left: "assertion_footprint_right X P = assertion_footprint_left X (\<lambda>m1 m2. P m2 m1)"
+  unfolding assertion_footprint_right_def assertion_footprint_left_def by auto
+
+lemma assertion_footprint_rightI: 
+  assumes "\<And>m1 m1' m2 m2'. (\<And>x. x\<in>X \<Longrightarrow> (m1::memory)=m1' \<Longrightarrow> memory_lookup_untyped m2 x = memory_lookup_untyped m2' x) \<Longrightarrow> P m1 m2 = P m1' m2'"
+  shows "assertion_footprint_right X P"
+unfolding assertion_footprint_right_def using assms by (metis (mono_tags))
 
 lemma assertion_footprint_rightE:
    "assertion_footprint_right X P \<Longrightarrow> (\<forall>x\<in>X. memory_lookup_untyped m2 x = memory_lookup_untyped m2' x) \<Longrightarrow> (m1::memory)=m1' \<Longrightarrow> P m1 m2 = P m1' m2'"
@@ -920,7 +929,7 @@ proof -
     unfolding obs_eq_untyped_def rhoare_untyped_rhoare_denotation eq_def eqY_def by simp
 qed
 
-lemma self_obseq_vars:
+lemma self_obseq_vars_untyped:
   assumes vars: "set(vars_untyped c) \<subseteq> X"
   assumes YX: "Y \<subseteq> X"
   shows "obs_eq_untyped X Y c c"
@@ -1299,7 +1308,7 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
   def cp2 == "compose_distr (denotation_untyped body) cp1"
 
   have eq_body: "obs_eq_untyped (G\<union>set locals) (G\<union>set locals) body body"
-    apply (rule self_obseq_vars, rule, case_tac "x\<in>G", simp)
+    apply (rule self_obseq_vars_untyped, rule, case_tac "x\<in>G", simp)
     apply auto using globalsVbody body_locals unfolding  GL_def G_def by auto
 
   have eq_compose': "\<And>P X Y \<mu> \<nu> f g. 

@@ -640,6 +640,16 @@ proof -
     unfolding obseq_context_def obs_eq_def eq_def by simp
 qed
 
+
+lemma self_obseq_vars:
+  assumes vars: "set(vars c) \<subseteq> X"
+  assumes YX: "Y \<subseteq> X"
+  shows "obs_eq X Y c c"
+unfolding obs_eq_obs_eq_untyped
+apply (rule self_obseq_vars_untyped)
+using assms unfolding vars_def by auto
+
+
 lemma obseq_context_empty: 
   shows "obseq_context X (\<lambda>c. c)"
 unfolding obseq_context_def by simp
@@ -650,9 +660,8 @@ lemma obseq_context_assign:
   assumes "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. assign x e)"
 unfolding obseq_context_def apply rule+ apply (thin_tac _)
-unfolding obs_eq_obs_eq_untyped
 apply (rule self_obseq_vars)
-using assms unfolding p_vars_def by auto
+using assms by auto
 
 lemma obseq_context_skip: "obseq_context X (\<lambda>c. Lang_Typed.skip)"
   unfolding obseq_context_def apply auto unfolding obs_eq_def
@@ -663,9 +672,8 @@ lemma obseq_context_sample:
   assumes "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. sample x e)"
 unfolding obseq_context_def apply rule+ apply (thin_tac _)
-unfolding obs_eq_obs_eq_untyped
 apply (rule self_obseq_vars)
-using assms unfolding p_vars_def by auto
+using assms by auto
 
 lemma obseq_context_callproc_allglobals: 
   fixes X' defines "X == X' \<union> Collect vu_global"
@@ -674,10 +682,10 @@ lemma obseq_context_callproc_allglobals:
   shows "obseq_context X (\<lambda>c. callproc x p a)"
 unfolding obseq_context_def apply rule+ apply (thin_tac _)
 unfolding obs_eq_obs_eq_untyped
-apply (rule self_obseq_vars)
+apply (rule self_obseq_vars_untyped)
 using assms unfolding p_vars_def 
 by (auto simp: vars_proc_untyped_global)
-  
+
 
 lemma hoare_obseq_replace_ctx: 
   assumes C: "obseq_context X C"
@@ -703,12 +711,20 @@ proof -
 qed
 
 lemma rhoare_left_obseq_replace: 
-  assumes "obseq_context X C"
-  assumes "assertion_footprint_left X Q"
-  assumes "obs_eq' X c d"
-  assumes "hoare {P &1 &2} \<guillemotleft>C d\<guillemotright> ~ \<guillemotleft>c'\<guillemotright> {Q &1 &2}"
+  assumes ctx: "obseq_context X C"
+  assumes foot: "assertion_footprint_left X Q"
+  assumes obseq: "obs_eq' X c d"
+  assumes rhoare: "hoare {P &1 &2} \<guillemotleft>C d\<guillemotright> ~ \<guillemotleft>c'\<guillemotright> {Q &1 &2}"
   shows "hoare {P &1 &2} \<guillemotleft>C c\<guillemotright> ~ \<guillemotleft>c'\<guillemotright> {Q &1 &2}"
-by (smt assertion_footprint_left_def assms obs_eq'_def obs_eq_def obseq_context_def rhoare_untyped rtrans_rule)
+proof -
+  have obseqCc: "obs_eq' X (C c) (C d)"
+    using obseq ctx unfolding obseq_context_def obs_eq'_def obs_eq_def by simp
+  note obseqCc' = obseqCc[unfolded obs_eq'_def obs_eq_def]
+  show ?thesis
+    apply (rule rtrans_rule[OF _ _ obseqCc' rhoare])
+     close
+    using foot by (simp add: assertion_footprint_left_def)
+qed
 
 lemma rhoare_right_obseq_replace: 
   assumes "obseq_context X C"
@@ -805,7 +821,6 @@ case (1 m1 m2)
     using that V1loc_def by auto
 
   have "obs_eq V1loc V1loc (p_body f) (p_body f)"
-    unfolding obs_eq_obs_eq_untyped
     apply (rule self_obseq_vars)
     using vars_V1loc by (simp_all add: vars_def) 
   
@@ -1122,5 +1137,91 @@ proof -
      close (fact p1p2)
     by (fact rhoareCQ)
 qed
+
+
+lemma callproc_split_args_equiv: 
+  assumes fX: "set (vars_proc_global f) \<subseteq> X"
+  assumes eX: "set (e_vars e) \<subseteq> X"
+  assumes Y: "Y \<subseteq> X \<union> set (p_vars p)"
+  assumes xX: "mk_variable_untyped x \<notin> X"
+  shows "obs_eq X Y (callproc p f e) (seq (assign (variable_pattern x) e) (callproc p f (var_expression x)))"
+proof -
+  def Y' == "Y - set (p_vars p)"
+
+  have callproc_eq: "hoare {(\<forall>x\<in>X. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x) \<and> e_fun e &1 = e_fun (var_expression x) &2}
+    \<guillemotleft>callproc p f e\<guillemotright> ~ \<guillemotleft>callproc p f (var_expression x)\<guillemotright> {(\<forall>v\<in>Y'. memory_lookup_untyped &1 v = memory_lookup_untyped &2 v)
+                      \<and> memory_pattern_related p p &1 &2}"
+    apply (rule callproc_equiv) close (rule fX)
+    using Y'_def Y by auto
+
+  hence rh_call: "hoare {(\<forall>x\<in>X. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x) \<and> e_fun e &1 = e_fun (var_expression x) &2}
+    \<guillemotleft>callproc p f e\<guillemotright> ~ \<guillemotleft>callproc p f (var_expression x)\<guillemotright> {(\<forall>v\<in>Y. memory_lookup_untyped &1 v = memory_lookup_untyped &2 v)}"
+    apply (rule rconseq_rule[rotated -1]) 
+     close auto
+    unfolding Y'_def
+    by (metis DiffI lookup_memory_update_untyped_pattern_getter memory_pattern_related_def memory_update_pattern_def p_vars_def)
+
+  have impl1: "memory_lookup_untyped m y = memory_lookup_untyped (memory_update_pattern m' (variable_pattern x) (e_fun e m')) y"
+           if "y\<in>X" and Y'_eq: "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped m v = memory_lookup_untyped m' v"
+           for m m' y
+    using xX that by auto
+
+  have impl2: "(e_fun e m = e_fun (var_expression x) (memory_update_pattern m' (variable_pattern x) (e_fun e m')))"
+           if Y'_eq: "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped m v = memory_lookup_untyped m' v"
+           for m m'
+    using eX apply auto
+    by (meson e_fun_footprint subsetCE that)
+
+  have "obs_eq X Y (seq Lang_Typed.skip (callproc p f e)) (seq (assign (variable_pattern x) e) (callproc p f (var_expression x)))"
+    unfolding obs_eq_def
+    apply (rule rseq_rule[rotated])
+     close (fact rh_call) 
+    apply (rule assign_right_rule)
+    using impl1 impl2 by metis
+
+  thus "obs_eq X Y (callproc p f e) (seq (assign (variable_pattern x) e) (callproc p f (var_expression x)))"
+    unfolding obs_eq_def by (simp add: rhoare_def)
+qed
+
+lemma callproc_split_result_equiv: 
+  assumes fX: "set (vars_proc_global f) \<subseteq> X"
+  assumes eX: "set (e_vars e) \<subseteq> X"
+  assumes Y: "Y \<subseteq> X \<union> set (p_vars p)"
+  assumes xY: "mk_variable_untyped x \<notin> Y"
+  shows "obs_eq X Y (callproc p f e) (seq (callproc (variable_pattern x) f e) (assign p (var_expression x)))"
+proof -
+  def Y' == "Y - set (p_vars p)"
+  have callproc_eq: "hoare {(\<forall>x\<in>X. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x) \<and> e_fun e &1 = e_fun e &2}
+    \<guillemotleft>callproc p f e\<guillemotright> ~ \<guillemotleft>callproc (variable_pattern x) f e\<guillemotright> {(\<forall>v\<in>Y'. memory_lookup_untyped &1 v = memory_lookup_untyped &2 v)
+                      \<and> memory_pattern_related p (variable_pattern x) &1 &2}"
+    apply (rule callproc_equiv) close (rule fX)
+      using Y'_def Y xY by auto
+  hence rh_call: "hoare {(\<forall>x\<in>X. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x)}
+    \<guillemotleft>callproc p f e\<guillemotright> ~ \<guillemotleft>callproc (variable_pattern x) f e\<guillemotright> {(\<forall>v\<in>Y'. memory_lookup_untyped &1 v = memory_lookup_untyped &2 v)
+                      \<and> memory_pattern_related p (variable_pattern x) &1 &2}"
+    apply (rule rconseq_rule[rotated -1]) 
+     using eX e_fun_footprint close blast
+    by simp
+  have impl: "memory_lookup_untyped m y = memory_lookup_untyped (memory_update_pattern m' p (e_fun (var_expression x) m')) y"
+            if "y\<in>Y" and Y'_eq: "\<And>v. v\<in>Y' \<Longrightarrow> memory_lookup_untyped m v = memory_lookup_untyped m' v" and p_rel: "memory_pattern_related p (variable_pattern x) m m'"
+           for m m' y
+  proof (cases "y\<in>set(p_vars p)")
+    case True
+      thus ?thesis using p_rel
+      by (metis e_fun_var_expression lookup_memory_update_untyped_pattern_getter memory_lookup_update_same memory_pattern_related_def memory_update_pattern_def memory_update_variable_pattern p_vars_def)
+    next case False
+      thus ?thesis using `y\<in>Y` Y'_eq unfolding Y'_def 
+      by (simp add: DiffI memory_lookup_update_pattern_notsame memory_update_pattern_def p_vars_def)
+  qed
+  have "obs_eq X Y (seq (callproc p f e) Lang_Typed.skip) (seq (callproc (variable_pattern x) f e) (assign p (var_expression x)))"
+    unfolding obs_eq_def
+    apply (rule rseq_rule)
+     close (fact rh_call) 
+    apply (rule assign_right_rule)
+    using impl by auto
+  thus "obs_eq X Y (callproc p f e) (seq (callproc (variable_pattern x) f e) (assign p (var_expression x)))"
+    unfolding obs_eq_def by (simp add: rhoare_def)     
+qed
+
 
 end

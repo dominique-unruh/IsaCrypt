@@ -97,29 +97,129 @@ lemma
   apply (auto simp: assms)
 oops
 
+lemma callproc_split_result: 
+  assumes "rhoare P (seq (seq c1 (callproc (variable_pattern x1) f1 e1)) (assign p1 (var_expression x1)))
+                    (seq (seq c2 (callproc (variable_pattern x2) f2 e2)) (assign p2 (var_expression x2))) Q"
+  shows "rhoare P (seq c1 (callproc p1 f1 e1)) (seq c2 (callproc p2 f2 e2)) Q"
+proof -
+  def eq == "\<lambda>X m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  have "rhoare (eq X) (callproc p1 f1 e1) (seq (callproc (variable_pattern x1) f1 e1) (assign p1 (var_expression x1))) (eq Y)"
+    unfolding eq_def obs_eq_def[symmetric]
+    apply (rule callproc_split_result_equiv)
+    sorry
+ 
+qed
 
-lemma program_readonly_mono:
-  assumes mono: "A \<le> B"
-  assumes foot: "program_readonly B d"
-  shows "program_readonly A d"
-by (meson denotation_readonly_def foot mono program_readonly_def subset_iff)
+(* lemma callproc_split_args_result: 
+  (* assumes fX: "set (vars_proc_global f) \<subseteq> X" *)
+  (* assumes eX: "set (e_vars e) \<subseteq> X" *)
+  (* assumes Y: "Y \<subseteq> X \<union> set (p_vars p)" *)
+  (* assumes xX: "mk_variable_untyped x \<notin> X" *)
+  shows "obs_eq X Y (callproc p f e) (seq (seq (assign (variable_pattern x) e) (callproc (variable_pattern y) f (var_expression x))) (assign p (var_expression y)))"
+proof -
+  have "obs_eq X Y (callproc p f e) 
+    (seq (callproc (variable_pattern y) f e) (assign p (var_expression y)))"
+    apply (rule callproc_split_result)
+    sorry
+  have "obs_eq X Y (callproc (variable_pattern y) f e) 
+      (seq (assign (variable_pattern x) e) (callproc (variable_pattern y) f (var_expression x)))"
+    apply (rule callproc_split_args)
+qed    
+ *)
+lemma call_rule_abstract: 
+  fixes res and globals_f and x1::"'x::prog_type pattern" and x2::"'x::prog_type pattern" 
+    and y1::"'y::prog_type expression" and y2::"'y::prog_type expression" 
+    and A B 
+  assumes globals_f: "set(write_vars_proc_global f) \<subseteq> set globals_f"
+  assumes globals_f': "set(vars_proc_global f) \<supseteq> set globals_f"
+  assumes res_nin_f: "mk_variable_untyped res \<notin> set (vars_proc_global f)"
+  assumes args_nin_f: "mk_variable_untyped args \<notin> set (vars_proc_global f)"
+  assumes args_not_res: "mk_variable_untyped args \<noteq> mk_variable_untyped res"
+  defines "P == \<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res, mk_variable_untyped args}.
+                    memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  defines "P' == \<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res, mk_variable_untyped args}.
+                    memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  defines "Q == \<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res}. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  defines "QB == (\<lambda>m1 m2. (\<forall>gL gR xL xR x'L x'R. 
+                     Q (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) gL) (list_pattern_untyped (p_vars x1)) x'L) res xL)
+                       (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) gR) (list_pattern_untyped (p_vars x2)) x'R) res xR)
+                \<longrightarrow> B (memory_update_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) gL) x1 xL)
+                      (memory_update_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) gR) x2 xR)))"
+  defines "C == (\<lambda>m1 m2. P (memory_update m1 args (e_fun y1 m1)) (memory_update m2 args (e_fun y2 m2)) \<and> QB m1 m2)"
+  defines "QB' == (\<lambda>m1 m2. (\<forall>gL gR xL xR x'L x'R. 
+                     (Q (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) gL) (list_pattern_untyped (p_vars x1)) x'L) res xL)
+                       (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) gR) (list_pattern_untyped (p_vars x2)) x'R) res xR)
+                      \<and> xL=xR) 
+                \<longrightarrow> B (memory_update_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) gL) x1 xL)
+                      (memory_update_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) gR) x2 xR)))"
+  defines "C' == (\<lambda>m1 m2. P' (memory_update m1 args (e_fun y1 m1)) (memory_update m2 args (e_fun y2 m2)) \<and> QB' m1 m2)"
+  assumes p1p2': "rhoare A p1 p2 C'"
+  shows "rhoare A (seq p1 (callproc x1 f y1)) (seq p2 (callproc x2 f y2)) B"
+proof -
+  (* fix res :: "'x variable" and args :: "'y variable" (* TODO *) *)
 
-lemma assertion_footprint_left_update_pattern:
-  assumes "Y \<subseteq> X \<union> set (p_vars pat)"
-  assumes "assertion_footprint_left Y P"
-  shows "assertion_footprint_left X (\<lambda>m m'. P (memory_update_pattern m pat x) m')"
-unfolding memory_update_pattern_def
-apply (rule assertion_footprint_left_update_pattern_untyped)
-using assms unfolding p_vars_def by auto
+(*   def P == "\<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res, mk_variable_untyped args}.
+                    memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  def Q == "\<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res}. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x" *)
 
-lemma assertion_footprint_right_update_pattern:
-  assumes "Y \<subseteq> X \<union> set (p_vars pat)"
-  assumes "assertion_footprint_right Y P"
-  shows "assertion_footprint_right X (\<lambda>m m'. P m (memory_update_pattern m' pat x))"
-unfolding memory_update_pattern_def
-apply (rule assertion_footprint_right_update_pattern_untyped)
-using assms unfolding p_vars_def by auto
+  have aux: "(\<forall>x\<in>X. f x) = (\<forall>x\<in>X. g x)" if "\<And>x. x\<in>X \<Longrightarrow> f x = g x" for X::"variable_untyped set" and f g
+    using that by blast
 
+(* 
+  defines "Q == \<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res}. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+*)
+    
+  (* {fix m1 m2 gL gR x'L x'R xL xR *)
+  have "Q (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) gL) (list_pattern_untyped (p_vars x1)) x'L) res xL)
+          (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) gR) (list_pattern_untyped (p_vars x2)) x'R) res xR)
+    \<Longrightarrow> x'L = x'R \<and> gL = gR \<and> xL = xR" 
+    (* TODO: gL=gR only holds on vars outside x1/x2 *)
+    for m1 m2 gL gR x'L x'R xL xR 
+(*     unfolding Q_def by auto
+  also have "?rhs \<Longrightarrow> Q (memory_update_untyped_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) gL) (list_pattern_untyped (p_vars x1)) x'L)
+          (memory_update_untyped_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) gR) (list_pattern_untyped (p_vars x2)) x'R)
+        \<and> xL = xR"
+    apply simp
+    unfolding Q_def apply auto
+        by auto *)
+          
+  hence QB'QB: "QB' m1 m2 \<Longrightarrow> QB m1 m2" for m1 m2
+    unfolding QB'_def QB_def by metis
 
+  have P'P: "P' m1 m2 \<Longrightarrow> P m1 m2" for m1 m2
+    unfolding P'_def P_def by simp
+
+  from QB'QB P'P have "C' m1 m2 \<Longrightarrow> C m1 m2" for m1 m2 unfolding C'_def C_def by simp
+  hence p1p2: "rhoare A p1 p2 C"
+    apply (rule_tac rconseq_rule[OF _ _ p1p2'])
+    by auto
+
+  have "obs_eq (set(vars_proc_global f) \<union> {mk_variable_untyped res, mk_variable_untyped args})  
+      (set(vars_proc_global f) \<union> {mk_variable_untyped res}) 
+      (callproc (variable_pattern res) f (var_expression args)) (callproc (variable_pattern res) f (var_expression args))"
+    by (rule self_obseq_vars, auto)
+  hence PfQ: "rhoare P (callproc (variable_pattern res) f (var_expression args))
+                 (callproc (variable_pattern res) f (var_expression args)) Q"
+    unfolding obs_eq_def P_def Q_def by simp
+
+  have footQ1: "assertion_footprint_left (- {mk_variable_untyped args}) Q"
+    unfolding Q_def
+    apply (rule assertion_footprint_leftI)
+    apply simp by (metis args_nin_f args_not_res memory_lookup_def)
+
+  have footQ2: "assertion_footprint_right (- {mk_variable_untyped args}) Q"
+    apply (subst assertion_footprint_right_left)
+    apply (rewrite at "assertion_footprint_left _ \<hole>" eq_reflection[of _ Q])
+     close (unfold Q_def, metis)
+    by (rule footQ1)
+
+  show ?thesis
+    apply (rule call_rule[where P=P and Q=Q])
+    close 2 (rule globals_f)+
+    close 2 (rule args_nin_f)+
+    close (rule footQ1) close (rule footQ2)
+    close (rule PfQ)
+    by (rule p1p2[unfolded C_def QB_def])
+qed
 
 end

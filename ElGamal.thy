@@ -332,6 +332,8 @@ b' <@ A.guess(c)            (9)
 post = (b'{1} = b{1}) = (b'{2} = b0{2})
 *)
 
+apply (rule callproc_split_result)
+
 (* TODO: make a call_rule_abstract *)
 apply (rule call_rule)
  
