@@ -143,12 +143,8 @@ proof -
     apply (rule rtrans3_rule[rotated 2])
         close (fact left) close (fact mid) close (fact right)
      unfolding eq_def 
-    using footQ1 footQ2
-apply blast
-apply blast
-apply blast
-apply auto[1]
-    by (auto simp: assertion_footprint_leftE assertion_footprint_rightE)
+     using footQ1 footQ2 close blast
+    using assertion_footprint_leftE assertion_footprint_rightE footQ1 footQ2 by fastforce
 qed
 
 lemma callproc_split_args: 
@@ -243,7 +239,7 @@ thm call_rule
 (* TODO: cleanup premises *)
 lemma call_rule_abstract: 
   fixes globals_f and res x1 x2::"'x::prog_type variable" 
-    and y1::"'y::prog_type variable" and y2::"'y::prog_type variable" 
+    and args y1 y2::"'y::prog_type variable"
     and A B 
   assumes distinct: "distinct globals_f"
   assumes globals_f: "set(write_vars_proc_global f) \<subseteq> set globals_f"
@@ -253,15 +249,21 @@ lemma call_rule_abstract:
   assumes res_nin_f: "mk_variable_untyped res \<notin> set (vars_proc_global f)"
   assumes args_nin_f: "mk_variable_untyped args \<notin> set (vars_proc_global f)"
   assumes args_not_res: "mk_variable_untyped args \<noteq> mk_variable_untyped res"
-  defines "P == \<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res, mk_variable_untyped args}.
-                    memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   defines "P' == \<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res, mk_variable_untyped args}.
                     memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
-  defines "QB' == (\<lambda>m1 m2. (\<forall>gL gR xL xR x'L x'R. 
+(*  defines "QB' == (\<lambda>m1 m2. (\<forall>gL gR xL xR x'L x'R. 
                      (xL = xR \<and> gL = gR) 
                 \<longrightarrow> B (memory_update (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) gL) x1 xL)
-                      (memory_update (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) gR) x2 xR)))"
-  defines "C' == (\<lambda>m1 m2. P' (memory_update m1 args (memory_lookup m1 y1)) (memory_update m2 args (memory_lookup m2 y2)) \<and> QB' m1 m2)"
+                      (memory_update (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) gR) x2 xR)))" *)
+  defines "QB' == (\<lambda>m1 m2. (\<forall>g x x'L x'R. 
+                B (memory_update (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) g) x1 x)
+                  (memory_update (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) g) x2 x)))"
+  (* defines "C' == (\<lambda>m1 m2. P' (memory_update m1 args (memory_lookup m1 y1)) (memory_update m2 args (memory_lookup m2 y2)) \<and> QB' m1 m2)" *)
+  defines "C' == (\<lambda>m1 m2. 
+      (\<forall>x\<in>set (vars_proc_global f). memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)
+    \<and> memory_lookup m1 y1 = memory_lookup m2 y2
+    \<and> memory_lookup m1 res = memory_lookup m2 res (* TODO: Why do we need this one? res will be overwritten! *)
+    (*\<and> P' (memory_update m1 args (memory_lookup m1 y1)) (memory_update m2 args (memory_lookup m2 y2))*) \<and> QB' m1 m2)"
   assumes p1p2': "rhoare A p1 p2 C'"
   shows "rhoare A (seq p1 (callproc (variable_pattern x1) f (var_expression y1))) (seq p2 (callproc (variable_pattern x2) f (var_expression y2))) B"
 proof -
@@ -274,8 +276,10 @@ proof -
                      (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) gL) (variable_pattern x1) xL)
                   (memory_update_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) gR)
                     (variable_pattern x2) xR))"
-  def C == "(\<lambda>m1 m2. P (memory_update m1 args (e_fun (var_expression y1) m1))
-              (memory_update m2 args (e_fun (var_expression y2) m2)) \<and> QB m1 m2)"
+  def P == "\<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res, mk_variable_untyped args}.
+                    memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  def C == "\<lambda>m1 m2. P (memory_update m1 args (e_fun (var_expression y1) m1))
+              (memory_update m2 args (e_fun (var_expression y2) m2)) \<and> QB m1 m2"
 
 
   have Q': "gL = gR \<and> xL = xR" 
@@ -343,8 +347,11 @@ proof -
     apply (rule B')
     by simp
           
-  have P'P: "P' m1 m2 \<Longrightarrow> P m1 m2" for m1 m2
-    unfolding P'_def P_def by simp
+  have P'P: "P (memory_update m1 args (memory_lookup m2 y2)) (memory_update m2 args (memory_lookup m2 y2))"
+        if "\<forall>x\<in>set (vars_proc_global f). memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+        and "memory_lookup m1 y1 = memory_lookup m2 y2"
+        and "memory_lookup m1 res = memory_lookup m2 res" for m1 m2
+    unfolding P'_def P_def using that by auto
 
   from QB'QB P'P have "C' m1 m2 \<Longrightarrow> C m1 m2" for m1 m2 unfolding C'_def C_def by simp
   hence p1p2: "rhoare A p1 p2 C"
@@ -397,6 +404,8 @@ proof -
     apply (rule callproc_split_args)
 qed    
  *)
+
+(*
 lemma call_rule_abstract_complex: 
   fixes res and globals_f and x1::"'x::prog_type pattern" and x2::"'x::prog_type pattern" 
     and y1::"'y::prog_type expression" and y2::"'y::prog_type expression" 
@@ -492,5 +501,6 @@ proof -
     close (rule PfQ)
     by (rule p1p2[unfolded C_def QB_def])
 qed
+*)
 
 end
