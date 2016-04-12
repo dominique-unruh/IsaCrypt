@@ -911,6 +911,12 @@ case (1 m1 m2)
     apply (rule_tac exI[of _ \<mu>']) by auto
 qed
 
+(* TODO move *)
+lemma type_list_expression_list_pattern: "eu_type (list_expression_untyped xs) = pu_type (list_pattern_untyped xs)"
+  apply (induction xs)
+   close (simp add: eu_type_const_expression_untyped)
+  by auto
+
 
 
 lemma call_rule:
@@ -928,7 +934,9 @@ lemma call_rule:
               (callproc (variable_pattern res2) f2 (var_expression args2))
               Q"
   defines "QB == (\<lambda>m1 m2. (\<forall>gL gR xL xR x'L x'R. 
-                     Q (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f1) gL) (list_pattern_untyped (p_vars x1)) x'L) res1 xL)
+                    gL \<in> t_domain (pu_type (list_pattern_untyped globals_f1))
+                \<longrightarrow> gR \<in> t_domain (pu_type (list_pattern_untyped globals_f2))
+                \<longrightarrow> Q (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f1) gL) (list_pattern_untyped (p_vars x1)) x'L) res1 xL)
                        (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f2) gR) (list_pattern_untyped (p_vars x2)) x'R) res2 xR)
                 \<longrightarrow> B (memory_update_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f1) gL) x1 xL)
                       (memory_update_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f2) gR) x2 xR)))"
@@ -1048,6 +1056,8 @@ proof -
   have foot_QB1: "assertion_footprint_left (UNIV - set globals_f1 - set (p_vars x1)) QB"
     unfolding QB_def
     apply (rule assertion_footprint_left_forall)+
+    apply (rule assertion_footprint_left_op2[where f="op\<longrightarrow>", OF assertion_footprint_left_const])
+    apply (rule assertion_footprint_left_op2[where f="op\<longrightarrow>", OF assertion_footprint_left_const])
     apply (rule assertion_footprint_left_op2[where f="op\<longrightarrow>"])
      apply (rule assertion_footprint_left_update_pattern_untyped[where Y="UNIV - set (p_vars x1)"])
       close (simp, blast)
@@ -1065,6 +1075,8 @@ proof -
   have foot_QB2: "assertion_footprint_right (UNIV - set globals_f2 - set (p_vars x2)) QB"
     unfolding QB_def
     apply (rule assertion_footprint_right_forall)+
+    apply (rule assertion_footprint_right_op2[where f="op\<longrightarrow>", OF assertion_footprint_right_const])
+    apply (rule assertion_footprint_right_op2[where f="op\<longrightarrow>", OF assertion_footprint_right_const])
     apply (rule assertion_footprint_right_op2[where f="op\<longrightarrow>"])
      apply (rule assertion_footprint_right_update_pattern_untyped[where Y="UNIV - set (p_vars x2)"])
       close (simp, blast)
@@ -1107,6 +1119,11 @@ proof -
 
     def gL == "eu_fun (list_expression_untyped globals_f1) m1"
     def gR == "eu_fun (list_expression_untyped globals_f2) m2"
+    have gL_type: "gL \<in> t_domain (pu_type (list_pattern_untyped globals_f1))"
+      by (metis eu_fun_type gL_def type_list_expression_list_pattern)
+    have gR_type: "gR \<in> t_domain (pu_type (list_pattern_untyped globals_f2))"
+      by (metis eu_fun_type gR_def type_list_expression_list_pattern)
+      
 
     have Q2: "Q (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f1) gL) x1l x1_val) res1 res1_val)
                 (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f2) gR) x2l x2_val) res2 res2_val)"
@@ -1114,10 +1131,11 @@ proof -
       unfolding gR_def apply (subst list_pattern_untyped_list_expression_untyped)
       unfolding ux1 ux2 by (fact Q)
 
-    from QBm1m2[unfolded QB_def, folded x1l_def x2l_def, rule_format, of gL x1_val res1_val gR x2_val res2_val] 
     have B2: "B (memory_update_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f1) gL) x1 res1_val)
                 (memory_update_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f2) gR) x2 res2_val)"
-    unfolding QB_def using that Q2 by simp
+      apply (rule QBm1m2[unfolded QB_def, folded x1l_def x2l_def, rule_format, of gL gR x1_val res1_val x2_val res2_val])
+        using gL_type gR_type close 2
+      unfolding QB_def using Q2 by simp
 
     show "B m1 m2"
       using B2

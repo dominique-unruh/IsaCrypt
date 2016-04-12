@@ -292,6 +292,9 @@ lemma eu_type_var_expression_untyped [simp]: "eu_type (var_expression_untyped x)
   unfolding eu_type_def using Rep_var_expression_untyped by simp
 lemma eu_fun_var_expression_untyped [simp]: "eu_fun (var_expression_untyped x) = (\<lambda>m. memory_lookup_untyped m x)"
   unfolding eu_fun_def using Rep_var_expression_untyped by simp
+lemma eu_vars_var_expression_untyped [simp]: "eu_vars (var_expression_untyped x) = [x]"
+  unfolding eu_vars_def using Rep_var_expression_untyped by simp
+
 
 definition pair_expression_untyped :: "expression_untyped \<Rightarrow> expression_untyped \<Rightarrow> expression_untyped" where
   "pair_expression_untyped e1 e2 = Abs_expression_untyped
@@ -309,10 +312,16 @@ lemma eu_fun_pair_expression_untyped: "eu_fun (pair_expression_untyped e1 e2) = 
   using Rep_pair_expression_untyped unfolding eu_fun_def by auto
 lemma eu_type_pair_expression_untyped [simp]: "eu_type (pair_expression_untyped e1 e2) = prod_type (eu_type e1) (eu_type e2)"
   using Rep_pair_expression_untyped unfolding eu_type_def by auto
+lemma eu_vars_pair_expression_untyped [simp]: "eu_vars (pair_expression_untyped e1 e2) = eu_vars e1 @ eu_vars e2"
+  using Rep_pair_expression_untyped unfolding eu_vars_def by auto
+
 
 fun list_expression_untyped :: "variable_untyped list \<Rightarrow> expression_untyped" where
   "list_expression_untyped [] = const_expression_untyped unit_type (embedding (default::unit))"
 | "list_expression_untyped (x#xs) = pair_expression_untyped (var_expression_untyped x) (list_expression_untyped xs)"
+
+lemma eu_vars_list_expression_untyped [simp]: "eu_vars (list_expression_untyped xs) = xs"
+  apply (induction xs) by (auto intro!: eu_vars_const_expression_untyped)
 
 subsection {* Patterns *}
 

@@ -1695,7 +1695,7 @@ qed
 lemma program_untyped_footprint_vars: "program_untyped_footprint (set(vars_untyped p)) p"
 proof -
   have "obs_eq_untyped (set(vars_untyped p)) (set(vars_untyped p)) p p"
-    by (simp add: self_obseq_vars)
+    by (simp add: self_obseq_vars_untyped)
   moreover have "program_untyped_readonly (- set(vars_untyped p)) p"
     by (meson Compl_anti_mono denotation_readonly_def program_untyped_readonly_def program_untyped_readonly_write_vars subsetCE write_vars_subset_vars_untyped(1))
   ultimately show ?thesis
