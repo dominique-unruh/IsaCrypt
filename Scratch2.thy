@@ -249,13 +249,13 @@ lemma call_rule_abstract:
   assumes res_nin_f: "mk_variable_untyped res \<notin> set (vars_proc_global f)"
   assumes args_nin_f: "mk_variable_untyped args \<notin> set (vars_proc_global f)"
   assumes args_not_res: "mk_variable_untyped args \<noteq> mk_variable_untyped res"
-  defines "P' == \<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res, mk_variable_untyped args}.
-                    memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+(*   defines "P' == \<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res, mk_variable_untyped args}.
+                    memory_lookup_untyped m1 x = memory_lookup_untyped m2 x" *)
 (*  defines "QB' == (\<lambda>m1 m2. (\<forall>gL gR xL xR x'L x'R. 
                      (xL = xR \<and> gL = gR) 
                 \<longrightarrow> B (memory_update (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) gL) x1 xL)
                       (memory_update (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) gR) x2 xR)))" *)
-  defines "QB' == (\<lambda>m1 m2. (\<forall>g x x'L x'R. 
+  defines "QB' == (\<lambda>m1 m2. (\<forall>g x. 
                 B (memory_update (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) g) x1 x)
                   (memory_update (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) g) x2 x)))"
   (* defines "C' == (\<lambda>m1 m2. P' (memory_update m1 args (memory_lookup m1 y1)) (memory_update m2 args (memory_lookup m2 y2)) \<and> QB' m1 m2)" *)
@@ -263,9 +263,10 @@ lemma call_rule_abstract:
       (\<forall>x\<in>set (vars_proc_global f). memory_lookup_untyped m1 x = memory_lookup_untyped m2 x)
     \<and> memory_lookup m1 y1 = memory_lookup m2 y2
     \<and> memory_lookup m1 res = memory_lookup m2 res (* TODO: Why do we need this one? res will be overwritten! *)
-    (*\<and> P' (memory_update m1 args (memory_lookup m1 y1)) (memory_update m2 args (memory_lookup m2 y2))*) \<and> QB' m1 m2)"
+    \<and> QB' m1 m2)"
   assumes p1p2': "rhoare A p1 p2 C'"
-  shows "rhoare A (seq p1 (callproc (variable_pattern x1) f (var_expression y1))) (seq p2 (callproc (variable_pattern x2) f (var_expression y2))) B"
+  shows "rhoare A (seq p1 (callproc (variable_pattern x1) f (var_expression y1))) 
+                  (seq p2 (callproc (variable_pattern x2) f (var_expression y2))) B"
 proof -
   def Q == "\<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res}. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   def QB == "\<lambda>m1 m2. (\<forall>gL gR xL xR x'L x'R. gL \<in> t_domain (pu_type (list_pattern_untyped globals_f)) \<longrightarrow>
@@ -351,7 +352,7 @@ proof -
         if "\<forall>x\<in>set (vars_proc_global f). memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
         and "memory_lookup m1 y1 = memory_lookup m2 y2"
         and "memory_lookup m1 res = memory_lookup m2 res" for m1 m2
-    unfolding P'_def P_def using that by auto
+    unfolding P_def using that by auto
 
   from QB'QB P'P have "C' m1 m2 \<Longrightarrow> C m1 m2" for m1 m2 unfolding C'_def C_def by simp
   hence p1p2: "rhoare A p1 p2 C"
