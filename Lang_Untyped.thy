@@ -177,6 +177,24 @@ lemma memory_update_lookup_untyped [simp]: "memory_update_untyped m x (memory_lo
   using memory_lookup_untyped_type close auto
   by auto
 
+
+lemma memory_update_untyped_twice_notsame: 
+  assumes "x \<noteq> y"
+  shows "memory_update_untyped (memory_update_untyped m x xv) y yv
+       = memory_update_untyped (memory_update_untyped m y yv) x xv"
+apply (subst Rep_memory_inject[symmetric], rule ext)
+apply (subst Rep_memory_update_untyped')+
+using assms by auto
+
+lemma memory_update_untyped_twice_same [simp]: 
+  shows "memory_update_untyped (memory_update_untyped m x xv) x yv
+       = memory_update_untyped m x yv"
+apply (subst Rep_memory_inject[symmetric], rule ext)
+apply (subst Rep_memory_update_untyped')+
+using assms by auto
+
+
+
 instantiation memory :: default begin
 definition "default = Abs_memory (\<lambda>x. t_default (vu_type x))"
 instance ..
@@ -195,9 +213,14 @@ lemma memory_combine_twice_left [simp]:
   "memory_combine X (memory_combine X m1 m2) m3 = memory_combine X m1 m3"
   unfolding Rep_memory_inject[symmetric] by auto
 
-lemma memory_update_untyped_footprint:
+lemma memory_update_untyped_footprint: (* TODO replace by stronger one below *)
   assumes "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
   assumes "w \<in> X"
+  shows   "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m1 w x) v = memory_lookup_untyped (memory_update_untyped m2 w x) v"
+by (simp add: assms(1) memory_lookup_update_untyped)
+
+lemma memory_update_untyped_footprint_STRONGER:
+  assumes "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
   shows   "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped m1 w x) v = memory_lookup_untyped (memory_update_untyped m2 w x) v"
 by (simp add: assms(1) memory_lookup_update_untyped)
 
@@ -446,7 +469,7 @@ proof -
   qed
 qed
 
-lemma memory_update_untyped_pattern_footprint:
+lemma memory_update_untyped_pattern_footprint: (* TODO replace by stronger one below *)
   assumes "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
   assumes "X \<supseteq> set (pu_vars pat)"
   shows   "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped_pattern m1 pat x) v = memory_lookup_untyped (memory_update_untyped_pattern m2 pat x) v"
@@ -476,6 +499,32 @@ proof -
       using snoc gvX eq by simp_all
   qed
 qed
+
+lemma memory_update_untyped_pattern_footprint_STRONGER:
+  assumes "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped m1 v = memory_lookup_untyped m2 v"
+  shows   "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped_pattern m1 pat x) v = memory_lookup_untyped (memory_update_untyped_pattern m2 pat x) v"
+proof -
+  fix v
+  def getters == "pu_var_getters pat"
+  have "\<And>gv gs. (gv,gs)\<in>set getters \<Longrightarrow> gv \<in> set (pu_vars pat)" 
+    unfolding getters_def pu_vars_def by force
+  show "v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped_pattern m1 pat x) v = memory_lookup_untyped (memory_update_untyped_pattern m2 pat x) v"
+    unfolding memory_update_untyped_pattern_def getters_def[symmetric]
+  proof (induct getters arbitrary: v rule:rev_induct)
+  case Nil thus ?case using assms(1) by simp
+  next case (snoc g gs)
+    obtain gv gf where g:"g = (gv,gf)" by force
+    have eq: "\<And>v. v \<in> X \<Longrightarrow>
+         memory_lookup_untyped (foldl (\<lambda>m (v, f). memory_update_untyped m v (f x)) m1 gs) v =
+         memory_lookup_untyped (foldl (\<lambda>m (v, f). memory_update_untyped m v (f x)) m2 gs) v"
+     using snoc.hyps by auto
+    show ?case 
+      unfolding g apply simp
+      apply (rule memory_update_untyped_footprint_STRONGER[where X=X])
+      using snoc eq by simp_all
+  qed
+qed
+
 
 lemma memory_lookup_update_pattern_notsame:
   assumes "x \<notin> set (pu_vars p)"
@@ -567,6 +616,36 @@ next case (Cons x xs')
 qed
 
 
+lemma list_expression_list_pattern_untyped:
+  assumes "distinct x"
+  assumes "v \<in> t_domain (pu_type (list_pattern_untyped x))"
+  shows "eu_fun (list_expression_untyped x) (memory_update_untyped_pattern m (list_pattern_untyped x) v) = v"
+using assms proof (induction x arbitrary: m v)
+case Nil thus ?case by (simp add: eu_fun_const_expression_untyped)
+next case (Cons x xs)
+  obtain u w where v: "v = val_prod_embedding (u,w)" apply atomize_elim using Cons.prems by auto
+  have u: "u \<in> t_domain (pu_type (pattern_1var x))"
+    by (smt Cons.prems(2) imageE inj_val_prod_embedding inv_f_f list_pattern_untyped.simps(2) mem_Sigma_iff pu_type_pair_pattern t_domain_prod v)
+  have w: "w \<in> t_domain (pu_type (list_pattern_untyped xs))"
+    by  (smt Cons.prems(2) imageE inj_val_prod_embedding inv_f_f list_pattern_untyped.simps(2) mem_Sigma_iff pu_type_pair_pattern t_domain_prod v)
+
+  have t1: "memory_lookup_untyped (memory_update_untyped_pattern (memory_update_untyped_pattern m
+            (pattern_1var x) u) (list_pattern_untyped xs) w) x = u"
+    apply (subst memory_lookup_update_pattern_notsame)
+     using Cons.prems memory_lookup_update_same_untyped u by auto
+
+  show "eu_fun (list_expression_untyped (x # xs)) (memory_update_untyped_pattern m (list_pattern_untyped (x # xs)) v)
+      = v"
+    apply (simp add: eu_fun_pair_expression_untyped v)
+    apply (subst memory_update_pair_pattern_untyped[OF u w])
+    apply (subst memory_update_pair_pattern_untyped[OF u w])
+    apply (subst Cons.IH)
+      using Cons w close 2
+    apply (subst t1)
+    by rule
+qed  
+
+
 
 definition "kill_vars_pattern_untyped p X = Abs_pattern_untyped
   \<lparr> pur_var_getters = filter (\<lambda>(v,g). v \<notin> X) (pu_var_getters p),
@@ -586,6 +665,31 @@ lemma pu_var_getters_kill_vars_pattern_untyped: "pu_var_getters (kill_vars_patte
 lemma pu_vars_kill_vars_pattern_untyped: "pu_vars (kill_vars_pattern_untyped p X) = filter (\<lambda>v. v \<notin> X) (pu_vars p)"
   unfolding pu_vars_def pu_var_getters_kill_vars_pattern_untyped split_def filter_map o_def by simp
 
+
+lemma kill_vars_pattern_untyped_twice:
+   "kill_vars_pattern_untyped (kill_vars_pattern_untyped p X) Y = kill_vars_pattern_untyped p (X\<union>Y)"
+apply (subst Rep_pattern_untyped_inject[symmetric])
+unfolding Rep_kill_vars_pattern_untyped pu_var_getters_def split_def
+by auto
+
+lemma kill_vars_pattern_untyped_disjoint:
+  assumes "set (pu_vars p) \<inter> X = {}"
+  shows "kill_vars_pattern_untyped p X = p"
+proof -
+  def vgp == "pu_var_getters p"
+  have vgX: "fst vg \<notin> X" if "vg \<in> set vgp" for vg
+    using assms pu_vars_def that vgp_def by auto 
+  have getters: "[(v, g)\<leftarrow>pu_var_getters p . v \<notin> X] = pu_var_getters p"
+    unfolding vgp_def[symmetric]
+    apply (insert vgX, induction vgp) apply auto by blast
+  show ?thesis
+    apply (subst Rep_pattern_untyped_inject[symmetric])
+    unfolding Rep_kill_vars_pattern_untyped
+    using getters by (simp add: old.unit.exhaust pattern_rep.surjective pu_type_def pu_var_getters_def) 
+qed
+
+lemma kill_vars_pattern_untyped_empty [simp]: "kill_vars_pattern_untyped p {} = p"
+  by (rule kill_vars_pattern_untyped_disjoint, simp)
 
 lemma memory_update_pattern_getter_kill_vars_pattern_untyped:
   assumes "x \<notin> X"
@@ -641,6 +745,63 @@ next
     apply (subst memory_lookup_update_pattern_notsame[where p=q]) using vq close
     apply (subst memory_lookup_update_pattern_notsame[where p=q]) using vq close
     using eqp by simp
+qed
+
+lemma memory_update_update_pattern_untyped_swap: 
+  "memory_update_untyped (memory_update_untyped_pattern m a aval) x xval
+  = memory_update_untyped_pattern (memory_update_untyped m x xval) (kill_vars_pattern_untyped a {x}) aval"
+proof -
+  def vgs == "pu_var_getters a"
+  def mup == "\<lambda>m (v,f). memory_update_untyped m v (f aval)"
+  have killed: "pu_var_getters (kill_vars_pattern_untyped a {x}) = [(v, g)\<leftarrow>pu_var_getters a . v \<noteq> x]"
+    unfolding pu_var_getters_kill_vars_pattern_untyped by simp
+  have mup_swap: "memory_update_untyped (mup m xf) y val = mup (memory_update_untyped m y val) xf" if "y \<noteq> fst xf" for xf y val m
+    unfolding mup_def using that apply (cases xf) by (simp add: memory_update_untyped_twice_notsame)
+  have mup_swap': "memory_update_untyped (mup m xf) y val = memory_update_untyped m y val" if "y = fst xf" for xf y val m
+    unfolding mup_def apply (cases xf) using that by (simp add: memory_update_untyped_twice_same)
+  show ?thesis
+    unfolding memory_update_untyped_pattern_def vgs_def[symmetric] killed mup_def[symmetric]
+    proof (induction vgs rule:rev_induct)
+    case Nil show ?case by simp
+    next case (snoc vg vgs)
+      show ?case 
+      proof (cases "x = fst vg")
+      case False thus ?thesis apply auto apply (subst snoc[symmetric]) apply (subst mup_swap) by auto
+      next case True thus ?thesis apply auto apply (subst (asm) snoc[symmetric]) apply (subst (asm) mup_swap') by auto
+    qed
+  qed
+qed
+
+lemma memory_update_pattern_untyped_swap: "memory_update_untyped_pattern (memory_update_untyped_pattern m a x) b y
+     = memory_update_untyped_pattern (memory_update_untyped_pattern m b y) (kill_vars_pattern_untyped a (set (pu_vars b))) x"
+proof -
+  def vgb == "pu_var_getters b"
+  hence upb: "memory_update_untyped_pattern m b x = foldl (\<lambda>m (v, f). memory_update_untyped m v (f x)) m vgb" for x m
+    unfolding memory_update_untyped_pattern_def by simp
+  have vb: "pu_vars b = map fst vgb" by (simp add: vgb_def pu_vars_def)
+    
+  def mup == "\<lambda>m (v,f). memory_update_untyped m v (f y)"
+
+  have commute:
+       "mup (memory_update_untyped_pattern m (kill_vars_pattern_untyped a X) aval) xf 
+      = memory_update_untyped_pattern (mup m xf) (kill_vars_pattern_untyped a (X\<union>{fst xf})) aval" for m X xf aval
+    unfolding mup_def apply (cases xf)
+    apply auto
+    apply (subst memory_update_update_pattern_untyped_swap)
+    apply (subst kill_vars_pattern_untyped_twice)
+    by auto
+    
+  show ?thesis
+    unfolding upb vb mup_def[symmetric]
+  proof (induction vgb rule:rev_induct)
+  case Nil show ?case by simp
+  next case (snoc vg vgb)
+    show ?case
+      apply auto
+      apply (subst snoc)
+      apply (subst commute)
+      by auto
+  qed
 qed
 
 subsection {* Procedures *}

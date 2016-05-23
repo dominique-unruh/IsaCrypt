@@ -1,5 +1,5 @@
 theory ElGamal
-imports Hoare_Tactics Procs_Typed Tactic_Inline Lang_Simplifier RHL_Typed
+imports Hoare_Tactics Procs_Typed Tactic_Inline Lang_Simplifier RHL_Typed Callproc
 begin
 
 (* Working EC version with elgamal.ec:
@@ -332,12 +332,25 @@ b' <@ A.guess(c)            (9)
 post = (b'{1} = b{1}) = (b'{2} = b0{2})
 *)
 
-apply (rule callproc_split_result)
+(* apply (rule callproc_split_result[where ?x1.0="LVariable ''res''" and ?x2.0="LVariable ''res''"])
+  close (tactic \<open>Tactic_Inline.assertion_footprint_tac @{context} 1\<close>; simp)
+ close (tactic \<open>Tactic_Inline.assertion_footprint_tac @{context} 1\<close>; simp) *)
 
-(* TODO: make a call_rule_abstract *)
-apply (rule call_rule)
- 
-sorry
+apply (rule callproc_split_args[where ?x1.0="LVariable ''args''" and ?x2.0="LVariable ''args''"])
+      close (tactic \<open>Tactic_Inline.assertion_footprint_tac @{context} 1\<close>; simp)
+     close (tactic \<open>Tactic_Inline.assertion_footprint_tac @{context} 1\<close>; simp)
+    close 4
+
+apply (rule call_rule_abstract[where globals_f="remdups (vars_proc_global (guess <$> A))"])
+close 
+using write_vars_proc_global_subset_vars_proc_global close
+close
+close
+close
+close
+close
+close
+
 
 (* 
   local lemma cpa_ddh0 &m: 
@@ -395,6 +408,5 @@ sorry
 *)
 
 end (* context: group *)
-
 
 end (* theory *)

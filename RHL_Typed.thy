@@ -649,6 +649,29 @@ unfolding obs_eq_obs_eq_untyped
 apply (rule self_obseq_vars_untyped)
 using assms unfolding vars_def by auto
 
+lemma self_obs_eq_callproc:
+  assumes YX: "Y \<subseteq> X \<union> set (p_vars x)"
+  assumes bodyX: "set (vars (p_body p)) \<subseteq> X \<union> {x. \<not> vu_global x}"
+  assumes retX: "set (e_vars (p_return p)) \<subseteq> X \<union> {x. \<not> vu_global x}"
+  assumes argsX: "set (p_vars (p_arg p)) \<subseteq> X \<union> {x. \<not> vu_global x}"
+  assumes aX: "set (e_vars y) \<subseteq> X"
+  shows "obs_eq X Y (callproc x p y) (callproc x p y)"
+proof -
+  obtain body args ret where p: "mk_procedure_untyped p = Proc body args ret"
+    using mk_procedure_untyped_def by blast
+  hence p_body: "Rep_program (p_body p) = body"
+    and p_return: "mk_expression_untyped (p_return p) = ret"
+    and p_args: "Rep_pattern (p_arg p) = args"
+    by (simp_all add: mk_procedure_untyped_def)
+  show ?thesis
+    unfolding obs_eq_obs_eq_untyped apply (simp add: p)
+    apply (rule self_obs_eq_callproc_untyped)
+        close (metis YX p_vars_def)
+       using bodyX unfolding vars_def p_body close 
+      using retX mk_expression_untyped_vars p_return close
+     close (metis argsX p_args p_vars_def)
+    by (simp add: aX)
+qed
 
 lemma obseq_context_empty: 
   shows "obseq_context X (\<lambda>c. c)"
