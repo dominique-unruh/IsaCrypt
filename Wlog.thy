@@ -99,10 +99,6 @@ proof -
   val b =  Vartab.lookup (Variable.constraints_of @{context} |> fst) (a,~1)
   *}
 
-ML_prf "op:::"
-ML_prf Parse.args1
-ML_prf Method.parser 
-
   have neq2: "a>b\<or>b>a" using neq bla by auto 
   have comm: "1 \<le> a + b \<Longrightarrow> 1 \<le> b + a" for a b :: nat by auto
 
@@ -117,26 +113,37 @@ ML_prf Method.parser
 
   ML_prf {* val ctx2 = @{context} *}
 
-  wlog geq: "a > b" for a b shows ?thesis assumes neq neq3 imports neq2
+  wlog geq: "a > b" for a b shows ?thesis assumes neq3  imports neq2
     apply (cases "a>b")
      apply (rule hypothesis; simp)
     apply (subst add.commute)
      apply (rule hypothesis)
        using neq apply simp
       using neq apply simp
-     using neq3 by simp
+     (* using neq3 by simp *)
+  by (tactic \<open>ALLGOALS (K all_tac)\<close>)
 
   note assms = neq neq3
 
-  have bla2: "1=1 \<Longrightarrow> True" by simp
-
 ML_prf {*
-fun translate_thm ctx fixes fixed hypsnew(*TODO auto*) thm = 
+(* Given a theorem thm, replaces all occurrences of "fixes" by "fixed".
+   For any hypothesis of thm that is not a fact in the context "ctx", a premise is added to the theorem.
+   (Thus, the resulting theorem will be valid in "ctx") *)
+fun translate_thm ctx fixes fixed thm = 
   let val hyps = Thm.chyps_of thm
       val thm = fold_rev Thm.implies_intr hyps thm
       val idx = Thm.maxidx_of thm + 1
       val thm = Thm.generalize ([],map #2 fixes) idx thm
-      val thm = Thm.instantiate ([],map2 (fn (_,n,T) => fn m => (((n,idx),T),Thm.cterm_of ctx (Free(m,T)))) fixes fixed) thm;;
+      val thm = Thm.instantiate ([],map2 (fn (_,n,T) => fn m => (((n,idx),T),Thm.cterm_of ctx (Free(m,T)))) fixes fixed) thm
+      val facts = Proof_Context.facts_of ctx
+      fun mk_hypnew hyp =
+        let val chyp = Thm.cterm_of ctx hyp
+            val hyp_thm = Thm.trivial chyp
+            val candidates = Facts.could_unify facts hyp
+            fun try_cand cand fallback = hyp_thm OF [cand] handle THM _ => fallback
+        in fold try_cand candidates hyp_thm end
+      val prems = take (length hyps) (Thm.prems_of thm)
+      val hypsnew = map mk_hypnew prems
       val thm = thm OF hypsnew
    in thm end
 *}
@@ -144,8 +151,7 @@ fun translate_thm ctx fixes fixed hypsnew(*TODO auto*) thm =
   ML_prf {*
     val fixes = [("xxx","a",@{typ nat}),("yyy","b",@{typ nat})]
     val fixed = ["aa__","ba__"]
-    val hypsnew = @{thms bla2 neq};;
-    val neq2' = translate_thm @{context} fixes fixed hypsnew neq2
+    val neq2' = translate_thm @{context} fixes fixed neq2
   *}
   have "b<a\<or>a<b" apply (tactic \<open>resolve_tac @{context} [neq2'] 1\<close>) using assms by auto
 
