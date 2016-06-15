@@ -1,8 +1,36 @@
 theory Wlog
 imports Main
-keywords "wlog" :: "prf_script"
+keywords "wlog" :: "prf_script" and "dummy" :: "prf_script"
 begin
 
+
+ML {*
+(* Given a theorem thm, replaces all occurrences of the free vars "fixes" by the free vars "fixed".
+   For any hypothesis of thm that is not a fact in the context "ctx", a premise is added to the theorem.
+   (Thus, the resulting theorem will be valid in "ctx")
+
+   fixes is a list of (_,n,T) where n is the var name and T the type
+
+   fixed is a list of variable names (types will be the same).
+ *)
+fun translate_thm ctx fixes fixed thm = 
+  let val hyps = Thm.chyps_of thm
+      val thm = fold_rev Thm.implies_intr hyps thm
+      val idx = Thm.maxidx_of thm + 1
+      val thm = Thm.generalize ([],map #2 fixes) idx thm
+      val thm = Thm.instantiate ([],map2 (fn (_,n,T) => fn m => (((n,idx),T),Thm.cterm_of ctx (Free(m,T)))) fixes fixed) thm
+      val facts = Proof_Context.facts_of ctx
+      fun mk_hypnew hyp =
+        let val chyp = Thm.cterm_of ctx hyp
+            val hyp_thm = Thm.trivial chyp
+            val candidates = Facts.could_unify facts hyp
+            fun try_cand cand fallback = hyp_thm OF [cand] handle THM _ => fallback
+        in fold try_cand candidates hyp_thm end
+      val prems = take (length hyps) (Thm.prems_of thm)
+      val hypsnew = map mk_hypnew prems
+      val thm = thm OF hypsnew
+   in thm end
+*}
 
 ML {*
 fun ren_frees [] = I
@@ -24,25 +52,32 @@ fun get_fixes ctx =
     in map (fn (int,ext) => case Vartab.lookup constr (ext,~1) of NONE => error "no constraint" | SOME T => (int,ext,T)) fixes end
 *}
 
+ML Assumption.presume_export
+
 ML {*
 fun wlog (newassm_name,newassm) (fixes:(binding*string*typ) list) (thesis:term) (assms:(string*thm list)list) int state =
-  let (*val fixes = get_fixes (Proof.context_of state)*)
-                                              
+  let val _ = @{print} (Proof.goal state)
+      val ctx = Proof.context_of state
+      val facts = Proof_Context.facts_of ctx
       val flat_assms = assms |> map snd |> List.concat |> map Thm.prop_of
       val hyp = Logic.list_implies (newassm :: flat_assms, thesis)
       val hyp = fold (fn (_,a,T) => fn t => Logic.all_const T $ (Term.absfree (a,T) t)) fixes hyp
-val _ = @{print} fixes
+      val _ = Output.information ("[Wlog] New goal will be: " ^ (Syntax.string_of_term ctx hyp))
       val state = Proof.presume [] [] [((@{binding hypothesis},[]),[(hyp,[])])] state
 
       fun after_qed (_(*ctx*),_) state = 
       let val let_bindings = Variable.binds_of (Proof.context_of state) |> Vartab.dest
           val state = Proof.next_block state
+          val lost_facts = Facts.dest_static false [Proof_Context.facts_of (Proof.context_of state)] facts
+          val _ = @{print} ("lost_facts",lost_facts)
           val (fixed,state) = Proof.map_context_result (Proof_Context.add_fixes (map (fn (a,_,T) => (a,SOME T,NoSyn)) fixes)) state
           val rename_fixed = ren_frees (map2 (fn (_,a,_) => fn b => (a,b)) fixes fixed)
           val state = fold (fn (name,(_,t)) => Proof.map_context (Variable.bind_term (name,rename_fixed t))) let_bindings state
           val state = Proof.map_context (Variable.bind_term (("wlog_goal",0),rename_fixed thesis)) state
           val state = fold (fn (name,assm) => fn state => 
                         Proof.assume [] [] [((Binding.name name,[]),map (fn t => (rename_fixed (Thm.prop_of t),[])) assm)] state) assms state
+          val ctx = Proof.context_of state
+          val state = Proof.note_thmss (map (fn (name,thms) => ((Long_Name.explode name |> split_last |> snd |> Binding.name,[]),[(map (translate_thm ctx fixes fixed) thms, [])])) lost_facts) state
           val state = Proof.assume [] [] [((newassm_name,[]),[(rename_fixed newassm,[])])] state (* Should be last to override "this" *)
           (* TODO: define assms to contain all assumptions (carried over and new) *)
       in state end
@@ -76,14 +111,20 @@ fun wlog_cmd ((bind,stmt) : Binding.binding * string) (* New assumptions added w
   in wlog (bind,stmt) fixes' goal' assms' int state end                 
 
 val wlog_parser = (Scan.optional (Parse.binding --| Parse.$$$ ":") Binding.empty -- Parse.prop) -- 
-                  (@{keyword "for"} |-- Scan.repeat Parse.binding) --
+                  (Scan.optional (@{keyword "for"} |-- Scan.repeat Parse.binding) []) --
                   (@{keyword "shows"} |-- Parse.prop) --
-                  (@{keyword "assumes"} |-- Parse.xthms1) --
-                  (@{keyword "imports"} |-- Scan.repeat Parse.binding)
+                  (@{keyword "assumes"} |-- Parse.xthms1)
 
 val _ =
   Outer_Syntax.command @{command_keyword wlog} "TODO"
-    (wlog_parser >> (fn ((((stmt,fixes),goal),assms),imports) => Toplevel.proof' (wlog_cmd stmt fixes goal assms)));
+    (wlog_parser >> (fn ((((stmt,fixes),goal),assms)) => Toplevel.proof' (wlog_cmd stmt fixes goal assms)));
+*}
+
+ML {*
+
+val _ =
+  Outer_Syntax.command @{command_keyword dummy} "TODO"
+    (Scan.succeed () >> (fn _ => Toplevel.proof (fn state => (@{print} (state  |> Proof.the_facts ); state))));
 *}
 
 lemma
@@ -107,46 +148,25 @@ proof -
 
   let ?a = a
 
-  wlog neq3: "b\<noteq>a" for x shows "a+b\<ge>(1::nat)" assumes neq imports neq2
+  wlog neq3: "b\<noteq>a" for a shows "a+b\<ge>(1::nat)" assumes neq
     apply (rule hypothesis)
     using neq by auto
 
   ML_prf {* val ctx2 = @{context} *}
-
-  wlog geq: "a > b" for a b shows ?thesis assumes neq3  imports neq2
+term ?thesis
+  wlog geq: "a > b" for a b shows ?thesis assumes neq3
     apply (cases "a>b")
      apply (rule hypothesis; simp)
     apply (subst add.commute)
      apply (rule hypothesis)
        using neq apply simp
       using neq apply simp
-     (* using neq3 by simp *)
+     (* using neq3 apply simp *)
   by (tactic \<open>ALLGOALS (K all_tac)\<close>)
 
   note assms = neq neq3
 
-ML_prf {*
-(* Given a theorem thm, replaces all occurrences of "fixes" by "fixed".
-   For any hypothesis of thm that is not a fact in the context "ctx", a premise is added to the theorem.
-   (Thus, the resulting theorem will be valid in "ctx") *)
-fun translate_thm ctx fixes fixed thm = 
-  let val hyps = Thm.chyps_of thm
-      val thm = fold_rev Thm.implies_intr hyps thm
-      val idx = Thm.maxidx_of thm + 1
-      val thm = Thm.generalize ([],map #2 fixes) idx thm
-      val thm = Thm.instantiate ([],map2 (fn (_,n,T) => fn m => (((n,idx),T),Thm.cterm_of ctx (Free(m,T)))) fixes fixed) thm
-      val facts = Proof_Context.facts_of ctx
-      fun mk_hypnew hyp =
-        let val chyp = Thm.cterm_of ctx hyp
-            val hyp_thm = Thm.trivial chyp
-            val candidates = Facts.could_unify facts hyp
-            fun try_cand cand fallback = hyp_thm OF [cand] handle THM _ => fallback
-        in fold try_cand candidates hyp_thm end
-      val prems = take (length hyps) (Thm.prems_of thm)
-      val hypsnew = map mk_hypnew prems
-      val thm = thm OF hypsnew
-   in thm end
-*}
+thm neq2 neq
 
   ML_prf {*
     val fixes = [("xxx","a",@{typ nat}),("yyy","b",@{typ nat})]
