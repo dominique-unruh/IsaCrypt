@@ -1,6 +1,6 @@
 theory Wlog
 imports Main
-keywords "wlog" :: "prf_script" and "dummy" :: "prf_script"
+keywords "wlog" :: "prf_script" and "dummy" :: "prf_script" and "goal" :: "prf_script"
 begin
 
 declare[[ML_exception_trace]]
@@ -105,7 +105,7 @@ fun wlog (newassm_name,newassm) (fixes:(binding*string*typ) list) (thesis:term) 
       (* flat_assms: list of (name,i,t) where t are all assumptions, with i an index to distinguish several propositions in the same fact. (i=0 if there is only one) *)
       val flat_assms = assms |> map (fn (name,thms) => case thms of [th] => [(name,0,Thm.prop_of th)]
                                                                   | _ => map_index (fn (i,thm) => (name,i+1,Thm.prop_of thm)) thms) |> List.concat
-      val flat_assms = ("new_assm",0,newassm) :: flat_assms
+      val flat_assms = (Binding.name_of newassm_name,0,newassm) :: flat_assms
       fun idx_name (name,0) = name | idx_name (name,i) = name ^ "_" ^ string_of_int i
       val _ = List.map (fn (name,i,t) => Output.information ("[Wlog] Assumption " ^ idx_name(name,i) ^ ": " ^ (Syntax.string_of_term ctx t))) flat_assms
       val hyp = Logic.list_implies (map #3 flat_assms, thesis)
@@ -144,25 +144,19 @@ fun wlog_cmd ((bind,stmt) : Binding.binding * string) (* New assumptions added w
              (assms : (Facts.ref * Token.src list) list) (* Assumptions to keep *)
              int state =
   let val ctx = Proof.context_of state
-(*       val (bind,stmt) = case error "xxx" of
-                            [((bind,[]),[(stmt,[])])] => 
-                              let val ctx = Proof.context_of state
-                                  val stmt = Syntax.read_prop ctx stmt
-                              in (bind,stmt) end
-                          | _ => error "wlog: some unsupported case -> add proper error message" *)
       val stmt = Syntax.read_prop ctx stmt                                 
       val assms' = map (fn (fact,_) => (Facts.name_of_ref fact, Proof_Context.get_fact ctx fact)) assms
       val goal' = Syntax.read_prop ctx goal
       val constr = Variable.constraints_of ctx |> #1
-      val fixes' = map (fn b => let val SOME internal = Variable.lookup_fixed ctx (Binding.name_of b)
-                                    val SOME T = Vartab.lookup constr (internal,~1)
+      val fixes' = map (fn b => let val internal = Variable.lookup_fixed ctx (Binding.name_of b) |> Option.valOf
+                                    val T = Vartab.lookup constr (internal,~1) |> Option.valOf
                                 in (b,internal,T) end) fixes
-      val _ = @{print} assms
+      (* val _ = @{print} assms *)
   in wlog (bind,stmt) fixes' goal' assms' int state end                 
 
 val wlog_parser = (Scan.optional (Parse.binding --| Parse.$$$ ":") Binding.empty -- Parse.prop) -- 
                   (Scan.optional (@{keyword "for"} |-- Scan.repeat Parse.binding) []) --
-                  (@{keyword "shows"} |-- Parse.prop) --
+                  (Scan.optional (@{keyword "shows"} |-- Parse.prop) "?thesis") --
                   (@{keyword "assumes"} |-- Parse.xthms1)
 
 val _ =
@@ -177,43 +171,73 @@ val _ =
     (Scan.succeed () >> (fn _ => Toplevel.proof (fn state => (@{print} (state  |> Proof.the_facts ); state))));
 *}
 
+ML {*
+local 
+fun extract_thesis ctx [] [] [(_,[thesis])] = 
+  (case Proof_Context.read_propp ctx [[thesis]] |> #1 of
+      [[Const ("HOL.Trueprop",_) $ t]] => SOME t
+    | _ => NONE)
+  | extract_thesis _ _ _ _ = NONE
+
+in
+val _ =
+  Outer_Syntax.command @{command_keyword goal} "tests if showing the given goal will work (i.e., whether show will succeed); also sets ?thesis"
+    (Parse_Spec.statement -- Parse_Spec.cond_statement -- Parse.for_fixes >> (fn ((shows, (strict, assumes)), fixes) =>
+      Toplevel.proof' (fn int => fn state =>
+      (Proof.show_cmd strict NONE (K I) fixes assumes shows int state;
+      case extract_thesis (Proof.context_of state) fixes assumes shows of NONE => state
+        | SOME t => Proof.map_context (Variable.bind_term (("thesis",0),t)) state
+      ))))
+end
+*}
+
+(* Variable.bind_term (("wlog_goal",0),rename_fixed thesis *)
+(* 
+lemma tmp: 
+  assumes bla: "bla"
+  assumes blu: "blu"
+  shows "bla \<Longrightarrow> bla\<and>blu" and "bla\<or>blu"
+proof -
+  assume "bla"
+  goal xxx:"bla\<and>blu"
+  show ?thesis
+    using assms by simp
+  next
+  (* assume "bla" *)
+  goal "bla\<or>blu"
+  show ?thesis
+    using assms by simp
+qed
+ *)
+
 lemma
   fixes a b :: nat
   assumes bla: "True"
   assumes neq: "a \<noteq> b"
-  shows "a+b \<ge> 1"
+  shows "a+b \<ge> 1" (is ?th) and "a+b \<ge> 0"
 proof -
+  goal "a+b \<ge> 1"
+  goal "?thesis" (is "a+b \<ge> 1")
   have neq2: "a>b\<or>b>a" using neq bla by auto 
   have comm: "1 \<le> a + b \<Longrightarrow> 1 \<le> b + a" for a b :: nat by auto
-
-  ML_prf {* val ctx1 = @{context} *}
-  ML_prf {* val neq2 = @{thm neq2} *}
 
   let ?a = a
 
   have test[]: "\<And>a. b \<noteq> a \<Longrightarrow> a \<noteq> b \<Longrightarrow> 1 \<le> a + b" sorry
-  (* have "1 \<le> a+b" proof (cases rule:test) print_cases case 2  *)
 
-have hyptmp[case_names new_assm neq]: "b \<noteq> a \<Longrightarrow> a \<noteq> b \<Longrightarrow> 1 \<le> a + b" for a sorry
-
-consider "a=a" | "b=b" sorry
-note c = this
-(* have "1 \<le> a + b " proof (cases "True") print_cases case True show ?thesis *)
-
-  wlog neq3: "b\<noteq>a" for a shows "a+b\<ge>(1::nat)" assumes neq
+  wlog neq3: "b\<noteq>a" for a assumes neq
   proof (cases rule:hypothesis[where a=a]) print_cases
     case neq show ?case using assms(2) by blast 
-    case new_assm show ?case using assms(2) by blast 
+    case neq3 show ?case using assms(2) by blast 
   qed
 
   have aux: "P \<Longrightarrow> (P \<Longrightarrow> Q) \<Longrightarrow> Q" for P Q by metis
 
-  ML_prf {* val ctx2 = @{context} *}
-  wlog geq: "a > b" for a b shows ?thesis assumes neq3
+  wlog geq: "a > b" for a b assumes neq3
   proof (cases "a>b")
   case True show ?thesis using True hypothesis by blast
   next case False show ?thesis proof (rule aux, cases rule:hypothesis[of a b])
-    case new_assm show ?case using False neq2 by blast 
+    case geq show ?case using False neq2 by blast 
     next case neq3 show ?case using neq2 by auto
     next assume "1 \<le> b + a" then show "1 \<le> a + b" by linarith 
     qed
@@ -225,10 +249,13 @@ note c = this
 
  (* apply (tactic \<open>resolve_tac @{context} [neq2'] 1\<close>) using assms by auto *)
 
-  wlog tmp: "a=a" for a b shows ?thesis assumes geq 
+  wlog tmp: "a=a" for a b assumes geq 
     using hypothesis neq geq by metis
 
   from geq have "a \<ge> 1" by auto
 
   then show "1 \<le> a + b" by auto
+next
+  goal "a+b \<ge> 0"
+  show ?thesis by auto
 qed
