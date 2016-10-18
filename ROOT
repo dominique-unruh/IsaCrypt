@@ -13,16 +13,16 @@ session "IsaCrypt-Nodocs" = "IsaCrypt-Prereqs" +
     "root.tex"
 
 
-session "IsaCrypt-Prereqs" in "~~/src/HOL" = "HOL-Multivariate_Analysis" +
+session "IsaCrypt-Prereqs" in "~~/src/HOL" = "HOL-Analysis" +
   description {*
     Prerequisites for running the IsaCrypt theories.
   *}
   theories
-    "Proofs/Lambda/StrongNorm"
+(*    "Proofs/Lambda/StrongNorm"
     "Proofs/Lambda/Commutation"
     "Probability/Binary_Product_Measure"
     "Library/Rewrite"
-    "Eisbach/Eisbach"
+    "Eisbach/Eisbach" *)
     "Nominal/Nominal"
 
 session "IsaCrypt-Core" = "IsaCrypt-Prereqs" +
