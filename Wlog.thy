@@ -5,8 +5,6 @@ begin
 
 declare[[ML_exception_trace]]
 
-ML Term_Subst.generalize
-ML {* Name.clean_index ("aa__", 0) *}
 
 ML {*
 (* Like Facts.dest_static, but also returns facts that have been overwritten with a new fact of the same name *)
@@ -110,7 +108,8 @@ fun wlog (newassm_name,newassm) (fixes:(binding*string*typ) list) (thesis:term) 
       val _ = List.map (fn (name,i,t) => Output.information ("[Wlog] Assumption " ^ idx_name(name,i) ^ ": " ^ (Syntax.string_of_term ctx t))) flat_assms
       val hyp = Logic.list_implies (map #3 flat_assms, thesis)
       val hyp = fold (fn (_,a,T) => fn t => Logic.all_const T $ (Term.absfree (a,T) t)) fixes hyp
-      val _ = Output.information ("[Wlog] New goal will be: " ^ (Syntax.string_of_term ctx hyp))
+      (* val _ = Output.information ("[Wlog] New goal will be:" ^ (Syntax.string_of_term ctx hyp)) *)
+      val _ = Output.information ("[Wlog] " ^ (Element.pretty_statement ctx "New goal:" (Thm.assume (Thm.cterm_of ctx hyp)) |> Pretty.string_of))
       val case_names = map (fn (name,i,_) => idx_name(name,i)) flat_assms
       val case_names = Rule_Cases.cases_hyp_names case_names (map (K []) case_names)
       val state = Proof.presume [] [] [((@{binding hypothesis},[case_names]),[(hyp,[])])] state
@@ -210,6 +209,18 @@ proof -
 qed
  *)
 
+lemma assumes yyy:yyy shows zzz
+proof -
+  fix xxx
+  assume xxx:"xxx" and "zzz"
+  print_statement trans
+  ML_prf {* Element.pretty_statement @{context} "lemma" @{thm xxx} |> Pretty.writeln *}
+  thm xxx
+  ML_prf {* val [yyy,xxx,www] = Assumption.all_prems_of @{context} *}
+  ML_prf {* Proof_Context.facts_of @{context} |> Facts.props *}
+  ML_prf {* Facts.could_unify (Proof_Context.facts_of @{context}) (Thm.prop_of yyy) *}
+oops
+
 lemma
   fixes a b :: nat
   assumes bla: "True"
@@ -237,9 +248,9 @@ proof -
   proof (cases "a>b")
   case True show ?thesis using True hypothesis by blast
   next case False show ?thesis proof (rule aux, cases rule:hypothesis[of a b])
-    case geq show ?case using False neq2 by blast 
+    case geq show ?case using False neq2 by blast
     next case neq3 show ?case using neq2 by auto
-    next assume "1 \<le> b + a" then show "1 \<le> a + b" by linarith 
+    next assume "1 \<le> b + a" then show "1 \<le> a + b" by linarith
     qed
   qed
 
