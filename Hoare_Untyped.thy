@@ -79,10 +79,10 @@ proof (unfold hoare_denotation_def, auto)
   fix m m' assume "P m"
   assume m': "m' \<in> support_distr (SUP n. c n m)"
   {assume "\<And>n. m' \<notin> support_distr (c n m)"
-  hence "\<And>n. ereal_Rep_distr (c n m) m' \<le> 0" 
+  hence "\<And>n. ennreal_Rep_distr (c n m) m' \<le> 0" 
     unfolding support_distr_def' using le_less_linear by blast
-  hence "ereal_Rep_distr (SUP n. c n m) m' \<le> 0"
-    apply (subst ereal_Rep_SUP_distr)
+  hence "ennreal_Rep_distr (SUP n. c n m) m' \<le> 0"
+    apply (subst ennreal_Rep_SUP_distr)
      close (metis (mono_tags, lifting) assms(1) incseq_def le_funD)
     by (simp add: SUP_le_iff) 
   hence "m' \<notin> support_distr (SUP n. c n m)"
@@ -244,7 +244,7 @@ proof -
         unfolding program_untyped_readonly_def denotation_readonly_def
       proof (rule+)
         fix m m' y
-        def den == "denotation_untyped (CallProc x (Proc body pargs ret) a) m"
+        define den where "den == denotation_untyped (CallProc x (Proc body pargs ret) a) m"
         assume m': "m' \<in> support_distr (denotation_untyped (CallProc x p a) m)"
         (* hence m': "Rep_distr den m' \<noteq> 0" by (simp add: den_def Proc support_distr_def) *)
         assume "y \<in> R"
@@ -265,8 +265,8 @@ proof -
             by (simp add: Rep_restore_locals local)
         next
           assume global: "vu_global y" 
-          def m_init == "init_locals m"
-          def m_args == "memory_update_untyped_pattern m_init pargs a'"
+          define m_init where "m_init == init_locals m"
+          define m_args where "m_args == memory_update_untyped_pattern m_init pargs a'"
           have y_nin2: "y \<notin> set (pu_vars pargs)"
             using `y \<in> R` CallProc.prems global unfolding Proc by auto
           have "Rep_memory m y = Rep_memory m_init y"
@@ -325,19 +325,19 @@ lemma seq_swap_untyped:
   assumes foot_b: "program_untyped_footprint B b"
   assumes ABR: "A\<inter>B\<subseteq>R"
   shows "denotation_untyped (Seq a b) m = denotation_untyped (Seq b a) m"
-apply (subst ereal_Rep_distr_inject[symmetric], rule ext, rename_tac m2)
+apply (subst ennreal_Rep_distr_inject[symmetric], rule ext, rename_tac m2)
 proof (case_tac "\<forall>x\<in>R. Rep_memory m x = Rep_memory m2 x")
   fix m2 assume same_R: "\<forall>x\<in>R. Rep_memory m x = Rep_memory m2 x"
-  def aa == "(\<lambda>m. ereal_Rep_distr (denotation_untyped a m))"
-  def bb == "(\<lambda>m. ereal_Rep_distr (denotation_untyped b m))"
+  define aa bb 
+    where "aa == (\<lambda>m. ennreal_Rep_distr (denotation_untyped a m))"
+      and "bb == (\<lambda>m. ennreal_Rep_distr (denotation_untyped b m))"
 
   have aa_pos [simp]: "\<And>x y. aa x y \<ge> 0"
     by (simp add: aa_def) 
   have bb_pos [simp]: "\<And>x y. bb x y \<ge> 0"
     by (simp add: bb_def) 
 
-  def A' == "A-R"
-  def B' == "-A-R"
+  define A' B' where "A' == A-R" and "B' == -A-R"
   have A'RB': "(A'\<union>R) = -B'" unfolding A'_def B'_def by auto
 
   have ro_B'_a: "program_untyped_readonly B' a"
@@ -369,10 +369,10 @@ proof (case_tac "\<forall>x\<in>R. Rep_memory m x = Rep_memory m2 x")
     apply (rule program_untyped_footprint_mono) defer apply (fact foot_b)
     unfolding B'_def using ABR by auto
 
-  have seq_a_b: "ereal_Rep_distr (denotation_untyped (Seq a b) m) m2 = aa m (memory_combine A' m2 m) * bb (memory_combine A' m2 m) m2"
+  have seq_a_b: "ennreal_Rep_distr (denotation_untyped (Seq a b) m) m2 = aa m (memory_combine A' m2 m) * bb (memory_combine A' m2 m) m2"
   proof -
-    have seq_distr: "ereal_Rep_distr (denotation_untyped (Seq a b) m) m2 = (\<integral>\<^sup>+m1. aa m m1 * bb m1 m2 \<partial>count_space UNIV)" 
-      by (simp add: ereal_Rep_compose_distr aa_def bb_def) 
+    have seq_distr: "ennreal_Rep_distr (denotation_untyped (Seq a b) m) m2 = (\<integral>\<^sup>+m1. aa m m1 * bb m1 m2 \<partial>count_space UNIV)" 
+      by (simp add: ennreal_Rep_compose_distr aa_def bb_def) 
     let ?mix = "memory_combine A' m2 m"
     {fix m1 consider "m1=?mix" | "aa m m1 * bb m1 m2 = 0" | "m1\<noteq>?mix" and "aa m m1 * bb m1 m2 \<noteq> 0" by auto}
     then have m2_single: "\<And>m1. aa m m1 * bb m1 m2 = aa m m1 * bb m1 m2 * indicator {?mix} m1"
@@ -385,7 +385,7 @@ proof (case_tac "\<forall>x\<in>R. Rep_memory m x = Rep_memory m2 x")
       fix m1 assume "m1\<noteq>?mix" 
       assume "aa m m1 * bb m1 m2 \<noteq> 0"
       with aa_pos bb_pos have aa: "aa m m1 > 0" and bb: "bb m1 m2 > 0" 
-        using less_eq_ereal_def by auto
+        using gr_zeroI by auto
       have mm1B'R: "\<forall>x\<in>B'\<union>R. Rep_memory m x = Rep_memory m1 x"
         using aa `program_untyped_readonly (B'\<union>R) a` unfolding aa_def program_untyped_readonly_def denotation_readonly_def support_distr_def' by auto
       have m1m2A': "\<forall>x\<in>A'. Rep_memory m1 x = Rep_memory m2 x"
@@ -396,16 +396,16 @@ proof (case_tac "\<forall>x\<in>R. Rep_memory m x = Rep_memory m2 x")
         by (metis A'_def B'_def ComplI Compl_Diff_eq Un_Diff_cancel2 mm1B'R)
       with `m1\<noteq>?mix` show "?thesis m1" by simp
     qed
-    show "ereal_Rep_distr (denotation_untyped (Seq a b) m) m2 = aa m ?mix * bb ?mix m2" 
+    show "ennreal_Rep_distr (denotation_untyped (Seq a b) m) m2 = aa m ?mix * bb ?mix m2" 
       unfolding seq_distr apply (subst m2_single)
       apply (subst nn_integral_singleton_indicator_countspace)
       using aa_pos bb_pos by auto
   qed
 
-  have seq_b_a: "ereal_Rep_distr (denotation_untyped (Seq b a) m) m2 = bb m (memory_combine B' m2 m) * aa (memory_combine B' m2 m) m2" 
+  have seq_b_a: "ennreal_Rep_distr (denotation_untyped (Seq b a) m) m2 = bb m (memory_combine B' m2 m) * aa (memory_combine B' m2 m) m2" 
   proof -
-    have seq_distr: "ereal_Rep_distr (denotation_untyped (Seq b a) m) m2 = (\<integral>\<^sup>+m1. bb m m1 * aa m1 m2 \<partial>count_space UNIV)" 
-      by (simp add: ereal_Rep_compose_distr aa_def bb_def) 
+    have seq_distr: "ennreal_Rep_distr (denotation_untyped (Seq b a) m) m2 = (\<integral>\<^sup>+m1. bb m m1 * aa m1 m2 \<partial>count_space UNIV)" 
+      by (simp add: ennreal_Rep_compose_distr aa_def bb_def) 
     let ?mix = "memory_combine B' m2 m"
     have aux_cases: "\<And>P m1. \<lbrakk> m1=?mix \<Longrightarrow> P; bb m m1 * aa m1 m2 = 0 \<Longrightarrow> P;
                               m1\<noteq>?mix \<Longrightarrow>  bb m m1 * aa m1 m2 \<noteq> 0 \<Longrightarrow> P\<rbrakk> \<Longrightarrow> P" by auto
@@ -419,7 +419,7 @@ proof (case_tac "\<forall>x\<in>R. Rep_memory m x = Rep_memory m2 x")
       fix m1 assume "m1\<noteq>?mix" 
       assume "bb m m1 * aa m1 m2 \<noteq> 0"
       with aa_pos bb_pos have bb: "bb m m1 > 0" and aa: "aa m1 m2 > 0" 
-        using less_eq_ereal_def by auto
+        using gr_zeroI by auto
       have mm1A'R: "\<forall>x\<in>A'\<union>R. Rep_memory m x = Rep_memory m1 x"
         using bb `program_untyped_readonly (A'\<union>R) b` unfolding bb_def program_untyped_readonly_def denotation_readonly_def support_distr_def' by auto
       have m1m2B': "\<forall>x\<in>B'. Rep_memory m1 x = Rep_memory m2 x"
@@ -430,7 +430,7 @@ proof (case_tac "\<forall>x\<in>R. Rep_memory m x = Rep_memory m2 x")
           using A'RB' mm1A'R by force
       with `m1\<noteq>?mix` show "?thesis m1" by simp
     qed
-    show "ereal_Rep_distr (denotation_untyped (Seq b a) m) m2 = bb m ?mix * aa ?mix m2" 
+    show "ennreal_Rep_distr (denotation_untyped (Seq b a) m) m2 = bb m ?mix * aa ?mix m2" 
       unfolding seq_distr apply (subst m2_single)
       apply (subst nn_integral_singleton_indicator_countspace)
       using aa_pos bb_pos by auto
@@ -458,14 +458,14 @@ proof (case_tac "\<forall>x\<in>R. Rep_memory m x = Rep_memory m2 x")
   have bb_rw: "bb (memory_combine A' m2 m) m2 = bb m (memory_combine B' m2 m)"
     unfolding bb_def apply (subst foot_B'R_b_rule[where z=m]) unfolding B'RA'_m B'R_B' B'R_default by auto
 
-  show "ereal_Rep_distr (denotation_untyped (Seq a b) m) m2 = ereal_Rep_distr (denotation_untyped (Seq b a) m) m2"
+  show "ennreal_Rep_distr (denotation_untyped (Seq a b) m) m2 = ennreal_Rep_distr (denotation_untyped (Seq b a) m) m2"
     unfolding seq_a_b seq_b_a aa_rw bb_rw by (simp add: mult.commute) 
 next
   fix m2 assume notsame_R: "\<not> (\<forall>x\<in>R. Rep_memory m x = Rep_memory m2 x)"
-  def aa == "(\<lambda>m. ereal_Rep_distr (denotation_untyped a m))"
-  def bb == "(\<lambda>m. ereal_Rep_distr (denotation_untyped b m))"
-
-  def eq == "\<lambda>m'. \<forall>x\<in>R. memory_lookup_untyped m' x = memory_lookup_untyped m x"
+  define aa bb eq
+    where "aa == (\<lambda>m. ennreal_Rep_distr (denotation_untyped a m))"
+      and "bb == (\<lambda>m. ennreal_Rep_distr (denotation_untyped b m))"
+      and "eq == \<lambda>m'. \<forall>x\<in>R. memory_lookup_untyped m' x = memory_lookup_untyped m x"
   have not_eq: "\<not> eq m2" using notsame_R unfolding eq_def by metis
   have hoarea: "hoare_untyped eq a eq"
     using a_ro[unfolded readonly_hoare_untyped, rule_format, of "Rep_memory m"] unfolding eq_def by auto
@@ -478,7 +478,7 @@ next
   with hoareab have "m2 \<in> support_distr (denotation_untyped (Seq a b) m) \<Longrightarrow> eq m2"
     unfolding hoare_untyped_hoare_denotation hoare_denotation_def by simp
   with not_eq have "m2 \<notin> support_distr (denotation_untyped (Seq a b) m)" by auto
-  hence ab_0: "ereal_Rep_distr (denotation_untyped (Seq a b) m) m2 = 0"
+  hence ab_0: "ennreal_Rep_distr (denotation_untyped (Seq a b) m) m2 = 0"
     unfolding support_distr_def'' by auto
 
   have hoareba: "hoare_untyped eq (Seq b a) eq"
@@ -487,10 +487,10 @@ next
   with hoareba have "m2 \<in> support_distr (denotation_untyped (Seq b a) m) \<Longrightarrow> eq m2"
     unfolding hoare_untyped_hoare_denotation hoare_denotation_def by simp
   with not_eq have "m2 \<notin> support_distr (denotation_untyped (Seq b a) m)" by auto
-  hence ba_0: "ereal_Rep_distr (denotation_untyped (Seq b a) m) m2 = 0"
+  hence ba_0: "ennreal_Rep_distr (denotation_untyped (Seq b a) m) m2 = 0"
     unfolding support_distr_def'' by auto
 
-  show "ereal_Rep_distr (denotation_untyped (Seq a b) m) m2 = ereal_Rep_distr (denotation_untyped (Seq b a) m) m2"
+  show "ennreal_Rep_distr (denotation_untyped (Seq a b) m) m2 = ennreal_Rep_distr (denotation_untyped (Seq b a) m) m2"
     using ab_0 ba_0 by simp
 qed
 
