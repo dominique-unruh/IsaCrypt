@@ -15,20 +15,6 @@ proof -
     using le_less_linear by fastforce 
 qed
 
-(*
-lemma nn_integral_singleton_indicatorXXX:
-  assumes "f y \<ge> 0"
-  assumes "{y} \<in> sets \<mu>"
-  shows "(\<integral>\<^sup>+x. f x * indicator {y} x \<partial>\<mu>) = f y * emeasure \<mu> {y}"
-proof -
-  have "(\<integral>\<^sup>+x. f x * indicator {y} x \<partial>\<mu>) = (\<integral>\<^sup>+x. f y * indicator {y} x \<partial>\<mu>)"
-    by (metis ennreal_zero_times indicator_simps(2) singletonD)
-  also have "... = f y * emeasure \<mu> {y}"
-    apply (rule nn_integral_cmult_indicator)  
-    using assms by auto
-  finally show ?thesis .
-qed *)
-
 lemma nn_integral_singleton_indicator_countspace:
   assumes "f y \<ge> 0" and "y \<in> M"
   shows "(\<integral>\<^sup>+x. f x * indicator {y} x \<partial>count_space M) = f y"
@@ -58,7 +44,7 @@ lemma real_ennreal_Rep_distr: "enn2real (ennreal_Rep_distr a m) = Rep_distr a m"
 lemma ennreal_Rep_distr: "ennreal (Rep_distr a m) = ennreal_Rep_distr a m"
   unfolding ennreal_Rep_distr_def by simp
 lemma ennreal_Abs_distr_inverse: 
-  assumes pos: "\<And>x. a x \<ge> 0"
+  (* assumes pos: "\<And>x. a x \<ge> 0" *)
   assumes leq1: "(\<integral>\<^sup>+ x. a x \<partial>count_space UNIV) \<le> 1"
   shows "ennreal_Rep_distr (ennreal_Abs_distr a) = a"
 proof -
@@ -83,7 +69,6 @@ proof -
     unfolding ennreal_Abs_distr_def using pos by simp
   also have "\<dots> = (\<lambda>m. ennreal (a m))"
     apply (rule ennreal_Abs_distr_inverse)
-    using pos close auto
     using leq1 by auto
   finally show ?thesis by assumption
 qed
@@ -113,13 +98,14 @@ lemma Rep_distr_leq1 [simp]: "Rep_distr \<mu> x \<le> 1"
   by (metis ennreal_Rep_distr_def ennreal_le_1)
 
 instantiation distr :: (type) zero begin
-definition zero_distr :: "'a distr" where "zero_distr = Abs_distr (\<lambda>x. 0)"
+definition zero_distr :: "'a distr" where "zero_distr = ennreal_Abs_distr (\<lambda>x. 0)"
 instance ..
 end
-lemma Rep_distr_0 [simp]: "Rep_distr 0 = (\<lambda>x. 0)"
-  unfolding zero_distr_def apply (subst Abs_distr_inverse) by auto
 lemma ennreal_Rep_distr_0 [simp]: "ennreal_Rep_distr 0 = (\<lambda>x. 0)"
-  unfolding ennreal_Rep_distr_def[THEN ext] by auto
+  unfolding zero_distr_def apply (subst ennreal_Abs_distr_inverse) by auto
+lemma Rep_distr_0 [simp]: "Rep_distr 0 = (\<lambda>x. 0)"
+  using ennreal_Rep_distr_0
+  by (metis enn2real_0 real_ennreal_Rep_distr)
 
 definition support_distr :: "'a distr \<Rightarrow> 'a set" where
   "support_distr \<mu> = {x. Rep_distr \<mu> x > 0}"
@@ -217,15 +203,14 @@ end
 
 lemma less_eq_ennreal_Abs_distr: 
   fixes a b :: "'a \<Rightarrow> ennreal"
-  assumes "\<And>x. a x \<ge> 0" and "\<And>x. b x \<ge> 0"
+  (* assumes "\<And>x. a x \<ge> 0" and "\<And>x. b x \<ge> 0" *)
   assumes "(\<integral>\<^sup>+x. a x \<partial>count_space UNIV) \<le> 1" and "(\<integral>\<^sup>+x. b x \<partial>count_space UNIV) \<le> 1"
   shows "(a \<le> b) = (ennreal_Abs_distr a \<le> ennreal_Abs_distr b)"
 unfolding less_eq_distr_def'
 apply (subst ennreal_Abs_distr_inverse)
-  using assms close 2
+ using assms close
 apply (subst ennreal_Abs_distr_inverse)
-  using assms close 2
-by simp
+using assms by auto  
 
 instantiation distr :: (type) order_bot begin
 definition "(bot :: 'a distr) = 0"
@@ -292,12 +277,117 @@ definition "Sup A = (if A={} then 0 else Abs_distr (Sup (Rep_distr ` A)))"
 instance .. 
 end
 
-lemma XXXXX: (* TODO *)
+(*lemma XXXXX: (* TODO *)
   assumes "M\<noteq>{}"
   assumes "\<And>x. x\<in>M \<Longrightarrow> x\<le>1"
   assumes  "\<And>x. g x \<ge> (0::_::conditionally_complete_lattice)" 
   shows "Sup (g ` M) x \<ge> 0"
-  by (metis SUP_upper2 assms(1) assms(3) ex_in_conv le_funD zero_fun_def)
+  by (metis SUP_upper2 assms(1) assms(3) ex_in_conv le_funD zero_fun_def)*)
+
+lemma Sup_ennreal_def':
+  fixes M :: "ennreal set"
+  assumes "M\<noteq>{}" 
+  shows "Sup M = e2ennreal (Sup (enn2ereal ` M))"
+proof -
+  have "Sup (enn2ereal ` M)  \<ge> 0" using `M\<noteq>{}`
+    by (meson SUP_upper2 all_not_in_conv enn2ereal_nonneg)
+  hence "sup 0 (Sup (enn2ereal ` M)) = Sup (enn2ereal ` M)"
+    using sup.absorb_iff2 by blast
+  thus ?thesis
+    by (metis Sup_ennreal.rep_eq e2ennreal_enn2ereal)
+qed    
+
+lemma Sup_ereal_def':
+  fixes M :: "ereal set"
+  assumes nonempty: "M\<noteq>{}" 
+  assumes notinf: "b \<noteq> \<infinity>" 
+  assumes bound: "\<And>x. x\<in>M \<Longrightarrow> x\<le>b"  
+  assumes notinfM: "\<And>x. x\<in>M \<Longrightarrow> x \<noteq> -\<infinity>"
+  shows "Sup M = ereal (Sup (real_of_ereal ` M))"
+proof -
+  obtain m where "m\<in>M" using nonempty by auto
+  with notinfM have "m\<noteq>-\<infinity>" by auto
+  with `m\<in>M` bound have notinf2: "b \<noteq> -\<infinity>" by auto
+    
+  let ?rsup = "Sup (real_of_ereal ` M)"
+  define b' where "b' = real_of_ereal b"
+  hence b': "ereal b' = b" 
+    using bound ereal_real nonempty notinf notinf2 by force 
+  have Mb': "\<forall>x\<in>real_of_ereal ` M. x \<le> b'"
+    using notinfM b' bound real_of_ereal_ord_simps(2) by fastforce
+  hence "x \<le> ?rsup" if "x \<in> real_of_ereal ` M" for x
+    using that by (meson bdd_above_def cSup_upper)
+  hence c1: "x \<le> ereal ?rsup" if "x \<in> M" for x
+    using that bound apply auto
+    by (metis abs_eq_infinity_cases antisym ereal_less_eq(1) imageI notinf notinfM real_le_ereal_iff)
+  
+  have rsupb': "?rsup \<le> b'" 
+    apply (rule cSup_le_iff[THEN iffD2])
+    using nonempty Mb' by auto
+  have rsupM: "?rsup \<le> y" if "\<And>x. x \<in> real_of_ereal ` M \<Longrightarrow> x \<le> y" for y::real
+    by (simp add: cSup_least nonempty that) 
+  have rsupM2: "ereal ?rsup \<le> y" if that0: "(\<And>x. x \<in> M \<Longrightarrow> x \<le> y)" for y::ereal 
+  proof (cases "y=\<infinity>")
+    case True thus ?thesis by simp
+  next case False
+    from that `m\<in>M` have "y\<ge>m" by simp
+    with notinfM `m\<in>M` have "y>-\<infinity>" by auto
+    with `y\<noteq>\<infinity>` obtain y' where y': "ereal y' = y"
+      by (metis ereal_cases less_irrefl)
+    have "real_of_ereal x \<le> y'" if "x \<in> M" for x
+    proof -
+      have "x \<le> y" using that0 that by auto
+      thus ?thesis using `x\<in>M` y' notinfM real_le_ereal_iff by auto 
+    qed
+    hence "\<And>x. x \<in> real_of_ereal ` M \<Longrightarrow> x \<le> y'" by blast
+    hence "?rsup \<le> y'" by (rule rsupM)
+    thus ?thesis using y' by force
+  qed
+  show ?thesis
+    apply (rule cSup_eq_non_empty)
+    using nonempty c1 rsupM2 by simp_all
+qed
+
+
+lemma Sup_ennreal_def'':
+  fixes M :: "ennreal set"
+  assumes nonempty: "M\<noteq>{}" 
+  assumes notinf: "b \<noteq> \<infinity>" 
+  assumes bound: "\<And>x. x\<in>M \<Longrightarrow> x\<le>b" 
+  shows "Sup M = ennreal (Sup (enn2real ` M))"
+proof -
+  define M2 where "M2 = enn2ereal ` M"
+  define b2 where "b2 = enn2ereal b" 
+  have M2_nonempty: "M2\<noteq>{}" using nonempty M2_def by simp
+  have b2_notinf: "b2\<noteq>\<infinity>" using b2_def notinf by simp
+  have M2_bound: "\<And>x. x\<in>M2 \<Longrightarrow> x\<le>b2" 
+    unfolding M2_def b2_def 
+    using bound less_eq_ennreal.rep_eq by auto 
+  have M2_Sup: "Sup M = e2ennreal (Sup M2)"
+    unfolding M2_def
+    using nonempty by (rule Sup_ennreal_def')
+  
+  define M3 where "M3 = real_of_ereal ` M2" 
+  have M3: "M3 = enn2real ` M" 
+    unfolding M3_def M2_def image_comp by auto
+
+  have M3_Sup: "Sup M2 = ereal (Sup M3)" 
+    unfolding M3_def
+    using M2_nonempty b2_notinf M2_bound apply (rule Sup_ereal_def')
+    unfolding M2_def by auto
+  
+  have aux: "e2ennreal (ereal x) = x" if "x \<ge> 0" for x
+    using enn2ereal_ennreal ennreal.abs_eq ennreal.rep_eq that by auto 
+
+  have Sup_M3_pos: "Sup M3 \<ge> 0" 
+    by (metis INF_le_SUP Inf_ennreal.rep_eq M2_def M3_Sup dual_order.trans enn2ereal_nonneg ereal_less_eq(5) nonempty) 
+  
+  from M2_Sup M3_Sup have "Sup M = e2ennreal (ereal (Sup M3))" by auto
+  also have "\<dots> = ennreal (Sup M3)" 
+    using Sup_M3_pos by (rule aux)
+  finally show ?thesis unfolding M3 .
+qed
+
 
 lemma ennreal_Rep_SUP_distr:
   assumes "incseq f"
@@ -334,32 +424,36 @@ proof -
 
   have inc: "incseq (\<lambda>i. ennreal_Rep_distr (f i))"
     apply (rule monoI) using mono_ennreal_Rep_distr assms unfolding mono_def by auto
-
-  have ennreal_move: "(\<lambda>m. ennreal (Sup (Rep_distr ` range f) m)) = Sup (range (\<lambda>i. ennreal_Rep_distr (f i)))"
+(* 
+  have ennreal_moveX: "(\<lambda>m. ennreal (Sup (Rep_distr ` range f) m)) = Sup (range (\<lambda>i. ennreal_Rep_distr (f i)))"
     unfolding ennreal_Rep_distr_def[THEN ext]
+    apply (subst Sup_ennreal_def')
     apply (subst Sup_fun_def) apply simp
-    apply (subst ennreal_SUP) using SUP_finite by auto
-
+    apply (subst ereal_SUP) using SUP_finite by auto
+ *)
   have "(\<integral>\<^sup>+ x. ennreal (Sup (Rep_distr ` range f) x) \<partial>count_space UNIV)
       = (\<integral>\<^sup>+ x. (SUP i. (ennreal_Rep_distr (f i)) x) \<partial>count_space UNIV)"
     unfolding ennreal_Rep_distr_def[THEN ext, THEN ext]
     apply (rule nn_integral_cong, thin_tac _)
     apply (subst Sup_fun_def) apply simp
-    apply (subst ennreal_SUP) using SUP_finite by auto
+    apply (subst Sup_ennreal_def''[where b=1])
+    by auto
+  
   also have "\<dots> = (SUP i. \<integral>\<^sup>+ x. ((ennreal_Rep_distr (f i)) x) \<partial>count_space UNIV)"
     apply (rule nn_integral_monotone_convergence_SUP)
     using inc by auto    
   also have "\<dots> \<le> 1"
-    unfolding SUP_def
-    apply (rule Sup_least, auto)
-    using ennreal_Rep_distr_int_leq1 by assumption
+    by (simp add: SUP_least ennreal_Rep_distr_int_leq1)
   finally have int_leq_1: "(\<integral>\<^sup>+ x. ennreal (Sup (Rep_distr ` range f) x) \<partial>count_space UNIV) \<le> 1" by assumption
 
   show ?thesis
-    unfolding Sup_distr_def SUP_def apply simp
+    unfolding Sup_distr_def Sup_fun_def apply simp
     apply (subst ennreal_Abs_distr_inverse')
-    using Sup_pos int_leq_1 ennreal_move by auto
-qed                                                    
+    using Sup_pos int_leq_1 close 2
+    unfolding ennreal_Rep_distr_def
+    apply (subst Sup_ennreal_def''[where b=1])
+    by auto
+qed                                                 
 
 definition
   is_Sup :: "'a::ord set \<Rightarrow> 'a \<Rightarrow> bool" where
@@ -371,53 +465,40 @@ lemma Rep_SUP_ex:
   shows "is_Sup (range f) (SUP i. f i)"
 proof (unfold is_Sup_def, auto)
   fix x
-  have "ennreal_Rep_distr (f x) \<le> (SUP x. ennreal_Rep_distr (f x))"
+  have leq0: "ennreal_Rep_distr (f x) \<le> (SUP x. ennreal_Rep_distr (f x))"
     by (meson SUP_upper UNIV_I)
-  hence leq: "\<And>m. ennreal_Rep_distr (f x) m \<le> (SUP x. ennreal_Rep_distr (f x) m)"
-    by (simp add: le_fun_def)
+  (* hence leq: "\<And>m. ennreal_Rep_distr (f x) m \<le> (SUP x. ennreal_Rep_distr (f x) m)" *)
+    (* by (simp add: le_fun_def) *)
   show "f x \<le> (SUP x. f x)"
-    apply (subst less_eq_distr_def) apply (subst le_fun_def)
-    apply (subst ennreal_less_eq(3)[symmetric])
-    apply (subst ennreal_Rep_distr)+
-    apply (subst ennreal_Rep_SUP_distr)
-    using assms leq by auto
+    by (simp add: assms ennreal_Rep_SUP_distr leq0 less_eq_distr_def')
 next
   fix z assume "\<forall>x. f x \<le> z"
-  hence "(SUP i. ennreal_Rep_distr (f i)) \<le> ennreal_Rep_distr z"
+  hence geq0: "(SUP i. ennreal_Rep_distr (f i)) \<le> ennreal_Rep_distr z"
      by (simp add: SUP_least monoD mono_ennreal_Rep_distr)
-  hence geq: "\<And>x. (SUP i. ennreal_Rep_distr (f i)) x \<le> ennreal_Rep_distr z x"
-    by (simp add: le_fun_def)
+  (* hence geq: "\<And>x. (SUP i. ennreal_Rep_distr (f i)) x \<le> ennreal_Rep_distr z x" *)
+    (* by (simp add: le_fun_def) *)
   show "(SUP x. f x) \<le> z"
-    apply (subst less_eq_distr_def) apply (subst le_fun_def)
-    apply (subst ennreal_less_eq(3)[symmetric])
-    apply (subst ennreal_Rep_distr)+
-    apply (subst ennreal_Rep_SUP_distr)
-    using assms geq by auto
+    by (simp add: geq0 assms ennreal_Rep_SUP_distr less_eq_distr_def')
 qed
 
 
-definition point_distr :: "'a \<Rightarrow> 'a distr" where "point_distr a = Abs_distr (indicator {a})"
+definition point_distr :: "'a \<Rightarrow> 'a distr" where "point_distr a = ennreal_Abs_distr (indicator {a})"
+lemma ennreal_weight_point_distr [simp]: "ennreal_probability (point_distr a) UNIV = 1"
+  unfolding point_distr_def ennreal_probability_def
+  apply (subst ennreal_Abs_distr_inverse)
+  by auto
+  
 lemma weight_point_distr [simp]: "weight_distr (point_distr a) = 1"
-proof - 
-  note[[show_consts]]
-  have sum1: "(\<integral>\<^sup>+ x. ennreal (indicator {a} x) \<partial>count_space UNIV) = 1"
-    unfolding ennreal_indicator
-    by (subst nn_integral_indicator, auto)
-  show ?thesis
-    apply (subst ennreal.inject[symmetric]) unfolding one_ennreal_def[symmetric]
-    unfolding ennreal_probability ennreal_probability_def point_distr_def 
-    by (subst ennreal_Abs_distr_inverse', auto simp: sum1)
-qed
+  unfolding probability_def by simp
+
+lemma ennreal_Rep_point_distr [simp]: "ennreal_Rep_distr (point_distr a) x = (if x=a then 1 else 0)"
+  unfolding point_distr_def
+  apply (subst ennreal_Abs_distr_inverse)
+  by auto
 
 lemma Rep_point_distr [simp]: "Rep_distr (point_distr a) x = (if x=a then 1 else 0)"
-proof -
-  have sum1: "(\<integral>\<^sup>+ x. ennreal (indicator {a} x) \<partial>count_space UNIV) = 1"
-    unfolding ennreal_indicator
-    by (subst nn_integral_indicator, auto)
-  show ?thesis
-    unfolding point_distr_def 
-    by (subst Abs_distr_inverse, auto simp: sum1) 
-qed
+  using ennreal_Rep_point_distr
+  by (metis (full_types) enn2real_1 enn2real_ennreal ennreal_0 order_refl real_ennreal_Rep_distr)
 
 lemma integral_count_space_countable:
   assumes "(\<integral>\<^sup>+x. f x \<partial>count_space A) < \<infinity>"
@@ -426,19 +507,21 @@ proof (rule ccontr)
   assume uncountable: "uncountable {x\<in>A. f x > 0}"
   obtain \<epsilon> where "\<epsilon>>0" and "uncountable {x\<in>A. f x \<ge> \<epsilon>}" (is "uncountable ?A\<epsilon>")
   proof (atomize_elim, rule ccontr, simp)
-    assume "\<forall>\<epsilon>>0. countable {x\<in>A. f x \<ge> \<epsilon>}"
+    assume "\<forall>\<epsilon>. \<epsilon> = 0 \<or> countable {x \<in> A. \<epsilon> \<le> f x}"
+    hence "\<forall>\<epsilon>>0. countable {x\<in>A. f x \<ge> \<epsilon>}"
+      using not_gr_zero by blast
     hence "countable (\<Union>n::nat. {x\<in>A. f x \<ge> 1/(Suc n)})" 
       (is "countable ?union") by auto
 
     have "?union \<ge> {x\<in>A. f x > 0}"
     proof (auto, case_tac "f x \<noteq> \<infinity>", auto, rule exI)
-      fix x assume fx_not_inf: "f x \<noteq> \<infinity>" assume fx_pos: "0 < f x"
-      def fx == "enn2real (f x)"
+      fix x assume fx_not_inf: "f x \<noteq> top" assume fx_pos: "0 < f x"
+      define fx where "fx = enn2real (f x)"
       with fx_pos fx_not_inf have "fx > 0"
-        by (metis zero_less_enn2real) 
+        by (simp add: enn2real_positive_iff top.not_eq_extremum)
       have ennreal_fx: "ennreal fx = f x"
-        by (metis `0 < fx` antisym_conv ennreal_le_real_iff fx_def not_less order_refl real_le_ennreal_iff) 
-      def n == "floor(1/fx)"
+        using \<open>0 < fx\<close> enn2real_positive_iff ennreal_enn2real fx_def by blast
+      define n where "n = floor(1/fx)"
       have "n \<ge> 0"
         unfolding n_def zero_le_floor by (metis `0 < fx` less_eq_real_def zero_le_divide_1_iff)
       have inv_mono: "\<And>a b. a>0 \<Longrightarrow> b>0 \<Longrightarrow> (a::real) \<ge> 1/b \<Longrightarrow> 1/a \<le> b"
@@ -451,7 +534,8 @@ proof (rule ccontr)
       (* have aux1: "\<And>n. real (Suc n) = real n + 1" by auto *)
       (* have aux2: "\<And>n. n \<ge> 0 \<Longrightarrow> real (nat n) = n" by auto *)
       show "ennreal (1 / (1 + real (nat n))) \<le> f x"
-        unfolding ennreal_fx[symmetric] using ineq by (simp add: \<open>0 \<le> n\<close> add.commute)
+        unfolding ennreal_fx[symmetric] using ineq
+        by (simp add: \<open>0 \<le> n\<close> add.commute ennreal_leI)
     qed
     with `countable ?union` 
     have "countable {x\<in>A. f x > 0}"
@@ -462,53 +546,51 @@ proof (rule ccontr)
     unfolding count_space_def restrict_space_def apply auto *)
   have geq\<epsilon>: "\<And>x. max 0 (f x) \<ge> \<epsilon> * indicator ?A\<epsilon> x" 
     apply (case_tac "f x \<ge> \<epsilon>", auto)
-    proof - (* sledgehammer proof *)
-      fix x :: 'a
-      assume "\<epsilon> \<le> f x"
-      hence "\<epsilon> \<le> max 0 (f x)" by (metis (no_types) max.bounded_iff max_def)
-      thus "\<epsilon> * indicator {x \<in> A. \<epsilon> \<le> f x} x \<le> max 0 (f x)" by (simp add: indicator_def)
-    qed
+    by (metis (no_types, lifting) indicator_def le_zero_eq max.orderI max_def mult.right_neutral mult_eq_0_iff)
   have "(\<integral>\<^sup>+x. f x \<partial>count_space A) = (\<integral>\<^sup>+x. max 0 (f x) \<partial>count_space A)"
-    by (metis nn_integral_max_0)  
+    by (simp add: max_def)
   also from geq\<epsilon> have "\<dots> \<ge> (\<integral>\<^sup>+x. \<epsilon> * indicator ?A\<epsilon> x \<partial>count_space A)" (is "_ \<ge> ...")
     by (rule nn_integral_mono)
   also have "\<dots> = \<epsilon> * (\<integral>\<^sup>+x. indicator ?A\<epsilon> x \<partial>count_space A)"
-    apply (rule nn_integral_cmult)
-    close (metis borel_measurable_count_space)
-    using `\<epsilon>>0` by auto
+    apply (rule nn_integral_cmult) by auto
   also have "\<dots> = \<epsilon> * emeasure (count_space A) ?A\<epsilon>"
     by (subst nn_integral_indicator, auto)
   also have "\<dots> = \<epsilon> * \<infinity>"
     apply (subst emeasure_count_space_infinite, auto)
     using `uncountable ?A\<epsilon>` by (auto simp: countable_finite)
   also have "\<dots> = \<infinity>"
-    by (metis `0 < \<epsilon>` ennreal_infty_mult mult.commute not_less order_refl)
-  finally have "(\<integral>\<^sup>+x. f x \<partial>count_space A) = \<infinity>" by simp
+    using \<open>0 < \<epsilon>\<close> ennreal_mult_top by auto
+  finally have "(\<integral>\<^sup>+x. f x \<partial>count_space A) = \<infinity>"
+    using assms by auto
   with assms show False by auto
 qed
 
 lemma support_countable: "countable (support_distr \<mu>)"
-  unfolding support_distr_def apply (subst less_ennreal.simps(1)[symmetric]) unfolding zero_ennreal_def[symmetric] ennreal_Rep_distr
+  unfolding support_distr_def 
+  apply (subst ennreal_less_iff[symmetric]) close
+  unfolding ennreal_0 ennreal_Rep_distr
   apply (rule integral_count_space_countable[where A=UNIV and f="ennreal_Rep_distr \<mu>", simplified])
-  using ennreal_Rep_distr_int_leq1 ennreal_infty_less_eq2(1) ennreal_times(1) by blast
+  using ennreal_Rep_distr_int_leq1 ennreal_one_less_top le_less_trans by blast
+
 
 lemma Fubini_count_space_leq:
   assumes "\<And>x y. f x y \<ge> 0"
   shows "(\<integral>\<^sup>+ y. (\<integral>\<^sup>+ x. f x y \<partial>count_space X) \<partial>count_space Y) \<le> (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. f x y \<partial>count_space Y) \<partial>count_space X)"
     (is "?left \<le> ?right")
 proof (cases "?right < \<infinity>")
-case False thus ?thesis by auto next
-case True hence "?right < \<infinity>" by auto
+  case False thus ?thesis
+    using top.not_eq_extremum by fastforce
+next case True hence "?right < \<infinity>" by auto
   from `?right < \<infinity>` have "countable {x\<in>X. (\<integral>\<^sup>+ y. f x y \<partial>count_space Y) > 0}" (is "countable ?X")
     by (rule integral_count_space_countable)
   have domX: "\<And>x y. x:X \<Longrightarrow> y:Y \<Longrightarrow> x\<notin>?X \<Longrightarrow> f x y = 0"
   proof -
     fix x y assume "x:X" "y:Y" "x\<notin>?X"
     hence "0 = (\<integral>\<^sup>+ y. f x y \<partial>count_space Y)"
-      by (metis less_le mem_Collect_eq nn_integral_nonneg) 
+      by auto
     also have "... \<ge> (\<integral>\<^sup>+ y'. f x y' * indicator {y} y' \<partial>count_space Y)" (is "_ \<ge> ...")
       apply (rule nn_integral_mono)
-      by (metis ennreal_zero_mult assms indicator_def monoid_mult_class.mult.left_neutral mult.commute order_refl)
+      by (simp add: indicator_def)
     also have "... = (\<integral>\<^sup>+ y'. f x y' \<partial>count_space {y})"
       apply (subst nn_integral_restrict_space[symmetric])
       close auto
@@ -523,16 +605,17 @@ case True hence "?right < \<infinity>" by auto
     fix x0 assume "x0\<in>X" hence "x0\<in>space (count_space X)" by auto
     assume "?right < \<infinity>"
     assume "\<not> (\<integral>\<^sup>+ y. f x0 y \<partial>count_space Y) < \<infinity>"
-    hence inf:"(\<integral>\<^sup>+ y. f x0 y \<partial>count_space Y) = \<infinity>" by auto
+    hence inf:"(\<integral>\<^sup>+ y. f x0 y \<partial>count_space Y) = \<infinity>"
+      using top.not_eq_extremum by fastforce
     have "?right \<ge> (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. f x y \<partial>count_space Y) * indicator {x0} x \<partial>count_space X)" (is "_ \<ge> \<dots>")
       apply (rule nn_integral_mono)
-      by (metis ennreal_zero_times indicator_def monoid_mult_class.mult.right_neutral neq_iff nn_integral_nonneg not_less)
+      by (simp add: indicator_def)
     also have "\<dots> = (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. f x y \<partial>count_space Y) \<partial>count_space {x0})"
       apply (subst nn_integral_restrict_space[symmetric])
       unfolding restrict_count_space using `x0\<in>X` by auto
     also have "\<dots> = \<infinity>"
       apply (subst nn_integral_count_space_finite, auto)
-      by (metis ennreal_less_eq(1) max_def inf)
+      by (simp add: inf)
     finally show False using `?right < \<infinity>` by auto
   qed
   hence "\<And>x. x\<in>X \<Longrightarrow> countable {y\<in>Y. f x y > 0}"
@@ -609,7 +692,7 @@ case True hence "?right < \<infinity>" by auto
     by (tactic "cong_tac @{context} 1", auto)+
   also have "\<dots> = (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. f x y \<partial>count_space Y) \<partial>count_space X)" 
     apply (rule_tac nn_integral_cong, auto)
-    by (simp add: aux indicator_def nn_integral_nonneg)
+    by (simp add: aux indicator_def)
   finally show "?left \<le> ?right" by simp
 qed
   
@@ -622,10 +705,10 @@ proof -
   let ?f = "\<lambda>x y. max 0 (f x y)"
   have left: "?left = (\<integral>\<^sup>+ y. (\<integral>\<^sup>+ x. ?f x y \<partial>count_space X) \<partial>count_space Y)"
     (is "_ = ?left0")
-    by (metis nn_integral_max_0)
+    by (simp add: eq_iff nn_integral_mono)
   have right: "?right = (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. ?f x y \<partial>count_space Y) \<partial>count_space X)"
     (is "_ = ?right0")
-    by (metis nn_integral_max_0)
+    by (simp add: eq_iff nn_integral_mono)
   have "?left0 \<le> ?right0"
     by (rule Fubini_count_space_leq, auto)
   moreover have "?left0 \<ge> ?right0"
@@ -654,14 +737,14 @@ proof -
 qed *)
 
 definition compose_distr :: "('a \<Rightarrow> 'b distr) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
-  "compose_distr f \<mu> == Abs_distr (\<lambda>b. enn2real (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV))"
+  "compose_distr f \<mu> == ennreal_Abs_distr (\<lambda>b. (\<integral>\<^sup>+a. ennreal_Rep_distr \<mu> a * ennreal_Rep_distr (f a) b \<partial>count_space UNIV))"
 lemma ennreal_Rep_compose_distr: "ennreal_Rep_distr (compose_distr f \<mu>) b =
   (\<integral>\<^sup>+a. ennreal_Rep_distr \<mu> a * ennreal_Rep_distr (f a) b \<partial>count_space UNIV)"
 proof -
   have aux1: "\<And>a b::ennreal. a\<ge>0 \<Longrightarrow> b\<le>1 \<Longrightarrow> a*b \<le> a"
-    by (metis ennreal_mult_right_mono monoid_mult_class.mult.left_neutral mult.commute) 
+    by (simp add: mult_left_le)
   have nn_integral_counting_single_aux: "\<And>x X f. x\<in>X \<Longrightarrow> (\<integral>\<^sup>+x. f x \<partial>count_space X) < \<infinity> \<Longrightarrow> f x < \<infinity>"
-    by (metis ennreal_infty_less(1) nn_integral_ge_point not_less)
+    by (metis infinity_ennreal_def leD nn_integral_ge_point top.not_eq_extremum)
     
   have "(\<integral>\<^sup>+ b. \<integral>\<^sup>+ a. ennreal_Rep_distr \<mu> a * ennreal_Rep_distr (f a) b
             \<partial>count_space UNIV \<partial>count_space UNIV) =
@@ -672,71 +755,63 @@ proof -
             \<partial>count_space UNIV \<partial>count_space UNIV)"
     by (subst nn_integral_cmult[symmetric], auto)
   also have "... \<le> (\<integral>\<^sup>+ a. (ennreal_Rep_distr \<mu> a) \<partial>count_space UNIV)"
-    apply (rule nn_integral_mono, auto, rule aux1)
-    close (metis ennreal_Rep_distr_geq0)
+    apply (rule nn_integral_mono, auto, rule aux1) close
     by (simp add: ennreal_Rep_distr_int_leq1)
-  also have "\<dots> \<le> 1"
+  also have leq1: "\<dots> \<le> 1"
     by (simp add: ennreal_Rep_distr_int_leq1)
-  finally have "?int_ba \<le> 1" by simp
-  with `?int_ba = ?int_ab` have "?int_ab \<le> 1" by simp
-  have int_b:"\<And>a. (\<integral>\<^sup>+ b. (ennreal_Rep_distr \<mu> b * ennreal_Rep_distr (f b) a) \<partial>count_space UNIV) < \<infinity>"
-    apply (rule_tac x=a and X=UNIV in nn_integral_counting_single_aux, auto)
-    using `?int_ba \<le> 1` by simp
+  finally have ba_leq_1: "?int_ba \<le> 1" by simp
+  (* with `?int_ba = ?int_ab` have ab_leq_1: "?int_ab \<le> 1" by simp *)
+  (* have int_b:"\<And>a. (\<integral>\<^sup>+ b. (ennreal_Rep_distr \<mu> b * ennreal_Rep_distr (f b) a) \<partial>count_space UNIV) < \<infinity>" *)
+    (* apply (rule_tac x=a and X=UNIV in nn_integral_counting_single_aux, auto) *)
+    (* using `?int_ba \<le> 1` *)
+    (* using ennreal_one_less_top le_less_trans by blast *)
   show ?thesis
-    unfolding compose_distr_def ennreal_Rep_distr_def apply (subst Abs_distr_inverse, auto)
-      close (metis nn_integral_nonneg enn2real_pos)
-     apply (subst ennreal_real')
-      using int_b unfolding ennreal_Rep_distr_def close auto
-     using `?int_ba \<le> 1` unfolding ennreal_Rep_distr_def close auto
-    using ennreal_real int_b unfolding ennreal_Rep_distr_def by auto
+    unfolding compose_distr_def 
+    apply (subst ennreal_Abs_distr_inverse)
+    by (simp_all add: ba_leq_1)
 qed
+
 lemma Rep_compose_distr: "Rep_distr (compose_distr f \<mu>) b =
   enn2real (\<integral>\<^sup>+a. Rep_distr \<mu> a * Rep_distr (f a) b \<partial>count_space UNIV)"
-  apply (subst ennreal_Rep_compose_distr[symmetric, unfolded ennreal_Rep_distr_def, simplified]) by simp
+  by (metis (no_types, lifting) Rep_distr_geq0 ennreal_Rep_compose_distr ennreal_Rep_distr ennreal_mult'' nn_integral_cong real_ennreal_Rep_distr)
 
 definition apply_to_distr :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a distr \<Rightarrow> 'b distr" where
-  "apply_to_distr f \<mu> = Abs_distr (\<lambda>b. enn2real (\<integral>\<^sup>+a. Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
+  "apply_to_distr f \<mu> = ennreal_Abs_distr (\<lambda>b. (\<integral>\<^sup>+a. ennreal_Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV))"
 lemma ennreal_Rep_apply_to_distr: "ennreal_Rep_distr (apply_to_distr f \<mu>) b
   = (\<integral>\<^sup>+a. ennreal_Rep_distr \<mu> a * indicator {f a} b \<partial>count_space UNIV)"
 proof -
-  def d == "\<lambda>x. ennreal (Rep_distr \<mu> x)"
-  have dpos: "\<And>x. d x \<ge> 0" and d_int: "(\<integral>\<^sup>+ y. d y \<partial>count_space UNIV) \<le> 1" 
-    unfolding d_def using Rep_distr Rep_distr_geq0 by auto
-  have "\<And>x. (\<integral>\<^sup>+ xa. d xa * indicator {f xa} x \<partial>count_space UNIV) \<le> (\<integral>\<^sup>+ y. d y \<partial>count_space UNIV)"
-    apply (rule nn_integral_mono)
-    by (simp add: dpos indicator_def)
-  also note d_int
-  also have "(1::ennreal) < \<infinity>" by auto
-  finally have finite: "\<And>x. (\<integral>\<^sup>+ xa. d xa * indicator {f xa} x \<partial>count_space UNIV) < \<infinity>" by assumption
+  define d where "d == \<lambda>x. ennreal_Rep_distr \<mu> x"
+  have (*dpos: "\<And>x. d x \<ge> 0" and*) d_int: "(\<integral>\<^sup>+ y. d y \<partial>count_space UNIV) \<le> 1" 
+    unfolding d_def using ennreal_Rep_distr_int_leq1 by auto
+  (* have "\<And>x. (\<integral>\<^sup>+ xa. d xa * indicator {f xa} x \<partial>count_space UNIV) \<le> (\<integral>\<^sup>+ y. d y \<partial>count_space UNIV)" *)
+    (* apply (rule nn_integral_mono) *)
+    (* by (simp add: dpos indicator_def) *)
+  (* also note d_int *)
+  (* also have "(1::ennreal) < \<infinity>" by auto *)
+  (* finally have finite: "\<And>x. (\<integral>\<^sup>+ xa. d xa * indicator {f xa} x \<partial>count_space UNIV) < \<infinity>" by assumption *)
   have leq1: "(\<integral>\<^sup>+ x. (\<integral>\<^sup>+ xa. (d xa * indicator {f xa} x) \<partial>count_space UNIV) \<partial>count_space UNIV) \<le> 1"
     apply (subst Fubini_count_space)
     apply (subst nn_integral_cmult_indicator)
-      close (fact dpos)
      close simp
     using d_int by (auto simp: one_ennreal_def[symmetric])
-  hence leq1': "(\<integral>\<^sup>+ x. ennreal (enn2real (\<integral>\<^sup>+ xa. (d xa * indicator {f xa} x) \<partial>count_space UNIV)) \<partial>count_space UNIV) \<le> 1"
-    apply (subst ennreal_real') using finite by auto
+  (* hence leq1': "(\<integral>\<^sup>+ x. ennreal (enn2real (\<integral>\<^sup>+ xa. (d xa * indicator {f xa} x) \<partial>count_space UNIV)) \<partial>count_space UNIV) \<le> 1" *)
+    (* using local.finite by auto *)
   show ?thesis
-    unfolding apply_to_distr_def ennreal_Rep_distr_def
-    apply (subst Abs_distr_inverse, auto)
-      using nn_integral_nonneg enn2real_pos close blast
-     (* apply (subst times_ennreal.simps(1)[symmetric], simp) *)                                     
-     using leq1' unfolding d_def ennreal_indicator[symmetric] close simp
-    apply (subst ennreal_real')
-     using finite[of b] unfolding d_def ennreal_indicator[symmetric] close auto
-    by auto
+    unfolding apply_to_distr_def d_def[symmetric]
+    apply (subst ennreal_Abs_distr_inverse) 
+    using leq1 by auto
 qed
 
 lemma ennreal_probability_apply_to_distr: "ennreal_probability (apply_to_distr f \<mu>) E = ennreal_probability \<mu> (f -` E)"
 proof -
-  have "\<And>x. (\<integral>\<^sup>+ xa. ennreal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV)
-      \<le> (\<integral>\<^sup>+ xa. ennreal (Rep_distr \<mu> xa) \<partial>count_space UNIV)"
-    apply (rule nn_integral_mono, auto)
-    by (smt Rep_distr_geq0 indicator_simps(1) indicator_simps(2) mult_cancel_left1 mult_nonneg_nonpos mult_nonpos_nonneg)
-  also have "\<And>x. \<dots> x \<le> 1"
-    by (simp add: ennreal_Rep_distr ennreal_Rep_distr_int_leq1)
-  finally have t2: "\<And>x. \<bar>\<integral>\<^sup>+ xa. ennreal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV\<bar> \<noteq> \<infinity>"
-    using abs_eq_infinity_cases ennreal_infty_less_eq2(1) ennreal_times(1) nn_integral_not_MInfty by blast
+  (* have "\<And>x. (\<integral>\<^sup>+ xa. ennreal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV) *)
+      (* \<le> (\<integral>\<^sup>+ xa. ennreal (Rep_distr \<mu> xa) \<partial>count_space UNIV)" *)
+    (* apply (rule nn_integral_mono, auto) *)
+    (* by (smt Rep_distr_geq0 indicator_simps(1) indicator_simps(2) mult_cancel_left1 mult_nonneg_nonpos mult_nonpos_nonneg) *)
+  (* have "\<And>x. \<dots> x \<le> 1" *)
+    (* by (simp add: ennreal_Rep_distr ennreal_Rep_distr_int_leq1) *)
+  (* finally have t2: "\<And>x. \<bar>\<integral>\<^sup>+ xa. ennreal (Rep_distr \<mu> xa * indicator {f xa} x * indicator E x) \<partial>count_space UNIV\<bar> \<noteq> \<infinity>" *)
+    (* using abs_eq_infinity_cases ennreal_infty_less_eq2(1) ennreal_times(1) nn_integral_not_MInfty by blast *)
     
   have ind: "\<And>x. indicator E (f x) = indicator (f -` E) x"
     by (simp add: indicator_def)
@@ -747,7 +822,7 @@ proof -
     apply (subst nn_integral_multc) by (auto simp: ennreal_Rep_apply_to_distr)
   also have "\<dots> = (\<integral>\<^sup>+ xa. (\<integral>\<^sup>+ x. ennreal_Rep_distr \<mu> xa * indicator E x * indicator {f xa} x \<partial>count_space UNIV) \<partial>count_space UNIV)"
     apply (subst Fubini_count_space)
-    by (smt ennreal_zero_times indicator_def nn_integral_cong)
+    by (smt indicator_def mult_eq_0_iff nn_integral_cong)
   also have "\<dots> = (\<integral>\<^sup>+ xa. ennreal_Rep_distr \<mu> xa * indicator E (f xa) \<partial>count_space UNIV)"
     apply (subst nn_integral_singleton_indicator_countspace) by auto
   also have "\<dots> = (\<integral>\<^sup>+ xa. ennreal_Rep_distr \<mu> xa * indicator (f -` E) xa \<partial>count_space UNIV)"
@@ -759,7 +834,8 @@ qed
 
 
 lemma probability_apply_to_distr: "probability (apply_to_distr f \<mu>) E = probability \<mu> (f -` E)"
-  apply (subst ennreal.inject[symmetric]) unfolding ennreal_probability
+  apply (subst ennreal_inj[symmetric]) close 2
+  unfolding ennreal_probability
   by (rule ennreal_probability_apply_to_distr)
 
 lemma ennreal_probability_cong:
@@ -773,8 +849,16 @@ unfolding support_distr_def'' by auto
 lemma probability_cong:
   assumes "\<And>x. x \<in> support_distr \<mu> \<Longrightarrow> x\<in>E \<longleftrightarrow> x\<in>F"
   shows "probability \<mu> E = probability \<mu> F"
-apply (rule ennreal.inject[THEN iffD1]) unfolding ennreal_probability
-apply (rule ennreal_probability_cong) using assms by simp
+  apply (subst ennreal_inj[symmetric]) close 2
+  unfolding ennreal_probability
+  apply (rule ennreal_probability_cong) using assms by simp
+
+(* lemma mult_left_mono: *)
+  (* fixes a b c::ennreal *)
+  (* assumes "a \<le> b" *)
+  (* shows "c * a \<le> c * b" *)
+  (* by (simp add: assms mult.commute mult_right_mono) *)
+
 
 lemma mono_compose_distr1: "mono (\<lambda>f. compose_distr f \<mu>)"
 proof (rule monoI, rename_tac f g)
@@ -783,7 +867,7 @@ proof (rule monoI, rename_tac f g)
     unfolding less_eq_distr_def' le_fun_def apply auto 
     unfolding ennreal_Rep_compose_distr
     apply (rule nn_integral_mono, thin_tac _)
-    apply (rule ennreal_mult_left_mono)
+    apply (rule mult_left_mono)
      using `f \<le> g` unfolding le_fun_def less_eq_distr_def' by auto
 qed
 
@@ -805,32 +889,30 @@ qed
 
 lemma compose_point_distr_r [simp]: "compose_distr f (point_distr x) = f x"
 proof -
-  have rw: "\<And>y b. ennreal ((if y = x then 1 else 0) * Rep_distr (f y) b) =
-                  ennreal (Rep_distr (f x) b) * indicator {x} y"
+  have rw: "\<And>y b.  ((if y = x then 1 else 0) * ennreal_Rep_distr (f y) b) =
+                   (ennreal_Rep_distr (f x) b) * indicator {x} y"
     by simp
   show ?thesis
-    unfolding compose_distr_def 
-    apply simp unfolding rw
-    apply (subst nn_integral_cmult_indicator)
-    close (simp)
-    close simp
-    by (simp add: Rep_distr_inverse)
+    apply (rule ennreal_Rep_distr_inject[THEN iffD1])
+    unfolding ennreal_Rep_compose_distr ennreal_Rep_point_distr
+    apply (subst rw)
+    by simp
 qed
 
 lemma compose_point_distr_l [simp]: "compose_distr (\<lambda>x. point_distr (f x)) \<mu> = apply_to_distr f \<mu>"
   unfolding compose_distr_def point_distr_def apply_to_distr_def
-  apply (subst Abs_distr_inverse, auto)
-  by (subst ennreal_indicator, auto)
+  by (subst ennreal_Abs_distr_inverse, auto)
 
 lemma apply_to_distr_id [simp]: "apply_to_distr (\<lambda>x. x) \<mu> = \<mu>"
 proof -
-  have rew1: "\<And>x b. ennreal (Rep_distr \<mu> x) * indicator {x} b = ennreal (Rep_distr \<mu> b) * indicator {b} x"
+  have rew1: "\<And>x b.  (ennreal_Rep_distr \<mu> x) * indicator {x} b =  (ennreal_Rep_distr \<mu> b) * indicator {b} x"
     by (case_tac "x=b", auto)
   show ?thesis
-    unfolding apply_to_distr_def compose_distr_def Rep_point_distr
-    unfolding ennreal_mult_indicator rew1 
-    apply (subst nn_integral_cmult_indicator, auto)
-    by (rule Rep_distr_inverse)
+    apply (rule ennreal_Rep_distr_inject[THEN iffD1])
+    unfolding ennreal_Rep_apply_to_distr
+    unfolding rew1 
+    thm ereal_mult_indicator
+    by (subst nn_integral_cmult_indicator, auto)
 qed
 
 
@@ -843,8 +925,8 @@ proof -
   proof -
     fix x assume "x \<in> support_distr (compose_distr f g)"
     hence "Rep_distr (compose_distr f g) x > 0" unfolding support_distr_def by simp
-    hence "(\<integral>\<^sup>+ y. ennreal (Rep_distr g y * Rep_distr (f y) x) \<partial>count_space UNIV) > 0" 
-      unfolding Rep_compose_distr using zero_less_enn2real by auto
+    hence "(\<integral>\<^sup>+ y. ennreal (Rep_distr g y * Rep_distr (f y) x) \<partial>count_space UNIV) > 0"
+      by (metis (full_types) Rep_compose_distr enn2real_0 less_irrefl not_gr_zero) 
     then obtain y where x: "ennreal (Rep_distr g y * Rep_distr (f y) x) > 0" apply atomize_elim by (rule nn_integral_pos)
     hence "Rep_distr g y > 0" and "Rep_distr (f y) x > 0"
       apply auto using Rep_distr_geq0 less_eq_real_def by fastforce+
@@ -862,7 +944,7 @@ proof -
     also have "(\<integral>\<^sup>+ y. ?fg y x \<partial>count_space UNIV) \<ge> ?fg y x"
       by (rule nn_integral_ge_point, simp)
     finally have "ennreal (Rep_distr (compose_distr f g) x) > 0"
-      unfolding ennreal_Rep_compose_distr[unfolded ennreal_Rep_distr_def, simplified] by simp
+      by (simp add: ennreal_Rep_compose_distr ennreal_Rep_distr ennreal_mult'')
     thus "x \<in> support_distr (compose_distr f g)"
       by (simp add: support_distr_def)
   qed
@@ -875,28 +957,23 @@ lemma support_apply_to_distr [simp]: "support_distr (apply_to_distr f \<mu>) = f
   by auto
 
 lemma compose_distr_assoc: "compose_distr (\<lambda>x. compose_distr g (f x)) \<mu> = compose_distr g (compose_distr f \<mu>)" 
-proof (subst Rep_distr_inject[symmetric], rule ext, subst ennreal.inject[symmetric])
+proof (subst ennreal_Rep_distr_inject[symmetric], rule ext)
   fix a
-  have "ennreal (Rep_distr (compose_distr (\<lambda>b. compose_distr g (f b)) \<mu>) a)
-      = \<integral>\<^sup>+b. ennreal (Rep_distr \<mu> b) * \<integral>\<^sup>+c. ennreal (Rep_distr (f b) c * Rep_distr (g c) a) \<partial>count_space UNIV \<partial>count_space UNIV"
-    apply (subst ennreal_Rep_compose_distr[unfolded ennreal_Rep_distr_def, simplified])
-    apply (subst times_ennreal.simps(1)[symmetric])
-    apply (subst ennreal_Rep_compose_distr[unfolded ennreal_Rep_distr_def, simplified])
-    by rule
-  also have "\<dots> = \<integral>\<^sup>+b. \<integral>\<^sup>+c. ennreal (Rep_distr \<mu> b * Rep_distr (f b) c * Rep_distr (g c) a) \<partial>count_space UNIV \<partial>count_space UNIV"
-    apply (subst nn_integral_cmult[symmetric])
-    apply (auto intro: Rep_distr_geq0)
-    by (metis (no_types, lifting) linordered_field_class.sign_simps(23) nn_integral_cong)
-  also have "\<dots> = \<integral>\<^sup>+c. \<integral>\<^sup>+b. ennreal (Rep_distr \<mu> b * Rep_distr (f b) c * Rep_distr (g c) a) \<partial>count_space UNIV \<partial>count_space UNIV"
+  have "ennreal_Rep_distr (compose_distr (\<lambda>b. compose_distr g (f b)) \<mu>) a
+      = \<integral>\<^sup>+b. ennreal_Rep_distr \<mu> b * \<integral>\<^sup>+c. ennreal_Rep_distr (f b) c * ennreal_Rep_distr (g c) a \<partial>count_space UNIV \<partial>count_space UNIV"
+    apply (subst ennreal_Rep_compose_distr) apply (subst ennreal_Rep_compose_distr) by simp
+  also have "\<dots> = \<integral>\<^sup>+b. \<integral>\<^sup>+c. ennreal_Rep_distr \<mu> b * ennreal_Rep_distr (f b) c * ennreal_Rep_distr (g c) a \<partial>count_space UNIV \<partial>count_space UNIV"
+    apply (subst nn_integral_cmult[symmetric]) close
+    by (meson nn_integral_cong semiring_normalization_rules(18)) 
+  also have "\<dots> = \<integral>\<^sup>+c. \<integral>\<^sup>+b. ennreal_Rep_distr \<mu> b * ennreal_Rep_distr (f b) c * ennreal_Rep_distr (g c) a \<partial>count_space UNIV \<partial>count_space UNIV"
     by (rule Fubini_count_space)
-  also have "\<dots> = \<integral>\<^sup>+c. (\<integral>\<^sup>+b. ennreal (Rep_distr \<mu> b * Rep_distr (f b) c) \<partial>count_space UNIV) * Rep_distr (g c) a \<partial>count_space UNIV"
+  also have "\<dots> = \<integral>\<^sup>+c. (\<integral>\<^sup>+b. ennreal_Rep_distr \<mu> b * ennreal_Rep_distr (f b) c \<partial>count_space UNIV) * ennreal_Rep_distr (g c) a \<partial>count_space UNIV"
     apply (subst nn_integral_multc[symmetric])
-    by (auto intro: Rep_distr_geq0)
-  also have "\<dots> = ennreal (Rep_distr (compose_distr g (compose_distr f \<mu>)) a)"
-    apply (subst ennreal_Rep_compose_distr[unfolded ennreal_Rep_distr_def, simplified])
-    apply (subst times_ennreal.simps(1)[symmetric], subst ennreal_Rep_compose_distr[unfolded ennreal_Rep_distr_def, simplified])
     by auto
-  finally show "ennreal (Rep_distr (compose_distr (\<lambda>x. compose_distr g (f x)) \<mu>) a) = ennreal (Rep_distr (compose_distr g (compose_distr f \<mu>)) a)"
+  also have "\<dots> = ennreal_Rep_distr (compose_distr g (compose_distr f \<mu>)) a"
+    apply (subst ennreal_Rep_compose_distr) apply (subst ennreal_Rep_compose_distr) by simp
+  finally show "ennreal_Rep_distr (compose_distr (\<lambda>x. compose_distr g (f x)) \<mu>) a
+              = ennreal_Rep_distr (compose_distr g (compose_distr f \<mu>)) a"
     by assumption
 qed
 
@@ -916,8 +993,8 @@ lemma apply_to_distr_twice [simp]: "apply_to_distr f (apply_to_distr g \<mu>) = 
   apply (subst compose_point_distr_l) by simp
 
 
-definition "product_distr \<mu> \<nu> = Abs_distr (\<lambda>(x,y). Rep_distr \<mu> x * Rep_distr \<nu> y)"
-lemma Rep_product_distr [simp]: "Rep_distr (product_distr \<mu> \<nu>) (x,y) = Rep_distr \<mu> x * Rep_distr \<nu> y"
+definition "product_distr \<mu> \<nu> = ennreal_Abs_distr (\<lambda>(x,y). ennreal_Rep_distr \<mu> x * ennreal_Rep_distr \<nu> y)"
+lemma ennreal_Rep_product_distr [simp]: "ennreal_Rep_distr (product_distr \<mu> \<nu>) (x,y) = ennreal_Rep_distr \<mu> x * ennreal_Rep_distr \<nu> y"
 proof -
   have pos: "\<And>a b. Rep_distr \<mu> a * Rep_distr \<nu> b \<ge> 0"
     by (simp)
@@ -925,25 +1002,27 @@ proof -
     by (rule ennreal_Rep_distr_int_leq1)
   have leq1\<nu>: "(\<integral>\<^sup>+ x. ennreal_Rep_distr \<nu> x \<partial>count_space UNIV) \<le> 1"
     by (rule ennreal_Rep_distr_int_leq1)
-  have "(\<integral>\<^sup>+ xy. ennreal (case xy of (x, y) \<Rightarrow> Rep_distr \<mu> x * Rep_distr \<nu> y) \<partial>count_space UNIV)
-       \<le> (\<integral>\<^sup>+ x. \<integral>\<^sup>+ y. ennreal (Rep_distr \<mu> x) * ennreal (Rep_distr \<nu> y) \<partial>count_space UNIV \<partial>count_space UNIV)"
+  have "(\<integral>\<^sup>+ (x, y). ennreal_Rep_distr \<mu> x * ennreal_Rep_distr \<nu> y \<partial>count_space UNIV)
+       = (\<integral>\<^sup>+ x. \<integral>\<^sup>+ y. ennreal_Rep_distr \<mu> x * ennreal_Rep_distr \<nu> y \<partial>count_space UNIV \<partial>count_space UNIV)"
     by (subst nn_integral_fst_count_space[symmetric], simp)
-  also have "\<dots> = (\<integral>\<^sup>+ x. ennreal (Rep_distr \<mu> x) * \<integral>\<^sup>+ y. ennreal (Rep_distr \<nu> y) \<partial>count_space UNIV \<partial>count_space UNIV)"
+  also have "\<dots> = (\<integral>\<^sup>+ x. ennreal_Rep_distr \<mu> x * \<integral>\<^sup>+ y. ennreal_Rep_distr \<nu> y \<partial>count_space UNIV \<partial>count_space UNIV)"
     apply (subst nn_integral_cmult) by (simp_all)
   also have "\<dots> = (\<integral>\<^sup>+ x. ennreal_Rep_distr \<mu> x \<partial>count_space UNIV) * (\<integral>\<^sup>+ y. ennreal_Rep_distr \<nu> y \<partial>count_space UNIV)"
-    apply (subst nn_integral_multc) unfolding ennreal_Rep_distr by (simp_all add: nn_integral_nonneg)
+    apply (subst nn_integral_multc) unfolding ennreal_Rep_distr by simp_all
   also from leq1\<mu> leq1\<nu> have "\<dots> \<le> 1 * 1"
-    using dual_order.trans ennreal_mult_left_mono nn_integral_nonneg by fastforce
-  finally have eq: "(\<integral>\<^sup>+ x. ennreal (case x of (x, y) \<Rightarrow> Rep_distr \<mu> x * Rep_distr \<nu> y) \<partial>count_space UNIV) \<le> 1"
+    using dual_order.trans mult_left_mono by fastforce
+  finally have eq: "(\<integral>\<^sup>+ (x, y). ennreal_Rep_distr \<mu> x * ennreal_Rep_distr \<nu> y \<partial>count_space UNIV) \<le> 1"
     by simp
   show ?thesis
     unfolding product_distr_def
-    apply (subst Abs_distr_inverse)
+    apply (subst ennreal_Abs_distr_inverse)
+    apply auto 
     using pos eq by auto
 qed
 
-lemma ennreal_Rep_product_distr [simp]: "ennreal_Rep_distr (product_distr \<mu> \<nu>) (x,y) = ennreal_Rep_distr \<mu> x * ennreal_Rep_distr \<nu> y"
-  unfolding ennreal_Rep_distr_def Rep_product_distr by auto
+lemma Rep_product_distr [simp]: "Rep_distr (product_distr \<mu> \<nu>) (x,y) = Rep_distr \<mu> x * Rep_distr \<nu> y"
+  unfolding real_ennreal_Rep_distr[symmetric] by (simp add: enn2real_mult)
+  
 
 lemma product_distr_sym: "apply_to_distr (\<lambda>(x,y). (y,x)) (product_distr \<mu> \<nu>) = product_distr \<nu> \<mu>"
 proof -
@@ -959,12 +1038,12 @@ proof -
 qed
 
 lemma fst_product_distr [simp]: "apply_to_distr fst (product_distr \<mu> \<nu>) = weight_distr \<nu> *\<^sub>R \<mu>"
-proof (subst Rep_distr_inject[symmetric], rule ext)
+proof (subst ennreal_Rep_distr_inject[symmetric], rule ext)
   fix x0
   have ind_UNIV: "\<And>x. indicator UNIV x = 1" unfolding indicator_def by simp
 
   have tmp1: "\<And>x y. ennreal_Rep_distr (product_distr \<mu> \<nu>) (x,y) * indicator {x} x0 = ennreal_Rep_distr (product_distr \<mu> \<nu>) (x0,y) * indicator {x} x0"
-    by (metis ennreal_left_mult_cong indicator_simps(2) singletonD)
+    by (metis indicator_simps(2) mult_eq_0_iff singletonD)
 
   have "(\<integral>\<^sup>+ x. indicator {x} x0 \<partial>count_space UNIV) = (\<integral>\<^sup>+ x. indicator {x0} x \<partial>count_space UNIV)"
     by (metis indicator_def singletonD)
@@ -977,27 +1056,23 @@ proof (subst Rep_distr_inject[symmetric], rule ext)
   also have "\<dots> = (\<integral>\<^sup>+ x. \<integral>\<^sup>+ y. ennreal_Rep_distr (product_distr \<mu> \<nu>) (x,y) * indicator {x} x0 \<partial>count_space UNIV \<partial>count_space UNIV)"
     by (subst nn_integral_fst_count_space[symmetric], simp)
   also have "\<dots> = (\<integral>\<^sup>+ x. (\<integral>\<^sup>+ y. (ennreal_Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV) * indicator {x} x0 \<partial>count_space UNIV)"
-    unfolding times_ennreal.simps(1)[symmetric] tmp1
-    apply (subst nn_integral_multc) by simp_all
+    unfolding tmp1 apply (subst nn_integral_multc) close by simp_all
   also have "\<dots> = ((\<integral>\<^sup>+ y. (ennreal_Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV) * (\<integral>\<^sup>+ x. indicator {x} x0 \<partial>count_space UNIV))"
-    apply (subst nn_integral_cmult) by (simp_all add: nn_integral_nonneg)
+    apply (subst nn_integral_cmult) by simp_all
   also have "\<dots> = (\<integral>\<^sup>+ y. (ennreal_Rep_distr (product_distr \<mu> \<nu>) (x0,y)) \<partial>count_space UNIV)"
     using tmp2 by simp
   also have "\<dots> = (\<integral>\<^sup>+ x. ennreal_Rep_distr \<mu> x0 * ennreal_Rep_distr \<nu> x \<partial>count_space UNIV)"
     by simp    
   also have "\<dots> = ennreal_Rep_distr \<mu> x0 * \<integral>\<^sup>+ x. ennreal_Rep_distr \<nu> x \<partial>count_space UNIV"
-    unfolding times_ennreal.simps(1)[symmetric]
     by (subst nn_integral_cmult, auto intro: Rep_distr_geq0)
-  also have "\<dots> = ennreal (weight_distr \<nu> * Rep_distr \<mu> x0)"
-    unfolding times_ennreal.simps(1)[symmetric]
+  also have "\<dots> = (ennreal_probability \<nu> UNIV * ennreal_Rep_distr \<mu> x0)"
     unfolding ennreal_probability ennreal_Rep_distr ennreal_probability_def ind_UNIV
     by (auto simp: mult.commute)
   also have "\<dots> = ennreal_Rep_distr (weight_distr \<nu> *\<^sub>R \<mu>) x0"
     apply (subst Rep_distr_scaleR)
     using probability_pos probability_leq1 by (auto simp: ennreal_probability[symmetric] ennreal_Rep_distr_def)
 
-  finally show "Rep_distr (apply_to_distr fst (product_distr \<mu> \<nu>)) x0 = Rep_distr (weight_distr \<nu> *\<^sub>R \<mu>) x0"
-    unfolding ennreal_Rep_distr_def
+  finally show "ennreal_Rep_distr (apply_to_distr fst (product_distr \<mu> \<nu>)) x0 = ennreal_Rep_distr (weight_distr \<nu> *\<^sub>R \<mu>) x0"
     by blast
 qed
 
@@ -1055,9 +1130,9 @@ proof -
   have \<mu>_def': "\<mu> = ennreal_Abs_distr f"
     unfolding \<mu>_def markov_chain_combine_def f_def mid_def by simp
   have f2: "\<And>x y z. f (x,y,z) = (ennreal_Rep_distr \<mu>1 (x,y)) * ((1 / ennreal_Rep_distr mid y) * (ennreal_Rep_distr \<mu>2 (y,z)))"
-    unfolding f_def by (simp add: ennreal_times_divide_eq)
+    by (simp add: ennreal_divide_times ennreal_times_divide f_def)
   have f3: "\<And>x y z. f (x,y,z) = (ennreal_Rep_distr \<mu>2 (y,z)) * ((1 / ennreal_Rep_distr mid y) * (ennreal_Rep_distr \<mu>1 (x,y)))"
-    unfolding f_def by (simp add: ennreal_times_divide_eq mult.commute)
+    by (simp add: f2 mult.commute semiring_normalization_rules(19))
   
   have mid0: "\<And>y z. ennreal_Rep_distr mid y = 0 \<Longrightarrow> ennreal_Rep_distr \<mu>2 (y, z) = 0"
   proof -
@@ -1068,15 +1143,14 @@ proof -
       apply (subst nn_integral_snd_count_space[symmetric])
       by simp
     also have "\<dots> = \<integral>\<^sup>+z. ennreal_Rep_distr \<mu>2 (y0,z) \<partial>count_space UNIV"
-      unfolding times_ennreal.simps(1)[symmetric] ennreal_indicator
+      unfolding ennreal_indicator
       apply (subst indicator_singleton)
       apply (subst nn_integral_singleton_indicator_countspace)
       by (auto)
     also have "\<dots> \<ge> ennreal_Rep_distr \<mu>2 (y0,z0)"
       by (rule nn_integral_ge_point, simp)
     finally show "ennreal_Rep_distr \<mu>2 (y0, z0) = 0"
-      unfolding ennreal_Rep_distr_def
-      by (simp add: eq_iff)
+      using gr_zeroI not_le by blast
   qed
 
   have mid0': "\<And>x y. ennreal_Rep_distr mid y = 0 \<Longrightarrow> ennreal_Rep_distr \<mu>1 (x, y) = 0"
@@ -1087,14 +1161,14 @@ proof -
       apply (subst mid_def, simp)
       by (subst nn_integral_fst_count_space[symmetric], simp)
     also have "\<dots> = \<integral>\<^sup>+x. ennreal_Rep_distr \<mu>1 (x,y0) \<partial>count_space UNIV"
-      unfolding times_ennreal.simps(1)[symmetric] ennreal_indicator
+      unfolding ennreal_indicator
       apply (subst indicator_singleton)
       apply (subst nn_integral_singleton_indicator_countspace)
       by auto
     also have "\<dots> \<ge> ennreal_Rep_distr \<mu>1 (x0,y0)"
       by (rule nn_integral_ge_point, simp)
     finally show "ennreal_Rep_distr \<mu>1 (x0,y0) = 0"
-      by (simp add: eq_iff ennreal_Rep_distr_def)
+      by simp
   qed
 
   have \<mu>1_int: "\<And>y. (\<integral>\<^sup>+ x. ennreal_Rep_distr \<mu>1 (x, y) \<partial>count_space UNIV) = ennreal_Rep_distr mid y"
@@ -1113,13 +1187,38 @@ proof -
     apply (subst nn_integral_singleton_indicator_countspace)
     by (auto) 
 
+  have aux: "a * (1/a * b) = b" if "a\<noteq>0" and "a\<noteq>\<infinity>" for a b::ennreal
+  proof -
+    have a'inv: "a' * inverse a' = 1" if "a'\<noteq>0" and "a'\<noteq>\<infinity>" and "a'\<noteq>-\<infinity>" for a'::ereal
+      apply (cases a') using that by auto
+    have ainv: "a * (1/a) = 1" 
+      apply (rule enn2ereal_inject[THEN iffD1])
+      unfolding divide_ennreal_def apply simp
+      unfolding times_ennreal.rep_eq inverse_ennreal.rep_eq one_ennreal.rep_eq
+      apply (rule a'inv)
+      apply (cases a) using that by auto
+    note[[coercion_enabled=false]]
+    have "a * (1/a * b) = (a*(1/a)) * b" 
+      by (simp add: semiring_normalization_rules(18))
+    also have "\<dots> = b" apply (subst ainv) by simp
+    finally show ?thesis by assumption
+  qed
+  
   have yz_int: "\<And>y z. (\<integral>\<^sup>+ x. (f (x,y,z)) \<partial>count_space UNIV) = (ennreal_Rep_distr \<mu>2 (y, z))"
     apply (subst f2) apply (subst nn_integral_multc) apply (auto)
-    apply (subst \<mu>1_int) using mid0 unfolding ennreal_Rep_distr_def by auto
+    apply (subst \<mu>1_int) 
+    apply (case_tac "ennreal_Rep_distr mid y = 0") 
+    using mid0 close simp
+    apply (rule aux) 
+    using ennreal_Rep_distr_not_inf by simp_all
   
   have xy_int: "\<And>x y. (\<integral>\<^sup>+z. (f (x,y,z)) \<partial>count_space UNIV) = (ennreal_Rep_distr \<mu>1 (x, y))"
     apply (subst f3) apply (subst nn_integral_multc) apply (auto)
-    apply (subst \<mu>2_int) using mid0' unfolding ennreal_Rep_distr_def by auto
+    apply (subst \<mu>2_int) 
+    apply (case_tac "ennreal_Rep_distr mid y = 0") 
+     using mid0' close simp
+    apply (rule aux) 
+    using ennreal_Rep_distr_not_inf by simp_all
  
   have "(\<integral>\<^sup>+xyz. (f xyz) \<partial>count_space UNIV) = (\<integral>\<^sup>+yz. \<integral>\<^sup>+x. (f (x,yz)) \<partial>count_space UNIV \<partial>count_space UNIV)"
     by (subst nn_integral_snd_count_space, simp)
@@ -1141,7 +1240,7 @@ proof -
     apply (subst nn_integral_fst_count_space[symmetric])
     by simp
   also have "\<dots> = (\<integral>\<^sup>+x. \<integral>\<^sup>+y. (ennreal_Rep_distr \<mu>1 (x, y)) * (indicator {(x,y)} (x0, y0)) \<partial>count_space UNIV \<partial>count_space UNIV)"
-    apply (subst nn_integral_multc) close 2
+    apply (subst nn_integral_multc) close
     apply (subst xy_int) by simp
   also have "\<dots> = ennreal_Rep_distr \<mu>1 (x0, y0)"
     apply (subst nn_integral_fst_count_space)
@@ -1160,7 +1259,7 @@ proof -
     apply (subst nn_integral_snd_count_space[symmetric])
     by (subst nn_integral_fst_count_space[symmetric], simp)
   also have "\<dots> = (\<integral>\<^sup>+y. \<integral>\<^sup>+z. (ennreal_Rep_distr \<mu>2 (y,z)) *  (indicator {(y,z)} (y0,z0)) \<partial>count_space UNIV \<partial>count_space UNIV)"
-    apply (subst nn_integral_multc) close 2
+    apply (subst nn_integral_multc) close
     apply (subst yz_int) by simp
   also have "\<dots> = (ennreal_Rep_distr \<mu>2 (y0, z0))"
     apply (subst nn_integral_fst_count_space)
@@ -1202,12 +1301,14 @@ proof -
     using supp unfolding support_distr_def' 
     apply (subst (asm) ennreal_Rep_markov_chain)
       apply (fact eq)
-    using less_eq_ennreal_def by force
+    using less_eq_ennreal_def 
+    using gr_zeroI by fastforce
   show "(y,z) \<in> support_distr \<mu>2"
     using supp unfolding support_distr_def' 
     apply (subst (asm) ennreal_Rep_markov_chain)
       apply (fact eq)
-    using less_eq_ennreal_def by force
+    using less_eq_ennreal_def 
+    using gr_zeroI by fastforce
 qed
 
 lemma compose_distr_cong: 
@@ -1219,7 +1320,8 @@ proof -
     apply (case_tac "y\<in>support_distr \<mu>")
     using assms close auto
     unfolding support_distr_def' 
-    using less_eq_ennreal_def by fastforce
+    using less_eq_ennreal_def 
+    by simp
   show ?thesis
     apply (subst ennreal_Rep_distr_inject[symmetric], rule ext)
     apply (subst ennreal_Rep_compose_distr)+
@@ -1238,7 +1340,7 @@ using assms by auto
 
 lemma apply_to_distr_0 [simp]: "apply_to_distr f 0 = 0"
   unfolding apply_to_distr_def apply simp
-  unfolding zero_distr_def by auto
+  unfolding zero_distr_def (* sledgehammer *) by auto
 
 lemma apply_to_distr_compose_distr:
   shows "apply_to_distr f (compose_distr g h) = compose_distr (\<lambda>m. apply_to_distr f (g m)) h"
@@ -1247,14 +1349,14 @@ lemma apply_to_distr_compose_distr:
 (* TODO move to Misc *)
 lemma SUP_multc_ennreal:
   fixes a::"_ \<Rightarrow> ennreal"
-  assumes pos: "b \<ge> 0" and finite: "b < \<infinity>" and notempty: "A \<noteq> {}"
+  assumes finite: "b < \<infinity>" and notempty: "A \<noteq> {}"
   shows "(SUP i:A. a i*b) = (SUP i:A. a i)*b"
 proof (rule SUP_eqI)
   fix i assume "i\<in>A"
   hence "a i \<le> (SUP i:A. a i)"
     by (simp add: SUP_upper)
-  with pos show "a i * b \<le> (SUP i:A. a i) * b"
-    using ennreal_mult_right_mono by blast
+  thus "a i * b \<le> (SUP i:A. a i) * b"
+    by (simp add: mult_right_mono)
 next
   fix y assume bound: "\<And>i. i \<in> A \<Longrightarrow> a i * b \<le> y"
   show "(SUP i:A. a i) * b \<le> y" 
@@ -1263,17 +1365,40 @@ next
     with bound notempty have "y \<ge> 0" by auto
     with `b=0` show ?thesis by auto
   next
-    assume "b\<noteq>0" with pos have pos': "b>0" by auto
-    def y' == "y / b"
-    with bound pos' finite have "\<And>i. i \<in> A \<Longrightarrow> a i \<le> y'"
-      using ennreal_divide_less_iff leD le_less_linear by blast 
+    assume "b\<noteq>0" (* with pos have pos': "b>0" *)
+      (* using gr_zeroI by blastx *)
+    define y' where "y' == y / b"
+    with bound finite `b\<noteq>0` have "\<And>i. i \<in> A \<Longrightarrow> a i \<le> y'"
+      using leD le_less_linear
+      using divide_less_ennreal by fastforce
     hence "(SUP i:A. a i) \<le> y'" 
       by (simp add: SUP_least)
     thus ?thesis
-      unfolding y'_def using pos' finite 
-      using ennreal_divide_less_iff leD le_less_linear by blast 
+      unfolding y'_def using finite `b\<noteq>0`
+      using divide_less_ennreal leD by fastforce
   qed
 qed
+
+(* TODO move *)
+lemma SUP_ennreal_mult_left:
+  fixes f :: "'a \<Rightarrow> ennreal"
+  assumes "I \<noteq> {}"
+  shows "(SUP i:I. c * f i) = c * (SUP i:I. f i)"
+    proof (cases "(SUP i: I. f i) = 0")
+  case True
+  then have "\<And>i. i \<in> I \<Longrightarrow> f i = 0"
+    by (metis SUP_upper le_zero_eq)
+  with True show ?thesis
+    by simp
+next
+  case False
+  then show ?thesis
+    apply (subst continuous_at_Sup_mono[where f="\<lambda>x. c * x"])
+    using sup_continuous_mono sup_continuous_mult_left_ennreal' close blast
+    using sup_continuous_at_left sup_continuous_mult_left_ennreal' close blast
+    using assms by auto
+qed
+
 
 lemma apply_to_distr_sup:
   fixes \<mu>::"nat \<Rightarrow> 'a distr" and f::"'a \<Rightarrow> 'b"
@@ -1286,7 +1411,7 @@ proof -
     by (rule inc[unfolded mono_def, rule_format])
   have inc'': "\<And>x. incseq (\<lambda>xa a. ennreal_Rep_distr (\<mu> xa) a * indicator {f a} x)"
     unfolding mono_def le_fun_def apply auto
-    apply (rule ennreal_mult_right_mono)
+    apply (rule mult_right_mono)
     using inc unfolding mono_def less_eq_distr_def' le_fun_def
     by auto
   have move_SUP: "ennreal_Rep_distr (apply_to_distr f (SUP x. \<mu> x)) = (SUP i. ennreal_Rep_distr (apply_to_distr f (\<mu> i)))"
@@ -1297,7 +1422,7 @@ proof -
      close (fact inc)
     apply (subst SUP_multc_ennreal)
        unfolding ennreal_indicator[symmetric]
-       using PInfty_neq_ennreal by auto
+       by auto
   show ?thesis
     apply (subst ennreal_Rep_distr_inject[symmetric])
     apply (subst ennreal_Rep_SUP_distr)
@@ -1310,7 +1435,7 @@ lemma compose_distr_SUP_left:
 proof -
   have left_mono: "\<And>\<mu> y. mono (\<lambda>x. ennreal_Rep_distr \<mu> y * x)" 
     unfolding mono_def apply auto
-    apply (rule ennreal_mult_left_mono)
+    apply (rule mult_left_mono)
     by auto
 
   have "ennreal_Rep_distr (compose_distr (SUP x. f x) \<mu>) = (\<lambda>x. \<integral>\<^sup>+ a. ennreal_Rep_distr \<mu> a * ennreal_Rep_distr (SUP y. f y a) x \<partial>count_space UNIV)"
@@ -1319,9 +1444,9 @@ proof -
     apply (subst ennreal_Rep_SUP_distr)
      using assms unfolding mono_def le_fun_def by auto
   also have "... = (\<lambda>x. \<integral>\<^sup>+ a. (SUP i. ennreal_Rep_distr \<mu> a * ennreal_Rep_distr (f i a) x) \<partial>count_space UNIV)"
-    apply (subst SUP_apply) 
+    apply (subst SUP_apply) (* sledgehammer *)
     apply (subst SUP_ennreal_mult_left[symmetric])
-       by auto
+    by auto
   also have "... = (\<lambda>x. SUP i. \<integral>\<^sup>+ a. ennreal_Rep_distr \<mu> a * ennreal_Rep_distr (f i a) x \<partial>count_space UNIV)"
     apply (subst nn_integral_monotone_convergence_SUP)  
       apply (rule mono_funI) apply (rule mono_apply[OF left_mono])
@@ -1362,13 +1487,13 @@ lemma Rep_apply_distr_biject:
 apply (subst probability_singleton[symmetric])+
 apply (subst probability_apply_to_distr)
 apply (subgoal_tac "f -` {x} = {g x}")
-using assms by auto
+  using assms by auto
+
 lemma ennreal_Rep_apply_distr_biject:
   assumes "f (g x) = x"
-  and "\<And>x. g (f x) = x"
+    and "\<And>x. g (f x) = x"
   shows "ennreal_Rep_distr (apply_to_distr f \<mu>) x = ennreal_Rep_distr \<mu> (g x)"
-unfolding ennreal_Rep_distr_def apply (subst ennreal.inject)
-using assms by (rule Rep_apply_distr_biject)
+  by (simp add: Rep_apply_distr_biject assms(1) assms(2) ennreal_Rep_distr_def)
 
 lemma compose_distr_0 [simp]: "compose_distr (\<lambda>x. 0) \<mu> = 0"
   apply (subst ennreal_Rep_distr_inject[symmetric])
@@ -1389,7 +1514,6 @@ lemma compose_distr_const: "compose_distr (\<lambda>x. \<mu>) \<nu> = weight_dis
    close (rule probability_leq1)
   apply (subst nn_integral_multc)
     close simp
-   close simp
   unfolding ennreal_probability ennreal_probability_def indicator_def 
   by simp
 
@@ -1397,19 +1521,17 @@ lemma compose_distr_const: "compose_distr (\<lambda>x. \<mu>) \<nu> = weight_dis
 lemma compose_distr_add_left: 
   assumes "\<And>x. ennreal_Rep_distr (f x) + ennreal_Rep_distr (g x) = ennreal_Rep_distr (h x)"
   shows "ennreal_Rep_distr (compose_distr f \<mu>) + ennreal_Rep_distr (compose_distr g \<mu>) = ennreal_Rep_distr (compose_distr h \<mu>)"
-apply (rule ext) unfolding plus_fun_def ennreal_Rep_compose_distr assms[symmetric] 
-apply (subst ennreal_pos_distrib)
-  close (fact ennreal_Rep_distr_geq0)
- close (fact ennreal_Rep_distr_not_inf)
-apply (subst nn_integral_add)
-by auto
+  apply (rule ext) unfolding plus_fun_def ennreal_Rep_compose_distr assms[symmetric] 
+  apply (subst distrib_left)
+  apply (subst nn_integral_add)
+  by auto
 
 lemma compose_distr_setsum_left: 
   assumes fin: "finite N"
   assumes sum: "\<And>x y. setsum (\<lambda>n. ennreal_Rep_distr (f n x) y) N = ennreal_Rep_distr (g x) y"
   shows "setsum (\<lambda>n. ennreal_Rep_distr (compose_distr (f n) \<mu>)) N = ennreal_Rep_distr (compose_distr g \<mu>)"
 proof -
-  def g' == "\<lambda>M x. ennreal_Abs_distr (\<lambda>y. setsum (\<lambda>n. ennreal_Rep_distr (f n x) y) M)"
+  define g' where "g' == \<lambda>M x. ennreal_Abs_distr (\<lambda>y. setsum (\<lambda>n. ennreal_Rep_distr (f n x) y) M)"
   have leq1: "\<And>M x. M \<subseteq> N \<Longrightarrow> (\<integral>\<^sup>+ y. (\<Sum>n\<in>M. ennreal_Rep_distr (f n x) y) \<partial>count_space UNIV) \<le> 1"
   proof -
     fix M and x assume MN: "M \<subseteq> N"
@@ -1424,7 +1546,6 @@ proof -
   qed
   have g'_rep: "\<And>M x. M \<subseteq> N \<Longrightarrow> ennreal_Rep_distr (g' M x) = (\<lambda>y. setsum (\<lambda>n. ennreal_Rep_distr (f n x) y) M)" 
     unfolding g'_def apply (rule ennreal_Abs_distr_inverse)  
-     close (rule setsum_nonneg, simp)
     by (fact leq1)
   have g': "g' N = g"
     apply (rule ext)
@@ -1434,9 +1555,8 @@ proof -
   have sum': "\<And>M x y. M \<subseteq> N \<Longrightarrow> setsum (\<lambda>n. ennreal_Rep_distr (f n x) y) M = ennreal_Rep_distr (g' M x) y"
     unfolding g'_rep by auto
 
-  def M == N hence "M \<subseteq> N" by simp
+  define M where "M == N" hence "M \<subseteq> N" by simp
   have M: "N = M" using M_def by simp
-  (* show ?thesis *)
   have "setsum (\<lambda>n. ennreal_Rep_distr (compose_distr (f n) \<mu>)) M = ennreal_Rep_distr (compose_distr g \<mu>)"
     unfolding g'[symmetric] M
   using fin[unfolded M] sum'[unfolded M] `M \<subseteq> N` proof (induction M)
@@ -1466,15 +1586,13 @@ proof -
   thus ?thesis using M by simp
 qed
 
+
 lemma compose_distr_add_right: 
   assumes "\<And>x. ennreal_Rep_distr \<mu> + ennreal_Rep_distr \<nu> = ennreal_Rep_distr \<sigma>"
   shows "ennreal_Rep_distr (compose_distr f \<mu>) + ennreal_Rep_distr (compose_distr f \<nu>) = ennreal_Rep_distr (compose_distr f \<sigma>)"
-apply (rule ext) unfolding plus_fun_def ennreal_Rep_compose_distr assms[symmetric] 
-apply (subst mult.commute, subst ennreal_pos_distrib)
-  close (fact ennreal_Rep_distr_geq0)
- close (fact ennreal_Rep_distr_not_inf)
-apply (subst nn_integral_add) apply auto
-by (metis (no_types, lifting) mult.commute nn_integral_cong) 
+  apply (rule ext) unfolding plus_fun_def ennreal_Rep_compose_distr assms[symmetric] 
+  apply (subst distrib_right)
+  apply (subst nn_integral_add) by auto
 
 
 lemma compose_distr_setsum_right: 
@@ -1482,7 +1600,7 @@ lemma compose_distr_setsum_right:
   assumes sum: "\<And>x y. setsum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) N = ennreal_Rep_distr \<mu> y"
   shows "setsum (\<lambda>n. ennreal_Rep_distr (compose_distr f (\<nu> n))) N = ennreal_Rep_distr (compose_distr f \<mu>)"
 proof -
-  def \<mu>' == "\<lambda>M. ennreal_Abs_distr (\<lambda>y. setsum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) M)"
+  define \<mu>' where "\<mu>' == \<lambda>M. ennreal_Abs_distr (\<lambda>y. setsum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) M)"
   have leq1: "\<And>M. M \<subseteq> N \<Longrightarrow> (\<integral>\<^sup>+y. (\<Sum>n\<in>M. ennreal_Rep_distr (\<nu> n) y) \<partial>count_space UNIV) \<le> 1"
   proof -
     fix M assume MN: "M \<subseteq> N"
@@ -1496,9 +1614,7 @@ proof -
     finally show "?thesis M" by assumption
   qed
   have \<mu>'_rep: "\<And>M. M \<subseteq> N \<Longrightarrow> ennreal_Rep_distr (\<mu>' M) = (\<lambda>y. setsum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) M)" 
-    unfolding \<mu>'_def apply (rule ennreal_Abs_distr_inverse)  
-     close (rule setsum_nonneg, simp)
-    by (fact leq1)
+    unfolding \<mu>'_def apply (rule ennreal_Abs_distr_inverse) by (fact leq1)
   have \<mu>': "\<mu>' N = \<mu>"
     apply (subst ennreal_Rep_distr_inject[symmetric])
     apply (subst \<mu>'_rep) close simp
@@ -1506,7 +1622,7 @@ proof -
   have sum': "\<And>M y. M \<subseteq> N \<Longrightarrow> setsum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) M = ennreal_Rep_distr (\<mu>' M) y"
     unfolding \<mu>'_rep by auto
 
-  def M == N hence "M \<subseteq> N" by simp
+  define M where "M == N" hence "M \<subseteq> N" by simp
   have M: "N = M" using M_def by simp
   (* show ?thesis *)
   have "setsum (\<lambda>n. ennreal_Rep_distr (compose_distr f (\<nu> n))) M = ennreal_Rep_distr (compose_distr f \<mu>)"

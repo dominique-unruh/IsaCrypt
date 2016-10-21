@@ -21,8 +21,9 @@ session "IsaCrypt-Prereqs" in "~~/src/HOL" = "HOL-Analysis" +
 (*    "Proofs/Lambda/StrongNorm"
     "Proofs/Lambda/Commutation"
     "Probability/Binary_Product_Measure"
-    "Library/Rewrite"
     "Eisbach/Eisbach" *)
+    "Proofs/Lambda/ListOrder"
+    "Library/Rewrite"
     "Nominal/Nominal"
 
 session "IsaCrypt-Core" = "IsaCrypt-Prereqs" +

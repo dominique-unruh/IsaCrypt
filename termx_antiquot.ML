@@ -2,11 +2,11 @@ structure TermX_Antiquot =
 struct
 
 val termx_parser = Args.context -- Scan.lift (
-Args.name_inner_syntax
--- Scan.optional (@{keyword "where"} |-- Scan.repeat1 Args.name_inner_syntax) []
+Args.name
+-- Scan.optional (@{keyword "where"} |-- Scan.repeat1 Args.name) []
 --| Scan.ahead Parse.eof)
 
-val typx_parser = Args.context -- Scan.lift Args.name_inner_syntax
+val typx_parser = Args.context -- Scan.lift Args.name
 
 val print_pair = ML_Syntax.print_pair
 val print_string = ML_Syntax.print_string
