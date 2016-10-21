@@ -131,6 +131,7 @@ fun translate_local_vars_global ctx vs body =
 
 (* Printer for programs *)
 
+(*
 fun dest_nibble t =
   let fun err () = raise TERM ("dest_nibble", [t]) in
     (case try (unprefix "\<^const>String.nibble.Nibble" o fst o Term.dest_Const) t of
@@ -151,8 +152,9 @@ fun dest_list (Const(@{const_syntax List.list.Nil}, _)) = []
   | dest_list t = raise TERM ("dest_list", [t]);
 
 val dest_string = implode o map (chr o dest_char) o dest_list;
+*)
 
-fun translate_variable_back (Const(@{const_syntax LVariable},_) $ x) = Free(dest_string x,dummyT)
+fun translate_variable_back (Const(@{const_syntax LVariable},_) $ x) = Free(HOLogic.dest_string x,dummyT)
   | translate_variable_back x = x
 
 fun translate_expression_back (Const(@{const_syntax const_expression},_) $ e) = e
@@ -176,7 +178,7 @@ fun translate_program_back _ p =
              (Const("_sample",dummyT) $ translate_pattern_back x $ translate_expression_back e
               handle ERROR _ => Const("_sample_quote",dummyT) $ x $ e)
         | trans (Const(@{const_syntax label},_)$l$p) =
-             Const("_label",dummyT) $ Free(dest_string l,dummyT) $ trans p
+             Const("_label",dummyT) $ Free(HOLogic.dest_string l,dummyT) $ trans p
         | trans (Const(@{const_syntax while},_)$e$p) =
              (Const("_while",dummyT) $ translate_expression_back e $ trans p
               handle ERROR _ => Const("_while_quote",dummyT) $ e $ trans p)

@@ -103,7 +103,7 @@ lemma memory_lookup_update_notsame [simp]:
 lemma memory_lookup_untyped_mk_variable_untyped [simp]:
   "memory_lookup_untyped m (mk_variable_untyped x) = embedding (memory_lookup m x)"
 proof -
-  def v == "memory_lookup_untyped m (mk_variable_untyped x)"
+  define v where "v == memory_lookup_untyped m (mk_variable_untyped x)"
   have v_type: "v \<in> t_domain (Type TYPE('a))"
     by (metis v_def memory_lookup_untyped_type mk_variable_untyped_type)
   have v_range: "v \<in> range (embedding::'a\<Rightarrow>val)"
@@ -374,7 +374,7 @@ lemma vars_ignore_pattern [simp]: "p_vars ignore_pattern = []"
 
 lemma no_vars_ignore_pattern: "p_vars p = [] \<Longrightarrow> p = ignore_pattern"
 proof -
-  def p' == "Rep_pattern p"
+  define p' where "p' == Rep_pattern p"
   assume "p_vars p = []"
   hence "pu_vars p' = []"
     by (simp add: p'_def p_vars_def) 
@@ -466,7 +466,7 @@ by (metis (no_types, lifting) Rep_kill_vars_pattern memory_update_pattern_def me
 
 lemma memory_update_pattern_twice [simp]: "memory_update_pattern (memory_update_pattern m p x) p y = memory_update_pattern m p y"
 proof -
-  def kp == "kill_vars_pattern p (set (p_vars p))"
+  define kp where "kp == kill_vars_pattern p (set (p_vars p))"
   have "set (p_vars kp) = {}"
     unfolding kp_def p_vars_kill_vars_pattern by auto
   hence "p_vars kp = []" by auto
@@ -742,6 +742,9 @@ definition program :: "program \<Rightarrow> program" where "program p = p"
 syntax "_local_vars_global" :: "idts \<Rightarrow> 'b \<Rightarrow> 'b" ("(3LOCAL _./ _)" 100)
 
 subsubsection {* Translation functions *}
+
+
+ML "HOLogic.mk_string"
 
 ML_file "lang_syntax.ML"
 
@@ -1035,10 +1038,11 @@ proof -
       and pu_type_pargs: "pu_type pargs = Type TYPE('a)" and eu_type_ret: "eu_type ret = Type TYPE('b)" 
       and wt_body: "well_typed body"
     by (simp add: mk_procedure_untyped_def) 
-  def f == "(local_variable_name_renaming ren)"
-  def body' == "rename_variables f body"
-  def pargs' == "rename_variables_pattern f pargs"
-  def ret' == "rename_variables_expression f ret"
+  define f body' pargs' ret'
+    where "f == (local_variable_name_renaming ren)"
+      and "body' == rename_variables f body"
+      and "pargs' == rename_variables_pattern f pargs"
+      and "ret' == rename_variables_expression f ret"
   have type: "\<And>x. vu_type (f x) = vu_type x" unfolding f_def by simp
   have global: "\<And>x. vu_global (f x) = vu_global x" unfolding f_def by simp
   have wt_body': "well_typed body'"
@@ -1105,7 +1109,7 @@ qed
 
 lemma denotation_callproc_rename_local_variables_proc: "denotation (callproc x (rename_local_variables_proc ren p) a) = denotation (callproc x p a)"
 proof -
-  def f == "local_variable_name_renaming ren"
+  define f where "f == local_variable_name_renaming ren"
   (* def x' == "mk_pattern_untyped x" *)
   (* def a' == "mk_expression_untyped a" *)
   have type: "\<And>x. vu_type (f x) = vu_type x" unfolding f_def by simp
@@ -1130,7 +1134,7 @@ qed
 lemma vars_rename_local_variables: "vars (rename_local_variables ren p)
                            = map (local_variable_name_renaming ren) (vars p)"
 proof -
-  def p' == "Rep_program p"
+  define p' where "p' == Rep_program p"
   have pu_vars: "\<And>x. pu_vars (rename_variables_pattern (local_variable_name_renaming ren) x) =
                 map (local_variable_name_renaming ren) (pu_vars x)"
     unfolding Rep_rename_local_variables_pattern
@@ -1145,7 +1149,7 @@ proof -
     by (subst ed_vars_rename_variables_expression_distr, simp_all)
   have proc_vars: "\<And>q. map (local_variable_name_renaming ren) (vars_proc_untyped q) = vars_proc_untyped q"
     by (simp add: vars_proc_untyped_global local_variable_name_renaming_fix_globals map_idI)
-  def q == "undefined :: procedure_rep"
+  define q where "q == undefined :: procedure_rep"
   have "vars_untyped (rename_variables (local_variable_name_renaming ren) p') 
       = map (local_variable_name_renaming ren) (vars_untyped p')"
     and True
