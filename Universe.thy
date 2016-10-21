@@ -201,7 +201,7 @@ proof -
   show ?thesis proof (rule leq[THEN disjE], fold card_of_ordLeq)
     assume "\<exists>f::'a+'b \<Rightarrow> 'a+'b. inj_on f (range Inl) \<and> f ` range Inl \<subseteq> range Inr"
     then obtain f::"'a+'b \<Rightarrow> 'a+'b" where finj: "inj_on f (range Inl)" and frng: "f ` range Inl \<subseteq> range Inr" by auto
-    def i == "\<lambda>x. case f (Inl x) of Inr y \<Rightarrow> y"
+    define i where "i == \<lambda>x. case f (Inl x) of Inr y \<Rightarrow> y"
     have "inj i" proof (rule injI, unfold i_def) 
       fix x y assume eq:"(case f (Inl x) of Inr y \<Rightarrow> y) = (case f (Inl y) of Inr y \<Rightarrow> y)"
       from frng obtain x' where x': "f (Inl x) = Inr x'" by blast
@@ -214,7 +214,7 @@ proof -
   next
     assume "\<exists>f::'a+'b \<Rightarrow> 'a+'b. inj_on f (range Inr) \<and> f ` range Inr \<subseteq> range Inl"
     then obtain f::"'a+'b \<Rightarrow> 'a+'b" where finj: "inj_on f (range Inr)" and frng: "f ` range Inr \<subseteq> range Inl" by auto
-    def j == "\<lambda>x. case f (Inr x) of Inl y \<Rightarrow> y"
+    define j where "j == \<lambda>x. case f (Inr x) of Inl y \<Rightarrow> y"
     have "inj j" proof (rule injI, unfold j_def) 
       fix x y assume eq:"(case f (Inr x) of Inl y \<Rightarrow> y) = (case f (Inr y) of Inl y \<Rightarrow> y)"
       from frng obtain x' where x': "f (Inr x) = Inl x'" by blast
@@ -410,8 +410,9 @@ proof (rule injI)
   assume emb_eq: "val_prod_embedding x = val_prod_embedding y"
 
   obtain x1 x2 where x: "x=(x1,x2)" by (atomize_elim, auto)
-  def n1 == "val_powertower_level x1"
-  def n2 == "val_powertower_level x2"
+  define n1 n2 
+    where "n1 == val_powertower_level x1"
+      and "n2 == val_powertower_level x2"
   have "x1 \<in> val_powertower n1"  
    and "x2 \<in> val_powertower n2" unfolding n1_def n2_def by (simp_all add: val_powertower_level) 
   hence x_tower: "x \<in> val_powertower n1 \<times> val_powertower n2" unfolding x by auto
@@ -419,8 +420,9 @@ proof (rule injI)
     by (rule range_val_prod_embedding')
 
   obtain y1 y2 where y: "y=(y1,y2)" by (atomize_elim, auto)
-  def m1 == "val_powertower_level y1"
-  def m2 == "val_powertower_level y2"
+  define m1 m2
+    where "m1 == val_powertower_level y1"
+      and "m2 == val_powertower_level y2"
   have "y1 \<in> val_powertower m1"  
    and "y2 \<in> val_powertower m2" unfolding m1_def m2_def by (simp_all add: val_powertower_level) 
   hence y_tower: "y \<in> val_powertower m1 \<times> val_powertower m2" unfolding y by auto

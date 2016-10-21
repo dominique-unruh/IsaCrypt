@@ -75,9 +75,9 @@ proof -
   proof (induction ts arbitrary: used)
   case Nil show ?case by simp
   case (Cons t ts) 
-    def vn == "freshvar used"
-    def v == "\<lparr> vu_name=vn, vu_type=t, vu_global=False \<rparr>"
-    def vs == "fresh_variables_local (v#used) ts"
+    define vn v vs where "vn == freshvar used"
+      and "v == \<lparr> vu_name=vn, vu_type=t, vu_global=False \<rparr>"
+      and "vs == fresh_variables_local (v#used) ts"
     have v_vs: "fresh_variables_local used (t#ts) = v#vs"
       unfolding vs_def v_def vn_def by (auto simp: Let_def)
     from Cons.IH vs_def have vs_dist: "distinct vs" by auto
@@ -191,7 +191,7 @@ lemma memory_update_untyped_twice_same [simp]:
        = memory_update_untyped m x yv"
 apply (subst Rep_memory_inject[symmetric], rule ext)
 apply (subst Rep_memory_update_untyped')+
-using assms by auto
+by auto
 
 
 
@@ -438,10 +438,10 @@ lemma lookup_memory_update_untyped_pattern_getter:
   assumes "v \<in> set (pu_vars pat)"
   shows "memory_lookup_untyped (memory_update_untyped_pattern m pat val) v = memory_update_untyped_pattern_getter pat v val"
 proof -
-  def getters \<equiv> "pu_var_getters pat"
+  define getters where "getters \<equiv> pu_var_getters pat"
   have vgetters: "v \<in> fst ` set getters"
     using assms getters_def pu_vars_def by auto
-  def good \<equiv> "\<lambda>(v::variable_untyped,f::val\<Rightarrow>val). (\<forall>x. f x \<in> t_domain (vu_type v))"
+  define good where "good \<equiv> \<lambda>(v::variable_untyped,f::val\<Rightarrow>val). (\<forall>x. f x \<in> t_domain (vu_type v))"
   have good: "\<forall>getter \<in> set getters. good getter"
     using Rep_pattern_untyped unfolding getters_def good_def pu_var_getters_def apply auto by blast
   show ?thesis
@@ -475,7 +475,7 @@ lemma memory_update_untyped_pattern_footprint: (* TODO replace by stronger one b
   shows   "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped_pattern m1 pat x) v = memory_lookup_untyped (memory_update_untyped_pattern m2 pat x) v"
 proof -
   fix v
-  def getters == "pu_var_getters pat"
+  define getters where "getters == pu_var_getters pat"
   have "\<And>gv gs. (gv,gs)\<in>set getters \<Longrightarrow> gv \<in> set (pu_vars pat)" 
     unfolding getters_def pu_vars_def by force
   hence gvX: "\<And>gv gs. (gv,gs)\<in>set getters \<Longrightarrow> gv \<in> X"
@@ -505,7 +505,7 @@ lemma memory_update_untyped_pattern_footprint_STRONGER:
   shows   "\<And>v. v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped_pattern m1 pat x) v = memory_lookup_untyped (memory_update_untyped_pattern m2 pat x) v"
 proof -
   fix v
-  def getters == "pu_var_getters pat"
+  define getters where "getters == pu_var_getters pat"
   have "\<And>gv gs. (gv,gs)\<in>set getters \<Longrightarrow> gv \<in> set (pu_vars pat)" 
     unfolding getters_def pu_vars_def by force
   show "v\<in>X \<Longrightarrow> memory_lookup_untyped (memory_update_untyped_pattern m1 pat x) v = memory_lookup_untyped (memory_update_untyped_pattern m2 pat x) v"
@@ -530,7 +530,7 @@ lemma memory_lookup_update_pattern_notsame:
   assumes "x \<notin> set (pu_vars p)"
   shows "memory_lookup_untyped (memory_update_untyped_pattern m p a) x = memory_lookup_untyped m x"
 proof -
-  def vg == "pu_var_getters p"
+  define vg where "vg == pu_var_getters p"
   hence vg: "x \<notin> fst ` set vg"
     using assms pu_var_getters_def pu_vars_def by auto
   show ?thesis
@@ -554,11 +554,12 @@ lemma memory_update_pair_pattern_untyped:
   assumes "x1 \<in> t_domain (pu_type p1)" and "x2 \<in> t_domain (pu_type p2)"
   shows "memory_update_untyped_pattern m (pair_pattern_untyped p1 p2) (val_prod_embedding (x1,x2)) = memory_update_untyped_pattern (memory_update_untyped_pattern m p1 x1) p2 x2"
 proof -
-  def p1vg == "pu_var_getters p1"
-  def p2vg == "pu_var_getters p2"
-  def T == "pu_type (pair_pattern_untyped p1 p2)"
-  def fstg == "\<lambda>(v::variable_untyped) g. \<lambda>x. if x \<in> t_domain T then (g \<circ> fst \<circ> inv val_prod_embedding) x else t_default (vu_type v)"
-  def sndg == "\<lambda>(v::variable_untyped) g. \<lambda>x. if x \<in> t_domain T then (g \<circ> snd \<circ> inv val_prod_embedding) x else t_default (vu_type v)"
+  define p1vg p2vg T fstg sndg 
+     where "p1vg == pu_var_getters p1"
+       and "p2vg == pu_var_getters p2"
+       and "T == pu_type (pair_pattern_untyped p1 p2)"
+       and "fstg == \<lambda>(v::variable_untyped) g. \<lambda>x. if x \<in> t_domain T then (g \<circ> fst \<circ> inv val_prod_embedding) x else t_default (vu_type v)"
+       and "sndg == \<lambda>(v::variable_untyped) g. \<lambda>x. if x \<in> t_domain T then (g \<circ> snd \<circ> inv val_prod_embedding) x else t_default (vu_type v)"
 
   from assms have x1x2_T: "val_prod_embedding (x1,x2) \<in> t_domain T"
     unfolding T_def pu_type_pair_pattern t_domain_prod by simp
@@ -676,7 +677,7 @@ lemma kill_vars_pattern_untyped_disjoint:
   assumes "set (pu_vars p) \<inter> X = {}"
   shows "kill_vars_pattern_untyped p X = p"
 proof -
-  def vgp == "pu_var_getters p"
+  define vgp where "vgp == pu_var_getters p"
   have vgX: "fst vg \<notin> X" if "vg \<in> set vgp" for vg
     using assms pu_vars_def that vgp_def by auto 
   have getters: "[(v, g)\<leftarrow>pu_var_getters p . v \<notin> X] = pu_var_getters p"
@@ -695,7 +696,7 @@ lemma memory_update_pattern_getter_kill_vars_pattern_untyped:
   assumes "x \<notin> X"
   shows "memory_update_untyped_pattern_getter (kill_vars_pattern_untyped p X) x = memory_update_untyped_pattern_getter p x"
 proof -
-  def rg == "rev (pu_var_getters p)"
+  define rg where "rg == rev (pu_var_getters p)"
   have t: "find (\<lambda>p. x = fst p) [p\<leftarrow>rg . fst p \<notin> X] = find (\<lambda>p. x = fst p) rg"
     apply (induction rg) close
     using `x\<notin>X` by auto
@@ -751,14 +752,14 @@ lemma memory_update_update_pattern_untyped_swap:
   "memory_update_untyped (memory_update_untyped_pattern m a aval) x xval
   = memory_update_untyped_pattern (memory_update_untyped m x xval) (kill_vars_pattern_untyped a {x}) aval"
 proof -
-  def vgs == "pu_var_getters a"
-  def mup == "\<lambda>m (v,f). memory_update_untyped m v (f aval)"
+  define vgs where "vgs == pu_var_getters a"
+  define mup where "mup == \<lambda>m (v,f). memory_update_untyped m v (f aval)"
   have killed: "pu_var_getters (kill_vars_pattern_untyped a {x}) = [(v, g)\<leftarrow>pu_var_getters a . v \<noteq> x]"
     unfolding pu_var_getters_kill_vars_pattern_untyped by simp
   have mup_swap: "memory_update_untyped (mup m xf) y val = mup (memory_update_untyped m y val) xf" if "y \<noteq> fst xf" for xf y val m
     unfolding mup_def using that apply (cases xf) by (simp add: memory_update_untyped_twice_notsame)
   have mup_swap': "memory_update_untyped (mup m xf) y val = memory_update_untyped m y val" if "y = fst xf" for xf y val m
-    unfolding mup_def apply (cases xf) using that by (simp add: memory_update_untyped_twice_same)
+    unfolding mup_def apply (cases xf) using that by simp
   show ?thesis
     unfolding memory_update_untyped_pattern_def vgs_def[symmetric] killed mup_def[symmetric]
     proof (induction vgs rule:rev_induct)
@@ -775,12 +776,12 @@ qed
 lemma memory_update_pattern_untyped_swap: "memory_update_untyped_pattern (memory_update_untyped_pattern m a x) b y
      = memory_update_untyped_pattern (memory_update_untyped_pattern m b y) (kill_vars_pattern_untyped a (set (pu_vars b))) x"
 proof -
-  def vgb == "pu_var_getters b"
+  define vgb where "vgb == pu_var_getters b"
   hence upb: "memory_update_untyped_pattern m b x = foldl (\<lambda>m (v, f). memory_update_untyped m v (f x)) m vgb" for x m
     unfolding memory_update_untyped_pattern_def by simp
   have vb: "pu_vars b = map fst vgb" by (simp add: vgb_def pu_vars_def)
     
-  def mup == "\<lambda>m (v,f). memory_update_untyped m v (f y)"
+  define mup where "mup == \<lambda>m (v,f). memory_update_untyped m v (f y)"
 
   have commute:
        "mup (memory_update_untyped_pattern m (kill_vars_pattern_untyped a X) aval) xf 
@@ -1020,9 +1021,9 @@ proof -
 qed
 
 lemma denotation_While_n_diff: 
-  "ereal_Rep_distr (denotation_untyped (While_n n e p) m)
- + ereal_Rep_distr (denotation_untyped (While_n_exact n e p) m)
- = ereal_Rep_distr (denotation_untyped (While_n (Suc n) e p) m)"
+  "ennreal_Rep_distr (denotation_untyped (While_n n e p) m)
+ + ennreal_Rep_distr (denotation_untyped (While_n_exact n e p) m)
+ = ennreal_Rep_distr (denotation_untyped (While_n (Suc n) e p) m)"
 proof (induction n arbitrary: m)
 case 0
   show ?case by (auto simp: plus_fun_def)
@@ -1030,54 +1031,77 @@ next case (Suc n)
   show ?case
   proof (cases "eu_fun e m = embedding True")
   case True
-    have "ereal_Rep_distr (denotation_untyped (While_n (Suc n) e p) m) + ereal_Rep_distr (denotation_untyped (While_n_exact (Suc n) e p) m)
-        = ereal_Rep_distr (compose_distr (denotation_untyped (While_n n e p)) (denotation_untyped p m)) +
-          ereal_Rep_distr (compose_distr (denotation_untyped (While_n_exact n e p)) (denotation_untyped p m))"
+    have "ennreal_Rep_distr (denotation_untyped (While_n (Suc n) e p) m) + ennreal_Rep_distr (denotation_untyped (While_n_exact (Suc n) e p) m)
+        = ennreal_Rep_distr (compose_distr (denotation_untyped (While_n n e p)) (denotation_untyped p m)) +
+          ennreal_Rep_distr (compose_distr (denotation_untyped (While_n_exact n e p)) (denotation_untyped p m))"
       using True by simp
-    also have "\<dots> = ereal_Rep_distr (compose_distr (denotation_untyped (While_n (Suc n) e p))
+    also have "\<dots> = ennreal_Rep_distr (compose_distr (denotation_untyped (While_n (Suc n) e p))
                                               (denotation_untyped p m))"
       apply (rule compose_distr_add_left)
       by (fact Suc.IH)
-    also have "\<dots> = ereal_Rep_distr (denotation_untyped (While_n (Suc (Suc n)) e p) m)"
+    also have "\<dots> = ennreal_Rep_distr (denotation_untyped (While_n (Suc (Suc n)) e p) m)"
       using True by simp
     finally show ?thesis by assumption
   next case False
-    have "ereal_Rep_distr (denotation_untyped (While_n (Suc n) e p) m) + ereal_Rep_distr (denotation_untyped (While_n_exact (Suc n) e p) m)
-        = ereal_Rep_distr (point_distr m)"
+    have "ennreal_Rep_distr (denotation_untyped (While_n (Suc n) e p) m) + ennreal_Rep_distr (denotation_untyped (While_n_exact (Suc n) e p) m)
+        = ennreal_Rep_distr (point_distr m)"
       by (simp add: False plus_fun_def)
-    also have "\<dots> = ereal_Rep_distr (denotation_untyped (While_n (Suc (Suc n)) e p) m)"
+    also have "\<dots> = ennreal_Rep_distr (denotation_untyped (While_n (Suc (Suc n)) e p) m)"
       using False by simp
     finally show ?thesis by assumption
   qed 
 qed
 
-lemma denotation_untyped_While'': "ereal_Rep_distr (denotation_untyped (While e p) m) m' =
-  (\<Sum>n. ereal_Rep_distr (denotation_untyped (While_n_exact n e p) m) m')"
+(* TODO move *)
+lemma sums_ennreal_positive:
+  fixes f :: "nat \<Rightarrow> ennreal"
+  shows "f sums (SUP n. \<Sum>i<n. f i)"
 proof -
-  have "ereal_Rep_distr (denotation_untyped (While e p) m) m' =
-        (SUP n. ereal_Rep_distr (denotation_untyped (While_n n e p) m) m')"
+  have "incseq (\<lambda>i. \<Sum>j=0..<i. f j)"
+    using add_mono
+    by (auto intro!: incseq_SucI)
+  from LIMSEQ_SUP[OF this]
+  show ?thesis unfolding sums_def
+    by (simp add: atLeast0LessThan)
+qed
+
+
+
+(* TODO move *)
+lemma suminf_ennreal_eq_SUP:
+  fixes f :: "nat \<Rightarrow> ennreal"
+  shows "(\<Sum>x. f x) = (SUP n. \<Sum>i<n. f i)"
+  using sums_ennreal_positive[of f, THEN sums_unique]
+  thm sums_ereal_positive
+  by simp
+
+lemma denotation_untyped_While'': "ennreal_Rep_distr (denotation_untyped (While e p) m) m' =
+  (\<Sum>n. ennreal_Rep_distr (denotation_untyped (While_n_exact n e p) m) m')"
+proof -
+  have "ennreal_Rep_distr (denotation_untyped (While e p) m) m' =
+        (SUP n. ennreal_Rep_distr (denotation_untyped (While_n n e p) m) m')"
     apply (subst denotation_untyped_While')
-    by (simp add: ereal_Rep_SUP_distr mono_denotation_While_n[THEN mono_funD])
-  also have "\<dots> = (SUP n. setsum (\<lambda>n'. ereal_Rep_distr (denotation_untyped (While_n_exact n' e p) m) m') {..<n})"
+    by (simp add: ennreal_Rep_SUP_distr mono_denotation_While_n[THEN mono_funD])
+  also have "\<dots> = (SUP n. setsum (\<lambda>n'. ennreal_Rep_distr (denotation_untyped (While_n_exact n' e p) m) m') {..<n})"
   proof -
     {fix n
-    have "ereal_Rep_distr (denotation_untyped (While_n n e p) m) m' =
-          (\<Sum>n'<n. ereal_Rep_distr (denotation_untyped (While_n_exact n' e p) m) m')"
+    have "ennreal_Rep_distr (denotation_untyped (While_n n e p) m) m' =
+          (\<Sum>n'<n. ennreal_Rep_distr (denotation_untyped (While_n_exact n' e p) m) m')"
       apply (induction n)
        close simp
       apply (subst denotation_While_n_diff[symmetric])
       unfolding plus_fun_def by simp}
     thus ?thesis by simp
   qed
-  also have "\<dots> = (\<Sum>n. ereal_Rep_distr (denotation_untyped (While_n_exact n e p) m) m')"
-    by (rule suminf_ereal_eq_SUP[symmetric], simp)
+  also have "\<dots> = (\<Sum>n. ennreal_Rep_distr (denotation_untyped (While_n_exact n e p) m) m')"
+    by (rule suminf_ennreal_eq_SUP[symmetric])
   finally show ?thesis by assumption
 qed
 
 lemma while_unfold_untyped: "denotation_untyped (While e p) = denotation_untyped (IfTE e (Seq p (While e p)) Skip)"
 proof -
-  have inc: "\<And>m m'. incseq (\<lambda>n. ereal_Rep_distr (denotation_untyped (While_n n e p) m) m')"
-    apply (rule mono_funD) apply (rule mono_apply[OF mono_ereal_Rep_distr])
+  have inc: "\<And>m m'. incseq (\<lambda>n. ennreal_Rep_distr (denotation_untyped (While_n n e p) m) m')"
+    apply (rule mono_funD) apply (rule mono_apply[OF mono_ennreal_Rep_distr])
     apply (rule mono_funD) by (rule mono_denotation_While_n)
   have inc': "\<And>m. incseq (\<lambda>y. denotation_untyped (IfTE e (Seq p (While_n y e p)) Skip) m)" 
     apply (case_tac "eu_fun e m = embedding True")
@@ -1087,41 +1111,41 @@ proof -
     apply (rule mono_apply[OF mono_compose_distr1]) by (rule mono_denotation_While_n)
   
   {fix m m'
-  have "ereal_Rep_distr (denotation_untyped (While e p) m) m' = ereal_Rep_distr ((SUP n. denotation_untyped (While_n n e p)) m) m'"
+  have "ennreal_Rep_distr (denotation_untyped (While e p) m) m' = ennreal_Rep_distr ((SUP n. denotation_untyped (While_n n e p)) m) m'"
     unfolding denotation_untyped_While' by simp
-  also have "\<dots> = (SUP n. ereal_Rep_distr (denotation_untyped (While_n n e p) m) m')"
-    by (simp add: ereal_Rep_SUP_distr mono_denotation_While_n[THEN mono_funD])
-  also have "\<dots> = (SUP n. ereal_Rep_distr (denotation_untyped (While_n (Suc n) e p) m) m')"
+  also have "\<dots> = (SUP n. ennreal_Rep_distr (denotation_untyped (While_n n e p) m) m')"
+    by (simp add: ennreal_Rep_SUP_distr mono_denotation_While_n[THEN mono_funD])
+  also have "\<dots> = (SUP n. ennreal_Rep_distr (denotation_untyped (While_n (Suc n) e p) m) m')"
     apply (rule SUP_Suc) by (fact inc)
-  also have "\<dots> = (SUP n. ereal_Rep_distr (denotation_untyped (IfTE e (Seq p (While_n n e p)) Skip) m) m')"
+  also have "\<dots> = (SUP n. ennreal_Rep_distr (denotation_untyped (IfTE e (Seq p (While_n n e p)) Skip) m) m')"
     by simp
-(*   also have "\<dots> = ereal_Rep_distr ((SUP n. denotation_untyped (IfTE e (Seq p (While_n n e p)) Skip)) m) m'"
+(*   also have "\<dots> = ennreal_Rep_distr ((SUP n. denotation_untyped (IfTE e (Seq p (While_n n e p)) Skip)) m) m'"
     unfolding SUP_apply apply (subst ereal_Rep_SUP_distr)
     using inc' by auto *)
   also have "\<dots> = (if eu_fun e m = embedding True 
-                     then (SUP n. ereal_Rep_distr (denotation_untyped (Seq p (While_n n e p)) m) m')  
-                     else (ereal_Rep_distr (denotation_untyped Skip m) m'))"
+                     then (SUP n. ennreal_Rep_distr (denotation_untyped (Seq p (While_n n e p)) m) m')  
+                     else (ennreal_Rep_distr (denotation_untyped Skip m) m'))"
     by auto
   also have "\<dots> = (if eu_fun e m = embedding True 
-                     then (SUP n. ereal_Rep_distr (compose_distr (denotation_untyped (While_n n e p)) (denotation_untyped p m)) m')  
-                     else (ereal_Rep_distr (denotation_untyped Skip m) m'))"
+                     then (SUP n. ennreal_Rep_distr (compose_distr (denotation_untyped (While_n n e p)) (denotation_untyped p m)) m')  
+                     else (ennreal_Rep_distr (denotation_untyped Skip m) m'))"
     by auto
-  also have "(SUP n. ereal_Rep_distr (compose_distr (denotation_untyped (While_n n e p)) (denotation_untyped p m)) m')
-            = (ereal_Rep_distr (compose_distr (SUP n. denotation_untyped (While_n n e p)) (denotation_untyped p m)) m')"
+  also have "(SUP n. ennreal_Rep_distr (compose_distr (denotation_untyped (While_n n e p)) (denotation_untyped p m)) m')
+            = (ennreal_Rep_distr (compose_distr (SUP n. denotation_untyped (While_n n e p)) (denotation_untyped p m)) m')"
     apply (subst compose_distr_SUP_left) close (fact mono_denotation_While_n)
-    apply (subst ereal_Rep_SUP_distr) close (fact inc3)
+    apply (subst ennreal_Rep_SUP_distr) close (fact inc3)
     by auto
   also have "(SUP n. denotation_untyped (While_n n e p)) = denotation_untyped (While e p)"
     by simp
   also have "(if eu_fun e m = embedding True 
-      then ereal_Rep_distr (compose_distr (denotation_untyped (While e p)) (denotation_untyped p m)) m'
-      else ereal_Rep_distr (denotation_untyped Skip m) m') 
-      = ereal_Rep_distr (denotation_untyped (IfTE e (Seq p (While e p)) Skip) m) m'"
+      then ennreal_Rep_distr (compose_distr (denotation_untyped (While e p)) (denotation_untyped p m)) m'
+      else ennreal_Rep_distr (denotation_untyped Skip m) m') 
+      = ennreal_Rep_distr (denotation_untyped (IfTE e (Seq p (While e p)) Skip) m) m'"
     by simp
-  finally have "ereal_Rep_distr (denotation_untyped (While e p) m) m' = ereal_Rep_distr (denotation_untyped (IfTE e (Seq p (While e p)) Skip) m) m'" 
+  finally have "ennreal_Rep_distr (denotation_untyped (While e p) m) m' = ennreal_Rep_distr (denotation_untyped (IfTE e (Seq p (While e p)) Skip) m) m'" 
     by assumption}
   thus ?thesis  
-    apply (rule_tac ext) apply (rule ereal_Rep_distr_inject[THEN iffD1]) by rule
+    apply (rule_tac ext) apply (rule ennreal_Rep_distr_inject[THEN iffD1]) by rule
 qed
 
 subsection {* Misc (free vars, lossless) *}
@@ -1183,7 +1207,7 @@ definition "local_vars prog = filter (\<lambda>x. \<not>vu_global x) (vars prog)
 
 lemma vars_proc_untyped_global: "x\<in>set(vars_proc_untyped q) \<Longrightarrow> vu_global x"
 proof -
-  def p == "undefined :: program_rep"
+  define p where "p == undefined :: program_rep"
   have True and "x\<in>set(vars_proc_untyped q) \<Longrightarrow> vu_global x"
     by (induct p and q, auto)
   thus "x\<in>set(vars_proc_untyped q) \<Longrightarrow> vu_global x" by simp
@@ -1472,8 +1496,8 @@ lemma update_rename_variables_memory:
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
   shows "memory_update_untyped (rename_variables_memory f m) x a = rename_variables_memory f (memory_update_untyped m (f x) a)"
 proof -
- have bij_rw: "\<And>x y. f x = f y == x = y" using bij_f
-    by (smt bij_inv_eq_iff)
+  have bij_rw: "\<And>x y. f x = f y == x = y" using bij_f
+    by (smt bij_pointE)
     
   show ?thesis
   apply (subst Rep_memory_inject[symmetric])
@@ -1488,7 +1512,7 @@ lemma update_pattern_rename_variables_memory:
   shows "memory_update_untyped_pattern (rename_variables_memory f m) x a
        = rename_variables_memory f (memory_update_untyped_pattern m (rename_variables_pattern f x) a)"
 proof -
-  def pvg == "pu_var_getters x"
+  define pvg where "pvg == pu_var_getters x"
   have "foldl (\<lambda>m (v, f). memory_update_untyped m v (f a)) (rename_variables_memory f m) pvg =
     rename_variables_memory f (foldl (\<lambda>m (v, f). memory_update_untyped m v (f a)) m (map (apfst f) pvg))"
     apply (induct pvg rule:rev_induct)
@@ -1585,7 +1609,7 @@ proof -
   from ren_f_inv_f ren_inv_f_f have ind: "\<And>a m'. indicator {rename_variables_memory (inv f) a} m' = indicator {rename_variables_memory f m'} a"
     unfolding indicator_def by auto
 
-  def p' == "rename_variables f p"
+  define p' where "p' == rename_variables f p"
   have "denotation_untyped p' m = 
     apply_to_distr (rename_variables_memory (inv f)) (denotation_untyped (rename_variables (inv f) p') (rename_variables_memory f m))"
   proof (induct p' arbitrary: m rule:program_rep.induct[of _ "\<lambda>p. True"])
@@ -1665,20 +1689,20 @@ proof -
         by (subst n_steps, rule)
     next case (IfTE e p1 p2 m)
       show ?case
-        apply (subst ereal_Rep_distr_inject[symmetric], rule ext, rename_tac m')
+        apply (subst ennreal_Rep_distr_inject[symmetric], rule ext, rename_tac m')
       proof (cases "eu_fun e m = embedding True")
         fix m'
         assume True1: "eu_fun e m = embedding True"
         hence True2: "eu_fun (rename_variables_expression (inv f) e) (rename_variables_memory f m) = embedding True"
           by (simp add: `surj f` global rename_variables_expression_memory type)
-        show "(ereal_Rep_distr (denotation_untyped (IfTE e p1 p2) m) m') =
-          (ereal_Rep_distr (apply_to_distr (rename_variables_memory (inv f))
+        show "(ennreal_Rep_distr (denotation_untyped (IfTE e p1 p2) m) m') =
+          (ennreal_Rep_distr (apply_to_distr (rename_variables_memory (inv f))
           (denotation_untyped (rename_variables (inv f) (IfTE e p1 p2)) (rename_variables_memory f m))) m')"
-          apply (simp add: ereal_Rep_apply_to_distr True1 True2)
+          apply (simp add: ennreal_Rep_apply_to_distr True1 True2)
           apply (subst ind)
           apply (subst nn_integral_singleton_indicator_countspace)
           apply auto
-          apply (subst ereal_Rep_apply_distr_biject[where f="rename_variables_memory (inv f)" and g="rename_variables_memory f", symmetric])
+          apply (subst ennreal_Rep_apply_distr_biject[where f="rename_variables_memory (inv f)" and g="rename_variables_memory f", symmetric])
             close (fact ren_inv_f_f) close (fact ren_f_inv_f)
           by (simp add: IfTE.hyps(1))
       next
@@ -1686,14 +1710,14 @@ proof -
         assume False1: "eu_fun e m \<noteq> embedding True"
         hence False2: "eu_fun (rename_variables_expression (inv f) e) (rename_variables_memory f m) \<noteq> embedding True"
           by (simp add: `surj f` global rename_variables_expression_memory type)
-        show "ereal_Rep_distr (denotation_untyped (IfTE e p1 p2) m) m' =
-          ereal_Rep_distr (apply_to_distr (rename_variables_memory (inv f))
+        show "ennreal_Rep_distr (denotation_untyped (IfTE e p1 p2) m) m' =
+          ennreal_Rep_distr (apply_to_distr (rename_variables_memory (inv f))
           (denotation_untyped (rename_variables (inv f) (IfTE e p1 p2)) (rename_variables_memory f m))) m'"
-          apply (simp add: ereal_Rep_apply_to_distr False1 False2)
+          apply (simp add: ennreal_Rep_apply_to_distr False1 False2)
           apply (subst ind)
           apply (subst nn_integral_singleton_indicator_countspace)
           apply auto
-          apply (subst ereal_Rep_apply_distr_biject[where f="rename_variables_memory (inv f)" and g="rename_variables_memory f", symmetric])
+          apply (subst ennreal_Rep_apply_distr_biject[where f="rename_variables_memory (inv f)" and g="rename_variables_memory f", symmetric])
             close (fact ren_inv_f_f) close (fact ren_f_inv_f)
           by (simp add: IfTE.hyps(2))
       qed
@@ -1747,7 +1771,7 @@ lemma denotation_rename_variables_proc:
   assumes type: "\<And>x. vu_type (f x) = vu_type x"
   assumes global: "\<And>x. vu_global (f x) = vu_global x"
   assumes fix_global: "\<And>x. vu_global x \<Longrightarrow> f x = x"
-  assumes "bij f"
+  assumes bijf: "bij f"
   shows "denotation_untyped (CallProc x (rename_variables_proc f p) a) = denotation_untyped (CallProc x p a)"
 proof (rule ext, cases "\<exists>body pargs ret. p=Proc body pargs ret")
 case False
@@ -1760,7 +1784,7 @@ case False
 next case True 
   then obtain body pargs ret where p: "p=Proc body pargs ret" by auto
   fix m
-  have "surj f" by (simp add: `bij f` bij_betw_imageE)
+  have "surj f" using bijf bij_betw_imp_surj by auto
   have "bij (inv f)" by (simp add: `bij f` bij_imp_bij_inv) 
   have type': "\<And>x. vu_type (inv f x) = vu_type x" by (metis `surj f` surj_f_inv_f type)
   have global': "\<And>x. vu_global (inv f x) = vu_global x" by (metis `surj f` global surj_f_inv_f)
@@ -1802,7 +1826,7 @@ lemma well_typed_rename_variables:
   assumes wt: "well_typed p"
   shows "well_typed (rename_variables f p)"
 proof -
-  def q == "undefined :: procedure_rep"
+  define q where "q == undefined :: procedure_rep"
   have ?thesis and True
     using wt proof (induct p and q)
     case Assign thus ?case 
@@ -1845,10 +1869,10 @@ subsection {* Footprints etc. *}
 definition "denotation_footprint X d = (\<forall>m m' z. Rep_distr (d m) m' 
     = Rep_distr (d (memory_combine X m z)) (memory_combine X m' z) 
       * (if memory_combine X default m = memory_combine X default m' then 1 else 0))"
-lemma denotation_footprint_def': "denotation_footprint X d = (\<forall>m m' z. ereal_Rep_distr (d m) m' 
-    = ereal_Rep_distr (d (memory_combine X m z)) (memory_combine X m' z) 
+lemma denotation_footprint_def': "denotation_footprint X d = (\<forall>m m' z. ennreal_Rep_distr (d m) m' 
+    = ennreal_Rep_distr (d (memory_combine X m z)) (memory_combine X m' z) 
       * (if memory_combine X default m = memory_combine X default m' then 1 else 0))"
-unfolding ereal_Rep_distr[symmetric] one_ereal_def zero_ereal_def denotation_footprint_def by auto
+unfolding ennreal_Rep_distr[symmetric] one_ereal_def zero_ereal_def denotation_footprint_def by auto
 
 definition "program_untyped_footprint X c = denotation_footprint X (denotation_untyped c)"
 definition "program_footprint X c = denotation_footprint X (denotation c)"
@@ -1876,11 +1900,11 @@ lemma denotation_footprint_mono:
   shows "denotation_footprint A d"
 proof (unfold denotation_footprint_def, (rule allI)+)
   fix m m' z
-  def dd == "\<lambda>m. Rep_distr (d m)"
+  define dd where "dd == \<lambda>m. Rep_distr (d m)"
 (*  have "\<And>m m' z. dd m m' = dd (memory_combine B m z) (memory_combine B m' z) 
       * (if memory_combine B default m = memory_combine B default m' then 1 else 0)"
     using foot unfolding denotation_footprint_def dd_def by simp*)
-  def z' == "memory_combine A m z"
+  define z' where "z' == memory_combine A m z"
   have dd1: "dd m m' = dd (memory_combine B m z') (memory_combine B m' z') 
       * (if memory_combine B default m = memory_combine B default m' then 1 else 0)"
     using foot unfolding denotation_footprint_def dd_def by simp

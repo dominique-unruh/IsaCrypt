@@ -501,36 +501,36 @@ proof -
         close simp
 
         apply (simp add: App_eq_foldl_conv)
-        apply (split split_if_asm)
+        apply (split if_split_asm)
          apply simp
          close blast
         close simp
 
        apply (simp add: App_eq_foldl_conv)
-       apply (split split_if_asm)
+       apply (split if_split_asm)
         close simp
        close simp
 
        apply (simp add: App_eq_foldl_conv)
-       apply (split split_if_asm)
+       apply (split if_split_asm)
         close simp
        close simp
 
        apply (simp add: App_eq_foldl_conv)
-       apply (split split_if_asm)
+       apply (split if_split_asm)
         close simp
        by simp
   next case appL thus ?case
       apply auto
       apply (drule App_eq_foldl_conv [THEN iffD1])
-      apply (split split_if_asm)
+      apply (split if_split_asm)
        apply simp
        close blast
       by (force intro!: disjI1 [THEN append_step1I])
   next case appR thus ?case
      apply auto
      apply (drule App_eq_foldl_conv [THEN iffD1])
-     apply (split split_if_asm)
+     apply (split if_split_asm)
       apply simp
       close blast
      by (clarify, auto 0 3 del: exI intro!: exI intro: append_step1I)
@@ -596,7 +596,7 @@ lemma permute_id [simp]:
     and "\<theta> \<bullet> Lam[y]. lam.Var y = Lam[y]. lam.Var y" (is ?thesis2)
 apply auto
 apply (smt abs_fun_pi alpha' at_name_inst fresh_atm lam.fresh(1) lam.perm(1) pt_name_inst swap_simps(2))
-by (simp add: TypedLambdaNominal.name_prm_name_def alpha fresh_atm lam.inject(3) name_prm_name.simps(2) swap_simps(2))
+by (simp add: TypedLambdaNominal.name_prm_name_def alpha fresh_atm lam.inject(3))
 
 lemma id_undefined: 
   assumes "NO_MATCH undefined y"
@@ -634,7 +634,7 @@ case (Var i n)
       by (rule fresh_list')
   qed
 next case (Abs p)
-  def y == "fresh_name n" 
+  define y where "y == fresh_name n" 
   have "dB_to_lam n (Abs p) = Lam [y].dB_to_lam (y#n) p"
     by (simp add: Let_def y_def)
   also have "x \<sharp> \<dots>"
@@ -736,7 +736,7 @@ lemma typ_pres:
   "E \<turnstile> p : T \<Longrightarrow> distinct names \<Longrightarrow> nclosed (length names) p \<Longrightarrow> env_conv E names \<turnstile> dB_to_lam names p : typ_conv T"
 proof (induction E p T arbitrary: names and names rule:typing.induct)
 case (Abs E T p U) 
-  def x == "fresh_name names"
+  define x where "x == fresh_name names"
   (* obtain x::name where x_fresh: "x \<sharp> names" apply atomize_elim apply (rule exists_fresh') by (finite_guess) *)
   have x_fresh: "x \<sharp> names"
     by (simp add: fresh_name x_def)
@@ -783,8 +783,7 @@ proof (induction p arbitrary: \<theta> n)
 case App thus ?case by auto
 next case Var show ?case by (auto simp: perm_nth id_undefined perm_bool lam.inject)
 next case (Abs p) 
-  def y == "fresh_name n"
-  def x == "fresh_name (\<theta> \<bullet> n)"
+  define y x where "y == fresh_name n" and "x == fresh_name (\<theta> \<bullet> n)"
   have fresh_x1: "x \<sharp> \<theta> \<bullet> n" unfolding x_def by (rule fresh_name)
   have simp1: "[(x, \<theta> \<bullet> y)] \<bullet> \<theta> \<bullet> n = \<theta> \<bullet> n"
     by (simp add: fresh_bij fresh_x1 perm_fresh_fresh typed_lambda.fresh_name y_def)
@@ -804,14 +803,14 @@ qed
 lemma lift_translate: 
   "dB_to_lam (x#n) (lift t 0) = dB_to_lam n t"
 proof -
-  def m == "[] :: name list"
+  define m where "m == [] :: name list"
   have "dB_to_lam (m@x#n) (lift t (length m)) = dB_to_lam (m@n) t"
   proof (induction t arbitrary: x m)  
   case (Abs t)
-    def y == "fresh_name (m @ x # n)"
+    define y where "y == fresh_name (m @ x # n)"
     hence "y \<sharp> (m@x#n)" by (simp add: fresh_name)
     hence "y \<sharp> m" and "y \<sharp> x" and "y \<sharp> n" by (auto simp: fresh_list_cons fresh_list_append)
-    def y' == "fresh_name (m @ n)"
+    define y' where "y' == fresh_name (m @ n)"
 
     have ym: "[(y, y')] \<bullet> m = m"
       using \<open>y \<sharp> m\<close> fresh_list_append perm_fresh_fresh typed_lambda.fresh_name y'_def by fastforce
@@ -838,19 +837,19 @@ lemma subst_translate:
   shows "(dB_to_lam (x#n) p)[x::=dB_to_lam n t] = dB_to_lam n (subst p t 0)" (is ?thesis2)
 proof -
 
-  def m == "[] :: name list"
+  define m where "m == [] :: name list"
   have distinct: "distinct (m@x#n)" unfolding m_def using assms by simp
   have "dB_to_lam (m@x#n) p[x::=dB_to_lam (m@n) t] = dB_to_lam (m@n) (subst p t (length m))"
   using distinct proof (induction p arbitrary: m t)
   next case (Abs q) 
-    def y == "fresh_name (m@x#n)"
+    define y where "y == fresh_name (m@x#n)"
     hence "y \<sharp> (m@x#n)" using typed_lambda.fresh_name by auto
     hence "y \<sharp> m" and "y\<sharp>x" and "y\<sharp>n"
       by (auto simp: fresh_list_append fresh_list_cons)
     hence "y \<sharp> (m@n)" by (simp add: fresh_list_append)
     have fresh_y: "y \<sharp> [(x, dB_to_lam (m @ n) t)]"                  
       using `y\<sharp>x` `y\<sharp>(m@n)` by (auto simp: fresh_list_cons fresh_prod fresh_list_nil intro!: fresh_dB_to_lam)
-    def y' == "fresh_name (m@n)"
+    define y' where "y' == fresh_name (m@n)"
     hence "y' \<sharp> (m@n)" using fresh_name by auto
     hence "y' \<sharp> m" and "y' \<sharp> n"      by (auto simp: fresh_list_append)
     have fresh_y': "y\<noteq>y' \<Longrightarrow> y' \<sharp> dB_to_lam (y # m @ n) (q[lift t 0/Suc (length m)])"
@@ -905,7 +904,7 @@ lemma translate_beta:
   shows "(dB_to_lam n p) \<longrightarrow>\<^sub>\<beta> (dB_to_lam n q)"
 using assms proof (induction arbitrary: n)
 case (beta s t) 
-  def x == "fresh_name n"
+  define x where "x == fresh_name n"
   have "x \<sharp> n" unfolding x_def by (rule fresh_name)
   have "dB_to_lam n (Abs s \<degree> t) = lam.App (Lam [x].dB_to_lam (x#n) s) (dB_to_lam n t)"
     by (simp add: Let_def x_def)
@@ -932,7 +931,7 @@ lemma nclosed_lift: assumes "nclosed n t" shows "nclosed (Suc n) (lift t i)"
   using assms apply (induction t arbitrary: n i) by auto
 lemma nclosed_subst: assumes "nclosed (Suc n) s" and "nclosed n t" shows "nclosed n (s[t::dB/0])"
 proof -
-  def i == "0::nat"
+  define i where "i == 0::nat"
   hence i_n: "i \<le> n" by simp
   show ?thesis
     unfolding i_def[symmetric] using assms i_n
@@ -948,13 +947,13 @@ proof -
     apply (tactic {* distinct_subgoals_tac *})
    using nat_le_linear close blast 
   using Suc_n_not_le_n nat_le_linear by blast
-  def n == "fresh_names i"
+  define n where "n == fresh_names i"
   have distinct_n: "distinct n"
     unfolding n_def by (rule distinct_fresh_names) 
   have length_n: "length n = i"
     by (simp add: n_def typed_lambda.length_fresh_names)
 
-  def lam_p == "dB_to_lam n p"
+  define lam_p where "lam_p == dB_to_lam n p"
   have sn: "SN lam_p"
     unfolding lam_p_def
     apply (rule typing_implies_SN)

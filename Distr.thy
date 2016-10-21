@@ -491,7 +491,7 @@ lemma ennreal_weight_point_distr [simp]: "ennreal_probability (point_distr a) UN
 lemma weight_point_distr [simp]: "weight_distr (point_distr a) = 1"
   unfolding probability_def by simp
 
-lemma ennreal_Rep_point_distr [simp]: "ennreal_Rep_distr (point_distr a) x = (if x=a then 1 else 0)"
+lemma ennreal_Rep_point_distr [simp]: "ennreal_Rep_distr (point_distr a) = (\<lambda>x. (if x=a then 1 else 0))"
   unfolding point_distr_def
   apply (subst ennreal_Abs_distr_inverse)
   by auto
