@@ -851,7 +851,7 @@ theorem newman:
       and "R\<^sup>*\<^sup>* a c"
   shows "\<exists>d. R\<^sup>*\<^sup>* b d \<and> R\<^sup>*\<^sup>* c d"
 proof -
-  def S == "\<lambda>x y. R x y \<and> termip R x"
+  define S where "S \<equiv> \<lambda>x y. R x y \<and> termip R x"
   have termipRS: "termip R \<le> termip S"
     by (rule accp_subset, auto simp: S_def)
   note le_fun_def[simp]
@@ -910,7 +910,7 @@ lemma well_typed_lift_proc: (* TODO: cleanup statement *)
   shows "well_typed'' (F@E) p' \<Longrightarrow> well_typed'' (F@U#E) (lift_proc_in_prog p' (length F))" (is "PROP ?thesis1")
     and "well_typed_proc'' (F@E) p T \<Longrightarrow> well_typed_proc'' (F@U#E) (lift_proc p (length F)) T" (is "PROP ?thesis2")
 proof -
-  def FE=="F@E"
+  define FE where "FE \<equiv> F@E"
   have "well_typed'' FE p' \<Longrightarrow> FE=F@E \<Longrightarrow> well_typed'' (F@U#E) (lift_proc_in_prog p' (length F))"
    and "well_typed_proc'' FE p T \<Longrightarrow> FE=F@E \<Longrightarrow> well_typed_proc'' (F@U#E) (lift_proc p (length F)) T"
   proof (induction arbitrary: F E and F E rule:well_typed''_well_typed_proc''.inducts)
@@ -953,7 +953,7 @@ lemma well_typed_subst_proc:
   shows "well_typed'' (F@U#E) p' \<Longrightarrow> well_typed'' (F@E) (subst_proc_in_prog (length F) q p')" (is "PROP?thesis1")
     and "well_typed_proc'' (F@U#E) p T \<Longrightarrow> well_typed_proc'' (F@E) (subst_proc (length F) q p) T" (is "PROP?thesis2")
 proof -
-  def FUE=="F@U#E"
+  define FUE where "FUE \<equiv> F@U#E"
   have "well_typed'' FUE p' \<Longrightarrow> FUE=F@U#E \<Longrightarrow> well_typed_proc'' (F@E) q U \<Longrightarrow> well_typed'' (F@E) (subst_proc_in_prog (length F) q p')"
    and "well_typed_proc'' FUE p T \<Longrightarrow> FUE=F@U#E \<Longrightarrow> well_typed_proc'' (F@E) q U \<Longrightarrow> well_typed_proc'' (F@E) (subst_proc (length F) q p) T"
   proof (induction arbitrary: q F E and q F E rule:well_typed''_well_typed_proc''.inducts)
@@ -1558,7 +1558,7 @@ proof -
   with red_unpair have False unfolding beta_reduced_def by metis
   } note unpair = this
 
-  def E=="[]::procedure_type_open list"
+  define E where "E \<equiv> []::procedure_type_open list"
   show False
     apply (insert red, insert p, insert E_def) using wt[folded E_def]
     apply (induction arbitrary: p1 p2 b taking: "\<lambda>x y. True", auto)
@@ -1598,8 +1598,8 @@ lemma well_typed''_well_typed:
   shows "well_typed'' [] p' \<Longrightarrow> beta_reduced' p' \<Longrightarrow> well_typed p'"
     and "well_typed_proc'' [] p (ProcTSimple T) \<Longrightarrow> beta_reduced p \<Longrightarrow> well_typed_proc p"
 proof -
-  def E == "[]::procedure_type_open list"
-  def T' == "ProcTSimple T"
+  define E where "E \<equiv> []::procedure_type_open list"
+  define T' where "T' \<equiv> ProcTSimple T"
   have "well_typed'' E p' \<Longrightarrow> E=[] \<Longrightarrow> beta_reduced' p' \<Longrightarrow> well_typed p'"
    and "well_typed_proc'' E p T' \<Longrightarrow> E=[] \<Longrightarrow> T'=ProcTSimple T \<Longrightarrow> beta_reduced p \<Longrightarrow> well_typed_proc p"
   proof (induction arbitrary: and T rule:well_typed''_well_typed_proc''.inducts)

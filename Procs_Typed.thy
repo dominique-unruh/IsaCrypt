@@ -322,7 +322,7 @@ proof -
   let ?x = "procedure_functor_mk_untyped x"
   let ?y = "procedure_functor_mk_untyped y"
   let ?z = "procedure_functor_mk_untyped z"
-  def Sx == "procfun_S <$> x"
+  define Sx where "Sx \<equiv> procfun_S <$> x"
   have Sx: "procedure_functor_mk_untyped Sx
           = beta_reduce (ProcAbs (ProcAbs (ProcAppl (ProcAppl ?x (ProcRef 0))
                (ProcAppl (ProcRef 1) (ProcRef 0)))))"
@@ -339,7 +339,7 @@ proof -
       apply (auto simp: wt_ProcAbs_iff wt_ProcAppl_iff wt_ProcRef_iff del: exI intro!: exI) 
      by (rule procedure_functor_welltyped[of x, simplified])
 
-   def Sxy == "Sx <$> y"
+   define Sxy where "Sxy \<equiv> Sx <$> y"
    have Sxy: "procedure_functor_mk_untyped Sxy 
             = beta_reduce (ProcAbs (ProcAppl (ProcAppl ?x (ProcRef 0)) (ProcAppl ?y (ProcRef 0))))"
     unfolding procfun_apply_def Sxy_def
@@ -362,7 +362,7 @@ proof -
       close (rule procedure_functor_welltyped'[of _ x, simplified])
      by (rule procedure_functor_welltyped[of y, simplified])
 
-   def Sxyz == "Sxy <$> z"
+   define Sxyz where "Sxyz \<equiv> Sxy <$> z"
    have Sxyz: "procedure_functor_mk_untyped Sxyz 
             = beta_reduce (ProcAppl (ProcAppl ?x ?z) (ProcAppl ?y ?z))"
     unfolding procfun_apply_def Sxyz_def procedure_functor_mk_typed_def 
@@ -386,7 +386,7 @@ proof -
       close (rule procedure_functor_welltyped'[of _ y, simplified])
      by (rule procedure_functor_welltyped[of z, simplified])
     
-  def xz == "x <$> z"
+  define xz where "xz \<equiv> x <$> z"
   have xz: "procedure_functor_mk_untyped xz = beta_reduce (ProcAppl ?x ?z)"
     unfolding procfun_apply_def xz_def procedure_functor_mk_typed_def apply_procedure_def
     apply simp
@@ -396,7 +396,7 @@ proof -
      close (rule procedure_functor_welltyped[of x, simplified])
     by (rule procedure_functor_welltyped[of z, simplified])
     
-  def yz == "y <$> z"
+  define yz where "yz \<equiv> y <$> z"
   have yz: "procedure_functor_mk_untyped yz = beta_reduce (ProcAppl ?y ?z)"
     unfolding procfun_apply_def yz_def procedure_functor_mk_typed_def apply_procedure_def
     apply simp
@@ -406,7 +406,7 @@ proof -
      close (rule procedure_functor_welltyped[of y, simplified])
     by (rule procedure_functor_welltyped[of z, simplified])
   
-  def xzyz == "xz <$> yz"
+  define xzyz where "xzyz \<equiv> xz <$> yz"
   have xzyz: "procedure_functor_mk_untyped xzyz 
             = beta_reduce (ProcAppl (ProcAppl ?x ?z) (ProcAppl ?y ?z))"
     unfolding procfun_apply_def procedure_functor_mk_typed_def apply_procedure_def xzyz_def

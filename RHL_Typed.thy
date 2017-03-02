@@ -236,8 +236,8 @@ lemma rtrans3_rule:
       and rhl3: "hoare {P3 &1 &2} \<guillemotleft>c3\<guillemotright> ~ \<guillemotleft>c4\<guillemotright> {Q3 &1 &2}"
   shows "hoare {P &1 &2} \<guillemotleft>c1\<guillemotright> ~ \<guillemotleft>c4\<guillemotright> {Q &1 &2}"
 proof -
-  def Q12 == "\<lambda>m1 m'. \<exists>m. Q1 m1 m \<and> Q2 m m'"
-  def P12 == "\<lambda>m1 m'. \<exists>m. P1 m1 m \<and> P2 m m'"
+  define Q12 where "Q12 \<equiv> \<lambda>m1 m'. \<exists>m. Q1 m1 m \<and> Q2 m m'"
+  define P12 where "P12 \<equiv> \<lambda>m1 m'. \<exists>m. P1 m1 m \<and> P2 m m'"
   have rhl12: "rhoare P12 c1 c3 Q12"
     apply (rule rtrans_rule[OF _ _ rhl1 rhl2])
     unfolding P12_def Q12_def by auto
@@ -408,17 +408,17 @@ proof -
     unfolding GL_def filter_local_def by auto
   have fg_GL: "\<And>X. filter_global X = X \<inter> GL"
     unfolding GL_def filter_global_def by auto*)
-  def body' \<equiv> "Rep_program (p_body p)"
-  def pargs' \<equiv> "Rep_pattern (p_arg p)"
-  def ret' \<equiv> "mk_expression_untyped (p_return p)"
-  def p' \<equiv>  "Proc body' pargs' ret'"
+  define body' where "body' \<equiv> Rep_program (p_body p)"
+  define pargs' where "pargs' \<equiv> Rep_pattern (p_arg p)"
+  define ret' where "ret' \<equiv> mk_expression_untyped (p_return p)"
+  define p' where "p' \<equiv> Proc body' pargs' ret'"
   have p': "mk_procedure_untyped p = p'"
     unfolding mk_procedure_untyped_def p'_def body'_def pargs'_def ret'_def ..
-  def x' \<equiv> "Rep_pattern x"
-  def args' \<equiv> "mk_expression_untyped args"
+  define x' where "x' \<equiv> Rep_pattern x"
+  define args' where "args' \<equiv> mk_expression_untyped args"
   have callproc: "Rep_program (callproc x p args) == CallProc x' p' args'"
     unfolding Rep_callproc x'_def[symmetric] p' args'_def[symmetric] by assumption
-  def unfolded' \<equiv> "Seq (Seq (Seq (Assign pargs' args') (assign_default non_parg_locals)) body')
+  define unfolded' where "unfolded' \<equiv> Seq (Seq (Seq (Assign pargs' args') (assign_default non_parg_locals)) body')
                            (Assign x' ret')"
   have assign: "Rep_program (assign_default_typed locals) == assign_default locals"
       unfolding assign_default_typed_def 
@@ -471,10 +471,10 @@ lemma callproc_rule_renamed:
                                      (assign x (rename_local_variables_expression renaming ret))"
   shows "obs_eq' V (callproc x p args) unfolded"
 proof -
-  def body' == "p_body (rename_local_variables_proc renaming p)"
-  def ret' == "p_return (rename_local_variables_proc renaming p)"
-  def pargs' == "p_arg (rename_local_variables_proc renaming p)"
-  def unfolded' == "seq (seq (seq (assign pargs' args) (assign_default_typed non_parg_locals)) body') (assign x ret')"
+  define body' where "body' \<equiv> p_body (rename_local_variables_proc renaming p)"
+  define ret' where "ret' \<equiv> p_return (rename_local_variables_proc renaming p)"
+  define pargs' where "pargs' \<equiv> p_arg (rename_local_variables_proc renaming p)"
+  define unfolded' where "unfolded' \<equiv> seq (seq (seq (assign pargs' args) (assign_default_typed non_parg_locals)) body') (assign x ret')"
   have filter_renaming: "\<And>X. filter_local (local_variable_name_renaming renaming ` X) = local_variable_name_renaming renaming ` filter_local X"
     unfolding filter_local_def using local_variable_name_renaming_global by auto
   have "unfolded = unfolded'"
@@ -585,7 +585,7 @@ lemma obseq_context_seq:
   assumes "obseq_context X C2"
   shows "obseq_context X (\<lambda>c. seq (C1 c) (C2 c))"
 proof -
-  def eq == "\<lambda>(m1::memory) m2::memory. \<forall>x::variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  define eq where "eq \<equiv> \<lambda>(m1::memory) m2::memory. \<forall>x::variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   note eq = eq_def[symmetric]
   {fix c d assume rh: "rhoare eq c d eq"
   have "rhoare eq (seq (C1 c) (C2 c)) (seq (C1 d) (C2 d)) eq"
@@ -604,7 +604,7 @@ lemma obseq_context_ifte:
   assumes vars: "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. ifte e (C1 c) (C2 c))"
 proof -
-  def eq == "\<lambda>(m1::memory) m2::memory. \<forall>x::variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  define eq where "eq \<equiv> \<lambda>(m1::memory) m2::memory. \<forall>x::variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   have foot: "\<And>m1 m2. eq m1 m2 \<Longrightarrow> e_fun e m1 = e_fun e m2" unfolding eq_def apply (rule e_fun_footprint) using vars by auto
   note eq = eq_def[symmetric]
   {fix c d assume rh: "rhoare eq c d eq"
@@ -626,7 +626,7 @@ lemma obseq_context_while:
   assumes vars: "set (e_vars e) \<subseteq> X"
   shows "obseq_context X (\<lambda>c. Lang_Typed.while e (C1 c))"
 proof -
-  def eq == "\<lambda>m1 m2::memory. \<forall>x::variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  define eq where "eq \<equiv> \<lambda>m1 m2::memory. \<forall>x::variable_untyped\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   have foot: "\<And>m1 m2. eq m1 m2 \<Longrightarrow> e_fun e m1 = e_fun e m2" unfolding eq_def apply (rule e_fun_footprint) using vars by auto
   note eq = eq_def[symmetric]
   {fix c d assume rh: "rhoare eq c d eq"
@@ -773,9 +773,9 @@ lemma seq_swap2:
   assumes "set (vars b) \<inter> set (write_vars a) = {}"
   shows "denotation (seq a b) = denotation (seq b a)"
 proof -
-  def A == "set(vars a)"
-  def B == "set(vars b)"
-  def R == "UNIV - set(write_vars a) - set(write_vars b)"
+  define A where "A \<equiv> set(vars a)"
+  define B where "B \<equiv> set(vars b)"
+  define R where "R \<equiv> UNIV - set(write_vars a) - set(write_vars b)"
   have "program_readonly R a"
     using R_def denotation_readonly_def program_readonly_def program_readonly_write_vars by (auto,blast) 
   moreover have "program_readonly R b"
@@ -816,11 +816,11 @@ case (1 m1 m2)
         if "v\<in>V1" for v 
     using that by auto
   from 1 have e1e2: "e_fun e1 m1 = e_fun e2 m2" by simp
-  def argval == "e_fun e1 m1"
-  def m1a == "init_locals m1"
-  def m1b == "memory_update_pattern m1a (p_arg f) argval"
-  def m2a == "init_locals m2"
-  def m2b == "memory_update_pattern m2a (p_arg f) argval"
+  define argval where "argval \<equiv> e_fun e1 m1"
+  define m1a where "m1a \<equiv> init_locals m1"
+  define m1b where "m1b \<equiv> memory_update_pattern m1a (p_arg f) argval"
+  define m2a where "m2a \<equiv> init_locals m2"
+  define m2b where "m2b \<equiv> memory_update_pattern m2a (p_arg f) argval"
 
   have eq_m12a: "memory_lookup_untyped m1a v = memory_lookup_untyped m2a v" if "v\<in>V1" for v 
     using that eq_m1_m2 by (simp add: Rep_init_locals m1a_def m2a_def)
@@ -835,7 +835,7 @@ case (1 m1 m2)
 (*   have "memory_lookup_untyped m1b v = memory_lookup_untyped m2b v" if "v \<in> set(p_vars(p_arg f))" for v 
     using that by auto *)
 
-  def V1loc == "V1 \<union> {x. \<not> vu_global x}"
+  define V1loc where "V1loc \<equiv> V1 \<union> {x. \<not> vu_global x}"
 
   have vars_V1loc: "set(vars(p_body f)) \<subseteq> V1loc"
     using globals_V1 unfolding vars_proc_global_def V1loc_def by auto
@@ -854,9 +854,9 @@ case (1 m1 m2)
     unfolding obs_eq_def rhoare_def
     using eq_m12b by blast 
 
-  def finalize == "\<lambda>m x. \<lambda>m'. let res = e_fun (p_return f) m'; m' = restore_locals m m' in memory_update_pattern m' x res"
+  define finalize where "finalize \<equiv> \<lambda>m x. \<lambda>m'. let res = e_fun (p_return f) m'; m' = restore_locals m m' in memory_update_pattern m' x res"
 
-  def \<mu>' == "apply_to_distr (\<lambda>(m1',m2'). (finalize m1 x1 m1', finalize m2 x2 m2')) \<mu>"
+  define \<mu>' where "\<mu>' \<equiv> apply_to_distr (\<lambda>(m1',m2'). (finalize m1 x1 m1', finalize m2 x2 m2')) \<mu>"
 
   have "apply_to_distr fst \<mu>' = apply_to_distr (\<lambda>m1'. finalize m1 x1 m1') (apply_to_distr fst \<mu>)"
     unfolding \<mu>'_def by (simp add: split_def)
@@ -901,9 +901,9 @@ case (1 m1 m2)
 
     show "memory_lookup_untyped m1' x = memory_lookup_untyped m2' x" if "x\<in>V2" for x
     proof -
-      def ret == "e_fun (p_return f) m1''"
-      def m1l == "restore_locals m1 m1''"
-      def m2l == "restore_locals m2 m2''"
+      define ret where "ret \<equiv> e_fun (p_return f) m1''"
+      define m1l where "m1l \<equiv> restore_locals m1 m1''"
+      define m2l where "m2l \<equiv> restore_locals m2 m2''"
       have "m1' = memory_update_pattern m1l x1 ret"
         unfolding ret_def m1' finalize_def m1l_def by auto
       have "m2' = memory_update_pattern m2l x2 ret"
@@ -978,17 +978,17 @@ proof -
 - Show:  rhoare    A     (p; callproc x=f(y))   B    (seq with assm)
 
 *)
-  def P' == "\<lambda>m1 m2. P (memory_update m1 args1 (e_fun y1 m1)) (memory_update m2 args2 (e_fun y2 m2))"
-  def x1l == "list_pattern_untyped (p_vars x1)"
-  def x2l == "list_pattern_untyped (p_vars x2)"
-  def Q' == "\<lambda>m1 m2. (\<exists>res1_val res2_val x1_val x2_val. 
+  define P' where "P' \<equiv> \<lambda>m1 m2. P (memory_update m1 args1 (e_fun y1 m1)) (memory_update m2 args2 (e_fun y2 m2))"
+  define x1l where "x1l \<equiv> list_pattern_untyped (p_vars x1)"
+  define x2l where "x2l \<equiv> list_pattern_untyped (p_vars x2)"
+  define Q' where "Q' \<equiv> \<lambda>m1 m2. (\<exists>res1_val res2_val x1_val x2_val. 
       memory_update_pattern m1 x1 res1_val = m1 \<and> memory_update_pattern m2 x2 res2_val = m2 \<and>
       Q (memory_update (memory_update_untyped_pattern m1 x1l x1_val) res1 res1_val) (memory_update (memory_update_untyped_pattern m2 x2l x2_val) res2 res2_val))"
 
-  def VV1 == "- {mk_variable_untyped args1}"
-  def VV2 == "UNIV - {mk_variable_untyped args1, mk_variable_untyped res1} - set(p_vars x1)"
-  def VV1' == "- {mk_variable_untyped args2}"
-  def VV2' == "UNIV - {mk_variable_untyped args2, mk_variable_untyped res2} - set(p_vars x2)"
+  define VV1 where "VV1 \<equiv> - {mk_variable_untyped args1}"
+  define VV2 where "VV2 \<equiv> UNIV - {mk_variable_untyped args1, mk_variable_untyped res1} - set(p_vars x1)"
+  define VV1' where "VV1' \<equiv> - {mk_variable_untyped args2}"
+  define VV2' where "VV2' \<equiv> UNIV - {mk_variable_untyped args2, mk_variable_untyped res2} - set(p_vars x2)"
 
   have y1_VV1: "mk_variable_untyped (args1::'y1 variable) \<notin> VV1" unfolding VV1_def by simp
   have vv1_1: "set (vars_proc_global f1) \<subseteq> VV1" unfolding VV1_def using args1_nin_f1 by auto
@@ -1037,10 +1037,10 @@ proof -
        and x1_res: "memory_pattern_related x1 (variable_pattern res1) m1 m"
        and "Q m m'" for m1 m2 m m'
   proof -
-    def res1_val == "memory_lookup m res1 :: 'x1"
-    def res2_val == "memory_lookup m' res2 :: 'x2"
-    def x1_val == "eu_fun (list_expression_untyped (p_vars x1)) m"
-    def x2_val == "eu_fun (list_expression_untyped (p_vars x2)) m'"
+    define res1_val where "res1_val \<equiv> memory_lookup m res1 :: 'x1"
+    define res2_val where "res2_val \<equiv> memory_lookup m' res2 :: 'x2"
+    define x1_val where "x1_val \<equiv> eu_fun (list_expression_untyped (p_vars x1)) m"
+    define x2_val where "x2_val \<equiv> eu_fun (list_expression_untyped (p_vars x2)) m'"
 
     from x1_res
     obtain v where x1_v: "m1 = memory_update_pattern m1 x1 v" and res_v: "m = memory_update_pattern m (variable_pattern res1) v"
@@ -1140,8 +1140,8 @@ proof -
                   (memory_update (memory_update_untyped_pattern m2 x2l x2_val) res2 res2_val)"
       unfolding Q'_def by auto
 
-    def gL == "eu_fun (list_expression_untyped globals_f1) m1"
-    def gR == "eu_fun (list_expression_untyped globals_f2) m2"
+    define gL where "gL \<equiv> eu_fun (list_expression_untyped globals_f1) m1"
+    define gR where "gR \<equiv> eu_fun (list_expression_untyped globals_f2) m2"
     have gL_type: "gL \<in> t_domain (pu_type (list_pattern_untyped globals_f1))"
       by (metis eu_fun_type gL_def type_list_expression_list_pattern)
     have gR_type: "gR \<in> t_domain (pu_type (list_pattern_untyped globals_f2))"
@@ -1187,7 +1187,7 @@ lemma callproc_split_args_equiv:
   assumes xX: "mk_variable_untyped x \<notin> X"
   shows "obs_eq X Y (callproc p f e) (seq (assign (variable_pattern x) e) (callproc p f (var_expression x)))"
 proof -
-  def Y' == "Y - set (p_vars p)"
+  define Y' where "Y' \<equiv> Y - set (p_vars p)"
 
   have callproc_eq: "hoare {(\<forall>x\<in>X. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x) \<and> e_fun e &1 = e_fun (var_expression x) &2}
     \<guillemotleft>callproc p f e\<guillemotright> ~ \<guillemotleft>callproc p f (var_expression x)\<guillemotright> {(\<forall>v\<in>Y'. memory_lookup_untyped &1 v = memory_lookup_untyped &2 v)
@@ -1231,7 +1231,7 @@ lemma callproc_split_result_equiv:
   assumes xY: "mk_variable_untyped x \<notin> Y"
   shows "obs_eq X Y (callproc p f e) (seq (callproc (variable_pattern x) f e) (assign p (var_expression x)))"
 proof -
-  def Y' == "Y - set (p_vars p)"
+  define Y' where "Y' \<equiv> Y - set (p_vars p)"
   have callproc_eq: "hoare {(\<forall>x\<in>X. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x) \<and> e_fun e &1 = e_fun e &2}
     \<guillemotleft>callproc p f e\<guillemotright> ~ \<guillemotleft>callproc (variable_pattern x) f e\<guillemotright> {(\<forall>v\<in>Y'. memory_lookup_untyped &1 v = memory_lookup_untyped &2 v)
                       \<and> memory_pattern_related p (variable_pattern x) &1 &2}"

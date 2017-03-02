@@ -153,7 +153,7 @@ instance proof
   obtain i2::"val set\<Rightarrow>val" where i2inj: "inj_on i2 (Pow (val_powertower n))" 
                                        and i2rng: "i2 ` Pow(val_powertower n) \<subseteq> val_powertower (Suc n)"
     using val_powertower by blast
-  def i3 == "\<lambda>s::'a set. i2 (embedding ` s)"
+  define i3 where "i3 \<equiv> \<lambda>s::'a set. i2 (embedding ` s)"
   have "inj i3"
   proof (rule injI, unfold i3_def)
     fix x y :: "'a set"
@@ -344,7 +344,7 @@ end
 instance proof (intro_classes, cases "\<exists>i::'a\<Rightarrow>'b. inj i")
 case True
   then obtain i::"'a\<Rightarrow>'b" where "inj i" by auto
-  def i2 == "\<lambda>x::'a+'b. case x of Inl a \<Rightarrow> {{i a}} | Inr b \<Rightarrow> {{b},{}}"
+  define i2 where "i2 \<equiv> \<lambda>x::'a+'b. case x of Inl a \<Rightarrow> {{i a}} | Inr b \<Rightarrow> {{b},{}}"
   have "inj i2" apply (rule injI) unfolding i2_def 
     apply (case_tac x, case_tac y, auto)
     apply (metis `inj i` inj_eq)
@@ -356,7 +356,7 @@ case True
 next 
 case False
   with ordered_cardinals obtain i::"'b\<Rightarrow>'a" where "inj i" by auto
-  def i2 == "\<lambda>x::'a+'b. case x of Inl a \<Rightarrow> {{a},{}} | Inr b \<Rightarrow> {{i b}}"
+  define i2 where "i2 \<equiv> \<lambda>x::'a+'b. case x of Inl a \<Rightarrow> {{a},{}} | Inr b \<Rightarrow> {{i b}}"
   have "inj i2" apply (rule injI) unfolding i2_def 
     apply (case_tac x, case_tac y, auto)
     apply (case_tac y, auto)

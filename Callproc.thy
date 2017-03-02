@@ -15,7 +15,7 @@ lemma callproc_split_args:
 proof -
   let ?x1 = "mk_variable_untyped x1"
   let ?x2 = "mk_variable_untyped x2"
-  def eq == "\<lambda>X m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  define eq where "eq \<equiv> \<lambda>X m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   have aux: "(\<lambda>mem1 mem2. eq X mem2 mem1) = (eq X)" for X unfolding eq_def by force
 
   have "rhoare (eq (-{?x1})) (callproc p1 f1 e1) (seq (assign (variable_pattern x1) e1) (callproc p1 f1 (var_expression x1))) (eq (-{?x1}))"
@@ -63,7 +63,7 @@ lemma callproc_split_result:
 proof -
   let ?x1 = "mk_variable_untyped x1"
   let ?x2 = "mk_variable_untyped x2"
-  def eq == "\<lambda>X m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  define eq where "eq \<equiv> \<lambda>X m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   have aux: "(\<lambda>mem1 mem2. eq X mem2 mem1) = (eq X)" for X unfolding eq_def by force
 
   have "rhoare (eq UNIV) (callproc p1 f1 e1) (seq (callproc (variable_pattern x1) f1 e1) (assign p1 (var_expression x1))) (eq (-{?x1}))"
@@ -126,8 +126,8 @@ lemma call_rule_abstract:
   shows "rhoare A (seq p1 (callproc (variable_pattern x1) f (var_expression y1))) 
                   (seq p2 (callproc (variable_pattern x2) f (var_expression y2))) B"
 proof -
-  def Q == "\<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res}. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
-  def QB == "\<lambda>m1 m2. (\<forall>gL gR xL xR x'L x'R. gL \<in> t_domain (pu_type (list_pattern_untyped globals_f)) \<longrightarrow>
+  define Q where "Q \<equiv> \<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped res}. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
+  define QB where "QB \<equiv> \<lambda>m1 m2. (\<forall>gL gR xL xR x'L x'R. gL \<in> t_domain (pu_type (list_pattern_untyped globals_f)) \<longrightarrow>
                  gR \<in> t_domain (pu_type (list_pattern_untyped globals_f)) \<longrightarrow>
                      Q (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) gL) (list_pattern_untyped (p_vars (variable_pattern x1))) x'L) res xL)
                        (memory_update (memory_update_untyped_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) gR) (list_pattern_untyped (p_vars (variable_pattern x2))) x'R) res xR)
@@ -135,9 +135,9 @@ proof -
                      (memory_update_untyped_pattern m1 (list_pattern_untyped globals_f) gL) (variable_pattern x1) xL)
                   (memory_update_pattern (memory_update_untyped_pattern m2 (list_pattern_untyped globals_f) gR)
                     (variable_pattern x2) xR))"
-  def P == "\<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped args}.
+  define P where "P \<equiv> \<lambda>m1 m2. \<forall>x\<in>set (vars_proc_global f) \<union> {mk_variable_untyped args}.
                     memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
-  def C == "\<lambda>m1 m2. P (memory_update m1 args (e_fun (var_expression y1) m1))
+  define C where "C \<equiv> \<lambda>m1 m2. P (memory_update m1 args (e_fun (var_expression y1) m1))
               (memory_update m2 args (e_fun (var_expression y2) m2)) \<and> QB m1 m2"
 
 
@@ -149,7 +149,8 @@ proof -
             (is "Q ?ml ?mr")
     for m1 m2 gL gR x'L x'R xL xR 
   proof -
-    def ml == ?ml def mr == ?mr
+    define ml where "ml \<equiv> ?ml"
+    define mr where "mr \<equiv> ?mr"
     note Q_rule = Q[unfolded Q_def, rule_format]
     note Q_rule' = Q[folded ml_def mr_def, unfolded Q_def, rule_format]
 

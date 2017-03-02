@@ -456,7 +456,7 @@ lemma SN_of_Unpair_arg:
   assumes a: "SN (Unpair True t)"
   shows "SN t"
 proof -
-  def u == "Unpair True t"
+  define u where "u \<equiv> Unpair True t"
   have "SN u" using a unfolding u_def by simp
   have u_def': "u = Unpair True t" using u_def by simp
   show "SN t"
@@ -781,7 +781,7 @@ case (App t1 t2)
     fix a::name and body::lam
     obtain a'::name where "a' \<sharp> (t2,body)"  apply atomize_elim apply (rule exists_fresh') by (finite_guess)
     hence a't2: "a' \<sharp> t2" and a'body: "a' \<sharp> body" by auto
-    def body' == "[(a, a')] \<bullet> body"
+    define body' where "body' \<equiv> [(a, a')] \<bullet> body"
     have rename: "Lam [a].body = Lam [a'].body'"
       unfolding body'_def
       by (smt a'body alpha' lam.inject(3) perm_fresh_fresh perm_swap(1))
@@ -866,7 +866,7 @@ lemma SN_len_bound:
   shows "\<exists>n. len_bound t n"
 using assms proof (induction)
 case (SN_intro t)
-  def succ == "{t'. t \<longrightarrow>\<^sub>\<beta> t'}"
+  define succ where "succ \<equiv> {t'. t \<longrightarrow>\<^sub>\<beta> t'}"
   have bounded: "\<And>t'. t' \<in> succ \<Longrightarrow> \<exists>n. len_bound t' n" using SN_intro.IH succ_def by auto
   have "finite succ" using succ_def beta_finite_branch by auto
   then obtain n where "\<And>t'. t' \<in> succ \<Longrightarrow> len_bound t' n"
@@ -893,7 +893,7 @@ proof -
     using CR1_def RED_props(1) by blast+
   from \<open>SN s\<close> obtain ns where ns: "len_bound s ns" apply atomize_elim by (rule SN_len_bound)
   from \<open>SN t\<close> obtain nt where nt: "len_bound t nt" apply atomize_elim by (rule SN_len_bound)
-  def n == "ns + nt"
+  define n where "n \<equiv> ns + nt"
 
   have fst_red: "Unpair True (MkPair s t) \<in> RED \<sigma>"
     using n_def[THEN meta_eq_to_obj_eq] ns nt s_RED
