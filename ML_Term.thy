@@ -1,4 +1,4 @@
-theory ML_Goal
+theory ML_Term
   imports Main
 begin
   
