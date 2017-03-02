@@ -1,5 +1,5 @@
 theory Misc
-imports Main
+imports Main Extended_Real_Limits Tools
 begin
 
 instantiation "fun" :: (type,zero) zero begin
@@ -64,5 +64,85 @@ instantiation prod :: (default,default) default begin
 definition "default_prod = (default,default)"
 instance by intro_classes
 end
+
+lemma SUP_multc_ennreal:
+  fixes a::"_ \<Rightarrow> ennreal"
+  assumes finite: "b < \<infinity>" and notempty: "A \<noteq> {}"
+  shows "(SUP i:A. a i*b) = (SUP i:A. a i)*b"
+proof (rule SUP_eqI)
+  fix i assume "i\<in>A"
+  hence "a i \<le> (SUP i:A. a i)"
+    by (simp add: SUP_upper)
+  thus "a i * b \<le> (SUP i:A. a i) * b"
+    by (simp add: mult_right_mono)
+next
+  fix y assume bound: "\<And>i. i \<in> A \<Longrightarrow> a i * b \<le> y"
+  show "(SUP i:A. a i) * b \<le> y" 
+  proof (cases "b=0") 
+    assume "b=0"
+    with bound notempty have "y \<ge> 0" by auto
+    with `b=0` show ?thesis by auto
+  next
+    assume "b\<noteq>0" (* with pos have pos': "b>0" *)
+      (* using gr_zeroI by blastx *)
+    define y' where "y' == y / b"
+    with bound finite `b\<noteq>0` have "\<And>i. i \<in> A \<Longrightarrow> a i \<le> y'"
+      using leD le_less_linear
+      using divide_less_ennreal by fastforce
+    hence "(SUP i:A. a i) \<le> y'" 
+      by (simp add: SUP_least)
+    thus ?thesis
+      unfolding y'_def using finite `b\<noteq>0`
+      using divide_less_ennreal leD by fastforce
+  qed
+qed
+
+lemma SUP_ennreal_mult_left:
+  fixes f :: "'a \<Rightarrow> ennreal"
+  assumes "I \<noteq> {}"
+  shows "(SUP i:I. c * f i) = c * (SUP i:I. f i)"
+    proof (cases "(SUP i: I. f i) = 0")
+  case True
+  then have "\<And>i. i \<in> I \<Longrightarrow> f i = 0"
+    by (metis SUP_upper le_zero_eq)
+  with True show ?thesis
+    by simp
+next
+  case False
+  then show ?thesis
+    apply (subst continuous_at_Sup_mono[where f="\<lambda>x. c * x"])
+        using sup_continuous_mono sup_continuous_mult_left_ennreal' close blast
+       using sup_continuous_at_left sup_continuous_mult_left_ennreal' close blast
+      using assms by auto
+qed
+
+
+lemma sums_ennreal_positive:
+  fixes f :: "nat \<Rightarrow> ennreal"
+  shows "f sums (SUP n. \<Sum>i<n. f i)"
+proof -
+  have "incseq (\<lambda>i. \<Sum>j=0..<i. f j)"
+    using add_mono
+    by (auto intro!: incseq_SucI)
+  from LIMSEQ_SUP[OF this]
+  show ?thesis unfolding sums_def
+    by (simp add: atLeast0LessThan)
+qed
+
+
+lemma suminf_ennreal_eq_SUP:
+  fixes f :: "nat \<Rightarrow> ennreal"
+  shows "(\<Sum>x. f x) = (SUP n. \<Sum>i<n. f i)"
+  using sums_ennreal_positive[of f, THEN sums_unique]
+  thm sums_ereal_positive
+  by simp
+
+
+lemma suminf_upper_ennreal:
+  fixes f :: "nat \<Rightarrow> ennreal"
+  shows "(\<Sum>n<N. f n) \<le> (\<Sum>n. f n)"
+  unfolding suminf_ennreal_eq_SUP
+  by (auto intro: complete_lattice_class.SUP_upper)
+
 
 end

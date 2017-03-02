@@ -647,6 +647,11 @@ next case (Cons x xs)
 qed  
 
 
+lemma type_list_expression_list_pattern: "eu_type (list_expression_untyped xs) = pu_type (list_pattern_untyped xs)"
+  apply (induction xs)
+   close (simp add: eu_type_const_expression_untyped)
+  by auto
+
 
 definition "kill_vars_pattern_untyped p X = Abs_pattern_untyped
   \<lparr> pur_var_getters = filter (\<lambda>(v,g). v \<notin> X) (pu_var_getters p),
@@ -1052,28 +1057,6 @@ next case (Suc n)
   qed 
 qed
 
-(* TODO move *)
-lemma sums_ennreal_positive:
-  fixes f :: "nat \<Rightarrow> ennreal"
-  shows "f sums (SUP n. \<Sum>i<n. f i)"
-proof -
-  have "incseq (\<lambda>i. \<Sum>j=0..<i. f j)"
-    using add_mono
-    by (auto intro!: incseq_SucI)
-  from LIMSEQ_SUP[OF this]
-  show ?thesis unfolding sums_def
-    by (simp add: atLeast0LessThan)
-qed
-
-
-
-(* TODO move *)
-lemma suminf_ennreal_eq_SUP:
-  fixes f :: "nat \<Rightarrow> ennreal"
-  shows "(\<Sum>x. f x) = (SUP n. \<Sum>i<n. f i)"
-  using sums_ennreal_positive[of f, THEN sums_unique]
-  thm sums_ereal_positive
-  by simp
 
 lemma denotation_untyped_While'': "ennreal_Rep_distr (denotation_untyped (While e p) m) m' =
   (\<Sum>n. ennreal_Rep_distr (denotation_untyped (While_n_exact n e p) m) m')"

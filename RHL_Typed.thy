@@ -932,13 +932,7 @@ case (1 m1 m2)
 
   from \<mu>'fst \<mu>'snd \<mu>'post \<mu>'post2 show ?case
     apply (rule_tac exI[of _ \<mu>']) by auto
-qed
-
-(* TODO move *)
-lemma type_list_expression_list_pattern: "eu_type (list_expression_untyped xs) = pu_type (list_pattern_untyped xs)"
-  apply (induction xs)
-   close (simp add: eu_type_const_expression_untyped)
-  by auto
+qed 
 
 
 

@@ -382,13 +382,6 @@ apply (rule iffalse_rule_both)
  close (rule rconseq_rule[OF _ _ assms(3)]; auto simp: assms(1))
 using assms(1) by auto
 
-  (* TODO move *)
-lemma suminf_upper_ennreal:
-  fixes f :: "nat \<Rightarrow> ennreal"
-  shows "(\<Sum>n<N. f n) \<le> (\<Sum>n. f n)"
-  unfolding suminf_ennreal_eq_SUP
-  by (auto intro: complete_lattice_class.SUP_upper)
-
   
 lemma suminf_rhoare:
   assumes rhoare: "\<And>n::nat. rhoare_denotation P (c n) (d n) Q"
@@ -1532,7 +1525,7 @@ proof (unfold obs_eq_untyped_def rhoare_untyped_rhoare_denotation, rule rhoare_d
     unfolding eq_def by simp
 qed
 
-(* TODO move to RHL_Untyped *)
+
 lemma hoare_obseq_replace_untyped:
   assumes Q: "assertion_footprint Y Q"
   assumes eq: "obs_eq_untyped X Y c d"

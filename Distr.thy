@@ -1,5 +1,5 @@
 theory Distr
-imports Main Tools "~~/src/HOL/Probability/Binary_Product_Measure" Misc
+imports Main Tools Binary_Product_Measure Misc
 begin
 
 lemma indicator_singleton: "indicator {x} y = indicator {y} x"
@@ -1346,58 +1346,6 @@ lemma apply_to_distr_compose_distr:
   shows "apply_to_distr f (compose_distr g h) = compose_distr (\<lambda>m. apply_to_distr f (g m)) h"
   by (metis (no_types, lifting) compose_distr_assoc compose_distr_cong compose_point_distr_l)
 
-(* TODO move to Misc *)
-lemma SUP_multc_ennreal:
-  fixes a::"_ \<Rightarrow> ennreal"
-  assumes finite: "b < \<infinity>" and notempty: "A \<noteq> {}"
-  shows "(SUP i:A. a i*b) = (SUP i:A. a i)*b"
-proof (rule SUP_eqI)
-  fix i assume "i\<in>A"
-  hence "a i \<le> (SUP i:A. a i)"
-    by (simp add: SUP_upper)
-  thus "a i * b \<le> (SUP i:A. a i) * b"
-    by (simp add: mult_right_mono)
-next
-  fix y assume bound: "\<And>i. i \<in> A \<Longrightarrow> a i * b \<le> y"
-  show "(SUP i:A. a i) * b \<le> y" 
-  proof (cases "b=0") 
-    assume "b=0"
-    with bound notempty have "y \<ge> 0" by auto
-    with `b=0` show ?thesis by auto
-  next
-    assume "b\<noteq>0" (* with pos have pos': "b>0" *)
-      (* using gr_zeroI by blastx *)
-    define y' where "y' == y / b"
-    with bound finite `b\<noteq>0` have "\<And>i. i \<in> A \<Longrightarrow> a i \<le> y'"
-      using leD le_less_linear
-      using divide_less_ennreal by fastforce
-    hence "(SUP i:A. a i) \<le> y'" 
-      by (simp add: SUP_least)
-    thus ?thesis
-      unfolding y'_def using finite `b\<noteq>0`
-      using divide_less_ennreal leD by fastforce
-  qed
-qed
-
-(* TODO move *)
-lemma SUP_ennreal_mult_left:
-  fixes f :: "'a \<Rightarrow> ennreal"
-  assumes "I \<noteq> {}"
-  shows "(SUP i:I. c * f i) = c * (SUP i:I. f i)"
-    proof (cases "(SUP i: I. f i) = 0")
-  case True
-  then have "\<And>i. i \<in> I \<Longrightarrow> f i = 0"
-    by (metis SUP_upper le_zero_eq)
-  with True show ?thesis
-    by simp
-next
-  case False
-  then show ?thesis
-    apply (subst continuous_at_Sup_mono[where f="\<lambda>x. c * x"])
-    using sup_continuous_mono sup_continuous_mult_left_ennreal' close blast
-    using sup_continuous_at_left sup_continuous_mult_left_ennreal' close blast
-    using assms by auto
-qed
 
 
 lemma apply_to_distr_sup:
@@ -1661,4 +1609,5 @@ lemma apply_to_distr_sum:
 using assms unfolding compose_point_distr_l[symmetric]
 by (rule compose_distr_sum_right)
 
+  
 end

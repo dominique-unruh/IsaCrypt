@@ -819,7 +819,6 @@ lemma write_vars_callproc [simp]: "write_vars (callproc x p a) = p_vars x @ writ
   unfolding write_vars_def write_vars_proc_global_def p_vars_def by (auto simp: mk_procedure_untyped_def)
 lemma write_vars_skip [simp]: "write_vars Lang_Typed.skip = []" by (simp add: write_vars_def)
 
-(* TODO move *)
 lemma write_vars_subset_vars: "set (write_vars p) \<subseteq> set (vars p)"
   by (simp add: vars_def write_vars_def write_vars_subset_vars_untyped(1))
   
