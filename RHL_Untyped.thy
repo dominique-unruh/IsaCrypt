@@ -198,7 +198,7 @@ proof (unfold rhoare_untyped_def, rule, rule, rule)
                    and wit1: "apply_to_distr snd witness = denotation_untyped c1 m1"
                    and correct: "\<forall>m1' m2'. (m1', m2') \<in> support_distr witness \<longrightarrow> Q m2' m1'"
        by (metis (mono_tags) P assms rhoare_untyped_def)
-  def witness' == "apply_to_distr (\<lambda>(x,y). (y,x)) witness"
+  define witness' where "witness' == apply_to_distr (\<lambda>(x,y). (y,x)) witness"
   have wit'1: "apply_to_distr fst witness' = denotation_untyped c1 m1"
     unfolding witness'_def wit1[symmetric] apply auto
     apply (rule cong_middle[where f=apply_to_distr])
@@ -382,122 +382,128 @@ apply (rule iffalse_rule_both)
  close (rule rconseq_rule[OF _ _ assms(3)]; auto simp: assms(1))
 using assms(1) by auto
 
+  (* TODO move *)
+lemma suminf_upper_ennreal:
+  fixes f :: "nat \<Rightarrow> ennreal"
+  shows "(\<Sum>n<N. f n) \<le> (\<Sum>n. f n)"
+  unfolding suminf_ennreal_eq_SUP
+  by (auto intro: complete_lattice_class.SUP_upper)
+
+  
 lemma suminf_rhoare:
   assumes rhoare: "\<And>n::nat. rhoare_denotation P (c n) (d n) Q"
-  assumes c': "\<And>x m m'. ereal_Rep_distr (c' m) m' = (\<Sum>n. ereal_Rep_distr (c n m) m')"
-  (* assumes c': "\<And>x m m'. (\<lambda>n. ereal_Rep_distr (c n m) m') sums (ereal_Rep_distr (c' m) m')" *)
-  assumes d': "\<And>x m m'. ereal_Rep_distr (d' m) m' = (\<Sum>n. ereal_Rep_distr (d n m) m')"
+  assumes c': "\<And>x m m'. ennreal_Rep_distr (c' m) m' = (\<Sum>n. ennreal_Rep_distr (c n m) m')"
+  (* assumes c': "\<And>x m m'. (\<lambda>n. ennreal_Rep_distr (c n m) m') sums (ennreal_Rep_distr (c' m) m')" *)
+  assumes d': "\<And>x m m'. ennreal_Rep_distr (d' m) m' = (\<Sum>n. ennreal_Rep_distr (d n m) m')"
   shows "rhoare_denotation P c' d' Q"
 proof (unfold rhoare_denotation_def, auto)
   fix m1 m2 assume P: "P m1 m2"
-  have sumpos: "\<And>\<mu> n x. 0 \<le> (\<Sum>n'<n. ereal_Rep_distr (\<mu> n') x)"  by (simp add: setsum_nonneg)
+  (* have sumpos: "\<And>\<mu> n x. 0 \<le> (\<Sum>n'<n. ennreal_Rep_distr (\<mu> n') x)"  by (simp add: sum_nonneg) *)
   obtain \<mu>n where fst: "\<And>n. apply_to_distr fst (\<mu>n n) = (c n m1)" 
               and snd: "\<And>n. apply_to_distr snd (\<mu>n n) = (d n m2)"
               and post: "\<And>n. (\<forall>m1' m2'. (m1', m2') \<in> support_distr (\<mu>n n) \<longrightarrow> Q m1' m2')"
     apply atomize_elim using assms(1)[unfolded rhoare_denotation_def, rule_format, OF P] by metis
-  have weight_\<mu>n: "\<And>n. ereal_probability (\<mu>n n) UNIV = ereal_probability (c n m1) UNIV"
-    unfolding fst[symmetric] apply (subst ereal_probability_apply_to_distr) by simp
-  have csumbound: "\<And>n. (\<integral>\<^sup>+ x. (\<Sum>n'<n. ereal_Rep_distr (c n' m1) x) \<partial>count_space UNIV) \<le> 1"
+  have weight_\<mu>n: "\<And>n. ennreal_probability (\<mu>n n) UNIV = ennreal_probability (c n m1) UNIV"
+    unfolding fst[symmetric] apply (subst ennreal_probability_apply_to_distr) by simp
+  have csumbound: "\<And>n. (\<integral>\<^sup>+ x. (\<Sum>n'<n. ennreal_Rep_distr (c n' m1) x) \<partial>count_space UNIV) \<le> 1"
   proof -
     fix n 
-    have "(\<integral>\<^sup>+x. (\<Sum>n'<n. ereal_Rep_distr (c n' m1) x) \<partial>count_space UNIV)
-        = (\<Sum>n'<n. (\<integral>\<^sup>+x. ereal_Rep_distr (c n' m1) x \<partial>count_space UNIV))"
-      by (subst nn_integral_setsum, simp_all)
-    also have "\<dots> = (\<Sum>n'<n. ereal_probability (c n' m1) UNIV)"
-      unfolding ereal_probability_def indicator_def by auto
-    also have "\<dots> \<le> (\<Sum>n'. ereal_probability (c n' m1) UNIV)"
-      by (simp add: suminf_upper)
-    also have "\<dots> = ereal_probability (c' m1) UNIV"
-      unfolding ereal_probability_def indicator_def c' apply auto
+    have "(\<integral>\<^sup>+x. (\<Sum>n'<n. ennreal_Rep_distr (c n' m1) x) \<partial>count_space UNIV)
+        = (\<Sum>n'<n. (\<integral>\<^sup>+x. ennreal_Rep_distr (c n' m1) x \<partial>count_space UNIV))"
+      by (subst nn_integral_sum, simp_all)
+    also have "\<dots> = (\<Sum>n'<n. ennreal_probability (c n' m1) UNIV)"
+      unfolding ennreal_probability_def indicator_def by auto
+    also have "\<dots> \<le> (\<Sum>n'. ennreal_probability (c n' m1) UNIV)"
+      by (simp add: suminf_upper_ennreal)
+    also have "\<dots> = ennreal_probability (c' m1) UNIV"
+      unfolding ennreal_probability_def indicator_def c' apply auto
       apply (rule nn_integral_suminf[symmetric]) by auto
     also have "\<dots> \<le> 1" by auto
     finally show "?thesis n" by assumption
   qed
-  have dsumbound: "\<And>n. (\<integral>\<^sup>+ x. (\<Sum>n'<n. ereal_Rep_distr (d n' m2) x) \<partial>count_space UNIV) \<le> 1"
+  have dsumbound: "\<And>n. (\<integral>\<^sup>+ x. (\<Sum>n'<n. ennreal_Rep_distr (d n' m2) x) \<partial>count_space UNIV) \<le> 1"
   proof -
     fix n 
-    have "(\<integral>\<^sup>+x. (\<Sum>n'<n. ereal_Rep_distr (d n' m2) x) \<partial>count_space UNIV)
-        = (\<Sum>n'<n. (\<integral>\<^sup>+x. ereal_Rep_distr (d n' m2) x \<partial>count_space UNIV))"
-      by (subst nn_integral_setsum, simp_all)
-    also have "\<dots> = (\<Sum>n'<n. ereal_probability (d n' m2) UNIV)"
-      unfolding ereal_probability_def indicator_def by auto
-    also have "\<dots> \<le> (\<Sum>n'. ereal_probability (d n' m2) UNIV)"
-      by (simp add: suminf_upper)
-    also have "\<dots> = ereal_probability (d' m2) UNIV"
-      unfolding ereal_probability_def indicator_def d' apply auto
+    have "(\<integral>\<^sup>+x. (\<Sum>n'<n. ennreal_Rep_distr (d n' m2) x) \<partial>count_space UNIV)
+        = (\<Sum>n'<n. (\<integral>\<^sup>+x. ennreal_Rep_distr (d n' m2) x \<partial>count_space UNIV))"
+      by (subst nn_integral_sum, simp_all)
+    also have "\<dots> = (\<Sum>n'<n. ennreal_probability (d n' m2) UNIV)"
+      unfolding ennreal_probability_def indicator_def by auto
+    also have "\<dots> \<le> (\<Sum>n'. ennreal_probability (d n' m2) UNIV)"
+      by (simp add: suminf_upper_ennreal)
+    also have "\<dots> = ennreal_probability (d' m2) UNIV"
+      unfolding ennreal_probability_def indicator_def d' apply auto
       apply (rule nn_integral_suminf[symmetric]) by auto
     also have "\<dots> \<le> 1" by auto
     finally show "?thesis n" by assumption
   qed
-  have \<mu>nsumbound: "\<And>n. (\<integral>\<^sup>+ x. (\<Sum>n'<n. ereal_Rep_distr (\<mu>n n') x) \<partial>count_space UNIV) \<le> 1"
+  have \<mu>nsumbound: "\<And>n. (\<integral>\<^sup>+ x. (\<Sum>n'<n. ennreal_Rep_distr (\<mu>n n') x) \<partial>count_space UNIV) \<le> 1"
   proof -
     fix n 
-    have "(\<integral>\<^sup>+x. (\<Sum>n'<n. ereal_Rep_distr (\<mu>n n') x) \<partial>count_space UNIV)
-        = (\<Sum>n'<n. (\<integral>\<^sup>+x. ereal_Rep_distr (\<mu>n n') x \<partial>count_space UNIV))"
-      by (subst nn_integral_setsum, simp_all)
-    also have "\<dots> = (\<Sum>n'<n. ereal_probability (\<mu>n n') UNIV)"
-      unfolding ereal_probability_def indicator_def by auto
-    also have "\<dots> = (\<Sum>n'<n. ereal_probability (c n' m1) UNIV)"
+    have "(\<integral>\<^sup>+x. (\<Sum>n'<n. ennreal_Rep_distr (\<mu>n n') x) \<partial>count_space UNIV)
+        = (\<Sum>n'<n. (\<integral>\<^sup>+x. ennreal_Rep_distr (\<mu>n n') x \<partial>count_space UNIV))"
+      by (subst nn_integral_sum, simp_all)
+    also have "\<dots> = (\<Sum>n'<n. ennreal_probability (\<mu>n n') UNIV)"
+      unfolding ennreal_probability_def indicator_def by auto
+    also have "\<dots> = (\<Sum>n'<n. ennreal_probability (c n' m1) UNIV)"
       unfolding weight_\<mu>n by simp
-    also have "\<dots> \<le> (\<Sum>n'. ereal_probability (c n' m1) UNIV)"
-      by (simp add: suminf_upper)
-    also have "\<dots> = ereal_probability (c' m1) UNIV"
-      unfolding ereal_probability_def indicator_def c' apply auto
+    also have "\<dots> \<le> (\<Sum>n'. ennreal_probability (c n' m1) UNIV)"
+      by (simp add: suminf_upper_ennreal)
+    also have "\<dots> = ennreal_probability (c' m1) UNIV"
+      unfolding ennreal_probability_def indicator_def c' apply auto
       apply (rule nn_integral_suminf[symmetric]) by auto
     also have "\<dots> \<le> 1" by auto
     finally show "?thesis n" by assumption
   qed
-  def \<mu>nsum == "\<lambda>n. ereal_Abs_distr (\<lambda>m. setsum (\<lambda>n'. ereal_Rep_distr (\<mu>n n') m) {..<n})"
-  have \<mu>nsum_rep: "\<And>n. ereal_Rep_distr (\<mu>nsum n) = (\<lambda>m. setsum (\<lambda>n'. ereal_Rep_distr (\<mu>n n') m) {..<n})"
-    unfolding \<mu>nsum_def using sumpos \<mu>nsumbound by (rule ereal_Abs_distr_inverse)
+  def \<mu>nsum == "\<lambda>n. ennreal_Abs_distr (\<lambda>m. sum (\<lambda>n'. ennreal_Rep_distr (\<mu>n n') m) {..<n})"
+  have \<mu>nsum_rep: "\<And>n. ennreal_Rep_distr (\<mu>nsum n) = (\<lambda>m. sum (\<lambda>n'. ennreal_Rep_distr (\<mu>n n') m) {..<n})"
+    unfolding \<mu>nsum_def using \<mu>nsumbound by (rule ennreal_Abs_distr_inverse)
   def \<mu> == "SUP n::nat. \<mu>nsum n"
-  def csum == "\<lambda>n. ereal_Abs_distr (\<lambda>m. setsum (\<lambda>n'. ereal_Rep_distr (c n' m1) m) {..<n})"
-  have csum_rep: "\<And>n. ereal_Rep_distr (csum n) = (\<lambda>m. setsum (\<lambda>n'. ereal_Rep_distr (c n' m1) m) {..<n})"
-    unfolding csum_def using sumpos csumbound by (rule ereal_Abs_distr_inverse)
-  def dsum == "\<lambda>n. ereal_Abs_distr (\<lambda>m. setsum (\<lambda>n'. ereal_Rep_distr (d n' m2) m) {..<n})"
-  have dsum_rep: "\<And>n. ereal_Rep_distr (dsum n) = (\<lambda>m. setsum (\<lambda>n'. ereal_Rep_distr (d n' m2) m) {..<n})"
-    unfolding dsum_def using sumpos dsumbound by (rule ereal_Abs_distr_inverse)
+  def csum == "\<lambda>n. ennreal_Abs_distr (\<lambda>m. sum (\<lambda>n'. ennreal_Rep_distr (c n' m1) m) {..<n})"
+  have csum_rep: "\<And>n. ennreal_Rep_distr (csum n) = (\<lambda>m. sum (\<lambda>n'. ennreal_Rep_distr (c n' m1) m) {..<n})"
+    unfolding csum_def using csumbound by (rule ennreal_Abs_distr_inverse)
+  def dsum == "\<lambda>n. ennreal_Abs_distr (\<lambda>m. sum (\<lambda>n'. ennreal_Rep_distr (d n' m2) m) {..<n})"
+  have dsum_rep: "\<And>n. ennreal_Rep_distr (dsum n) = (\<lambda>m. sum (\<lambda>n'. ennreal_Rep_distr (d n' m2) m) {..<n})"
+    unfolding dsum_def using dsumbound by (rule ennreal_Abs_distr_inverse)
   have cinc: "incseq (\<lambda>n. csum n)"
     unfolding csum_def mono_def apply auto
-    apply (subst less_eq_ereal_Abs_distr[symmetric])
-        close (rule sumpos) close (rule sumpos) close (rule csumbound) close (rule csumbound)
+    apply (subst less_eq_ennreal_Abs_distr[symmetric])
+      close (rule csumbound) close (rule csumbound)
     unfolding le_fun_def apply (rule allI)
-    apply (rule setsum_mono3)
+    apply (rule sum_mono3)
       by auto
   have dinc: "incseq (\<lambda>n. dsum n)"
     unfolding dsum_def mono_def apply auto
-    apply (subst less_eq_ereal_Abs_distr[symmetric])
-        close (rule sumpos) close (rule sumpos) close (rule dsumbound) close (rule dsumbound)
+    apply (subst less_eq_ennreal_Abs_distr[symmetric])
+      close (rule dsumbound) close (rule dsumbound)
     unfolding le_fun_def apply (rule allI)
-    apply (rule setsum_mono3)
+    apply (rule sum_mono3)
       by auto
   have c'sup: "\<And>m. c' m1 = (SUP n. csum n)"
-    apply (subst ereal_Rep_distr_inject[symmetric])
-    apply (subst ereal_Rep_SUP_distr)
+    apply (subst ennreal_Rep_distr_inject[symmetric])
+    apply (subst ennreal_Rep_SUP_distr)
      close (rule cinc)
     unfolding csum_rep apply (subst SUP_apply[THEN ext])
-    apply (subst suminf_ereal_eq_SUP[symmetric])
-     close (rule ereal_Rep_distr_geq0)
+    apply (subst suminf_ennreal_eq_SUP[symmetric])
     by (rule c'[THEN ext])
   have d'sup: "\<And>m. d' m2 = (SUP n. dsum n)"
-    apply (subst ereal_Rep_distr_inject[symmetric])
-    apply (subst ereal_Rep_SUP_distr)
+    apply (subst ennreal_Rep_distr_inject[symmetric])
+    apply (subst ennreal_Rep_SUP_distr)
      close (rule dinc)
     unfolding dsum_rep apply (subst SUP_apply[THEN ext])
-    apply (subst suminf_ereal_eq_SUP[symmetric])
-     close (rule ereal_Rep_distr_geq0)
+    apply (subst suminf_ennreal_eq_SUP[symmetric])
     by (rule d'[THEN ext])
   have inc: "incseq \<mu>nsum"
     unfolding \<mu>nsum_def mono_def apply auto
-    apply (subst less_eq_ereal_Abs_distr[symmetric])
-        close (rule sumpos) close (rule sumpos) close (rule \<mu>nsumbound) close (rule \<mu>nsumbound)
+    apply (subst less_eq_ennreal_Abs_distr[symmetric])
+      close (rule \<mu>nsumbound) close (rule \<mu>nsumbound)
     unfolding le_fun_def apply (rule allI)
-    apply (rule setsum_mono3)
+    apply (rule sum_mono3)
       by auto
   have fst0: "\<And>n. apply_to_distr fst (\<mu>nsum n) = csum n"
-    apply (subst ereal_Rep_distr_inject[symmetric]) apply (rule ext, rename_tac m)
-    unfolding csum_rep apply (subst apply_to_distr_setsum[symmetric, where N="{..<_}" and \<nu>=\<mu>n])
-      close auto
+    apply (subst ennreal_Rep_distr_inject[symmetric]) apply (rule ext, rename_tac m)
+    unfolding csum_rep apply (subst apply_to_distr_sum[symmetric, where N="{..<_}" and \<nu>=\<mu>n])
+      close auto                                                                                                                                                                              
      close (simp add: \<mu>nsum_rep)
     apply (subst fst)
     apply (subst setsum_apply) by auto
@@ -506,8 +512,8 @@ proof (unfold rhoare_denotation_def, auto)
     apply (subst apply_to_distr_sup)
     unfolding fst0 using inc by auto
   have snd0: "\<And>n. apply_to_distr snd (\<mu>nsum n) = dsum n"
-    apply (subst ereal_Rep_distr_inject[symmetric]) apply (rule ext, rename_tac m)
-    unfolding dsum_rep apply (subst apply_to_distr_setsum[symmetric, where N="{..<_}" and \<nu>=\<mu>n])
+    apply (subst ennreal_Rep_distr_inject[symmetric]) apply (rule ext, rename_tac m)
+    unfolding dsum_rep apply (subst apply_to_distr_sum[symmetric, where N="{..<_}" and \<nu>=\<mu>n])
       close auto
      close (simp add: \<mu>nsum_rep)
     apply (subst snd)
@@ -516,12 +522,12 @@ proof (unfold rhoare_denotation_def, auto)
     unfolding \<mu>_def fst[symmetric] d'sup
     apply (subst apply_to_distr_sup)
     unfolding snd0 using inc by auto
-  have sum0: "\<And>(f::nat\<Rightarrow>ereal) n. (\<Sum>n'<n. f n') > 0 \<Longrightarrow> \<exists>n'. f n' > 0"
+  have sum0: "\<And>(f::nat\<Rightarrow>ennreal) n. (\<Sum>n'<n. f n') > 0 \<Longrightarrow> \<exists>n'. f n' > 0"
   proof (rule ccontr)
-    fix f::"nat\<Rightarrow>ereal" and n assume sum:"(\<Sum>n'<n. f n') > 0" assume "\<not> (\<exists>n'. f n' > 0)"
+    fix f::"nat\<Rightarrow>ennreal" and n assume sum:"(\<Sum>n'<n. f n') > 0" assume "\<not> (\<exists>n'. f n' > 0)"
     hence "\<And>n'. f n' \<le> 0" by (simp add: not_less)
-    hence "(\<Sum>n'<n. f n') \<le> 0" by (simp add: setsum_nonpos)
-    with sum show False by simp
+    hence "(\<Sum>n'<n. f n') \<le> 0" by (simp add: sum_nonpos)
+    with sum show False using not_le by blast
   qed
   have post'': "\<And>m1' m2' i. (m1', m2') \<in> support_distr (\<mu>nsum i) \<Longrightarrow> Q m1' m2'"
     unfolding support_distr_def' apply auto
@@ -1628,8 +1634,8 @@ proof -
     then show ?thesis by simp
   qed
   
-  def m2 == "f m1"
-  def eqX == "\<lambda>m1 m2. \<forall>x\<in>X. Rep_memory m1 x = Rep_memory m2 x"
+  define m2 where "m2 == f m1"
+  define eqX where "eqX == \<lambda>m1 m2. \<forall>x\<in>X. Rep_memory m1 x = Rep_memory m2 x"
   have "rhoare_untyped eqX p p eqX"
     using obseq unfolding obs_eq_untyped_def eqX_def by simp
   moreover have "eqX m1 m2"
@@ -1674,7 +1680,7 @@ proof -
       unfolding Rep_memory_inject[symmetric] f_def
       using t1 t2 t3 by (auto, metis)
   qed
-  def \<mu>' == "apply_to_distr (\<lambda>(m1',m2'). (m1',f m2')) \<mu>"
+  define \<mu>' where "\<mu>' == apply_to_distr (\<lambda>(m1',m2'). (m1',f m2')) \<mu>"
   have "\<And>m1' m2'. (m1',m2')\<in>support_distr \<mu>' \<Longrightarrow> m2' = m1'" 
     unfolding \<mu>'_def using supp\<mu>_f ff by auto 
   then have \<mu>'eq: "apply_to_distr fst \<mu>' = apply_to_distr snd \<mu>'"

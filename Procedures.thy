@@ -109,7 +109,7 @@ proof -
       by (cases b, auto)
     next case ProcUnit thus ?case unfolding wt_ProcUnit_iff by simp
   qed
-  from assms this[where F="[]", simplified]
+  from this[where F="[]", simplified]
   show "well_typed'' [] p \<Longrightarrow> well_typed'' E p"
     and "well_typed_proc'' [] q T \<Longrightarrow> well_typed_proc'' E q T"
       by auto
@@ -344,11 +344,11 @@ proof -
 qed
 
 lemma well_typed_beta_reduce:
-  shows "well_typed'' E p' \<Longrightarrow> termip beta_reduce_prog p'"
+  shows "well_typed'' E p' \<Longrightarrow> termip beta_reduce_prog p'"                                                  
     and "well_typed_proc'' E p T \<Longrightarrow> termip beta_reduce_proc p"
 proof -
-  def beta1 == "\<lambda>p q. (prog_to_dB p) \<rightarrow>\<^sub>\<beta> (prog_to_dB q)"
-  def beta2 == "\<lambda>p q. (proc_to_dB p) \<rightarrow>\<^sub>\<beta> (proc_to_dB q)"
+  define beta1 where "beta1 == \<lambda>p q. (prog_to_dB p) \<rightarrow>\<^sub>\<beta> (prog_to_dB q)"
+  define beta2 where "beta2 == \<lambda>p q. (proc_to_dB p) \<rightarrow>\<^sub>\<beta> (proc_to_dB q)"
 
   {fix p1 p2 q1 q2 
    have "beta_reduce_prog p1 p2 \<Longrightarrow> beta1 p1 p2"
@@ -1174,7 +1174,7 @@ lemma beta_reduce_preserves_well_typed:
   shows "well_typed'' E p' \<Longrightarrow> well_typed'' E (beta_reduce' p')" (is "?assm' \<Longrightarrow> ?goal'")
     and "well_typed_proc'' E p T \<Longrightarrow> well_typed_proc'' E (beta_reduce p) T" (is "?assm \<Longrightarrow> ?goal")
 proof -
-  assume ?assm
+  assume assms: ?assm
   have "beta_reduce_proc\<^sup>*\<^sup>* p (beta_reduce p)"
     by (metis `?assm` beta_reduce_def2(2) well_typed_beta_reduce(2))
   moreover {fix q have "beta_reduce_proc\<^sup>*\<^sup>* p q \<Longrightarrow> well_typed_proc'' E q T"
@@ -1183,7 +1183,7 @@ proof -
     by (rule subject_reduction, simp_all)}
   ultimately show ?goal by simp
 next
-  assume ?assm'
+  assume assms: ?assm'
   have "beta_reduce_prog\<^sup>*\<^sup>* p' (beta_reduce' p')"
     by (metis `?assm'` beta_reduce'_def2(2) well_typed_beta_reduce(1))
   moreover {fix q have "beta_reduce_prog\<^sup>*\<^sup>* p' q \<Longrightarrow> well_typed'' E q"

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 HEAP=IsaCrypt-Prereqs
-ISADIR=/opt/Isabelle2016-1-RC0
+ISADIR=/opt/Isabelle2016-1
 
 git pull &
 

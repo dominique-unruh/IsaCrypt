@@ -1082,7 +1082,7 @@ proof -
         (SUP n. ennreal_Rep_distr (denotation_untyped (While_n n e p) m) m')"
     apply (subst denotation_untyped_While')
     by (simp add: ennreal_Rep_SUP_distr mono_denotation_While_n[THEN mono_funD])
-  also have "\<dots> = (SUP n. setsum (\<lambda>n'. ennreal_Rep_distr (denotation_untyped (While_n_exact n' e p) m) m') {..<n})"
+  also have "\<dots> = (SUP n. sum (\<lambda>n'. ennreal_Rep_distr (denotation_untyped (While_n_exact n' e p) m) m') {..<n})"
   proof -
     {fix n
     have "ennreal_Rep_distr (denotation_untyped (While_n n e p) m) m' =

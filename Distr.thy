@@ -1526,25 +1526,25 @@ lemma compose_distr_add_left:
   apply (subst nn_integral_add)
   by auto
 
-lemma compose_distr_setsum_left: 
+lemma compose_distr_sum_left: 
   assumes fin: "finite N"
-  assumes sum: "\<And>x y. setsum (\<lambda>n. ennreal_Rep_distr (f n x) y) N = ennreal_Rep_distr (g x) y"
-  shows "setsum (\<lambda>n. ennreal_Rep_distr (compose_distr (f n) \<mu>)) N = ennreal_Rep_distr (compose_distr g \<mu>)"
+  assumes sum: "\<And>x y. sum (\<lambda>n. ennreal_Rep_distr (f n x) y) N = ennreal_Rep_distr (g x) y"
+  shows "sum (\<lambda>n. ennreal_Rep_distr (compose_distr (f n) \<mu>)) N = ennreal_Rep_distr (compose_distr g \<mu>)"
 proof -
-  define g' where "g' == \<lambda>M x. ennreal_Abs_distr (\<lambda>y. setsum (\<lambda>n. ennreal_Rep_distr (f n x) y) M)"
+  define g' where "g' == \<lambda>M x. ennreal_Abs_distr (\<lambda>y. sum (\<lambda>n. ennreal_Rep_distr (f n x) y) M)"
   have leq1: "\<And>M x. M \<subseteq> N \<Longrightarrow> (\<integral>\<^sup>+ y. (\<Sum>n\<in>M. ennreal_Rep_distr (f n x) y) \<partial>count_space UNIV) \<le> 1"
   proof -
     fix M and x assume MN: "M \<subseteq> N"
     have "(\<integral>\<^sup>+ y. (\<Sum>n\<in>M. ennreal_Rep_distr (f n x) y) \<partial>count_space UNIV) \<le> (\<integral>\<^sup>+ y. (\<Sum>n\<in>N. ennreal_Rep_distr (f n x) y) \<partial>count_space UNIV)"
       apply (rule nn_integral_mono, thin_tac _) 
-      apply (rule setsum_mono3) using MN fin by auto
+      apply (rule sum_mono3) using MN fin by auto
     also have "\<dots> \<le> (\<integral>\<^sup>+ y. (ennreal_Rep_distr (g x) y) \<partial>count_space UNIV)"
       using sum by simp
     also have "\<dots> \<le> 1"
       by (rule ennreal_Rep_distr_int_leq1)
     finally show "?thesis M x" by assumption
   qed
-  have g'_rep: "\<And>M x. M \<subseteq> N \<Longrightarrow> ennreal_Rep_distr (g' M x) = (\<lambda>y. setsum (\<lambda>n. ennreal_Rep_distr (f n x) y) M)" 
+  have g'_rep: "\<And>M x. M \<subseteq> N \<Longrightarrow> ennreal_Rep_distr (g' M x) = (\<lambda>y. sum (\<lambda>n. ennreal_Rep_distr (f n x) y) M)" 
     unfolding g'_def apply (rule ennreal_Abs_distr_inverse)  
     by (fact leq1)
   have g': "g' N = g"
@@ -1552,12 +1552,12 @@ proof -
     apply (subst ennreal_Rep_distr_inject[symmetric])
     apply (subst g'_rep)
     unfolding sum by auto
-  have sum': "\<And>M x y. M \<subseteq> N \<Longrightarrow> setsum (\<lambda>n. ennreal_Rep_distr (f n x) y) M = ennreal_Rep_distr (g' M x) y"
+  have sum': "\<And>M x y. M \<subseteq> N \<Longrightarrow> sum (\<lambda>n. ennreal_Rep_distr (f n x) y) M = ennreal_Rep_distr (g' M x) y"
     unfolding g'_rep by auto
 
   define M where "M == N" hence "M \<subseteq> N" by simp
   have M: "N = M" using M_def by simp
-  have "setsum (\<lambda>n. ennreal_Rep_distr (compose_distr (f n) \<mu>)) M = ennreal_Rep_distr (compose_distr g \<mu>)"
+  have "sum (\<lambda>n. ennreal_Rep_distr (compose_distr (f n) \<mu>)) M = ennreal_Rep_distr (compose_distr g \<mu>)"
     unfolding g'[symmetric] M
   using fin[unfolded M] sum'[unfolded M] `M \<subseteq> N` proof (induction M)
   case empty 
@@ -1568,7 +1568,7 @@ proof -
   next case (insert n M)
     have "(\<Sum>n\<in>insert n M. ennreal_Rep_distr (compose_distr (f n) \<mu>))  
       = ennreal_Rep_distr (compose_distr (f n) \<mu>) + (\<Sum>n\<in>M. ennreal_Rep_distr (compose_distr (f n) \<mu>))"
-      apply (rule setsum.insert)
+      apply (rule sum.insert)
       using insert.hyps by simp_all
     also have "\<dots> = ennreal_Rep_distr (compose_distr (f n) \<mu>) + ennreal_Rep_distr (compose_distr (g' M) \<mu>)"
       apply (subst insert.IH) apply (rule insert.prems) using insert.prems by auto
@@ -1579,7 +1579,7 @@ proof -
       apply (subst g'_rep)
        using insert.prems close simp
       unfolding plus_fun_def
-      apply (subst setsum.insert)
+      apply (subst sum.insert)
         using insert.hyps by auto
     finally show ?case by assumption
   qed
@@ -1595,37 +1595,37 @@ lemma compose_distr_add_right:
   apply (subst nn_integral_add) by auto
 
 
-lemma compose_distr_setsum_right: 
+lemma compose_distr_sum_right: 
   assumes fin: "finite N"
-  assumes sum: "\<And>x y. setsum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) N = ennreal_Rep_distr \<mu> y"
-  shows "setsum (\<lambda>n. ennreal_Rep_distr (compose_distr f (\<nu> n))) N = ennreal_Rep_distr (compose_distr f \<mu>)"
+  assumes sum: "\<And>x y. sum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) N = ennreal_Rep_distr \<mu> y"
+  shows "sum (\<lambda>n. ennreal_Rep_distr (compose_distr f (\<nu> n))) N = ennreal_Rep_distr (compose_distr f \<mu>)"
 proof -
-  define \<mu>' where "\<mu>' == \<lambda>M. ennreal_Abs_distr (\<lambda>y. setsum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) M)"
+  define \<mu>' where "\<mu>' == \<lambda>M. ennreal_Abs_distr (\<lambda>y. sum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) M)"
   have leq1: "\<And>M. M \<subseteq> N \<Longrightarrow> (\<integral>\<^sup>+y. (\<Sum>n\<in>M. ennreal_Rep_distr (\<nu> n) y) \<partial>count_space UNIV) \<le> 1"
   proof -
     fix M assume MN: "M \<subseteq> N"
     have "(\<integral>\<^sup>+ y. (\<Sum>n\<in>M. ennreal_Rep_distr (\<nu> n) y) \<partial>count_space UNIV) \<le> (\<integral>\<^sup>+ y. (\<Sum>n\<in>N. ennreal_Rep_distr (\<nu> n) y) \<partial>count_space UNIV)"
       apply (rule nn_integral_mono, thin_tac _) 
-      apply (rule setsum_mono3) using MN fin by auto
+      apply (rule sum_mono3) using MN fin by auto
     also have "\<dots> \<le> (\<integral>\<^sup>+ y. (ennreal_Rep_distr \<mu> y) \<partial>count_space UNIV)"
       using sum by simp
     also have "\<dots> \<le> 1"
       by (rule ennreal_Rep_distr_int_leq1)
     finally show "?thesis M" by assumption
   qed
-  have \<mu>'_rep: "\<And>M. M \<subseteq> N \<Longrightarrow> ennreal_Rep_distr (\<mu>' M) = (\<lambda>y. setsum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) M)" 
+  have \<mu>'_rep: "\<And>M. M \<subseteq> N \<Longrightarrow> ennreal_Rep_distr (\<mu>' M) = (\<lambda>y. sum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) M)" 
     unfolding \<mu>'_def apply (rule ennreal_Abs_distr_inverse) by (fact leq1)
   have \<mu>': "\<mu>' N = \<mu>"
     apply (subst ennreal_Rep_distr_inject[symmetric])
     apply (subst \<mu>'_rep) close simp
     unfolding sum by rule
-  have sum': "\<And>M y. M \<subseteq> N \<Longrightarrow> setsum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) M = ennreal_Rep_distr (\<mu>' M) y"
+  have sum': "\<And>M y. M \<subseteq> N \<Longrightarrow> sum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) M = ennreal_Rep_distr (\<mu>' M) y"
     unfolding \<mu>'_rep by auto
 
   define M where "M == N" hence "M \<subseteq> N" by simp
   have M: "N = M" using M_def by simp
   (* show ?thesis *)
-  have "setsum (\<lambda>n. ennreal_Rep_distr (compose_distr f (\<nu> n))) M = ennreal_Rep_distr (compose_distr f \<mu>)"
+  have "sum (\<lambda>n. ennreal_Rep_distr (compose_distr f (\<nu> n))) M = ennreal_Rep_distr (compose_distr f \<mu>)"
     unfolding \<mu>'[symmetric] unfolding M
   using fin[unfolded M] sum'[unfolded M] `M \<subseteq> N` proof (induction M)
   case empty
@@ -1636,7 +1636,7 @@ proof -
   next case (insert n M)
     have "(\<Sum>n\<in>insert n M. ennreal_Rep_distr (compose_distr f (\<nu> n)))  
       = ennreal_Rep_distr (compose_distr f (\<nu> n)) + (\<Sum>n\<in>M. ennreal_Rep_distr (compose_distr f (\<nu> n)))"
-      apply (rule setsum.insert)
+      apply (rule sum.insert)
       using insert.hyps by simp_all
     also have "\<dots> = ennreal_Rep_distr (compose_distr f (\<nu> n)) + ennreal_Rep_distr (compose_distr f (\<mu>' M))"
       apply (subst insert.IH) apply (rule insert.prems) using insert.prems by auto
@@ -1647,18 +1647,18 @@ proof -
       apply (subst \<mu>'_rep)
        using insert.prems close simp
       unfolding plus_fun_def
-      apply (subst setsum.insert)
+      apply (subst sum.insert)
         using insert.hyps by auto
     finally show ?case by assumption
   qed
   thus ?thesis using M by simp
 qed
 
-lemma apply_to_distr_setsum: 
+lemma apply_to_distr_sum: 
   assumes fin: "finite N"
-  assumes sum: "\<And>x y. setsum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) N = ennreal_Rep_distr \<mu> y"
-  shows "setsum (\<lambda>n. ennreal_Rep_distr (apply_to_distr f (\<nu> n))) N = ennreal_Rep_distr (apply_to_distr f \<mu>)"
+  assumes sum: "\<And>x y. sum (\<lambda>n. ennreal_Rep_distr (\<nu> n) y) N = ennreal_Rep_distr \<mu> y"
+  shows "sum (\<lambda>n. ennreal_Rep_distr (apply_to_distr f (\<nu> n))) N = ennreal_Rep_distr (apply_to_distr f \<mu>)"
 using assms unfolding compose_point_distr_l[symmetric]
-by (rule compose_distr_setsum_right)
+by (rule compose_distr_sum_right)
 
 end
