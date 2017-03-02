@@ -337,15 +337,16 @@ fun definition_via_specification_solve tac consts prop lthy =
       Scan.optional (Parse.reserved "globals" |-- Parse.fixes) []
     --| Parse.$$$ ")") [] *)
 
-val procedure_parser =
-  Parse.fixes --
+val procedure_parser = Parse_Spec.specification
+(*   Parse.fixes --
   (Parse.$$$ "where" |-- 
     Parse.!!! (Parse.and_list1
       (Parse_Spec.opt_thm_name ":" -- Parse.prop)))
+ *)
 
-fun procedure_cmd dvs (consts,props) ctx =
-  let val (((consts,props),_),_) = Specification.read_free_spec consts props ctx
-  in dvs consts props ctx end;
+fun procedure_cmd dvs (consts:(binding * string option * mixfix) list, props:Specification.multi_specs_cmd) ctx =
+  let val ((consts,props),ctx') = Specification.read_multi_specs consts props ctx
+  in dvs consts props ctx' end;
 
 val _ = definition_via_specification_solve
 
