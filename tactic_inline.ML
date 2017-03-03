@@ -163,7 +163,7 @@ val callproc_rule_conditions_tac_simpset =
   callproc_conditions_simp.local_variable_name_renaming_nil2 callproc_conditions_simp.local_variable_name_renaming_notsame
   callproc_conditions_simp.filter_local_insert2
   list.simps HOL.simp_thms
-  String.char.inject String.nibble.distinct 
+  mk_legacy_char_inj legacy_char.inject nibble.distinct legacy_char_simps (* String.char.inject String.nibble.distinct *)
   callproc_conditions_simp.filter_global_empty callproc_conditions_simp.filter_global_insert1 callproc_conditions_simp.filter_global_insert2
   }
   |> Raw_Simplifier.simpset_of
@@ -445,7 +445,9 @@ fun hoare_obseq_replace_tac ctx redex obseq_tac =
 val after_inline_simpset =
   let val subgoaler_ss = 
             (put_simpset HOL_basic_ss @{context})
-              addsimps @{thms List.list.inject String.char.inject String.nibble.distinct HOL.simp_thms}
+              addsimps @{thms List.list.inject 
+                         mk_legacy_char_inj legacy_char.inject nibble.distinct legacy_char_simps (* String.char.inject String.nibble.distinct *)
+                         HOL.simp_thms}
             |> Raw_Simplifier.simpset_of
   in
   (put_simpset HOL_basic_ss @{context})

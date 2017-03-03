@@ -1,5 +1,5 @@
 theory Tactic_Inline
-imports RHL_Typed Hoare_Tactics Procs_Typed
+imports RHL_Typed Hoare_Tactics Procs_Typed Legacy_Char
 begin
 
 (*definition "HIDDEN_EQ = op="
