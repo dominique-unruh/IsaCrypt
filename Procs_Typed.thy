@@ -2,6 +2,7 @@ theory Procs_Typed
 imports TermX_Antiquot Lang_Typed Procedures
 keywords "procedure" :: thy_decl
      and "procedure'" :: thy_goal
+     and "procedure''" :: thy_goal
      and "module_type" :: thy_decl
 begin
 
@@ -825,6 +826,11 @@ setup {*
 ML_file "procs_typed.ML"
 
 
+(** Test **)
+
+experiment begin
+  procedure test where "test = proc () { skip; return 1 }"
+end
 
 
 end

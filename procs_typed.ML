@@ -246,7 +246,8 @@ fun split_conjunction_tac i =
   ORELSE all_tac
 
 fun definition_via_specification_tac tac ctx =
-  ALLGOALS split_conjunction_tac
+  ALLGOALS (Goal.norm_hhf_tac ctx) (* Moves !!x to the top of statements *)
+  THEN ALLGOALS split_conjunction_tac
   THEN ALLGOALS (dresolve_tac ctx [meta_eq_to_obj_eq])
   THEN ALLGOALS (hyp_subst_tac_thin true ctx)
   THEN ALLGOALS (tac ctx)
@@ -260,19 +261,22 @@ fun instantiate_schematics (t$u) = instantiate_schematics t $ instantiate_schema
   | instantiate_schematics (Var(_,T)) = Const(@{const_name undefined},T)
 
 fun definition_via_specification tac (consts:((binding * typ) * mixfix) list) 
-  (props: (Attrib.binding * term) list)(lthy:Proof.context) = 
+  (props: (Attrib.binding * term) list) (lthy:Proof.context) = 
 let val schema_eqs = consts |> map (fn ((b,T),_) => 
             Logic.mk_equals (Free(Binding.name_of b,T), Var ((Binding.name_of b,0),T)))
     val const_names = consts |> map (fn ((b,_),_) => Binding.name_of b)
     val bindings = props |> map fst |> map fst
     (* val prop = Logic.mk_conjunction_list (map snd props) *)
+val _ = @{print} props (* XXXXXXXXXX the parser adds !!x for every free variable x. We don't want that, we want to do our own !!x outside the implications!!! *)
     val props = map snd props
     val frees = fold Term.add_frees props [] |> 
       filter (fn(n,_) => not (Variable.is_fixed lthy n)) |>
       filter (fn(n,_) => not (member (op=) const_names n)) |>
       map Free
     val def_thm_props = map (fn prop => Logic.list_implies (schema_eqs, prop)) props
+val _ = @{print} def_thm_props
     val def_thm_props = map (fn p => fold Logic.all frees p) def_thm_props
+val _ = @{print} def_thm_props
     (*val def_thm_prop = def_thm_prop |> fold Logic.all consts (* ??? keep ? *) *)
     
     fun lhs_to_binding thm =
@@ -345,8 +349,8 @@ val procedure_parser = Parse_Spec.specification
  *)
 
 fun procedure_cmd dvs (consts:(binding * string option * mixfix) list, props:Specification.multi_specs_cmd) ctx =
-  let val ((consts,props),ctx') = Specification.read_multi_specs consts props ctx
-  in dvs consts props ctx' end;
+  let val ((consts,props),_) = Specification.read_multi_specs consts props ctx
+  in dvs consts props ctx end;
 
 val _ = definition_via_specification_solve
 
@@ -361,6 +365,11 @@ val _ = Outer_Syntax.local_theory_to_proof @{command_keyword procedure'}
 (procedure_parser >>
    procedure_cmd (definition_via_specification 
       (definition_via_specification_tac procedure_existence_tac)))
+
+val _ = Outer_Syntax.local_theory_to_proof @{command_keyword procedure''}
+"definition of procedures / modules (with unsimplified proof obligation)"
+(procedure_parser >>
+   procedure_cmd (definition_via_specification (K all_tac)))
 
 (** Definition of module types **)
 

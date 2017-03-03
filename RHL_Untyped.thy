@@ -55,12 +55,12 @@ unfolding assertion_footprint_left_def using assms by metis
 lemma assertion_footprint_left_const: "assertion_footprint_left X (\<lambda>m. P)"
   unfolding assertion_footprint_left_def by simp
 lemma assertion_footprint_left_app: "assertion_footprint_left X P \<Longrightarrow> assertion_footprint_left X Q \<Longrightarrow> assertion_footprint_left X (\<lambda>m m'. (P m m') (Q m m'))"
-  unfolding assertion_footprint_left_def by auto
+  unfolding assertion_footprint_left_def by force
 lemma assertion_footprint_left_op2: 
   assumes "assertion_footprint_left X P"
       and "assertion_footprint_left X Q"
   shows "assertion_footprint_left X (\<lambda>m m'. f (P m m') (Q m m'))"
-  using assms unfolding assertion_footprint_left_def by auto
+  using assms unfolding assertion_footprint_left_def by force
 lemma assertion_footprint_left_update_pattern_untyped:
   assumes "Y \<subseteq> X \<union> set (pu_vars pat)"
   assumes "assertion_footprint_left Y P"
@@ -87,7 +87,7 @@ unfolding assertion_footprint_left_def by simp
 lemma assertion_footprint_left_forall: 
   assumes "\<And>x. assertion_footprint_left X (\<lambda>m1 m2. f x m1 m2)"
   shows "assertion_footprint_left X (\<lambda>m1 m2. \<forall>x. f x m1 m2)"
-  using assms unfolding assertion_footprint_left_def by auto
+  using assms unfolding assertion_footprint_left_def by metis
 
 lemma assertion_footprint_left_UNIV: 
   shows "assertion_footprint_left UNIV P"
@@ -99,7 +99,7 @@ definition "assertion_footprint_right X P == (\<forall>m1 m1' m2 m2'. (\<forall>
 lemma assertion_footprint_right_const: "assertion_footprint_right X (\<lambda>m m'. P m)"
   unfolding assertion_footprint_right_def by simp
 lemma assertion_footprint_right_app: "assertion_footprint_right X P \<Longrightarrow> assertion_footprint_right X Q \<Longrightarrow> assertion_footprint_right X (\<lambda>m m'. (P m m') (Q m m'))"
-  unfolding assertion_footprint_right_def by auto
+  unfolding assertion_footprint_right_def by metis
 
 lemma assertion_footprint_right_left: "assertion_footprint_right X P = assertion_footprint_left X (\<lambda>m1 m2. P m2 m1)"
   unfolding assertion_footprint_right_def assertion_footprint_left_def by auto
@@ -123,7 +123,7 @@ lemma assertion_footprint_right_op2:
   assumes "assertion_footprint_right X P"
       and "assertion_footprint_right X Q"
   shows "assertion_footprint_right X (\<lambda>m m'. f (P m m') (Q m m'))"
-  using assms unfolding assertion_footprint_right_def by auto
+  using assms unfolding assertion_footprint_right_def by metis
 lemma assertion_footprint_right_update_pattern_untyped:
   assumes "Y \<subseteq> X \<union> set (pu_vars pat)"
   assumes "assertion_footprint_right Y P"
@@ -147,7 +147,7 @@ by (smt insertE memory_lookup_update_untyped subsetCE)
 lemma assertion_footprint_right_forall: 
   assumes "\<And>x. assertion_footprint_right X (\<lambda>m1 m2. f x m1 m2)"
   shows "assertion_footprint_right X (\<lambda>m1 m2. \<forall>x. f x m1 m2)"
-  using assms unfolding assertion_footprint_right_def by auto
+  using assms unfolding assertion_footprint_right_def by metis
 
 lemma assertion_footprint_right_UNIV: 
   shows "assertion_footprint_right UNIV P"

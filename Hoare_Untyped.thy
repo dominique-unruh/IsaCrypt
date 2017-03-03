@@ -43,7 +43,7 @@ definition "assertion_footprint X P == (\<forall>m1 m2. (\<forall>x\<in>X. memor
 lemma assertion_footprint_const: "assertion_footprint X (\<lambda>m. P)"
   unfolding assertion_footprint_def by simp
 lemma assertion_footprint_app: "assertion_footprint X P \<Longrightarrow> assertion_footprint X Q \<Longrightarrow> assertion_footprint X (\<lambda>m. (P m) (Q m))"
-  unfolding assertion_footprint_def by auto
+  unfolding assertion_footprint_def by metis 
 
 
 lemma conseq_rule:

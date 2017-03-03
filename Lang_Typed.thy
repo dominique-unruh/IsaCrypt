@@ -284,19 +284,19 @@ lemma mk_expression_distr_fun [simp]: "ed_fun (mk_expression_distr (e::'a::prog_
   unfolding mk_expression_distr_def ed_fun_def
   apply (subst Abs_expression_distr_inverse, auto simp: embedding_Type)
   unfolding e_fun_def e_vars_def 
-  using Rep_expression[of e] by auto
+  using Rep_expression[of e] by force
 
 lemma mk_expression_distr_vars [simp]: "ed_vars (mk_expression_distr (e::'a::prog_type distr expression)) = e_vars e"
   unfolding mk_expression_distr_def ed_vars_def
   apply (subst Abs_expression_distr_inverse, auto simp: embedding_Type)
   unfolding e_fun_def e_vars_def 
-  using Rep_expression[of e] by auto
+  using Rep_expression[of e] by force
 
 lemma mk_expression_distr_type [simp]: "ed_type (mk_expression_distr (e::'a::prog_type distr expression)) = Type TYPE('a)"
   unfolding mk_expression_distr_def ed_type_def
   apply (subst Abs_expression_distr_inverse, auto simp: embedding_Type)
   unfolding e_fun_def e_vars_def 
-  using Rep_expression[of e] by auto
+  using Rep_expression[of e] by force
 
 
 definition const_expression :: "'a \<Rightarrow> 'a expression" where
