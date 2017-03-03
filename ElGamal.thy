@@ -110,8 +110,8 @@ using assms by simp
 
 procedure (in group) ElGamal :: "('G, nat, 'G, 'G\<times>'G) EncScheme" where
     "keygen<$>ElGamal = LOCAL sk. proc() { sk <- uniform {0..<q}; return (g^sk, sk) }"
-and "enc<$>ElGamal = LOCAL pk m y. proc(pk,m) { y <- uniform {0..<q}; return (g^y, pk^y * m) }"
-and "dec<$>ElGamal = LOCAL sk c1 c2 gy gm. proc(sk,(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk)) }"
+| "enc<$>ElGamal = LOCAL pk m y. proc(pk,m) { y <- uniform {0..<q}; return (g^y, pk^y * m) }"
+| "dec<$>ElGamal = LOCAL sk c1 c2 gy gm. proc(sk,(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk)) }"
 
 procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
   "Correctness <$> E = LOCAL m m2 pk sk c.

@@ -746,7 +746,7 @@ proof -
   show ?thesis
     apply (rule rtrans_rule[OF _ _ obseqCc' rhoare])
      close
-    using foot by (simp add: assertion_footprint_left_def)
+    using foot by (auto simp: assertion_footprint_left_def) 
 qed
 
 lemma rhoare_right_obseq_replace: 
@@ -777,9 +777,9 @@ proof -
   define B where "B \<equiv> set(vars b)"
   define R where "R \<equiv> UNIV - set(write_vars a) - set(write_vars b)"
   have "program_readonly R a"
-    using R_def denotation_readonly_def program_readonly_def program_readonly_write_vars by (auto,blast) 
+    using R_def denotation_readonly_def program_readonly_def program_readonly_write_vars by auto 
   moreover have "program_readonly R b"
-    using R_def denotation_readonly_def program_readonly_def program_readonly_write_vars by (auto,blast)
+    using R_def denotation_readonly_def program_readonly_def program_readonly_write_vars by auto
   moreover have "program_footprint A a"
     using A_def program_footprint_vars by auto
   moreover have "program_footprint B b"

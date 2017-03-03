@@ -48,9 +48,9 @@ proof -
   show ?thesis
     apply (rule rtrans3_rule[rotated 2])
         close (fact left) close (fact mid) close (fact right)
-     unfolding eq_def 
-    using footQ1 footQ2
-    by (auto simp: assertion_footprint_leftE assertion_footprint_rightE)
+     unfolding eq_def close blast
+    using footQ1[THEN assertion_footprint_leftE] footQ2[THEN assertion_footprint_rightE]
+    by metis
 qed
 
 
@@ -96,9 +96,9 @@ proof -
   show ?thesis
     apply (rule rtrans3_rule[rotated 2])
         close (fact left) close (fact mid) close (fact right)
-     unfolding eq_def 
-     using footQ1 footQ2 close blast
-    using assertion_footprint_leftE assertion_footprint_rightE footQ1 footQ2 by fastforce
+     unfolding eq_def close blast
+    using footQ1[THEN assertion_footprint_leftE] footQ2[THEN assertion_footprint_rightE]
+    by metis
 qed
 
 
