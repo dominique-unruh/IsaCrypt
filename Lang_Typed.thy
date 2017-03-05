@@ -741,6 +741,8 @@ definition program :: "program \<Rightarrow> program" where "program p = p"
 (*syntax "_local_vars" :: "idts \<Rightarrow> program_syntax \<Rightarrow> program_syntax" ("local _;/ _" [0,9] 9) *)
 syntax "_local_vars_global" :: "idts \<Rightarrow> 'b \<Rightarrow> 'b" ("(3LOCAL _./ _)" 100)
 
+
+
 subsubsection {* Translation functions *}
 
 
@@ -752,7 +754,7 @@ parse_translation {* [("_program", fn ctx => fn p =>
     Const(@{const_syntax program},dummyT) $ 
       Lang_Syntax.translate_program ctx (Unsynchronized.ref[]) (hd p))] *}
 
-print_translation {* [(@{const_syntax program}, fn ctx => fn p => Const("_program",dummyT) $ Lang_Syntax.translate_program_back ctx (hd p))] *}
+(* print_translation {* [(@{const_syntax program}, fn ctx => fn p => Const("_program",dummyT) $ Lang_Syntax.translate_program_back ctx (hd p))] *} *)
 
 parse_translation {* [("_local_vars_global", fn ctx => fn p =>
   case p of [vs,body] =>
@@ -760,6 +762,7 @@ parse_translation {* [("_local_vars_global", fn ctx => fn p =>
 
 (* term "LOCAL x y. PROGRAM[ x := x+$z ]"  *)
 (* term "PROGRAM[ x := x ]" *)
+
 
 subsection {* Concrete grammar for procedures *}
 

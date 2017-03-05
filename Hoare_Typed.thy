@@ -26,9 +26,9 @@ parse_translation {*
      ("_assertion", fn ctx => fn [P] => Hoare_Syntax.trans_assertion ctx P)]
 *}
 
-print_translation {*
+(* print_translation {*
   [(@{const_syntax hoare}, fn ctx => fn [P,c,Q] => Hoare_Syntax.trans_hoare_back ctx P c Q)]
-*}
+*} *)
 
 subsection {* Rules *}
 

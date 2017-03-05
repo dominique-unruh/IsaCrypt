@@ -1,5 +1,5 @@
 theory ElGamal
-imports Hoare_Tactics Procs_Typed Tactic_Inline Lang_Simplifier RHL_Typed Callproc
+imports Hoare_Tactics Procs_Typed Tactic_Inline Lang_Simplifier RHL_Typed Callproc ML_Term
 begin
 
 (* Working EC version with elgamal.ec:
@@ -124,18 +124,18 @@ procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
 
 context group begin
 
-lemma correctness:
+lemma correctness:                                                                     
   shows "LOCAL succ0. hoare {True} succ0 := call Correctness <$> ElGamal(m) {succ0}"
-(* apply (inline "Correctness<$>ElGamal")
+apply (inline "Correctness<$>ElGamal")
 apply (inline "keygen<$>ElGamal")
 apply (inline "dec<$>ElGamal")
 apply (inline "enc<$>ElGamal")
 apply (wp sample) apply skip apply auto
 unfolding power_mult[symmetric] apply (subst mult.commute[where 'a=nat])
 apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
- *)
-sorry (* "uncommented for speed" *)
 
+(* sorry (* "uncommented for speed" *) *)
+  
 type_synonym 'g ElGamal_Adv = "('g, nat, 'g, 'g\<times>'g) CPA_Adv"
 
 procedure DDHAdv :: "'G ElGamal_Adv =proc=> 'G DDH_Adv" where

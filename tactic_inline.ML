@@ -168,6 +168,8 @@ val callproc_rule_conditions_tac_simpset =
   }
   |> Raw_Simplifier.simpset_of
 
+val callproc_rule_conditions_tac_goals = Unsynchronized.ref [] (* Only for debugging *)
+val callproc_rule_conditions_tac_add_simps = Unsynchronized.ref [] (* Only for debugging *)
 
 (* If the number of precondition of "callproc_rule" changed, need to change the number after NGOALS accordingly.
    callproc_rule_conditions_tac is supposed to solve all subgoals of "callproc_rule" except the last one. *) 
@@ -177,19 +179,22 @@ fun callproc_rule_conditions_tac ctx (procthms:Procs_Typed.procedure_info) i =
            #return_vars procthms |> some procthms, 
            #args procthms |> some procthms] @ 
          @{thms callproc_conditions_simp.callproc_conditions_simp})*)
-      val _ = @{print} "callproc_rule_conditions_tac"
-      val simpset = (put_simpset callproc_rule_conditions_tac_simpset ctx)
-            addsimps [#body_local_vars procthms |> some procthms, 
+      val extra_simps = [#body_local_vars procthms |> some procthms, 
                       #return_vars procthms |> some procthms, 
                       #args procthms |> some procthms]
+      val simpset = (put_simpset callproc_rule_conditions_tac_simpset ctx)
+            addsimps extra_simps
+      val _ = callproc_rule_conditions_tac_goals := []
+      val _ = callproc_rule_conditions_tac_add_simps := extra_simps
   in
   NGOALS i 6 (fn j =>
     if j=3+i then ASSERT_SUCCESS' (solve_tac ctx @{thms callproc_conditions_simp.callproc_goal4})
                   (fn t => TERM("callproc_rule_conditions_tac, goal 4", [t])) 4
     else
       (* simp_tac simpset j *)
-      (* THEN print_tac ctx ("condition "^string_of_int i) *)
+       (* print_tac ctx ("condition "^string_of_int i) THEN *)
       (* TODO: what is the fasted tactic for set equalities? *)
+      (SUBGOAL (fn (t,_) => (callproc_rule_conditions_tac_goals := t :: !callproc_rule_conditions_tac_goals; all_tac)) j) THEN
       (ASSERT_SOLVED' (simp_tac simpset THEN_ALL_NEW simp_tac ctx) 
          (fn goal => fn subgoals => raise TERM("callproc_rule_conditions_tac, goal "^string_of_int j,[goal, nth subgoals (j-1)])) j))
   end
@@ -200,9 +205,10 @@ fun callproc_rule_tac' ctx (procthms:Procs_Typed.procedure_info) renaming locals
 (*       val simp_rules = @{thms vars_variable_pattern[THEN eq_reflection] 
         assign_default_typed_aux[THEN eq_reflection] assign_default_typed_aux_cons[THEN eq_reflection]
         assign_default_typed_aux_nil[THEN eq_reflection]} *) 
-  in resolve_tac ctx [callproc_rule] i
+  in 
+     resolve_tac ctx [callproc_rule] i
      (* THEN print_tac ctx "callproc_rule subgoals" *)
-     THEN callproc_rule_conditions_tac ctx procthms i
+     THEN Timing.timeap_msg "callproc_rule_conditions_tac" (callproc_rule_conditions_tac ctx procthms i)
      (* THEN print_tac ctx "conditions done" *)
      THEN Raw_Simplifier.rewrite_goal_tac ctx [#args procthms |> some procthms] i
 (*     THEN print_tac ctx "step1"*)

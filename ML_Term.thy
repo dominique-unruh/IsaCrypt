@@ -42,12 +42,17 @@ ML \<open>
   end;
 \<close>
   
-syntax "_ml_term" :: "cartouche_position \<Rightarrow> 'a" ("@_")
+syntax "_ml_term" :: "cartouche_position \<Rightarrow> term" ("@_")
+syntax "_ml_term" :: "cartouche_position \<Rightarrow> prop" ("PROP @_")
 parse_translation \<open>[(@{syntax_const "_ml_term"}, 
     ml_term_tr (Symbol_Pos.cartouche_content o Symbol_Pos.explode))]\<close>
 
 
 (* Testing *)
-ML {* val test_goal = @{term "1=2"} *}
+ML {* val test_goal = @{prop "1=2"} *}
 lemma "a@bv==c"  oops
-lemma "@\<open>test_goal\<close>==False"
+lemma "PROP @\<open>test_goal\<close>" oops
+
+    
+end
+  
