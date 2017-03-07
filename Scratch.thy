@@ -3,45 +3,30 @@ imports Complex_Main
 begin
 
 ML {*
-    structure Data = Generic_Data
-    (
-      type T = term
-      val empty : T = @{term True}
-      val extend = I;
-      fun merge (t1,_) = t1
-    );
-*}
-    
-ML {*
-  val test_parser = Scan.lift Parse.nat |-- Args.term
+  val times = Parse.sym_ident :-- (fn "*" => Scan.succeed () | _ => Scan.fail) >> #1;
+
+  val test_parser = Scan.lift Parse.nat --| Scan.lift (times || Parse.reserved "x") -- Args.term
+    >> (fn (n,t) => replicate n t |> HOLogic.mk_list dummyT)
 *}
 
-  
-setup {*
-    ML_Antiquotation.inline @{binding antiquotation_hack} (test_parser >> (ML_Syntax.atomic o ML_Syntax.print_term))
-*}
-    
-  
+
+
 ML {*
-val pfx = (Input.source_content \<open>antiquotation_hack \<close> |> Symbol_Pos.explode0)
+fun errmsg (_,SOME msg) = msg
+  | errmsg (_,NONE) = fn _ => "Syntax error"
+
 fun parse_cartouche ctx (cartouche:string) (pos:Position.T) : term = 
-let val content = Symbol_Pos.cartouche_content (Symbol_Pos.explode (cartouche, pos))
-    val antiq_body = pfx @ content
-    val range = Symbol_Pos.range antiq_body
-    val ml = [Antiquote.Antiq {body=antiq_body, range=range, start=fst range, stop=snd range}]
-val _ = @{print} ml
-    val ctx' = ML_Context.expression Position.no_range
-              "term" "term" "fn ctx => Data.put term ctx"
-              ml
-              (Context.Proof ctx)
-    val term = Data.get ctx'
-in term end
+  let val content = Symbol_Pos.cartouche_content (Symbol_Pos.explode (cartouche, pos))
+      val toks = content |> Source.of_list 
+           |> Token.source' true Keyword.empty_keywords
+           |> Token.source_proper |> Source.exhaust
+           |> (fn src => src @ [Token.eof])
+      val (term,_) = Scan.error (Scan.!! errmsg (test_parser --| Scan.lift Parse.eof)) (Context.Proof ctx,toks)
+  in term end
 *}
-  
-  
+
 
 ML {*
-
   (* Modified from Cartouche_Examples.thy *)
   fun cartouche_tr (ctx:Proof.context) args =
       let fun err () = raise TERM ("cartouche_tr", args) in
@@ -57,7 +42,7 @@ ML {*
 syntax "_my_syntax" :: "cartouche_position \<Rightarrow> 'a" ("MY_")
 parse_translation \<open>[(@{syntax_const "_my_syntax"}, cartouche_tr)]\<close>
 
-term "(MY \<open>123 \<open>b+c\<close>\<close>, 3)" (* Should parse as (b+c,3) *)
+term "(MY \<open>3 * \<open>b+c\<close>\<close>, 2)" (* Should parse as ([b+c,b+c,b+c],2) *)
 
   
 end
