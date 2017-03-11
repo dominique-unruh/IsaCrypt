@@ -12,7 +12,8 @@ fun fail_pos str = errmsg str (Scan.fail)
 fun expect str = errmsg (fn _ => "expected "^str())
 fun expect' str =                  errmsg (fn _ => "expected "^str)
 
-val eof_parser : unit symbol_parser = spaces --| Scan.one (fn (s,_) => Symbol.is_eof s) >> (fn _ => ())
+val eof_parser : unit ctx_sym_parser = Scan.lift spaces --| 
+  (Scan.one (fn (s,_) => Symbol.is_eof s) |> Scan.lift |> expect' "end of program") >> (fn _ => ())
 
 fun sym_parser sym = Parse.sym_ident :-- (fn s => if s=sym then Scan.succeed () else Scan.fail) >> #1;
 
@@ -28,7 +29,8 @@ fun cartouche_tr what (parser:term ctx_sym_parser) (ctx:Proof.context) args =
               let val content = Symbol_Pos.cartouche_content (Symbol_Pos.explode (s, pos))
                   val range = if content=[] then (pos,pos) else Symbol_Pos.range content
                   val eof = (Symbol.eof, snd range)
-                  val (term,_) = (Scan.error (errmsg (fn _=>"Could not parse "^what) (parser --| Scan.lift eof_parser))) (ctx,content@[eof])
+                  val (term,_) = (Scan.error (errmsg (fn _=>"Could not parse "^what) 
+                                 (parser --| eof_parser))) (ctx,content@[eof])
               in
                 c $ term $ p
               end
