@@ -850,7 +850,7 @@ definition local_variable_name_renaming1 :: "(string * string) \<Rightarrow> var
   "local_variable_name_renaming1 = (\<lambda>(a,b) x.
   (if vu_global x then x
   else x \<lparr> vu_name := if vu_name x = a then b else if vu_name x = b then a else vu_name x \<rparr>))"
-
+  
 lemma local_variable_name_renaming1_type: "vu_type (local_variable_name_renaming1 ren x) = vu_type x"
   by (cases ren, simp add: local_variable_name_renaming1_def)
 lemma local_variable_name_renaming1_global: "vu_global (local_variable_name_renaming1 ren x) = vu_global x"

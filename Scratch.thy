@@ -25,7 +25,8 @@ fun parse_cartouche ctx (cartouche:string) (pos:Position.T) : term =
     val content = Symbol_Pos.cartouche_content (Symbol_Pos.explode (cartouche, pos))
     (* Translate content into a "Token.T list". *)
     val toks = content |> Source.of_list (* Create a "Source.source" containing the symbols *)
-      |> Token.source' true Keyword.empty_keywords (* Translate into a "Source.source" containing tokens *)
+      |> Token.source' true Keyword.empty_keywords (* Translate into a "Source.source" containing tokens.
+             I don't know what the argument true does here. false also works, I think. *)
       |> Token.source_proper (* Remove things like whitespaces *)
       |> Source.exhaust (* Translate the source into a list of tokens *)
       |> (fn src => src @ [Token.eof]) (* Add an eof to the end of the token list, to enable Parse.eof below *)

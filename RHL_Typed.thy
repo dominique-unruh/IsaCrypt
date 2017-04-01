@@ -446,7 +446,90 @@ qed
 (* Outputs the list of parameters of callproc_rule, ordered like the arguments to Drule.instantiate' *)
 ML {* Term.add_vars (Thm.prop_of @{thm callproc_rule}) [] |> rev |> map Var |> map (Syntax.string_of_term @{context}) |> String.concatWith "\n" |> writeln *}
 
-(* If the subgoals change, inline_rule_conditions_tac must be adapted accordingly *)
+fun varname_to_nat :: "variable_name \<Rightarrow> nat" where
+  "varname_to_nat [] = 0"
+| "varname_to_nat (c#cs) = nat_of_char c + 1 + varname_to_nat cs * 257" 
+definition [simp]: "var_to_nat v = 2 * varname_to_nat (vu_name v) + (if vu_global v then 1 else 0)" 
+
+  
+lemma inj_varname_to_nat: "inj varname_to_nat"
+proof (rule injI)
+  fix x y assume assm: "varname_to_nat x = varname_to_nat y"
+  show "x = y"
+  proof (insert assm, induction x arbitrary: y)
+    case Nil then show ?case apply (cases y) by auto
+  next case xCons: (Cons c cs)
+    show ?case
+    proof (cases y)
+      case Nil with xCons.prems show ?thesis by auto
+    next case yCons: (Cons d ds)
+      from xCons.prems yCons          
+      have vn_same: "varname_to_nat cs = varname_to_nat ds" 
+        apply auto
+        using nat_of_char_less_256[of c] nat_of_char_less_256[of d] by arith
+      with xCons have cs_same: "cs = ds" by simp
+      from xCons.prems yCons          
+      have c_same: "c = d" 
+        apply auto unfolding vn_same by simp
+      from cs_same c_same yCons show ?thesis by simp
+    qed
+  qed
+qed  
+  
+lemma inj_var_to_nat_global: 
+  assumes "var_to_nat x = var_to_nat y"
+  shows "vu_global x = vu_global y"
+  using assms unfolding var_to_nat_def
+  apply (cases "vu_global x"; cases "vu_global x")
+     close arith close close by arith
+    
+lemma inj_var_to_nat_name:
+  assumes "var_to_nat x = var_to_nat y"
+  shows "vu_name x = vu_name y"
+proof -
+  from assms have "varname_to_nat (vu_name x) = varname_to_nat (vu_name y)"
+    unfolding var_to_nat_def inj_var_to_nat_global[OF assms] by simp  
+  then show ?thesis
+    by (rule inj_varname_to_nat[THEN injD])
+qed
+  
+lemma var_to_nat_mk_variable_untyped_LVariable [simp]:
+  "var_to_nat (mk_variable_untyped (LVariable n)) = 2 * varname_to_nat n"
+  by simp
+  
+lemma var_to_nat_mk_variable_untyped_Variable [simp]:
+  "var_to_nat (mk_variable_untyped (Variable n)) = 2 * varname_to_nat n + 1"
+  by simp
+  
+definition local_renaming1_to_nat :: "(variable_name * variable_name) \<Rightarrow> (nat*nat)" where
+  "local_renaming1_to_nat = (\<lambda>(n,m). (2 * varname_to_nat n,2 * varname_to_nat m))"
+definition apply_transposition :: "('a*'a) \<Rightarrow> 'a \<Rightarrow> 'a" where
+  "apply_transposition = (\<lambda> (a,b) x. if x = a then b else if x = b then a else x)"
+definition apply_permutation :: "('a*'a) list \<Rightarrow> 'a \<Rightarrow> 'a" where
+  "apply_permutation = fold apply_transposition"
+
+lemma var_to_nat_local_variable_name_renaming1: "var_to_nat (local_variable_name_renaming1 renaming v) = 
+  apply_transposition (local_renaming1_to_nat renaming) (var_to_nat v)"
+  unfolding apply_transposition_def local_renaming1_to_nat_def 
+            local_variable_name_renaming1_def
+            var_to_nat_def
+  apply (cases renaming)
+  by (auto simp: inj_varname_to_nat[THEN injD])
+
+lemma var_to_nat_local_variable_name_renaming: "var_to_nat (local_variable_name_renaming renaming v) = 
+  apply_permutation (map local_renaming1_to_nat renaming) (var_to_nat v)"
+  unfolding local_variable_name_renaming_def apply_permutation_def
+  apply (induction renaming arbitrary: v) close
+  unfolding fold_simps list.map
+  apply (subst var_to_nat_local_variable_name_renaming1[symmetric])
+  by auto
+    
+    
+(* lemma "var_to_nat (mk_variable_untyped (Variable ''hello there'')) = xxx"
+  apply simp *)
+  
+    
+(* If the subgoals change, Tactic_Inline.callproc_rule_conditions_tac must be adapted accordingly *)
 (* locals and non_parg_locals have to be already renamed *)
 lemma callproc_rule_renamed:
   fixes p::"('a::prog_type,'b::prog_type) procedure" and x::"'b pattern" and args::"'a expression"
@@ -457,8 +540,10 @@ lemma callproc_rule_renamed:
   defines "body == p_body p"
   defines "ret == p_return p"
   defines "pargs == p_arg p"
+  defines "renaming_nat == map local_renaming1_to_nat renaming"
 
-  assumes proc_locals: "local_variable_name_renaming renaming ` (set(local_vars body) \<union> filter_local (set(p_vars pargs) \<union> set(e_vars ret))) \<subseteq> set locals"
+  (* assumes proc_locals: "local_variable_name_renaming renaming ` (set(local_vars body) \<union> filter_local (set(p_vars pargs) \<union> set(e_vars ret))) \<subseteq> set locals" *)
+  assumes proc_locals_nat: "apply_permutation renaming_nat ` (var_to_nat`set(local_vars body) \<union> var_to_nat`filter_local(set(p_vars pargs)) \<union> var_to_nat`filter_local(set(e_vars ret))) \<subseteq> var_to_nat`set locals"
   assumes locals_local: "filter_global (set locals) = {}"
   assumes localsV: "V \<inter> set locals \<subseteq> set (p_vars x)"
   assumes proc_globals: "local_variable_name_renaming renaming ` (filter_global(set(vars body) \<union> set(e_vars ret))) \<subseteq> V"
@@ -477,6 +562,12 @@ proof -
   define unfolded' where "unfolded' \<equiv> seq (seq (seq (assign pargs' args) (assign_default_typed non_parg_locals)) body') (assign x ret')"
   have filter_renaming: "\<And>X. filter_local (local_variable_name_renaming renaming ` X) = local_variable_name_renaming renaming ` filter_local X"
     unfolding filter_local_def using local_variable_name_renaming_global by auto
+  have aux: "var_to_nat ` local_variable_name_renaming renaming ` X =  apply_permutation (map local_renaming1_to_nat renaming) ` var_to_nat ` X" for X
+    using var_to_nat_local_variable_name_renaming
+    by (metis (no_types, hide_lams) image_comp image_cong o_def renaming_nat_def) sledgehammer by later
+  from proc_locals_nat
+  have proc_locals: "local_variable_name_renaming renaming ` (set(local_vars body) \<union> filter_local (set(p_vars pargs) \<union> set(e_vars ret))) \<subseteq> set locals"
+    apply (subst aux) apply auto
   have "unfolded = unfolded'"
     unfolding unfolded_def unfolded'_def pargs'_def pargs_def p_arg_rename_local_variables_proc
               body'_def body_def p_body_rename_local_variables_proc ret'_def ret_def
