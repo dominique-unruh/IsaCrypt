@@ -702,7 +702,7 @@ lemma denotation_eq_seq_fst:
   shows "denotation (seq a b) = denotation (seq a' b)"
 unfolding denotation_seq[THEN ext] using assms by simp
     
-
+(*
 subsection {* Concrete syntax for programs *}
 
 subsubsection {* Grammar *}
@@ -801,7 +801,8 @@ Const(@{const_name procedure_ext},dummyT) $
    Lang_Syntax.translate_expression ctx known return $ (* p_return *)
    @{term "()"}
 end)] *}
-
+*)
+  
 lemma vars_seq [simp]: "vars (seq a b) = vars a @ vars b" by (simp add: vars_def)
 lemma vars_assign [simp]: "vars (assign x e) = p_vars x @ e_vars e" by (simp add: p_vars_def vars_def)
 lemma vars_sample [simp]: "vars (sample x e) = p_vars x @ e_vars e" by (simp add: p_vars_def vars_def)
