@@ -33,6 +33,8 @@ type 'a symbol_parser = Symbol_Pos.T list -> 'a * Symbol_Pos.T list
 type 'a ctx_sym_parser = Proof.context * Symbol_Pos.T list -> 'a * (Proof.context * Symbol_Pos.T list)
 
 val spaces : unit symbol_parser = Scan.many (fn (s,_) => Symbol.is_blank s) >> (fn _ => ())
+fun any (ctx,tok::toks) = (tok,(ctx,toks))
+  | any (st as (_,[])) = Scan.fail st
 
 fun pos_of ((_,pos)::_) = pos
   | pos_of [] = Position.none
@@ -41,12 +43,12 @@ fun pos_of ((_,pos)::_) = pos
 fun errmsg str parser = Scan.lift spaces |-- Scan.!! (fn ((_,syms),_) => fn _ => str() ^ Position.here (pos_of syms)) parser
 fun fail_pos str = errmsg str (Scan.fail)
 fun expect str = errmsg (fn _ => "expected "^str())
-fun expect' str =                  errmsg (fn _ => "expected "^str)
+fun expect' str = errmsg (fn _ => "expected "^str)
 
 val eof_parser : unit ctx_sym_parser = Scan.lift spaces --| 
   (Scan.one (fn (s,_) => Symbol.is_eof s) |> Scan.lift |> expect' "end of program") >> (fn _ => ())
 
-fun sym_parser sym = Parse.sym_ident :-- (fn s => if s=sym then Scan.succeed () else Scan.fail) >> #1;
+(* fun sym_parser sym = Parse.sym_ident :-- (fn s => if s=sym then Scan.succeed () else Scan.fail) >> #1; *)
 
 
 (* A parse translation that translates cartouches using parser. *)
@@ -67,7 +69,7 @@ fun cartouche_tr what (parser:term ctx_sym_parser) (ctx:Proof.context) arg =
               end
           | NONE => err ())
       | _ => err ()
-    end;
+    end;;
 
 local
   fun encode_str_tr' (s:string) = HOLogic.mk_string s
@@ -117,27 +119,27 @@ in
     | decode_term (Free("v",_) $ n $ i $ T) = Var ((decode_string n, decode_int i), decode_typ T)
     | decode_term (Free("b",_) $ i) = Bound (decode_int i)
     | decode_term t = raise TERM("decode_term",[t])
-end
+end;;
 
-  fun filter (pred: 'a -> bool) (parser : 'b -> 'a*'b) (xs : 'b) =
-    let val (res,xs') = parser xs in 
-    if pred res then (res,xs')
-    else Scan.fail xs end
+fun filter (pred: 'a -> bool) (parser : 'b -> 'a*'b) (xs : 'b) =
+  let val (res,xs') = parser xs in 
+  if pred res then (res,xs')
+  else Scan.fail xs end
 
 (*  val scan_symid : string symbol_parser =
     spaces |--
     (Scan.many1 (Symbol.is_symbolic o Symbol_Pos.symbol) >> Symbol_Pos.implode) *)
 
-  fun sym s = Scan.one (fn (s',_) => s=s')
+fun sym s = Scan.one (fn (s',_) => s=s')
 
-  fun $$$ opname : string symbol_parser = 
-    let fun sc [] : unit symbol_parser = Scan.succeed ()
-          | sc (s::ss) = sym s |-- sc ss
-    in
-      spaces |-- sc (Symbol.explode opname) >> (fn _ => opname)
-    end
+fun $$$ opname : string ctx_sym_parser = 
+  let fun sc [] : unit symbol_parser = Scan.succeed ()
+        | sc (s::ss) = sym s |-- sc ss
+  in
+    spaces |-- sc (Symbol.explode opname) >> (fn _ => opname)
+  end |> Scan.lift
 
-  val identifier : string symbol_parser = spaces |-- Symbol_Pos.scan_ident >> Symbol_Pos.implode
+val identifier : string symbol_parser = spaces |-- Symbol_Pos.scan_ident >> Symbol_Pos.implode
 
 fun update_context f : 'a ctx_sym_parser = fn (ctx,toks) => let val (ctx',res) = f ctx in (res, (ctx', toks)) end
 
@@ -149,21 +151,38 @@ fun add_local_variable_parser var : typ ctx_sym_parser = update_context (fn ctx 
 
 fun mk_lvar name typvar = Const(@{const_name LVariable},HOLogic.stringT --> Type(@{type_name variable},[typvar])) $ HOLogic.mk_string name
 
-  val pattern_parser : term ctx_sym_parser = Scan.lift identifier :-- add_local_variable_parser >> (fn (name,typvar) => 
-    Const(@{const_name variable_pattern},dummyT) $ mk_lvar name typvar)
- (* |> Scan.lift *)
-  |> expect' "pattern"
+fun pattern_list_to_pair_pattern [] = @{term "ignore_pattern :: unit pattern"}
+  | pattern_list_to_pair_pattern [a] = a
+  (* | pattern_list_to_pair_pattern [a,b] = Const(@{const_name pair_pattern},dummyT) $ a $ b *)
+  | pattern_list_to_pair_pattern (p::ps) = Const(@{const_name pair_pattern},dummyT) $ p $ pattern_list_to_pair_pattern ps
 
-  fun with_context (parser : Proof.context -> 'a ctx_sym_parser) : 'a ctx_sym_parser =
-    fn arg as (ctx,_) => parser ctx arg
-  fun with_pos (parser : Position.T -> 'a ctx_sym_parser) : 'a ctx_sym_parser =
-    fn arg as (_,(_,pos)::_) => parser pos arg | arg => Scan.fail arg
+val variable_pattern_parser = Scan.lift identifier :-- add_local_variable_parser >> (fn (name,typvar) => Const(@{const_name variable_pattern},dummyT) $ mk_lvar name typvar)
+
+fun tuple_pattern_parser st = ($$$ "(" |-- tuple_pattern_parser' >> pattern_list_to_pair_pattern) st
+and tuple_pattern_parser' st = (Scan.lift spaces |-- Scan.ahead any :|-- (fn (sym,_) =>
+  if sym = ")" then $$$ ")" >> (fn _ => [])
+  else pattern_parser -- tuple_pattern_parser'' >> (op::))) st
+and tuple_pattern_parser'' st = (Scan.lift spaces |-- (Scan.first (map $$$ [",",")"]) |> expect' ", or )")
+  :|-- (fn sym =>
+    if sym = ")" then Scan.succeed []
+    else if sym = "," then pattern_parser -- tuple_pattern_parser'' >> (op::)
+    else Scan.fail)) st
+and pattern_parser st = 
+      ((Scan.lift spaces |--
+       Scan.ahead any #-> (fn (sym,_) =>
+         if sym = "(" then tuple_pattern_parser
+         else if sym = "_" then $$$ "_" |-- Scan.succeed (Const(@{const_name ignore_pattern},dummyT))
+         else variable_pattern_parser))
+      |> expect' "pattern") st
+
+fun with_context (parser : Proof.context -> 'a ctx_sym_parser) : 'a ctx_sym_parser =
+  fn arg as (ctx,_) => parser ctx arg
+fun with_pos (parser : Position.T -> 'a ctx_sym_parser) : 'a ctx_sym_parser =
+  fn arg as (_,(_,pos)::_) => parser pos arg | arg => Scan.fail arg
     
 
   fun unscan tok res (ctx,toks) = (res,(ctx,tok::toks))
 
-  fun any (ctx,tok::toks) = (tok,(ctx,toks))
-    | any (st as (_,[])) = Scan.fail st
 
   fun sympos_to_markup (sym,pos) = Markup.markup (Markup.properties (Position.properties_of pos) Markup.position) sym
 
@@ -223,8 +242,9 @@ val _ = @{print} tagged_str *)
   |> expect' "expression"
 
   val assign_symbols = [":=","<-","\<leftarrow>"]
+  val assign_symbols_or = String.concatWith " or " assign_symbols 
 
-  val assign_symbol = Scan.lift (Scan.first (map $$$ assign_symbols)) |> expect' ":="
+  val assign_symbol = Scan.first (map $$$ assign_symbols) |> expect' assign_symbols_or
 
   val assign_parser : term ctx_sym_parser = pattern_parser --| assign_symbol -- expression_parser >> (fn (pat,exp) =>
     Const(@{const_name assign},dummyT) $ pat $ exp)
@@ -233,7 +253,7 @@ val _ = @{print} tagged_str *)
 (*   fun eof [] = ((),[])
     | eof xs = Scan.fail_with (fn _ => fn _ => "expected EOF") xs *)
    
-  val semicolon = Scan.lift ($$$ ";")
+  val semicolon = $$$ ";"
 
   val statement_parser : term ctx_sym_parser  = assign_parser
 

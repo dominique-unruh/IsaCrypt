@@ -33,6 +33,7 @@ lemma obs_eq_obs_eq_untyped: "obs_eq X Y c1 c2 = obs_eq_untyped X Y (Rep_program
   unfolding obs_eq_def obs_eq_untyped_def rhoare_def
   unfolding rhoare_untyped_def denotation_def by auto
 
+    (*
 subsection {* Concrete syntax *}
 
 syntax "_rhoare" :: "(memory \<Rightarrow> bool) \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> term"
@@ -70,7 +71,8 @@ consts x::"int variable"
 consts f::"memory\<Rightarrow>memory"
 term "hoare {(x)\<^sub>1 = undefined} skip ~ skip {undefined}"
 *)
-
+*)
+    
 subsection {* Rules *}
 
 lemma rconseq_rule:

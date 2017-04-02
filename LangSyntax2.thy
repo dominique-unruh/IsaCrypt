@@ -14,11 +14,10 @@ parse_translation \<open>[(@{syntax_const "_internal_read_term_halfchecked_tag"}
 (* syntax "_expression" :: "'a \<Rightarrow> 'a" *)
 
 term "PR\<open>y <- 1\<close>"
-
+term "PR\<open>(_,_) \<leftarrow> (1,x)\<close>"
 term "PR\<open>y <- x; y <- z; q <- (1,fst (y,q)); q <- w\<close>"
-
 term "\<lambda>z. PR\<open>x := \<lambda>w. z+w+d; y <- (x,x); y \<leftarrow> e()\<close>"
-
 term \<open>\<lambda>z. PR\<open>x := z;\<close>\<close>
+term "(1,(2,3))"
   
 end
