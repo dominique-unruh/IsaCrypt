@@ -487,7 +487,7 @@ lemma apply1:
   fixes p::"('b::prog_type,'c::prog_type)procedure" and body body0 and retval::"'c expression"
     and args::"'b pattern" and arg_proc::"'a::procedure_functor"
   assumes p0_def: "p0 = procedure_functor_mk_typed (ProcAbs (Proc body (Rep_pattern args) (mk_expression_untyped retval)))"
-  assumes subst: "subst_prog1 arg_proc body PROGRAM[\<guillemotleft>body0\<guillemotright>]"
+  assumes subst: "subst_prog1 arg_proc body body0"
   shows "procfun_apply p0 arg_proc = \<lparr> p_body=body0, p_arg=args, p_return=retval \<rparr>"
 proof -
   have args_type: "Type TYPE('b) = pu_type (Rep_pattern args)"
@@ -513,7 +513,7 @@ proof -
 
   have aux: "Rep_program (Abs_program (beta_reduce' (subst_proc_in_prog 0 
              (procedure_functor_mk_untyped arg_proc) (beta_reduce' body)))) = Rep_program body0"
-    using subst unfolding subst_prog1_def program_def by auto
+    using subst unfolding subst_prog1_def by auto
   have subst': "beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped arg_proc)
                     (beta_reduce' body)) = Rep_program body0"
     apply (subst Abs_program_inverse[symmetric], auto)
@@ -552,9 +552,9 @@ qed
 
 lemma seq:
   assumes q_def: "q = Seq q1 q2"
-  assumes "subst_prog1 p q1 PROGRAM[\<guillemotleft>c1\<guillemotright>]"
-  assumes "subst_prog1 p q2 PROGRAM[\<guillemotleft>c2\<guillemotright>]"
-  shows "subst_prog1 p q PROGRAM[\<guillemotleft>c1\<guillemotright>; \<guillemotleft>c2\<guillemotright>]"
+  assumes "subst_prog1 p q1 c1"
+  assumes "subst_prog1 p q2 c2"
+  shows "subst_prog1 p q (seq c1 c2)"
 proof - 
   have wt_q1: "well_typed'' [procedure_functor_type TYPE('a)] q1" 
    and wt_q2: "well_typed'' [procedure_functor_type TYPE('a)] q2"
@@ -579,7 +579,7 @@ proof -
         close (fact wt_subst_q1)
       apply (rule beta_reduced_beta_reduce')
       apply (subst Rep_program_inverse)
-      using assms(2) unfolding subst_prog1_def program_def by auto
+      using assms(2) unfolding subst_prog1_def by auto
   have q2_c2: "beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' q2)) =
     Rep_program c2"
     apply (subst Abs_program_inject[symmetric], auto)
@@ -588,7 +588,7 @@ proof -
         close (fact wt_subst_q2)
       apply (rule beta_reduced_beta_reduce')
       apply (subst Rep_program_inverse)
-      using assms(3) unfolding subst_prog1_def program_def by auto
+      using assms(3) unfolding subst_prog1_def by auto
   have eq: "Abs_program
      (beta_reduce' (subst_proc_in_prog 0 (procedure_functor_mk_untyped p) (beta_reduce' (Seq q1 q2)))) =
     Abs_program (Seq (Rep_program c1) (Rep_program c2))"
@@ -600,14 +600,14 @@ proof -
       close (fact wt_subst_q1) close (fact wt_subst_q2)
     by (auto simp: q1_c1 q2_c2)
   from wt_seq eq show ?thesis
-    unfolding subst_prog1_def q_def program_def seq_def by auto
+    unfolding subst_prog1_def q_def seq_def by auto
 qed
 
 lemma closed:
   fixes q c p
   assumes q_def: "q = Rep_program c"
-  shows "subst_prog1 p q PROGRAM[\<guillemotleft>c\<guillemotright>]"
-unfolding q_def subst_prog1_def program_def apply auto
+  shows "subst_prog1 p q c"
+unfolding q_def subst_prog1_def apply auto
 apply (metis Rep_program mem_Collect_eq well_typed_extend(1) well_typed_well_typed'')
 apply (subst beta_reduced_beta_reduce_id')
 apply (subst subst_well_typed_id)
@@ -625,7 +625,7 @@ lemma callproc:
         and r::"('in,'out)procedure" and a::"'in expression" and v::"'out pattern"
   assumes q0_def: "q0 = CallProc (Rep_pattern v) (ProcAppl (procedure_functor_mk_untyped q) (ProcRef 0)) (mk_expression_untyped a)"
   assumes qpr: "q <$> p = r"
-  shows "subst_prog1 p q0 PROGRAM[ \<guillemotleft>callproc v r a\<guillemotright> ]"
+  shows "subst_prog1 p q0 (callproc v r a)"
 proof (unfold subst_prog1_def, rule conjI)
   let ?E = "[procedure_functor_type TYPE('mod)]"
   show wt_q0: "well_typed'' ?E q0"
@@ -648,11 +648,11 @@ proof (unfold subst_prog1_def, rule conjI)
      close (rule procedure_functor_welltyped[of p, simplified])
     by simp
   show "Abs_program (beta_reduce' (subst_proc_in_prog (0::nat) (procedure_functor_mk_untyped p) (beta_reduce' q0))) =
-    PROGRAM [ \<guillemotleft>callproc v r a\<guillemotright> ]"
+    callproc v r a"
     apply (subst subst_proc_beta_reduce'[where F="[]", simplified])
       close (fact wt_q0)
      close (rule procedure_functor_welltyped[of p, simplified])
-    unfolding q0_def program_def callproc_def apply simp
+    unfolding q0_def callproc_def apply simp
     apply (subst beta_reduce_CallProc)
      apply (rule wt_ProcAppl)
       close (rule procedure_functor_welltyped[of q, simplified])
@@ -825,12 +825,6 @@ setup {*
 
 ML_file "procs_typed.ML"
 
-
-(** Test **)
-
-experiment begin
-  procedure test where "test = proc () { skip; return 1 }"
-end
 
 
 end

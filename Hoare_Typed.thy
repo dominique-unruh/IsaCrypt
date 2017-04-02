@@ -159,27 +159,26 @@ lemma seq_rule_lastfirst:
 lemma assign_rule_strict:
   fixes Q x e
   defines "Q' == \<lambda>m. Q (memory_update_pattern m x (e_fun e m))"
-  shows "hoare {Q' &m} \<guillemotleft>assign x e\<guillemotright> {Q &m}"
+  shows "hoare Q' (assign x e) Q"
   apply (rule assign_rule)
   unfolding Q'_def by simp
 
 lemma sample_rule_strict:
   fixes Q x e
   defines "Q' == \<lambda>m. \<forall>v\<in>support_distr (e_fun e m). Q (memory_update_pattern m x v)"
-  shows "hoare {Q' &m} \<guillemotleft>sample x e\<guillemotright> {Q &m}"
+  shows "hoare Q' (sample x e) Q"
   apply (rule sample_rule)
   unfolding Q'_def by simp
 
-lemma skip_rule_strict: "hoare {P &m} skip {P &m}"
+lemma skip_rule_strict: "hoare P skip P"
   by (rule skip_rule, simp)
 
 lemma if_case_rule:
-  assumes "hoare {P1 &m} \<guillemotleft>c1\<guillemotright> {Q &m}"
-  assumes "hoare {P2 &m} \<guillemotleft>c2\<guillemotright> {Q &m}"
-  shows "hoare (* {(e_fun e &m \<longrightarrow> P1 &m) \<and> (\<not> e_fun e &m \<longrightarrow> P2 &m)} *)
-               {if e_fun e &m then P1 &m else P2 &m}
-                 if (\<guillemotleft>e\<guillemotright>) \<guillemotleft>c1\<guillemotright> else \<guillemotleft>c2\<guillemotright> 
-               {Q &m}"
+  assumes "hoare P1 c1 Q"
+  assumes "hoare P2 c2 Q"
+  shows "hoare (\<lambda>m. if (e_fun e m) then (P1 m) else (P2 m))
+               (ifte e c1 c2) 
+               Q"
   apply (rule case_rule[where f="\<lambda>m. e_fun e m"])
   apply (case_tac x, auto)
   apply (rule iftrue_rule)
@@ -188,7 +187,7 @@ lemma if_case_rule:
   by (rule conseq_rule[where P'=P2 and Q'=Q], auto simp: assms)
 
 lemma readonly_hoare:
-  shows "program_readonly X c = (\<forall>a. hoare {\<forall>x\<in>X. memory_lookup_untyped &m x = a x} \<guillemotleft>c\<guillemotright> {\<forall>x\<in>X. memory_lookup_untyped &m x = a x})"
+  shows "program_readonly X c = (\<forall>a. hoare (\<lambda>m. \<forall>x\<in>X. memory_lookup_untyped m x = a x) c (\<lambda>m. \<forall>x\<in>X. memory_lookup_untyped m x = a x))"
 using denotation_def hoare_untyped program_readonly_def program_untyped_readonly_def readonly_hoare_untyped by auto
 
 lemma seq_swap:

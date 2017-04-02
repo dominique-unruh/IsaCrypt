@@ -25,8 +25,8 @@ simproc_setup hoare_simproc ("denotation c" | "Hoare_Typed.hoare P c Q" | "rhoar
     @{named_theorems lang_simp}
 *}
 
-lemma lang_cong_program [lang_cong]: "fun_equiv denotation x y \<Longrightarrow> fun_equiv denotation (program x) (program y)"
-  unfolding program_def .
+(* lemma lang_cong_program [lang_cong]: "fun_equiv denotation x y \<Longrightarrow> fun_equiv denotation (program x) (program y)"
+  unfolding program_def . *)
 lemma lang_cong_while [lang_cong]: "fun_equiv denotation x y \<Longrightarrow> fun_equiv denotation (Lang_Typed.while e x) (Lang_Typed.while e y)"
   unfolding fun_equiv_def denotation_def Rep_while unfolding denotation_untyped_While[THEN ext] by simp
 lemma lang_cong_seq [lang_cong]: "fun_equiv denotation x y \<Longrightarrow> fun_equiv denotation x' y' \<Longrightarrow> fun_equiv denotation (seq x x') (seq y y')"
@@ -53,7 +53,7 @@ lemma lang_simp_selfassign [lang_simp]: "(\<And>m. e_fun e m = memory_lookup m x
   unfolding fun_equiv_def denotation_assign[THEN ext] denotation_skip[THEN ext] apply auto
   by (subst memory_update_lookup, simp)
 
-
+(*
 experiment begin
 
   lemma "denotation PROGRAM[\<guillemotleft>x\<guillemotright>; {\<guillemotleft>y\<guillemotright>; \<guillemotleft>z\<guillemotright>}; \<guillemotleft>x\<guillemotright>] = denotation (foldr seq [x,y,z,x] Lang_Typed.skip)"
@@ -68,5 +68,6 @@ experiment begin
 (*  lemma "LOCAL (x::int variable). hoare {True} x:=0; if ($x\<noteq>$x) { \<guillemotleft>c\<guillemotright> }; x:=x; x:=x+1 {$x=1}"
     by (simp, wp, skip, auto) *)
 end
-
+*)
+    
 end

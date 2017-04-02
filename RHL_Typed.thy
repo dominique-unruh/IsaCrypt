@@ -37,10 +37,10 @@ lemma obs_eq_obs_eq_untyped: "obs_eq X Y c1 c2 = obs_eq_untyped X Y (Rep_program
 subsection {* Concrete syntax *}
 
 syntax "_rhoare" :: "(memory \<Rightarrow> bool) \<Rightarrow> program_syntax \<Rightarrow> program_syntax \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> term"
-          ("hoare {(_)}/ (2_) ~ (2_)/ {(_)}")
+          ("rhoare (\<lambda>m1 m2. (_)}/ (2_) ~ (2_)/ {(_)}")
 syntax "_memory" :: memory ("&m")
-syntax "_memory1" :: memory ("&1")
-syntax "_memory2" :: memory ("&2")
+syntax "_memory1" :: memory ("m1")
+syntax "_memory2" :: memory ("m2")
 syntax "_select_memory1" :: "'a \<Rightarrow> 'a" ("_\<^sub>1" [1000] 1000)
 syntax "_select_memory2" :: "'a \<Rightarrow> 'a" ("_\<^sub>2" [1000] 1000)
 
@@ -59,7 +59,7 @@ parse_translation {*
   [(@{const_syntax RHL_Typed.rhoare}, fn ctx => fn [P,c1,c2,Q] => RHoare_Syntax.trans_hoare_back ctx P c1 c2 Q)]
 *} *)
 
-(* ML {* val testterm = @{term "hoare {True} skip ~ skip {True}"} *}
+(* ML {* val testterm = @{term "rhoare (\<lambda>m1 m2. True} skip ~ skip {True}"} *}
 ML {* Syntax.string_of_term @{context} testterm |> writeln *} *)
 
 
@@ -69,7 +69,7 @@ ML {* @{print} @{term x\<^sub>a} *}
 
 consts x::"int variable"
 consts f::"memory\<Rightarrow>memory"
-term "hoare {(x)\<^sub>1 = undefined} skip ~ skip {undefined}"
+term "rhoare (\<lambda>m1 m2. (x)\<^sub>1 = undefined} skip ~ skip {undefined}"
 *)
 *)
     
@@ -78,8 +78,8 @@ subsection {* Rules *}
 lemma rconseq_rule:
   assumes "\<forall>m m'. P m m' \<longrightarrow> P' m m'"
       and "\<forall>m m'. Q' m m' \<longrightarrow> Q m m'"
-      and "hoare {P' &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q' &1 &2}"
-  shows "hoare {P &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
+      and "rhoare P' c d Q'"
+  shows "rhoare P c d Q"
   using assms unfolding rhoare_def by blast
 
 lemma rseq_rule:
@@ -89,14 +89,14 @@ lemma rseq_rule:
 using assms unfolding rhoare_untyped Rep_seq by (rule rseq_rule)
 
 lemma rsymmetric_rule:
-  assumes "hoare {P &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
-  shows "hoare {P &2 &1} \<guillemotleft>d\<guillemotright> ~ \<guillemotleft>c\<guillemotright> {Q &2 &1}"
+  assumes "rhoare P c d Q"
+  shows "rhoare (\<lambda>m1 m2. P m2 m1) d c (\<lambda>m1 m2. Q m2 m1)"
 using assms rhoare_untyped rsymmetric_rule by auto
 
 lemma assign_left_rule:
   fixes P Q x e
   assumes "\<forall>m m'. P m m' \<longrightarrow> Q (memory_update_pattern m x (e_fun e m)) m'"
-  shows "hoare {P &1 &2} \<guillemotleft>assign x e\<guillemotright> ~ skip {Q &1 &2}"
+  shows "rhoare P (assign x e) skip Q"
   unfolding rhoare_untyped Rep_skip Rep_assign
   apply (rule rassign_rule1)
   using assms unfolding memory_update_pattern_def by auto
@@ -104,7 +104,7 @@ lemma assign_left_rule:
 lemma assign_right_rule:
   fixes P Q x e
   assumes "\<forall>m m'. P m m' \<longrightarrow> Q m (memory_update_pattern m' x (e_fun e m'))"
-  shows "hoare {P &1 &2} skip ~ \<guillemotleft>assign x e\<guillemotright> {Q &1 &2}"
+  shows "rhoare P skip (assign x e) Q"
   unfolding rhoare_untyped Rep_skip Rep_assign
   apply (rule rassign_rule2)
   using assms unfolding memory_update_pattern_def by auto
@@ -112,21 +112,21 @@ lemma assign_right_rule:
 lemma assign_rule_left_strict:
   fixes Q x e
   defines "Q' == \<lambda>m m'. Q (memory_update_pattern m x (e_fun e m)) m'"
-  shows "hoare {Q' &1 &2} \<guillemotleft>assign x e\<guillemotright> ~ skip {Q &1 &2}"
+  shows "rhoare Q' (assign x e) skip Q"
   apply (rule assign_left_rule)
   unfolding Q'_def by simp
 
 lemma assign_rule_right_strict:
   fixes Q x e
   defines "Q' == \<lambda>m m'. Q m (memory_update_pattern m' x (e_fun e m'))"
-  shows "hoare {Q' &1 &2} skip ~ \<guillemotleft>assign x e\<guillemotright> {Q &1 &2}"
+  shows "rhoare Q' skip (assign x e) Q"
   apply (rule assign_right_rule)
   unfolding Q'_def by simp
 
 (*lemma sample_rule_left_strict:
   fixes Q x e
   defines "Q' == \<lambda>m m'. \<forall>v\<in>support_distr (e_fun e m). Q (memory_update_pattern m x v) m'"
-  shows "hoare {Q' &1 &2} \<guillemotleft>sample x e\<guillemotright> ~ skip {Q &1 &2}"
+  shows "rhoare (\<lambda>m1 m2. Q' m1 m2} (sample x e) ~ skip Q"
   apply (rule sample_rule)
   unfolding Q'_def by simp*)
 
@@ -134,51 +134,51 @@ lemma assign_rule_right_strict:
 
 
 lemma rcase_rule:
-  assumes "\<And>x. hoare {P &1 &2 \<and> f &1 &2 = x} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
-  shows "hoare {P &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
+  assumes "\<And>x. rhoare (\<lambda>m1 m2. P m1 m2 \<and> f m1 m2 = x) c d Q"
+  shows "rhoare P c d Q"
 using assms unfolding rhoare_def by metis
 
 lemma iftrue_rule_left:
-  assumes "hoare {P &1 &2} \<guillemotleft>c1\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
+  assumes "rhoare P c1 d Q"
           "\<forall>m m'. P m m' \<longrightarrow> e_fun e m"
-  shows "hoare {P &1 &2} if (\<guillemotleft>e\<guillemotright>) \<guillemotleft>c1\<guillemotright> else \<guillemotleft>c2\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
+  shows "rhoare P (ifte e c1 c2) d Q"
   unfolding rhoare_untyped Rep_ifte
   apply (rule iftrue_rule_left)
   using assms unfolding rhoare_untyped by auto
 
 lemma iffalse_rule_left:
   fixes P Q I e p1 p2
-  assumes "hoare {P &1 &2} \<guillemotleft>p2\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
+  assumes "rhoare P p2 d Q"
           "\<forall>m m'. P m m' \<longrightarrow> \<not> e_fun e m"
-  shows "hoare {P &1 &2}   if (\<guillemotleft>e\<guillemotright>) \<guillemotleft>p1\<guillemotright> else \<guillemotleft>p2\<guillemotright> ~ \<guillemotleft>d\<guillemotright>   {Q &1 &2}"
+  shows "rhoare P (ifte e p1 p2) d Q"
   unfolding rhoare_untyped Rep_ifte
   apply (rule iffalse_rule_left)
   using assms unfolding rhoare_untyped by auto
 
 lemma iftrue_rule_right:
-  assumes "hoare {P &1 &2} \<guillemotleft>d\<guillemotright> ~ \<guillemotleft>c1\<guillemotright> {Q &1 &2}"
+  assumes "rhoare P d c1 Q"
           "\<forall>m m'. P m m' \<longrightarrow> e_fun e m'"
-  shows "hoare {P &1 &2} \<guillemotleft>d\<guillemotright> ~ if (\<guillemotleft>e\<guillemotright>) \<guillemotleft>c1\<guillemotright> else \<guillemotleft>c2\<guillemotright> {Q &1 &2}"
+  shows "rhoare P d (ifte e c1 c2) Q"
   unfolding rhoare_untyped Rep_ifte
   apply (rule iftrue_rule_right)
   using assms unfolding rhoare_untyped by auto
 
 lemma iffalse_rule_right:
   fixes P Q I e p1 p2
-  assumes "hoare {P &1 &2} \<guillemotleft>d\<guillemotright> ~ \<guillemotleft>p2\<guillemotright> {Q &1 &2}"
+  assumes "rhoare P d p2 Q"
           "\<forall>m m'. P m m' \<longrightarrow> \<not> e_fun e m'"
-  shows "hoare {P &1 &2}   \<guillemotleft>d\<guillemotright> ~ if (\<guillemotleft>e\<guillemotright>) \<guillemotleft>p1\<guillemotright> else \<guillemotleft>p2\<guillemotright>   {Q &1 &2}"
+  shows "rhoare P d (ifte e p1 p2) Q"
   unfolding rhoare_untyped Rep_ifte
   apply (rule iffalse_rule_right)
   using assms unfolding rhoare_untyped by auto
 
 
 lemma if_case_rule_left:
-  assumes "hoare {P1 &1 &2} \<guillemotleft>c1\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
-  assumes "hoare {P2 &1 &2} \<guillemotleft>c2\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
-  shows "hoare {if e_fun e &1 then P1 &1 &2 else P2 &1 &2}
-                 if (\<guillemotleft>e\<guillemotright>) \<guillemotleft>c1\<guillemotright> else \<guillemotleft>c2\<guillemotright> ~ \<guillemotleft>d\<guillemotright>
-               {Q &1 &2}"
+  assumes "rhoare P1 (c1) (d) Q"
+  assumes "rhoare P2 (c2) (d) Q"
+  shows "rhoare (\<lambda>m1 m2. if e_fun e m1 then P1 m1 m2 else P2 m1 m2)
+                 (ifte e c1 c2) (d)
+               Q"
 apply (rule rcase_rule[where f="\<lambda>m1 m2. e_fun e m1"])
 apply (case_tac x, auto)
  apply (rule iftrue_rule_left)
@@ -187,11 +187,11 @@ apply (rule iffalse_rule_left)
  by (rule rconseq_rule[where P'=P2 and Q'=Q], auto simp: assms)
 
 lemma if_case_rule_right:
-  assumes "hoare {P1 &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d1\<guillemotright> {Q &1 &2}"
-  assumes "hoare {P2 &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d2\<guillemotright> {Q &1 &2}"
-  shows "hoare {if e_fun e &2 then P1 &1 &2 else P2 &1 &2}
-                  \<guillemotleft>c\<guillemotright> ~ if (\<guillemotleft>e\<guillemotright>) \<guillemotleft>d1\<guillemotright> else \<guillemotleft>d2\<guillemotright>
-               {Q &1 &2}"
+  assumes "rhoare P1 (c) (d1) Q"
+  assumes "rhoare P2 (c) (d2) Q"
+  shows "rhoare (\<lambda>m1 m2. if e_fun e m2 then P1 m1 m2 else P2 m1 m2)
+                  c (ifte e d1 d2)
+                Q"
 apply (rule rcase_rule[where f="\<lambda>m1 m2. e_fun e m2"])
 apply (case_tac x, auto)
  apply (rule iftrue_rule_right)
@@ -201,19 +201,19 @@ apply (rule iffalse_rule_right)
 
 lemma rif_rule:
   assumes "\<And>m1 m2. P m1 m2 \<Longrightarrow> e_fun e1 m1 = e_fun e2 m2"
-  assumes "hoare {P &1 &2 \<and> e_fun e1 &1 \<and> e_fun e2 &2} \<guillemotleft>then1\<guillemotright> ~ \<guillemotleft>then2\<guillemotright> {Q &1 &2}"
-  assumes "hoare {P &1 &2 \<and> \<not> e_fun e1 &1 \<and> \<not> e_fun e2 &2} \<guillemotleft>else1\<guillemotright> ~ \<guillemotleft>else2\<guillemotright> {Q &1 &2}"
-  shows "hoare {P &1 &2} if (\<guillemotleft>e1\<guillemotright>) \<guillemotleft>then1\<guillemotright> else \<guillemotleft>else1\<guillemotright> ~ if (\<guillemotleft>e2\<guillemotright>) \<guillemotleft>then2\<guillemotright> else \<guillemotleft>else2\<guillemotright> {Q &1 &2}"
+  assumes "rhoare (\<lambda>m1 m2. P m1 m2 \<and> e_fun e1 m1 \<and> e_fun e2 m2) (then1) (then2) Q"
+  assumes "rhoare (\<lambda>m1 m2. P m1 m2 \<and> \<not> e_fun e1 m1 \<and> \<not> e_fun e2 m2) (else1) (else2) Q"
+  shows "rhoare P (ifte e1 then1 else1) (ifte e2 then2 else2) Q"
 unfolding rhoare_untyped apply simp
 apply (rule rif_rule)
 using assms unfolding rhoare_untyped by auto
 
 lemma rwhile_rule:
-  assumes hoare: "hoare {I &1 &2 \<and> e_fun e1 &1} \<guillemotleft>p1\<guillemotright> ~ \<guillemotleft>p2\<guillemotright> {I &1 &2}"
+  assumes hoare: "rhoare (\<lambda>m1 m2. I m1 m2 \<and> e_fun e1 m1) (p1) (p2) I"
       and PI: "\<And>m1 m2. P m1 m2 \<Longrightarrow> I m1 m2"
       and Ieq: "\<And>m1 m2. I m1 m2 \<Longrightarrow> e_fun e1 m1 \<longleftrightarrow> e_fun e2 m2"
       and IQ: "\<And>m1 m2. \<not> e_fun e1 m1 \<Longrightarrow> \<not> e_fun e2 m2 \<Longrightarrow> I m1 m2 \<Longrightarrow> Q m1 m2"
-  shows "hoare {P &1 &2} while (\<guillemotleft>e1\<guillemotright>) \<guillemotleft>p1\<guillemotright> ~ while (\<guillemotleft>e2\<guillemotright>) \<guillemotleft>p2\<guillemotright> {Q &1 &2}"
+  shows "rhoare P (while e1 p1) (while e2 p2) Q"
 unfolding rhoare_untyped apply simp
 apply (rule rwhile_rule[where I=I])
 using assms unfolding rhoare_untyped by auto
@@ -221,9 +221,9 @@ using assms unfolding rhoare_untyped by auto
 lemma rtrans_rule:
   assumes p:"\<And>m1 m2. P m1 m2 \<Longrightarrow> \<exists>m. P1 m1 m \<and> P2 m m2"
       and q:"\<And>m1 m2 m. Q1 m1 m \<Longrightarrow> Q2 m m2 \<Longrightarrow> Q m1 m2"
-      and rhl1: "hoare {P1 &1 &2} \<guillemotleft>c1\<guillemotright> ~ \<guillemotleft>c\<guillemotright> {Q1 &1 &2}"
-      and rhl2: "hoare {P2 &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>c2\<guillemotright> {Q2 &1 &2}"
-  shows "hoare {P &1 &2} \<guillemotleft>c1\<guillemotright> ~ \<guillemotleft>c2\<guillemotright> {Q &1 &2}"
+      and rhl1: "rhoare P1 c1 c Q1"
+      and rhl2: "rhoare P2 c c2 Q2"
+  shows "rhoare P (c1) (c2) Q"
 unfolding rhoare_untyped
 apply (rule rtrans_rule[of _ P1 P2 Q1 Q2])
 using assms unfolding rhoare_untyped by auto
@@ -233,10 +233,10 @@ using assms unfolding rhoare_untyped by auto
 lemma rtrans3_rule:
   assumes p:"\<And>m1 m2. P m1 m2 \<Longrightarrow> \<exists>m m'. P1 m1 m \<and> P2 m m' \<and> P3 m' m2"
       and q:"\<And>m1 m2 m m'. Q1 m1 m \<Longrightarrow> Q2 m m' \<Longrightarrow> Q3 m' m2 \<Longrightarrow> Q m1 m2"
-      and rhl1: "hoare {P1 &1 &2} \<guillemotleft>c1\<guillemotright> ~ \<guillemotleft>c2\<guillemotright> {Q1 &1 &2}"
-      and rhl2: "hoare {P2 &1 &2} \<guillemotleft>c2\<guillemotright> ~ \<guillemotleft>c3\<guillemotright> {Q2 &1 &2}"
-      and rhl3: "hoare {P3 &1 &2} \<guillemotleft>c3\<guillemotright> ~ \<guillemotleft>c4\<guillemotright> {Q3 &1 &2}"
-  shows "hoare {P &1 &2} \<guillemotleft>c1\<guillemotright> ~ \<guillemotleft>c4\<guillemotright> {Q &1 &2}"
+      and rhl1: "rhoare P1 (c1) (c2) Q1"
+      and rhl2: "rhoare P2 (c2) (c3) Q2"
+      and rhl3: "rhoare P3 (c3) (c4) Q3"
+  shows "rhoare P (c1) (c4) Q"
 proof -
   define Q12 where "Q12 \<equiv> \<lambda>m1 m'. \<exists>m. Q1 m1 m \<and> Q2 m m'"
   define P12 where "P12 \<equiv> \<lambda>m1 m'. \<exists>m. P1 m1 m \<and> P2 m m'"
@@ -252,33 +252,33 @@ qed
 
 
 lemma seq_assoc_left_rule: 
-  assumes "hoare {P &1 &2} \<guillemotleft>a\<guillemotright>;\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {R &1 &2}"
-  shows "hoare {P &1 &2} \<guillemotleft>a\<guillemotright>;{\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright>} ~ \<guillemotleft>d\<guillemotright> {R &1 &2}"
+  assumes "rhoare P (seq (seq a b) c) d R"
+  shows   "rhoare P (seq a (seq b c)) d R"
 using assms denotation_seq_assoc rhoare_def by auto
 
 lemma seq_assoc_right_rule: 
-  assumes "hoare {P &1 &2} \<guillemotleft>d\<guillemotright> ~ \<guillemotleft>a\<guillemotright>;\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright> {R &1 &2}"
-  shows "hoare {P &1 &2} \<guillemotleft>d\<guillemotright> ~ \<guillemotleft>a\<guillemotright>;{\<guillemotleft>b\<guillemotright>;\<guillemotleft>c\<guillemotright>} {R &1 &2}"
+  assumes "rhoare P d (seq (seq a b) c) R"
+  shows   "rhoare P d (seq a (seq b c)) R"
 using assms denotation_seq_assoc rhoare_def by auto
 
 
 lemma addskip_left_rule:
-  assumes "hoare {P &1 &2} skip; \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
-  shows "hoare {P &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
+  assumes "rhoare P (seq skip c) d Q"
+  shows "rhoare P c d Q"
   using assms unfolding rhoare_def denotation_seq_skip by simp
 
 lemma addskip_right_rule:
-  assumes "hoare {P &1 &2} \<guillemotleft>c\<guillemotright> ~ skip; \<guillemotleft>d\<guillemotright> {Q &1 &2}"
-  shows "hoare {P &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>d\<guillemotright> {Q &1 &2}"
+  assumes "rhoare P c (seq skip d) Q"
+  shows "rhoare P (c) (d) Q"
   using assms unfolding rhoare_def denotation_seq_skip by simp
 
 (* Ordering of subgoals for certain tactics *)
 lemma seq_rule_lastfirst_left:
   fixes P Q R c d e
-  assumes "hoare {Q &1 &2} \<guillemotleft>d\<guillemotright> ~ skip {R &1 &2}" and "hoare {P &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>e\<guillemotright> {Q &1 &2}"
-  shows "hoare {P &1 &2} \<guillemotleft>c\<guillemotright>;\<guillemotleft>d\<guillemotright> ~ \<guillemotleft>e\<guillemotright> {R &1 &2}"
+  assumes "rhoare Q d skip R" and "rhoare P (c) (e) Q"
+  shows "rhoare P (seq c d) e R"
 proof -
-  have "hoare {P &1 &2} \<guillemotleft>c\<guillemotright>;\<guillemotleft>d\<guillemotright> ~ \<guillemotleft>e\<guillemotright>;skip {R &1 &2}"
+  have "rhoare P (seq c d) (seq e skip) R"
     apply (rule rseq_rule) using assms by simp_all
   thus ?thesis
     unfolding rhoare_def denotation_skip_seq by assumption
@@ -287,10 +287,10 @@ qed
 (* Ordering of subgoals for certain tactics *)
 lemma seq_rule_lastfirst_right:
   fixes P Q R c d e
-  assumes "hoare {Q &1 &2} skip ~ \<guillemotleft>d\<guillemotright> {R &1 &2}" and "hoare {P &1 &2} \<guillemotleft>e\<guillemotright> ~ \<guillemotleft>c\<guillemotright> {Q &1 &2}"
-  shows "hoare {P &1 &2} \<guillemotleft>e\<guillemotright> ~ \<guillemotleft>c\<guillemotright>;\<guillemotleft>d\<guillemotright> {R &1 &2}"
+  assumes "rhoare Q skip d R" and "rhoare P (e) (c) Q"
+  shows "rhoare P (e) (seq c d) R"
 proof -
-  have "hoare {P &1 &2} \<guillemotleft>e\<guillemotright>;skip ~ \<guillemotleft>c\<guillemotright>;\<guillemotleft>d\<guillemotright> {R &1 &2}"
+  have "rhoare P (seq e skip) (seq c d) R"
     apply (rule rseq_rule) using assms by simp_all
   thus ?thesis
     unfolding rhoare_def denotation_skip_seq by assumption
@@ -427,7 +427,7 @@ proof -
       apply (subst Abs_program_inverse, auto)
       by (rule assign_default_welltyped)
   have unfolded: "Rep_program unfolded = unfolded'"
-    unfolding unfolded'_def unfolded_def program_def pargs'_def pargs_def args'_def
+    unfolding unfolded'_def unfolded_def pargs'_def pargs_def args'_def
     Rep_seq assign body'_def body_def Rep_assign ret_def
     x'_def[symmetric] ret'_def[symmetric] assign_default_typed_def
    apply (subst Abs_program_inverse)
@@ -566,7 +566,7 @@ proof -
     unfolding filter_local_def using local_variable_name_renaming_global by auto
   have aux: "var_to_nat ` local_variable_name_renaming renaming ` X =  apply_permutation (map local_renaming1_to_nat renaming) ` var_to_nat ` X" for X
     using var_to_nat_local_variable_name_renaming
-    by (metis (no_types, hide_lams) image_comp image_cong o_def renaming_nat_def) sledgehammer by later
+    by (metis (no_types, hide_lams) image_comp image_cong o_def renaming_nat_def) 
   from proc_locals_nat
   have proc_locals: "local_variable_name_renaming renaming ` (set(local_vars body) \<union> filter_local (set(p_vars pargs) \<union> set(e_vars ret))) \<subseteq> set locals"
     apply (subst aux) apply auto
@@ -612,9 +612,9 @@ lemma callproc_equiv:
   defines "V_e == set [v. e \<leftarrow> mk_procargs_untyped e, v \<leftarrow> eu_vars e]"
   defines "V_p == set (vars (p_body p)) \<union> set (mk_procargvars_untyped (p_args p)) \<union> set (e_vars (p_return p))"
   assumes "V_p \<inter> V = {}" and "V_p \<inter> V_e = {}"
-  shows "hoare {\<forall>x\<in>V. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x} 
-                  \<guillemotleft>callproc x p e\<guillemotright> ~ \<guillemotleft>blockassign (p_args p) e\<guillemotright>; \<guillemotleft>p_body p\<guillemotright>; x := \<guillemotleft>p_return p\<guillemotright>
-               {\<forall>x\<in>V. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x}"
+  shows "rhoare (\<lambda>m1 m2. \<forall>x\<in>V. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x} 
+                  (callproc x p e) (blockassign (p_args p) e); (p_body p); x := (p_return p)
+               {\<forall>x\<in>V. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x}"
 *)
 
 definition "obseq_context X C == (\<forall>c d. obs_eq X X c d \<longrightarrow> obs_eq X X (C c) (C d))"
@@ -660,10 +660,10 @@ using assms unfolding p_vars_def by auto
 
 lemma rskip_rule [simp]:
   assumes "\<forall>m m'. P m m' \<longrightarrow> Q m m'"
-  shows "hoare {P &1 &2} skip ~ skip {Q &1 &2}"
+  shows "rhoare P skip skip Q"
   using assms by (simp add: rhoare_untyped RHL_Untyped.rskip_rule)
 
-lemma rskip_rule_strict: "hoare {P &1 &2} skip ~ skip {P &1 &2}"
+lemma rskip_rule_strict: "rhoare P skip skip P"
   by (simp add: rhoare_untyped RHL_Untyped.rskip_rule)
 
 lemma obseq_context_as_rule:
@@ -807,8 +807,8 @@ lemma hoare_obseq_replace_ctx:
   assumes C: "obseq_context X C"
   assumes Q: "assertion_footprint X Q"
   assumes eq: "obs_eq' X c d"
-  assumes hoare: "hoare {P &m} \<guillemotleft>C d\<guillemotright> {Q &m}"
-  shows "hoare {P &m} \<guillemotleft>C c\<guillemotright> {Q &m}"
+  assumes hoare: "hoare P (C d) Q"
+  shows "hoare P (C c) Q"
 proof -
   let ?eq = "\<lambda>m1 m2. \<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x"
   let ?c = "Rep_program (C c)"
@@ -830,8 +830,8 @@ lemma rhoare_left_obseq_replace:
   assumes ctx: "obseq_context X C"
   assumes foot: "assertion_footprint_left X Q"
   assumes obseq: "obs_eq' X c d"
-  assumes rhoare: "hoare {P &1 &2} \<guillemotleft>C d\<guillemotright> ~ \<guillemotleft>c'\<guillemotright> {Q &1 &2}"
-  shows "hoare {P &1 &2} \<guillemotleft>C c\<guillemotright> ~ \<guillemotleft>c'\<guillemotright> {Q &1 &2}"
+  assumes rhoare: "rhoare P (C d) (c') Q"
+  shows "rhoare P (C c) (c') Q"
 proof -
   have obseqCc: "obs_eq' X (C c) (C d)"
     using obseq ctx unfolding obseq_context_def obs_eq'_def obs_eq_def by simp
@@ -846,8 +846,8 @@ lemma rhoare_right_obseq_replace:
   assumes "obseq_context X C"
   assumes "assertion_footprint_right X Q"
   assumes "obs_eq' X c d"
-  assumes "hoare {P &1 &2}  \<guillemotleft>c'\<guillemotright> ~ \<guillemotleft>C d\<guillemotright> {Q &1 &2}"
-  shows "hoare {P &1 &2}  \<guillemotleft>c'\<guillemotright> ~ \<guillemotleft>C c\<guillemotright> {Q &1 &2}"
+  assumes "rhoare P  (c') (C d) Q"
+  shows "rhoare P  (c') (C c) Q"
 apply (rule rsymmetric_rule)
 apply (rule rhoare_left_obseq_replace[where C=C])
    close (fact assms(1))
@@ -1097,15 +1097,15 @@ proof -
   have foot_Q2: "assertion_footprint_right (insert (mk_variable_untyped (res2::'x2 variable)) VV2' \<union> set(p_vars x2)) Q"
     apply (rule assertion_footprint_right_mono[OF _ footQ2]) unfolding VV2'_def by auto
 
-  have x1_f1_res_f1: "hoare {\<lambda>m1 m2. (\<forall>v\<in>VV1. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<and> e_fun y1 m1 = e_fun (var_expression args1) m2}
-          \<guillemotleft>callproc x1 f1 y1\<guillemotright> ~ \<guillemotleft>callproc (variable_pattern res1) f1 (var_expression args1)\<guillemotright>
-        {\<lambda>m1 m2. (\<forall>v\<in>VV2. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<and> memory_pattern_related x1 (variable_pattern res1) m1 m2}"
+  have x1_f1_res_f1: "rhoare (\<lambda>m1 m2. (\<forall>v\<in>VV1. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<and> e_fun y1 m1 = e_fun (var_expression args1) m2)
+          (callproc x1 f1 y1) (callproc (variable_pattern res1) f1 (var_expression args1))
+        (\<lambda>m1 m2. (\<forall>v\<in>VV2. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<and> memory_pattern_related x1 (variable_pattern res1) m1 m2)"
     apply (rule callproc_equiv)
     using vv1_1 vv1_2 x1_vv2 res_vv2 by auto
 
-  have res_f2_x2_f2: "hoare {\<lambda>m1 m2. (\<forall>v\<in>VV1'. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<and> e_fun (var_expression args2) m1 = e_fun y2 m2}
-        \<guillemotleft>callproc (variable_pattern res2) f2 (var_expression args2)\<guillemotright> ~ \<guillemotleft>callproc x2 f2 y2\<guillemotright> 
-          {\<lambda>m1 m2. (\<forall>v\<in>VV2'. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<and> memory_pattern_related (variable_pattern res2) x2 m1 m2}"
+  have res_f2_x2_f2: "rhoare (\<lambda>m1 m2. (\<forall>v\<in>VV1'. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<and> e_fun (var_expression args2) m1 = e_fun y2 m2)
+        (callproc (variable_pattern res2) f2 (var_expression args2)) (callproc x2 f2 y2) 
+          (\<lambda>m1 m2. (\<forall>v\<in>VV2'. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v) \<and> memory_pattern_related (variable_pattern res2) x2 m1 m2)"
     apply (rule callproc_equiv)
     using x1 x2 x3 x4 by auto
 
@@ -1210,7 +1210,7 @@ proof -
      close (rule program_readonly_write_vars)
     using globals_f2 by auto
 
-  have rhoareQB: "hoare {P' &1 &2 \<and> QB &1 &2} \<guillemotleft>callproc x1 f1 y1\<guillemotright> ~ \<guillemotleft>callproc x2 f2 y2\<guillemotright> {Q' &1 &2 \<and> QB &1 &2}"
+  have rhoareQB: "rhoare (\<lambda>m1 m2. P' m1 m2 \<and> QB m1 m2) (callproc x1 f1 y1) (callproc x2 f2 y2) (\<lambda>m1 m2. Q' m1 m2 \<and> QB m1 m2)"
     apply (rule frame_rule)
         close (fact foot_QB1)
        close (fact foot_QB2)
@@ -1254,7 +1254,7 @@ proof -
       unfolding ux1 ux2 by simp
   qed
 
-  have rhoareCQ: "hoare {C &1 &2} \<guillemotleft>callproc x1 f1 y1\<guillemotright> ~ \<guillemotleft>callproc x2 f2 y2\<guillemotright> {B &1 &2}"
+  have rhoareCQ: "rhoare (\<lambda>m1 m2. C m1 m2) (callproc x1 f1 y1) (callproc x2 f2 y2) B"
     apply (rule rconseq_rule[rotated -1])
       close (fact rhoareQB)
      unfolding C_def P'_def close
@@ -1276,14 +1276,14 @@ lemma callproc_split_args_equiv:
 proof -
   define Y' where "Y' \<equiv> Y - set (p_vars p)"
 
-  have callproc_eq: "hoare {(\<forall>x\<in>X. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x) \<and> e_fun e &1 = e_fun (var_expression x) &2}
-    \<guillemotleft>callproc p f e\<guillemotright> ~ \<guillemotleft>callproc p f (var_expression x)\<guillemotright> {(\<forall>v\<in>Y'. memory_lookup_untyped &1 v = memory_lookup_untyped &2 v)
-                      \<and> memory_pattern_related p p &1 &2}"
+  have callproc_eq: "rhoare (\<lambda>m1 m2. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) \<and> e_fun e m1 = e_fun (var_expression x) m2)
+    (callproc p f e) (callproc p f (var_expression x)) (\<lambda>m1 m2. (\<forall>v\<in>Y'. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v)
+                      \<and> memory_pattern_related p p m1 m2)"
     apply (rule callproc_equiv) close (rule fX)
     using Y'_def Y by auto
 
-  hence rh_call: "hoare {(\<forall>x\<in>X. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x) \<and> e_fun e &1 = e_fun (var_expression x) &2}
-    \<guillemotleft>callproc p f e\<guillemotright> ~ \<guillemotleft>callproc p f (var_expression x)\<guillemotright> {(\<forall>v\<in>Y. memory_lookup_untyped &1 v = memory_lookup_untyped &2 v)}"
+  hence rh_call: "rhoare (\<lambda>m1 m2. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) \<and> e_fun e m1 = e_fun (var_expression x) m2)
+    (callproc p f e) (callproc p f (var_expression x)) (\<lambda>m1 m2. (\<forall>v\<in>Y. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v))"
     apply (rule rconseq_rule[rotated -1]) 
      close auto
     unfolding Y'_def
@@ -1319,14 +1319,14 @@ lemma callproc_split_result_equiv:
   shows "obs_eq X Y (callproc p f e) (seq (callproc (variable_pattern x) f e) (assign p (var_expression x)))"
 proof -
   define Y' where "Y' \<equiv> Y - set (p_vars p)"
-  have callproc_eq: "hoare {(\<forall>x\<in>X. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x) \<and> e_fun e &1 = e_fun e &2}
-    \<guillemotleft>callproc p f e\<guillemotright> ~ \<guillemotleft>callproc (variable_pattern x) f e\<guillemotright> {(\<forall>v\<in>Y'. memory_lookup_untyped &1 v = memory_lookup_untyped &2 v)
-                      \<and> memory_pattern_related p (variable_pattern x) &1 &2}"
+  have callproc_eq: "rhoare (\<lambda>m1 m2. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x) \<and> e_fun e m1 = e_fun e m2)
+    (callproc p f e) (callproc (variable_pattern x) f e) (\<lambda>m1 m2. (\<forall>v\<in>Y'. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v)
+                      \<and> memory_pattern_related p (variable_pattern x) m1 m2)"
     apply (rule callproc_equiv) close (rule fX)
       using Y'_def Y xY by auto
-  hence rh_call: "hoare {(\<forall>x\<in>X. memory_lookup_untyped &1 x = memory_lookup_untyped &2 x)}
-    \<guillemotleft>callproc p f e\<guillemotright> ~ \<guillemotleft>callproc (variable_pattern x) f e\<guillemotright> {(\<forall>v\<in>Y'. memory_lookup_untyped &1 v = memory_lookup_untyped &2 v)
-                      \<and> memory_pattern_related p (variable_pattern x) &1 &2}"
+  hence rh_call: "rhoare (\<lambda>m1 m2. (\<forall>x\<in>X. memory_lookup_untyped m1 x = memory_lookup_untyped m2 x))
+    (callproc p f e) (callproc (variable_pattern x) f e) (\<lambda>m1 m2. (\<forall>v\<in>Y'. memory_lookup_untyped m1 v = memory_lookup_untyped m2 v)
+                      \<and> memory_pattern_related p (variable_pattern x) m1 m2)"
     apply (rule rconseq_rule[rotated -1]) 
      using eX e_fun_footprint close blast
     by simp

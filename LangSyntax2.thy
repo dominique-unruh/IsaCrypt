@@ -13,6 +13,12 @@ syntax "_internal_read_term_halfchecked_tag" :: "'a \<Rightarrow> 'a"
 parse_translation \<open>[(@{syntax_const "_internal_read_term_halfchecked_tag"}, Lang_Syntax2.encode_term_tr)]\<close>
 (* syntax "_expression" :: "'a \<Rightarrow> 'a" *)
 
+term "(g^x, g^y, g^(x*y))"
+
+declare [[ML_exception_trace]]
+term \<open>PR\<open>b <@ A(g^x)\<close>\<close>
+term " PR\<open> _ <@ A(g^x, g^y, g^(x+y)); \<close>"
+term \<open>PR\<open> x <$ uniform {0..<q} \<close>\<close>
 term "PR\<open>y <- 1\<close>"
 term "PR\<open>(_,_) \<leftarrow> (1,x)\<close>"
 term "PR\<open>y <- x; y <- z; q <- (1,fst (y,q)); q <- w\<close>"

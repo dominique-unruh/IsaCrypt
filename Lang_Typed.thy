@@ -701,7 +701,7 @@ lemma denotation_eq_seq_fst:
   assumes "denotation a = denotation a'"
   shows "denotation (seq a b) = denotation (seq a' b)"
 unfolding denotation_seq[THEN ext] using assms by simp
-    
+
 (*
 subsection {* Concrete syntax for programs *}
 

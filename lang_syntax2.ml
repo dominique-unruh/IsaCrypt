@@ -188,6 +188,9 @@ fun with_pos (parser : Position.T -> 'a ctx_sym_parser) : 'a ctx_sym_parser =
 
   val is_closing_brace = member op= [")","}","]","\<rangle>"]
   val is_opening_brace = AList.lookup op= [("(",")"), ("{","}"), ("[","]"), ("\<langle>","\<rangle>")]
+
+  (* Parses "stuff)" where ")" is the parenthesis given as "close". "open_" is the matching
+     parenthesis already parsed (used for messages) *)
   fun enclosed_text open_ close : Symbol_Pos.T list ctx_sym_parser = 
   any #-> (fn symp as (sym,_) =>
     if sym=close then Scan.succeed [symp]
@@ -231,24 +234,60 @@ val _ = @{print} tagged_str *)
 
   val statement_stoppers = [";","}"]
     
-  val expression_parser : term ctx_sym_parser = with_context (fn ctx => 
-    Scan.lift spaces |-- balanced_text statement_stoppers >> (fn symbols =>
+  fun expression_parser stoppers : term ctx_sym_parser = with_context (fn ctx => 
+    Scan.lift spaces |-- balanced_text stoppers >> (fn symbols =>
       let val term = read_term_halfchecked ctx symbols
           (* val _ = @{print} term *)
       in Const("_expression",dummyT) $ term
       end))
-    (* Const(@{const_name const_expression},dummyT) $ HOLogic.mk_string (@{make_string} (@{print}text))) *)
-    (* |> Scan.lift *)
   |> expect' "expression"
 
+  val paren_expression_parser : term ctx_sym_parser = with_context (fn ctx => 
+    (Scan.one (fn (s,_) => s="(") |> Scan.lift) :|-- 
+    (fn open_ => enclosed_text open_ ")" >> (fn symbols =>
+      let val term = read_term_halfchecked ctx (open_::symbols)
+      in Const("_expression",dummyT) $ term
+      end)))
+  |> expect' "expression (in parentheses)"
+
   val assign_symbols = [":=","<-","\<leftarrow>"]
-  val assign_symbols_or = String.concatWith " or " assign_symbols 
+  val sample_symbols = ["<$","<-$","\<leftarrow>$"]
+  val call_symbols = ["<@"]
+  val assignlike_symbols = assign_symbols @ sample_symbols @ call_symbols
+  val assignlike_symbols_or = String.concatWith " or " assignlike_symbols 
 
-  val assign_symbol = Scan.first (map $$$ assign_symbols) |> expect' assign_symbols_or
+  val assignlike_symbol = Scan.first (map $$$ assignlike_symbols) |> expect' assignlike_symbols_or
 
-  val assign_parser : term ctx_sym_parser = pattern_parser --| assign_symbol -- expression_parser >> (fn (pat,exp) =>
-    Const(@{const_name assign},dummyT) $ pat $ exp)
-    |> expect' "assignment"
+  val function_identifier = Scan.lift identifier >> (fn name => Free(name,dummyT))
+
+(*
+  val arglist_stoppers = [")",","]
+
+fun call_args_no_open' st = (Scan.lift spaces |-- (Scan.first (map $$$ [",",")"]) |> expect' ", or )")
+  :|-- (fn sym =>
+    if sym = ")" then Scan.succeed []
+    else if sym = "," then expression_parser arglist_stoppers -- call_args_no_open' >> (op::)
+    else Scan.fail)) st
+val call_args_no_open : term list ctx_sym_parser = (Scan.lift spaces |-- Scan.ahead any :|-- (fn (sym,_) =>
+    if sym = ")" then $$$ ")" >> (fn _ => [])
+    else expression_parser arglist_stoppers -- call_args_no_open' >> (op::)))
+
+fun mk_prod (t1, t2) = Const (@{const_name Product_Type.Pair}, dummyT) $ t1 $ t2
+
+fun mk_tuple [] = @{term "()"}
+  | mk_tuple ts = foldr1 mk_prod ts;
+*)
+
+val call_parser : (term*term) ctx_sym_parser = 
+  function_identifier -- paren_expression_parser
+  >> (fn (proc,args) => (proc, args))
+
+val assign_parser : term ctx_sym_parser = pattern_parser -- assignlike_symbol :|-- (fn (pat,sym) =>
+  if member op= assign_symbols sym then expression_parser statement_stoppers >> (fn exp => Const(@{const_name assign},dummyT) $ pat $ exp)
+  else if member op= sample_symbols sym then expression_parser statement_stoppers >> (fn exp => Const(@{const_name sample},dummyT) $ pat $ exp)
+  else if member op= call_symbols sym then call_parser >> (fn (proc,args) => Const(@{const_name callproc},dummyT) $ pat $ proc $ args)
+  else error ("internal error: unexpected symbol "^sym))
+  |> expect' "assignment"
   
 (*   fun eof [] = ((),[])
     | eof xs = Scan.fail_with (fn _ => fn _ => "expected EOF") xs *)

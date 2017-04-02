@@ -1,5 +1,5 @@
 theory ElGamal
-imports Hoare_Tactics Procs_Typed Tactic_Inline Lang_Simplifier RHL_Typed Callproc ML_Term
+imports Hoare_Tactics Procs_Typed Tactic_Inline Lang_Simplifier RHL_Typed Callproc ML_Term LangSyntax2
 begin
 
 (* Working EC version with elgamal.ec:
@@ -25,6 +25,16 @@ subsection {* DDH *}
 
 type_synonym Game = "(unit,bool) procedure"
 type_synonym 'g DDH_Adv = "('g*'g*'g,bool) procedure"
+
+procedure (in group) DDH0 :: "'G DDH_Adv =proc=> Game" where
+  "DDH0 <$> A = 
+    LOCAL x y b.
+    proc () {
+      x <- uniform {0..<q};
+      y <- uniform {0..<q};
+      b := call A (g^x, g^y, g^(x*y));
+      return b
+    }"
 
 procedure (in group) DDH0 :: "'G DDH_Adv =proc=> Game" where
   "DDH0 <$> A = 

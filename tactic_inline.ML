@@ -368,7 +368,7 @@ fun callproc_rule_tac ctx _ forbidden =
 
 (* TODO use a more efficient data structure than lists for collecting variables *)
 fun program_local_vars' (Const(@{const_name seq},_) $ p1 $ p2) = program_local_vars' p1 @ program_local_vars' p2
-  | program_local_vars' (Const(@{const_name program},_) $ p) = program_local_vars' p
+  (* | program_local_vars' (Const(@{const_name program},_) $ p) = program_local_vars' p *)
   | program_local_vars' (Const(@{const_name assign},_) $ v $ e) = pattern_local_vars' v @ expression_local_vars' e
   | program_local_vars' (Const(@{const_name sample},_) $ v $ e) = pattern_local_vars' v @ expression_local_vars' e
   | program_local_vars' (Const(@{const_name callproc},_) $ x $ _ $ a) = pattern_local_vars' x @ expression_local_vars' a
