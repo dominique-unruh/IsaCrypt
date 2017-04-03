@@ -301,16 +301,36 @@ fun program_seq_to_program [] = @{term Lang_Typed.skip}
   | program_seq_to_program (t::ts) = 
         @{term seq} $ t $ program_seq_to_program ts
 
-fun statement_list_parser' st =
-  (Scan.lift spaces |--
-   Scan.ahead any #-> (fn (sym,_) =>
-     if sym = "}" orelse Symbol.is_eof sym then Scan.succeed []
-     else statement_parser --| Scan.option semicolon -- statement_list_parser' >> (op::)))
-  st
+val return_keyword = $$$ "return"
 
-  val statement_list_parser : term ctx_sym_parser = statement_list_parser' >> program_seq_to_program
+val return_statement = return_keyword |-- expression_parser statement_stoppers
 
-  val program_parser : term ctx_sym_parser = statement_list_parser
+fun statement_list_parser' with_return =
+  Scan.lift spaces |--
+  Scan.ahead any #-> (fn (sym,_) =>
+    if sym = "}" orelse Symbol.is_eof sym then Scan.succeed ([],NONE)
+    else
+    (Scan.ahead (Scan.option return_keyword) :|-- (fn NONE => Scan.fail | SOME _ =>
+        if with_return then return_statement --| Scan.option semicolon >> (fn ret => ([],SOME ret))
+        else fail_pos (fn _=>"unexpected return statement")))
+    || (statement_parser --| Scan.option semicolon -- statement_list_parser' with_return 
+           >> (fn (stmt,(stmts,ret)) => (stmt::stmts,ret)))
+    )
+  
+fun statement_list_parser with_return : (term * term option) ctx_sym_parser = statement_list_parser' with_return >> apfst program_seq_to_program
+val statement_list_parser_no_return = statement_list_parser false >> fst
+
+val proc_keyword = $$$ "proc"
+
+val procedure_parser : term ctx_sym_parser =
+  proc_keyword |-- tuple_pattern_parser --| $$$ "{" -- statement_list_parser true --| $$$ "}"
+  >> (fn (args,(body,ret)) => Const(@{const_name procedure_ext},dummyT) $ 
+          body $ args $ (case ret of SOME r => r | _ => @{term "const_expression ()"}) $ @{term "()"})
+  |> expect' "procedure"
+
+val program_parser : term ctx_sym_parser = 
+  Scan.ahead (Scan.option proc_keyword) :|-- (fn SOME _ => procedure_parser | _ => Scan.fail)
+  || statement_list_parser_no_return
 
   (* val program_keywords_raw = [":="] *)
   (* val program_keywords = Keyword.empty_keywords |> Keyword.add_keywords (map (fn k => ((k,Position.none),Keyword.no_spec)) program_keywords_raw) *)

@@ -28,34 +28,22 @@ type_synonym 'g DDH_Adv = "('g*'g*'g,bool) procedure"
 
 procedure (in group) DDH0 :: "'G DDH_Adv =proc=> Game" where
   "DDH0 <$> A = 
-    LOCAL x y b.
-    proc () {
-      x <- uniform {0..<q};
-      y <- uniform {0..<q};
-      b := call A (g^x, g^y, g^(x*y));
+    PR \<open>proc () {
+      x <$ uniform {0..<q};
+      y <$ uniform {0..<q};
+      b <@ A (g^x, g^y, g^(x*y));
       return b
-    }"
-
-procedure (in group) DDH0 :: "'G DDH_Adv =proc=> Game" where
-  "DDH0 <$> A = 
-    LOCAL x y b.
-    proc () {
-      x <- uniform {0..<q};
-      y <- uniform {0..<q};
-      b := call A (g^x, g^y, g^(x*y));
-      return b
-    }"
+    }\<close>"
 
 procedure (in group) DDH1 :: "'G DDH_Adv =proc=> Game" where
   "DDH1 <$> A = 
-    LOCAL x y z b.
-    proc () {
-      x <- uniform {0..<q};
-      y <- uniform {0..<q};
-      z <- uniform {0..<q};
-      b := call A (g^x, g^y, g^z);
+    PR \<open>proc () {
+      x <$ uniform {0..<q};
+      y <$ uniform {0..<q};
+      z <$ uniform {0..<q};
+      b <@ A (g^x, g^y, g^z);
       return b
-    }"
+    }\<close>"
 
 subsection {* PKE definitions *}
 
@@ -70,11 +58,11 @@ module_type ('pk,'sk,'m,'c) EncScheme =
 
 procedure CPA :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) Adversary =proc=> Game" where
   "CPA<$>(E,A) = LOCAL pk sk m0 m1 c b b'. proc() {
-    (pk, sk) := call keygen<$>E();
-    (m0, m1) := call choos<$>A(pk);
+    (pk, sk) <@ keygen<$>E();
+    (m0, m1) <@ choos<$>A(pk);
     b        <- uniform UNIV;
-    c        := call enc<$>E(pk, if b then m1 else m0);
-    b'       := call guess<$>A(c);
+    c        <@ enc<$>E(pk, if b then m1 else m0);
+    b'       <@ guess<$>A(c);
     return (b' = b)
   }"*)
 
@@ -86,15 +74,14 @@ module_type ('pk,'sk,'m,'c) CPA_Adv =
 
 procedure CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) CPA_Adv =proc=> (unit,bool)procedure" where
  "CPA_main <$> (E,A) = 
-  LOCAL pk sk m0 m1 b c b' tmp1 tmp2.
-  proc () {
-    (pk,sk) := call keygen<$>E ();
-    (m0,m1) := call pick<$>A (pk);
-    b <- uniform UNIV;
-    c := call enc<$>E(pk, if b then m1 else m0);
-    b' := call guess<$>A (c);
+  PR \<open>proc () {
+    (pk,sk) <@ keygen<$>E ();
+    (m0,m1) <@ pick<$>A (pk);
+    b <$ uniform UNIV;
+    c <@ enc<$>E(pk, if b then m1 else m0);
+    b' <@ guess<$>A (c);
     return b'=b
-  }"
+  }\<close>"
 
 subsection {* ElGamal *}
 
@@ -119,23 +106,23 @@ lemma aux3 [reduce_procfun.safe]:
 using assms by simp
 
 procedure (in group) ElGamal :: "('G, nat, 'G, 'G\<times>'G) EncScheme" where
-    "keygen<$>ElGamal = LOCAL sk. proc() { sk <- uniform {0..<q}; return (g^sk, sk) }"
-| "enc<$>ElGamal = LOCAL pk m y. proc(pk,m) { y <- uniform {0..<q}; return (g^y, pk^y * m) }"
-| "dec<$>ElGamal = LOCAL sk c1 c2 gy gm. proc(sk,(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk)) }"
+    "keygen<$>ElGamal = PR \<open>proc() { sk <$ uniform {0..<q}; return (g^sk, sk) }\<close>"
+| "enc<$>ElGamal = PR \<open>proc(pk,m) { y <$ uniform {0..<q}; return (g^y, pk^y * m) }\<close>"
+| "dec<$>ElGamal = PR \<open>proc(sk,(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk)) }\<close>"
 
 procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
-  "Correctness <$> E = LOCAL m m2 pk sk c.
-  proc(m) {
-    (pk,sk) := call keygen<$>E ();
-    c := call enc<$>E (pk, m);
-    m2 := call dec<$>E (sk, c);
+  "Correctness <$> E = 
+  PR \<open>proc(m) {
+    (pk,sk) <@ keygen<$>E ();
+    c <@ enc<$>E (pk, m);
+    m2 <@ dec<$>E (sk, c);
     return (m2 = Some m)
-  }"
+  }\<close>"
 
 context group begin
 
 lemma correctness:                                                                     
-  shows "LOCAL succ0. hoare {True} succ0 := call Correctness <$> ElGamal(m) {succ0}"
+  shows "LOCAL succ0. hoare {True} succ0 <@ Correctness <$> ElGamal(m) {succ0}"
 apply (inline "Correctness<$>ElGamal")
 apply (inline "keygen<$>ElGamal")
 apply (inline "dec<$>ElGamal")
@@ -151,9 +138,9 @@ type_synonym 'g ElGamal_Adv = "('g, nat, 'g, 'g\<times>'g) CPA_Adv"
 procedure DDHAdv :: "'G ElGamal_Adv =proc=> 'G DDH_Adv" where
   "DDHAdv <$> A = LOCAL gx gy gz m0 m1 b b'. 
     proc (gx, gy, gz) {
-      (m0, m1) := call pick<$>A(gx);
+      (m0, m1) <@ pick<$>A(gx);
       b  <- uniform UNIV;
-      b' := call guess<$>A(gy, gz * (if b then m1 else m0));
+      b' <@ guess<$>A(gy, gz * (if b then m1 else m0));
       return b' = b
   }"
 
@@ -169,20 +156,20 @@ definition "game_probability game args mem E ==
 (* TODO move *)
 (* TODO: correct precondition (refer only to globals of p1,p2) *)
 lemma byequiv_rule:
-  assumes "LOCAL res1 res2. hoare {&1=m \<and> &2=m} (res1 := call p1(a1)) ~ (res2 := call p2(a2)) {E (res1)\<^sub>1 \<longleftrightarrow> F (res2)\<^sub>2}"
+  assumes "LOCAL res1 res2. hoare {&1=m \<and> &2=m} (res1 <@ p1(a1)) ~ (res2 <@ p2(a2)) {E (res1)\<^sub>1 \<longleftrightarrow> F (res2)\<^sub>2}"
   shows "game_probability p1 a1 m E = game_probability p2 a2 m F" 
 proof - 
   let ?res1 = "LOCAL res1. (res1 :: 'a variable)"
   let ?res2 = "LOCAL res2. (res2 :: 'c variable)"
   let ?res1' = "LOCAL res. (res :: 'a variable)"
   let ?res2' = "LOCAL res. (res :: 'c variable)"
-  let ?pr1 = "PROGRAM[ ?res1 := call p1(a1) ]"
-  let ?pr2 = "PROGRAM[ ?res2 := call p2(a2) ]"
+  let ?pr1 = "PROGRAM[ ?res1 <@ p1(a1) ]"
+  let ?pr2 = "PROGRAM[ ?res2 <@ p2(a2) ]"
   obtain \<mu> where fst: "apply_to_distr fst \<mu> = denotation ?pr1 m"
              and snd: "apply_to_distr snd \<mu> = denotation ?pr2 m"
              and supp: "\<And>m1' m2'. (m1',m2') \<in> support_distr \<mu> \<Longrightarrow> E (memory_lookup m1' ?res1) = F (memory_lookup m2' ?res2)"
     using assms unfolding rhoare_def program_def by auto
-  have "game_probability p1 a1 m E = probability (denotation PROGRAM[ ?res1' := call p1(a1) ] m) {m. E (memory_lookup m ?res1')}" 
+  have "game_probability p1 a1 m E = probability (denotation PROGRAM[ ?res1' <@ p1(a1) ] m) {m. E (memory_lookup m ?res1')}" 
     unfolding game_probability_def program_def by simp
   also have "\<dots> = probability (denotation ?pr1 m) {m. E (memory_lookup m ?res1)}"
     sorry
@@ -197,7 +184,7 @@ proof -
     unfolding probability_apply_to_distr by simp
   also have "\<dots> = probability (denotation ?pr2 m) {m. F (memory_lookup m ?res2)}"
     unfolding snd by simp
-  also have "\<dots> = probability (denotation PROGRAM[ ?res2' := call p2(a2) ] m) {m. F (memory_lookup m ?res2')}" 
+  also have "\<dots> = probability (denotation PROGRAM[ ?res2' <@ p2(a2) ] m) {m. F (memory_lookup m ?res2')}" 
     sorry
   also have "\<dots> = game_probability p2 a2 m F"
     unfolding game_probability_def program_def by simp
