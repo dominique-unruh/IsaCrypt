@@ -51,6 +51,12 @@ module_type ('pk,'sk,'m,'c) EncScheme =
   keygen :: "(unit,'pk*'sk) procedure"
   enc :: "('pk*'m, 'c) procedure"
   dec :: "('sk*'c, 'm option) procedure"
+setup {*
+  Lang_Syntax2.insert_field_selector_thy "keygen" @{type_name EncScheme} @{const_name keygen}
+  #> Lang_Syntax2.insert_field_selector_thy "enc" @{type_name EncScheme} @{const_name enc}
+  #> Lang_Syntax2.insert_field_selector_thy "dec" @{type_name EncScheme} @{const_name dec}
+*}
+  
 
 (*module_type ('pk,'sk,'m,'c) Adversary =
   choos :: "('pk,'m*'m)procedure" 
@@ -71,15 +77,26 @@ subsection {* Declaring CPA game *}
 module_type ('pk,'sk,'m,'c) CPA_Adv =
   pick    :: "('pk,'m*'m) procedure"
   "guess" :: "('c,bool) procedure"
+(* setup {* declare_method_field_selector @{binding pick} *} *)
+  
+setup {*
+  Lang_Syntax2.insert_field_selector_thy "pick" @{type_name CPA_Adv} @{const_name pick}
+  #> Lang_Syntax2.insert_field_selector_thy "guess" @{type_name CPA_Adv} @{const_name guess}
+*}
+  
+  
+term "(E::(_,_,_,_)CPA_Adv) .pick"
 
+
+    
 procedure CPA_main :: "('pk,'sk,'m,'c) EncScheme * ('pk,'sk,'m,'c) CPA_Adv =proc=> (unit,bool)procedure" where
  "CPA_main <$> (E,A) = 
   PR \<open>proc () {
-    (pk,sk) <@ keygen<$>E ();
-    (m0,m1) <@ pick<$>A (pk);
+    (pk,sk) <@ E.keygen ();
+    (m0,m1) <@ A.pick (pk);
     b <$ uniform UNIV;
-    c <@ enc<$>E(pk, if b then m1 else m0);
-    b' <@ guess<$>A (c);
+    c <@ E.enc(pk, if b then m1 else m0);
+    b' <@ A.guess (c);
     return b'=b
   }\<close>"
 
@@ -195,8 +212,8 @@ qed
 (* TODO move *)
 lemma denotation_eq_rule_left:
   assumes "denotation d = denotation c"
-  assumes "hoare {P &1 &2} \<guillemotleft>c\<guillemotright> ~ \<guillemotleft>e\<guillemotright> {Q &1 &2}"
-  shows   "hoare {P &1 &2} \<guillemotleft>d\<guillemotright> ~ \<guillemotleft>e\<guillemotright> {Q &1 &2}"
+  assumes "rhoare P c e Q"
+  shows   "rhoare P d e Q"
 using assms unfolding rhoare_def by auto
 
 (* TODO move *)

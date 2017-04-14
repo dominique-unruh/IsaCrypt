@@ -1,6 +1,25 @@
 structure Lang_Syntax2 =
 struct
 
+(* TODO: move to Procs_Typed *)
+structure FieldSelector = Generic_Data
+(
+type T = string Symtab.table Symtab.table (* 1.key=selector-name 2.key=type-name value=const-name *)
+val empty = Symtab.empty
+fun insert selector typ const =
+  Symtab.map_default (selector,Symtab.empty) (Symtab.insert op= (typ,const))
+fun fold f = Symtab.fold (fn (key,subtable) => Symtab.fold (fn (typ,const) => f key typ const) subtable)
+fun merge (t1,t2) = fold insert t1 t2
+val extend = I
+)
+fun insert_field_selector_generic selector typ const  = 
+  FieldSelector.map (Symtab.map_default (selector,Symtab.empty) (Symtab.insert op= (typ,const)))
+fun insert_field_selector_thy selector typ const = 
+  Context.theory_map (insert_field_selector_generic selector typ const)
+(* END TODO *)
+
+
+
 structure ParseInfo = Proof_Data
 (
   type T = {local_variables:typ Symtab.table}                                 
@@ -258,7 +277,14 @@ val _ = @{print} tagged_str *)
 
   val assignlike_symbol = Scan.first (map $$$ assignlike_symbols) |> expect' assignlike_symbols_or
 
-  val function_identifier = Scan.lift identifier >> (fn name => Free(name,dummyT))
+val procedure_identifier = 
+  Scan.lift identifier -- Scan.repeat ($$$ "." |-- Scan.lift identifier)
+  >>
+  (fn (name,fields) => fold (fn field => fn t => 
+      Free("LangSyntax2.MODULE_FIELD_SELECTOR_"^field,dummyT) $ t)
+  fields (Free(name,dummyT)))
+
+(* Scan.lift identifier >> (fn name => Free(name,dummyT)) *)
 
 (*
   val arglist_stoppers = [")",","]
@@ -279,7 +305,7 @@ fun mk_tuple [] = @{term "()"}
 *)
 
 val call_parser : (term*term) ctx_sym_parser = 
-  function_identifier -- paren_expression_parser
+  procedure_identifier -- paren_expression_parser
   >> (fn (proc,args) => (proc, args))
 
 val assign_parser : term ctx_sym_parser = pattern_parser -- assignlike_symbol :|-- (fn (pat,sym) =>
@@ -381,5 +407,40 @@ fun program_translation ctx [arg] =
     process_program ctx' raw_program
   end
 | program_translation _ args = raise TERM ("program_translation", args)
+
+fun find_selector ctx T name =
+  case T of
+    Type(Tname,_) =>
+      (case Symtab.lookup (FieldSelector.get (Context.Proof ctx)) name of
+        NONE => raise TYPE("find_selector "^name,[T],[])
+      | SOME table => 
+          (case Symtab.lookup table Tname of
+             NONE => error("Selector "^name^" not defined for type "^Tname)
+           | SOME const => Const(const,dummyT) |> SOME))
+  | _ => NONE
+  
+fun selector_types ctx name = 
+  case Symtab.lookup (FieldSelector.get (Context.Proof ctx)) name of
+    NONE => error ("unknown selector "^name)
+  | SOME table => Symtab.keys table
+
+(* fun selector_types _ "keygen" = [@{typ "(_,_,_,_)EncScheme"},@{typ "(_,_,_,_)Other"}]
+  | selector_types _ name = error ("unknown selector "^name) *)
+
+fun pick_field_selectors ctx (t as (Const(@{const_name MODULE_FIELD_SELECTOR},Type("fun",[_,Type("fun",[T,_])])) $ name))
+      = (case find_selector ctx T (HOLogic.dest_string name) of NONE => t | SOME t' => Const(@{const_name procfun_apply},dummyT) $ t')
+  | pick_field_selectors _ (t as (Const(@{const_name MODULE_FIELD_SELECTOR},_) $ _)) = raise TERM("pick_field_selectors",[t])
+  | pick_field_selectors _ (t as (Const(@{const_name MODULE_FIELD_SELECTOR},_))) = raise TERM("pick_field_selectors",[t])
+  | pick_field_selectors ctx (a$b) = pick_field_selectors ctx a $ pick_field_selectors ctx b
+  | pick_field_selectors ctx (Abs(n,T,t)) = Abs(n,T,pick_field_selectors ctx t)
+  | pick_field_selectors _ t = t
+
+fun unresolved_field_selectors ctx (Const(@{const_name MODULE_FIELD_SELECTOR},Type("fun",[_,Type("fun",[T,_])])) $ namet)
+      = let val name = HOLogic.dest_string namet in error ("unresolved field selector ."^name^" for type "^(Syntax.string_of_typ ctx T)^". "^
+        "Supported types are: "^(String.concatWith ", " (selector_types ctx name))) end
+  | unresolved_field_selectors ctx (a$b) = (unresolved_field_selectors ctx a; unresolved_field_selectors ctx b)
+  | unresolved_field_selectors ctx (Abs(_,_,t)) = unresolved_field_selectors ctx t
+  | unresolved_field_selectors _ _ = ()
+
 
 end
