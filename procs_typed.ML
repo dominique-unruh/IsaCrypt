@@ -1,6 +1,33 @@
 structure Procs_Typed = 
 struct
 
+(** field selectors **)
+
+structure FieldSelector = Generic_Data
+(
+  type T = term Symtab.table Symtab.table (* 1.key=selector-name 2.key=type-name value=field-selecter-const *)
+  val empty = Symtab.empty
+  fun insert selector typ const =
+    Symtab.map_default (selector,Symtab.empty) (Symtab.insert op= (typ,const))
+  fun fold f = Symtab.fold (fn (key,subtable) => Symtab.fold (fn (typ,const) => f key typ const) subtable)
+  fun merge (t1,t2) = fold insert t1 t2
+  val extend = I )
+
+(*
+fun insert_field_selector_generic selector typ const  = 
+  FieldSelector.map (Symtab.map_default (selector,Symtab.empty) (Symtab.insert op= (typ,const)))
+fun insert_field_selector_thy selector typ const = 
+  Context.theory_map (insert_field_selector_generic selector typ const)
+fun insert_field_selector_local selector typ const = 
+  Context.proof_map (insert_field_selector_generic selector typ const)
+*)
+
+fun insert_field_selector_local selector typ const = 
+  Local_Theory.declaration {pervasive=true, syntax=false}
+  (fn phi => 
+    FieldSelector.map (Symtab.map_default (selector,Symtab.empty) (Symtab.insert op= (typ, Morphism.term phi const))))
+
+
 (** procedure_info **)
 
 type procedure_info = {
@@ -428,9 +455,9 @@ val _ = writeln (Thm.string_of_thm lthy pftype_def)
             THEN solve_tac ctx [pftype_def] 1
             THEN solve_tac ctx [pfmkuntyped_def] 1
             THEN solve_tac ctx [pfmktyped_def] 1
-THEN print_tac ctx "XXX" 
+(* THEN print_tac ctx "XXX"  *)
             THEN solve_tac ctx [Abs_inverse] 1
-THEN print_tac ctx "YYY" 
+(* THEN print_tac ctx "YYY"  *)
             THEN solve_tac ctx [Rep_inverse] 1
       val thy = Class.prove_instantiation_exit instance_tac lthy
 in ((pftype_def,pfmkuntyped_def,pfmktyped_def),thy) end
@@ -476,7 +503,7 @@ fun declare_module_type (spec:module_type_spec) lthy =
       (* Declaring: typedef ('a,'b) ModuleType = "UNIV :: ('a::prog_type,'b::prog_type) ModuleType_rep set" *)
       val typedef_repset = HOLogic.mk_UNIV (rep_type)
       val ((abs_type_name,typedef_info),lthy) = 
-(* TODO: is overloaded necessary? https://groups.google.com/forum/#!topic/fa.isabelle/Azn3NBvNSgM *)
+          (* TODO: is overloaded necessary? https://groups.google.com/forum/#!topic/fa.isabelle/Azn3NBvNSgM *)
           Typedef.add_typedef {overloaded=true} (#name spec, #type_params spec, NoSyn)
               typedef_repset NONE (fn ctx => (resolve_tac ctx @{thms UNIV_witness} 1)) lthy
       val abs_type = Type(abs_type_name, map TFree (#type_params spec))
@@ -523,11 +550,13 @@ fun declare_module_type (spec:module_type_spec) lthy =
       fun declare_getter (i,proc) lthy : local_theory =
         let val rhs = nth_of_m_procfun i numgetters Rep_MT'_t
             val (bind,_) = proc
+            val bind = bind |> Binding.qualify true (#name spec |> Binding.name_of)
+(* val _ = @{print} bind *)
             (* Declaring: definition "proc1 == procfun_compose <$> fst_procfun <$> Rep_ModuleType'"
                and similarly for proc2... *)
             val ((getter,(_,getter_def)),lthy) = Local_Theory.define ((bind,NoSyn),((Thm.def_binding bind,[]),rhs)) lthy
 
-            (* Declaring: lemma proc1 [simp]: "proc1 <$> Abs_ModuleType (x,y) = x"
+            (* Declaring: lemma proc1 [simp]: "proc1 <$> Abs_ModuleType (x,y) = x"               
                and similar for proc2... *)
             val proc_vars = #procedures spec |> map (fn(n,T) => (Binding.name_of n,T)) 
                            |> Variable.variant_frees lthy [getter,Abs_MT] |> map Free
@@ -547,6 +576,8 @@ fun declare_module_type (spec:module_type_spec) lthy =
               solve_tac ctx @{thms refl} 1
             val thm = Goal.prove lthy (map (fst o Term.dest_Free) proc_vars) [] prop tac
             val (_,lthy) = Local_Theory.note ((bind,@{attributes [simp]}),[thm]) lthy
+            (* Store information about the field selector *)
+            val lthy = insert_field_selector_local (bind |> Binding.name_of) abs_type_name getter lthy
         in
         lthy
         end
@@ -554,7 +585,11 @@ fun declare_module_type (spec:module_type_spec) lthy =
       val lthy = fold_index declare_getter (#procedures spec) lthy
 
 
-  in  lthy  end
+  in  FieldSelector.get (Context.Proof lthy)
+|> Symtab.dest
+|> @{print}
+;
+lthy  end
 
 
 fun declare_module_type_cmd name tparams procedures lthy =

@@ -1,23 +1,6 @@
 structure Lang_Syntax2 =
 struct
 
-(* TODO: move to Procs_Typed *)
-structure FieldSelector = Generic_Data
-(
-type T = string Symtab.table Symtab.table (* 1.key=selector-name 2.key=type-name value=const-name *)
-val empty = Symtab.empty
-fun insert selector typ const =
-  Symtab.map_default (selector,Symtab.empty) (Symtab.insert op= (typ,const))
-fun fold f = Symtab.fold (fn (key,subtable) => Symtab.fold (fn (typ,const) => f key typ const) subtable)
-fun merge (t1,t2) = fold insert t1 t2
-val extend = I
-)
-fun insert_field_selector_generic selector typ const  = 
-  FieldSelector.map (Symtab.map_default (selector,Symtab.empty) (Symtab.insert op= (typ,const)))
-fun insert_field_selector_thy selector typ const = 
-  Context.theory_map (insert_field_selector_generic selector typ const)
-(* END TODO *)
-
 
 
 structure ParseInfo = Proof_Data
@@ -60,8 +43,10 @@ fun pos_of ((_,pos)::_) = pos
 (* fun errmsg ((_,rest),SOME msg) = (fn _ => @{make_string} (msg(),pos_of rest))
   | errmsg ((_,rest),NONE) = (fn _ => @{make_string} ("Syntax error",pos_of rest)) *)
 fun errmsg str parser = Scan.lift spaces |-- Scan.!! (fn ((_,syms),_) => fn _ => str() ^ Position.here (pos_of syms)) parser
+fun errmsg_nosp str parser = Scan.!! (fn ((_,syms),_) => fn _ => str() ^ Position.here (pos_of syms)) parser
 fun fail_pos str = errmsg str (Scan.fail)
 fun expect str = errmsg (fn _ => "expected "^str())
+fun expect_nosp str = errmsg_nosp (fn _ => "expected "^str())
 fun expect' str = errmsg (fn _ => "expected "^str)
 
 val eof_parser : unit ctx_sym_parser = Scan.lift spaces --| 
@@ -220,7 +205,7 @@ fun with_pos (parser : Position.T -> 'a ctx_sym_parser) : 'a ctx_sym_parser =
       NONE => enclosed_text open_ close >> (curry op:: symp)
     | SOME close2 => enclosed_text symp close2 -- enclosed_text open_ close >> (fn (a,b) => symp::a@b)
   )
-  |> expect (fn _ => close ^ " to match " ^ sympos_to_markup open_)
+  |> expect_nosp (fn _ => close ^ " to match " ^ sympos_to_markup open_)
     
   fun balanced_text stoppers : Symbol_Pos.T list ctx_sym_parser = 
   any #-> (fn symp as (sym,_) =>
@@ -256,7 +241,7 @@ val _ = @{print} tagged_str *)
   fun expression_parser stoppers : term ctx_sym_parser = with_context (fn ctx => 
     Scan.lift spaces |-- balanced_text stoppers >> (fn symbols =>
       let val term = read_term_halfchecked ctx symbols
-          (* val _ = @{print} term *)
+          val _ = @{print} (symbols |> Symbol_Pos.implode, symbols,term)
       in Const("_expression",dummyT) $ term
       end))
   |> expect' "expression"
@@ -372,7 +357,6 @@ fun subst_lvars lvars (v as Free(x,T)) =
   | subst_lvars lvar (Abs(n,T,t)) = Abs(n,T,subst_lvars lvar t)
   | subst_lvars _ t = t
 
-(* TODO: should abstract lvars *)
 fun create_expression lvars t = 
   let 
     val frees = Term.add_free_names t [] |> sort_distinct string_ord |> List.mapPartial (Symtab.lookup_key lvars)
@@ -408,19 +392,30 @@ fun program_translation ctx [arg] =
   end
 | program_translation _ args = raise TERM ("program_translation", args)
 
+fun dummify_type (Type(n,args)) = Type(n,map dummify_type args)
+  | dummify_type (TFree _) = dummyT
+  | dummify_type (TVar _) = dummyT
+
+fun dummify_term (a$b) = dummify_term a $ dummify_term b
+  | dummify_term (Const(n,T)) = Const(n, dummify_type T)
+  | dummify_term (Abs(n,T,t)) = Abs(n, dummify_type T, dummify_term t)
+  | dummify_term (Free(n,T)) = Free(n, dummify_type T)
+  | dummify_term (Var(n,T)) = Var(n, dummify_type T)
+  | dummify_term (t as Bound _) = t
+
 fun find_selector ctx T name =
   case T of
     Type(Tname,_) =>
-      (case Symtab.lookup (FieldSelector.get (Context.Proof ctx)) name of
+      (case Symtab.lookup (Procs_Typed.FieldSelector.get (Context.Proof ctx)) name of
         NONE => raise TYPE("find_selector "^name,[T],[])
       | SOME table => 
           (case Symtab.lookup table Tname of
              NONE => error("Selector "^name^" not defined for type "^Tname)
-           | SOME const => Const(const,dummyT) |> SOME))
+           | SOME const => const |> dummify_term |> SOME))
   | _ => NONE
   
 fun selector_types ctx name = 
-  case Symtab.lookup (FieldSelector.get (Context.Proof ctx)) name of
+  case Symtab.lookup (Procs_Typed.FieldSelector.get (Context.Proof ctx)) name of
     NONE => error ("unknown selector "^name)
   | SOME table => Symtab.keys table
 

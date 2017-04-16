@@ -51,11 +51,11 @@ module_type ('pk,'sk,'m,'c) EncScheme =
   keygen :: "(unit,'pk*'sk) procedure"
   enc :: "('pk*'m, 'c) procedure"
   dec :: "('sk*'c, 'm option) procedure"
-setup {*
+(*setup {*
   Lang_Syntax2.insert_field_selector_thy "keygen" @{type_name EncScheme} @{const_name keygen}
   #> Lang_Syntax2.insert_field_selector_thy "enc" @{type_name EncScheme} @{const_name enc}
   #> Lang_Syntax2.insert_field_selector_thy "dec" @{type_name EncScheme} @{const_name dec}
-*}
+*}*)
   
 
 (*module_type ('pk,'sk,'m,'c) Adversary =
@@ -79,10 +79,11 @@ module_type ('pk,'sk,'m,'c) CPA_Adv =
   "guess" :: "('c,bool) procedure"
 (* setup {* declare_method_field_selector @{binding pick} *} *)
   
+  (*
 setup {*
   Lang_Syntax2.insert_field_selector_thy "pick" @{type_name CPA_Adv} @{const_name pick}
   #> Lang_Syntax2.insert_field_selector_thy "guess" @{type_name CPA_Adv} @{const_name guess}
-*}
+*}*)
   
   
 term "(E::(_,_,_,_)CPA_Adv) .pick"
@@ -107,39 +108,40 @@ subsection {* ElGamal *}
 lemma aux1 [reduce_procfun.safe]:
   assumes "schematic=Abs_EncScheme(A,B,C)"
   assumes "A=Y"
-  shows "keygen<$>schematic = Y"
+  shows "EncScheme.keygen<$>schematic = Y"
 using assms by simp
 
 lemma aux2 [reduce_procfun.safe]:
   assumes "schematic=Abs_EncScheme(A,B,C)"
   assumes "B=Y"
-  shows "enc<$>schematic = Y"
+  shows "EncScheme.enc<$>schematic = Y"
 using assms by simp
 
 lemma aux3 [reduce_procfun.safe]:
   assumes "schematic=Abs_EncScheme(A,B,C)"
   assumes "C=Y"
-  shows "dec<$>schematic = Y"
+  shows "EncScheme.dec<$>schematic = Y"
 using assms by simp
 
 procedure (in group) ElGamal :: "('G, nat, 'G, 'G\<times>'G) EncScheme" where
-    "keygen<$>ElGamal = PR \<open>proc() { sk <$ uniform {0..<q}; return (g^sk, sk) }\<close>"
-| "enc<$>ElGamal = PR \<open>proc(pk,m) { y <$ uniform {0..<q}; return (g^y, pk^y * m) }\<close>"
-| "dec<$>ElGamal = PR \<open>proc(sk,(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk)) }\<close>"
+    "EncScheme.keygen<$>ElGamal = PR \<open>proc() { sk <$ uniform {0..<q}; return (g^sk, sk) }\<close>"
+| "EncScheme.enc<$>ElGamal = PR \<open>proc(pk,m) { y <$ uniform {0..<q}; return (g^y, pk^y * m) }\<close>"
+| "EncScheme.dec<$>ElGamal = PR \<open>proc(sk,(c1,c2)) { gy := c1; gm := c2; return Some (gm * inverse (gy^sk)) }\<close>"
 
 procedure Correctness :: "(_,_,_,_) EncScheme =proc=> (_,bool)procedure" where
   "Correctness <$> E = 
   PR \<open>proc(m) {
-    (pk,sk) <@ keygen<$>E ();
-    c <@ enc<$>E (pk, m);
-    m2 <@ dec<$>E (sk, c);
+    (pk,sk) <@ E.keygen ();
+    c <@ E.enc (pk, m);
+    m2 <@ E.dec (sk, c);
     return (m2 = Some m)
   }\<close>"
 
 context group begin
 
-lemma correctness:                                                                     
-  shows "LOCAL succ0. hoare {True} succ0 <@ Correctness <$> ElGamal(m) {succ0}"
+lemma correctness:
+  defines "G = Correctness <$> ElGamal"
+  shows "hoare {True} succ0 <@ G(m) {succ0}"
 apply (inline "Correctness<$>ElGamal")
 apply (inline "keygen<$>ElGamal")
 apply (inline "dec<$>ElGamal")
@@ -153,13 +155,13 @@ apply (subst mult.commute[where 'a='G]) apply (subst mult.assoc) by simp
 type_synonym 'g ElGamal_Adv = "('g, nat, 'g, 'g\<times>'g) CPA_Adv"
 
 procedure DDHAdv :: "'G ElGamal_Adv =proc=> 'G DDH_Adv" where
-  "DDHAdv <$> A = LOCAL gx gy gz m0 m1 b b'. 
+  "DDHAdv <$> A = PR\<open>
     proc (gx, gy, gz) {
-      (m0, m1) <@ pick<$>A(gx);
-      b  <- uniform UNIV;
-      b' <@ guess<$>A(gy, gz * (if b then m1 else m0));
+      (m0, m1) <@ A.pick(gx);
+      b  <$ uniform UNIV;
+      b' <@ A.guess(gy, gz * (if b then m1 else m0));
       return b' = b
-  }"
+  }\<close>"
 
 
 
