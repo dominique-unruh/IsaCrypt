@@ -55,25 +55,6 @@ val eof_parser : unit ctx_sym_parser = Scan.lift spaces --|
 (* fun sym_parser sym = Parse.sym_ident :-- (fn s => if s=sym then Scan.succeed () else Scan.fail) >> #1; *)
 
 
-(* A parse translation that translates cartouches using parser. *)
-fun cartouche_tr what (parser:term ctx_sym_parser) (ctx:Proof.context) arg =
-    let fun err () = raise TERM ("cartouche_tr", [arg])
-      in
-      case arg of
-        (c as Const (@{syntax_const "_constrain"}, _)) $ Free (s, _) $ p =>
-          (case Term_Position.decode_position p of
-            SOME (pos, _) => 
-              let val content = Symbol_Pos.cartouche_content (Symbol_Pos.explode (s, pos))
-                  val range = if content=[] then (pos,pos) else Symbol_Pos.range content
-                  val eof = (Symbol.eof, snd range)
-                  val (term,(ctx',_)) = (Scan.error (errmsg (fn _=>"Could not parse "^what) 
-                                 (parser --| eof_parser))) (ctx,content@[eof])
-              in
-                (ctx', c $ term $ p)
-              end
-          | NONE => err ())
-      | _ => err ()
-    end;;
 
 local
   fun encode_str_tr' (s:string) = HOLogic.mk_string s
@@ -385,12 +366,39 @@ fun process_program ctx (program:term) =
   program
   end
 
-fun program_translation ctx [arg] =
+val program_parser_processed : term ctx_sym_parser = 
+  program_parser #> (fn (raw_program,(ctx,toks)) => (process_program ctx raw_program, (ctx,toks)))
+
+val language_parser = program_parser_processed
+
+(*fun program_translation ctx [arg] =
   let val (ctx',raw_program) = cartouche_tr "program" program_parser ctx arg
   in
     process_program ctx' raw_program
   end
-| program_translation _ args = raise TERM ("program_translation", args)
+| program_translation _ args = raise TERM ("program_translation", args)*)
+
+
+(* A parse translation that translates cartouches using parser. *)
+fun language_translation (ctx:Proof.context) args =
+    let fun err () = raise TERM ("cartouche_tr", args)
+      in
+      case args of
+        [(c as Const (@{syntax_const "_constrain"}, _)) $ Free (s, _) $ p] =>
+          (case Term_Position.decode_position p of
+            SOME (pos, _) => 
+              let val content = Symbol_Pos.cartouche_content (Symbol_Pos.explode (s, pos))
+                  val range = if content=[] then (pos,pos) else Symbol_Pos.range content
+                  val eof = (Symbol.eof, snd range)
+                  val (term,_) = (Scan.error (errmsg (fn _=>"Could not parse QuEasyCrypt DSL") 
+                                 (language_parser --| eof_parser))) (ctx,content@[eof])
+              in
+                c $ term $ p
+              end
+          | NONE => err ())
+      | _ => err ()
+    end;;
+
 
 fun dummify_type (Type(n,args)) = Type(n,map dummify_type args)
   | dummify_type (TFree _) = dummyT

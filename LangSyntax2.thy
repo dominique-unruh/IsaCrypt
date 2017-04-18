@@ -10,7 +10,7 @@ syntax "_internal_read_term_halfchecked_tag" :: "any \<Rightarrow> internal_read
 ML_file "lang_syntax2.ml"
 
 syntax "_program2" :: "cartouche_position \<Rightarrow> 'a" ("PR_")
-parse_translation \<open>[(@{syntax_const "_program2"}, Lang_Syntax2.program_translation)]\<close>
+parse_translation \<open>[(@{syntax_const "_program2"}, Lang_Syntax2.language_translation)]\<close>
 syntax "_internal_read_term_halfchecked_tag" :: "'a \<Rightarrow> 'a"
 parse_translation \<open>[(@{syntax_const "_internal_read_term_halfchecked_tag"}, Lang_Syntax2.encode_term_tr)]\<close>
 
@@ -34,25 +34,6 @@ val c = Lang_Syntax2.enclosed_text ("(",Position.none) ")" (@{context},src)
 \<close>
   
   
-module_type ('pk::prog_type,'sk::prog_type,'m::prog_type,'c::prog_type) EncScheme =
-  keygen :: "(unit,'pk::prog_type*'sk::prog_type) procedure"
-  enc :: "('pk*'m::prog_type, 'c::prog_type) procedure"
-  dec :: "('sk*'c, 'm option) procedure"
-print_theorems
-  
-ML \<open>
-Procs_Typed.FieldSelector.get (Context.Proof @{context})
-|> Symtab.dest |> map (apsnd Symtab.dest)
-\<close>
-  
-  term "EncScheme.keygen"
-  
-module_type ('pk::prog_type,'sk::prog_type,'m::prog_type,'c::prog_type) Other =
-  keygen :: "(unit,'pk::prog_type*'sk::prog_type) procedure"
-  enc :: "('pk*'m::prog_type, 'c::prog_type) procedure"
-  dec :: "('sk*'c, 'm option) procedure"
-
-
 (*setup {*
   Lang_Syntax2.insert_field_selector_thy "keygen" @{type_name EncScheme} @{const_name keygen''}
   #> Lang_Syntax2.insert_field_selector_thy "keygen" @{type_name Other} @{const_name keygen'}
@@ -69,13 +50,6 @@ abbreviation "MODULE_FIELD_SELECTOR_dec" ("_ .dec") where "X .dec == MODULE_FIEL
 abbreviation "MODULE_FIELD_SELECTOR_pick" ("_ .pick") where "X .pick == MODULE_FIELD_SELECTOR ''pick'' X"
 abbreviation "MODULE_FIELD_SELECTOR_guess" ("_ .guess") where "X .guess == MODULE_FIELD_SELECTOR ''guess'' X"
   
-ML {*
-(*fun find_selector _ (Type(@{type_name EncScheme},_)) "keygen" = Const(@{const_name keygen''},dummyT) |> SOME
-  | find_selector _ (Type(@{type_name Other},_)) "keygen" = Const(@{const_name keygen'},dummyT) |> SOME
-  | find_selector _ _ "keygen" = NONE
-  | find_selector _ T name = raise TYPE("find_selector "^name,[T],[])*)
-
-*}
 
 setup {* Syntax_Phases.term_check 0 "module_field_selectors" (fn ctx => map (Lang_Syntax2.pick_field_selectors ctx)) 
             |> Context.theory_map *}
@@ -84,6 +58,31 @@ setup {* Syntax_Phases.term_check 1 "module_field_selectors" (fn ctx => fn ts =>
 
 
 
+  
+  
+  
+(** Tests **)  
+    
+module_type ('pk::prog_type,'sk::prog_type,'m::prog_type,'c::prog_type) Other =
+  keygen :: "(unit,'pk::prog_type*'sk::prog_type) procedure"
+  enc :: "('pk*'m::prog_type, 'c::prog_type) procedure"
+  dec :: "('sk*'c, 'm option) procedure"
+
+  
+module_type ('pk::prog_type,'sk::prog_type,'m::prog_type,'c::prog_type) EncScheme =
+  keygen :: "(unit,'pk::prog_type*'sk::prog_type) procedure"
+  enc :: "('pk*'m::prog_type, 'c::prog_type) procedure"
+  dec :: "('sk*'c, 'm option) procedure"
+print_theorems
+  
+ML \<open>
+Procs_Typed.FieldSelector.get (Context.Proof @{context})
+|> Symtab.dest |> map (apsnd Symtab.dest)
+\<close>
+
+
+  term \<open>  PR \<open>hoare {True} succ0 <@ G(m) {succ0}\<close>\<close>
+  
 experiment begin
 term "x <$> y"
 
