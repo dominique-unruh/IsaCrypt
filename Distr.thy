@@ -1,5 +1,5 @@
 theory Distr
-imports Main Tools Binary_Product_Measure Misc
+imports Main Tools "HOL-Analysis.Binary_Product_Measure" Misc
 begin
 
 lemma indicator_singleton: "indicator {x} y = indicator {y} x"
@@ -1485,7 +1485,7 @@ proof -
     fix M and x assume MN: "M \<subseteq> N"
     have "(\<integral>\<^sup>+ y. (\<Sum>n\<in>M. ennreal_Rep_distr (f n x) y) \<partial>count_space UNIV) \<le> (\<integral>\<^sup>+ y. (\<Sum>n\<in>N. ennreal_Rep_distr (f n x) y) \<partial>count_space UNIV)"
       apply (rule nn_integral_mono, thin_tac _) 
-      apply (rule sum_mono3) using MN fin by auto
+      apply (rule sum_mono2) using MN fin by auto
     also have "\<dots> \<le> (\<integral>\<^sup>+ y. (ennreal_Rep_distr (g x) y) \<partial>count_space UNIV)"
       using sum by simp
     also have "\<dots> \<le> 1"
@@ -1554,7 +1554,7 @@ proof -
     fix M assume MN: "M \<subseteq> N"
     have "(\<integral>\<^sup>+ y. (\<Sum>n\<in>M. ennreal_Rep_distr (\<nu> n) y) \<partial>count_space UNIV) \<le> (\<integral>\<^sup>+ y. (\<Sum>n\<in>N. ennreal_Rep_distr (\<nu> n) y) \<partial>count_space UNIV)"
       apply (rule nn_integral_mono, thin_tac _) 
-      apply (rule sum_mono3) using MN fin by auto
+      apply (rule sum_mono2) using MN fin by auto
     also have "\<dots> \<le> (\<integral>\<^sup>+ y. (ennreal_Rep_distr \<mu> y) \<partial>count_space UNIV)"
       using sum by simp
     also have "\<dots> \<le> 1"

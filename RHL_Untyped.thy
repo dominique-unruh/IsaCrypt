@@ -463,14 +463,14 @@ proof (unfold rhoare_denotation_def, auto)
     apply (subst less_eq_ennreal_Abs_distr[symmetric])
       close (rule csumbound) close (rule csumbound)
     unfolding le_fun_def apply (rule allI)
-    apply (rule sum_mono3)
+    apply (rule sum_mono2)
       by auto
   have dinc: "incseq (\<lambda>n. dsum n)"
     unfolding dsum_def mono_def apply auto
     apply (subst less_eq_ennreal_Abs_distr[symmetric])
       close (rule dsumbound) close (rule dsumbound)
     unfolding le_fun_def apply (rule allI)
-    apply (rule sum_mono3)
+    apply (rule sum_mono2)
       by auto
   have c'sup: "\<And>m. c' m1 = (SUP n. csum n)"
     apply (subst ennreal_Rep_distr_inject[symmetric])
@@ -491,7 +491,7 @@ proof (unfold rhoare_denotation_def, auto)
     apply (subst less_eq_ennreal_Abs_distr[symmetric])
       close (rule \<mu>nsumbound) close (rule \<mu>nsumbound)
     unfolding le_fun_def apply (rule allI)
-    apply (rule sum_mono3)
+    apply (rule sum_mono2)
       by auto
   have fst0: "\<And>n. apply_to_distr fst (\<mu>nsum n) = csum n"
     apply (subst ennreal_Rep_distr_inject[symmetric]) apply (rule ext, rename_tac m)

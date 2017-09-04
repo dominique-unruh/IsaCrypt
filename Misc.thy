@@ -1,5 +1,5 @@
 theory Misc
-imports Main Extended_Real_Limits Tools
+imports Main "HOL-Analysis.Extended_Real_Limits" Tools
 begin
 
 instantiation "fun" :: (type,zero) zero begin
