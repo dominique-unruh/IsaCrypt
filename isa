@@ -11,7 +11,7 @@ if [ "$1" = "x" ]; then
 fi
 
 ( 
-    "$ISADIR"/bin/isabelle jedit -l "$HEAP" -d . "$@"
+    "$ISADIR"/bin/isabelle jedit -s -l "$HEAP" -d . "$@"
     git gui
     git push
 ) &

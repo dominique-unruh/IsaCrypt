@@ -1,5 +1,5 @@
 theory Universe
-imports Main BNF_Cardinal_Order_Relation Misc Tools TermX_Antiquot Nat_Bijection Rewrite
+imports Main BNF_Cardinal_Order_Relation Misc Tools TermX_Antiquot Nat_Bijection Rewrite "~~/src/HOL/ZF/HOLZF"
 begin
 
 (* For proving instances of types declared with 
@@ -11,16 +11,148 @@ begin
                                        
 (* definition "powertower t == \<forall>n. \<exists>i. inj_on i (Pow (t n)) \<and> i ` (Pow (t n)) \<subseteq> t (Suc n)" *)
 
+    
+
+lemma ZF_Pow_explode: "Pow (explode z) = explode ` explode (Power z)"
+proof (rule; rule)
+  fix x assume "x \<in> Pow (explode z)" 
+  hence "x \<subseteq> explode z" by simp
+      
+  hence "y \<in> (explode z)" if "y \<in> x" for y  
+    using that by blast
+  hence yz: "Elem y z" if "y \<in> x" for y
+    by (simp add: explode_Elem that) 
+      
+  define y where "y = Replacement z (\<lambda>t. if (t \<in> x) then Some t else None)"
+  have xy: "x = explode y"
+    unfolding y_def explode_def Replacement
+    using yz by auto 
+  have "Elem y (Power z)"
+    unfolding y_def
+    using Power xy y_def explode_Elem subset_def yz by force
+      
+  with xy show "x \<in> explode ` explode (Power z)" 
+    apply (subst explode_def) by auto
+next
+  fix x assume "x \<in> explode ` explode (Power z)"
+  thus "x \<in> Pow (explode z)"
+    using Power explode_Elem subset_def by auto
+qed
+
+  
+typedef val = "{(x,n) | x n. Elem x ((Power ^^ n) Inf)}" 
+  apply (rule exI[of _ "(Empty,0)"])
+  by (simp add: Infinity)
+(*
+Alternatively, val can be axiomatized as follows, which is weaker than the ZF axioms 
+(the axiomatization below is implied by existence of a smaller cardinal, namely beth_\<omega>)
+
 typedecl val
 axiomatization val_powertower :: "nat \<Rightarrow> val set" where
     val_powertower: "\<exists>i. inj_on i (Pow (val_powertower n)) \<and> i ` (Pow (val_powertower n)) \<subseteq> val_powertower (Suc n)"
 and val_powertower_disjoint: "x \<in> val_powertower n \<Longrightarrow> x \<in> val_powertower m \<Longrightarrow> n=m"
 and val_powertower_nat: "\<exists>n (i::nat\<Rightarrow>val). inj i \<and> range i \<subseteq> val_powertower n" 
 and val_powertower_all: "(\<Union>n. val_powertower n) = UNIV"
+*)
+
+    
+setup_lifting type_definition_val
+definition "val_powertower n = {Abs_val (x,n) | x. Elem x ((Power ^^ n) Inf)}"
+lemma val_powertower: "\<exists>i. inj_on i (Pow (val_powertower n)) \<and> i ` (Pow (val_powertower n)) \<subseteq> val_powertower (Suc n)"
+proof -
+  define D0 where "D0 = Pow (val_powertower n)"
+  define i0 where "i0 x = Rep_val ` x" for x
+  have "inj_on i0 D0"
+    by (metis Rep_val_inverse \<open>i0 \<equiv> op ` Rep_val\<close> inj_on_image inj_on_inverseI)
+  define D1 where "D1 = i0 ` D0"
+  have D1: "D1 = Pow {(x,n) | x. Elem x ((Power ^^ n) Inf)}" 
+    unfolding D1_def i0_def D0_def val_powertower_def
+    apply (subst image_Pow_surj) apply rule
+    apply (subst image_Collect)
+    by (metis (no_types, hide_lams) Domainp.cases Rep_val_inverse cr_val_def val.domain_eq val.pcr_cr_eq)
+  define i1 where i1_def: "i1 x = fst ` x" for x :: "(ZF*nat) set"
+  have "inj_on i1 D1"
+    apply (rule inj_onI) unfolding i1_def D1 
+    apply auto
+    apply (smt \<open>i1 \<equiv> op ` fst\<close> contra_subsetD fst_conv imageI image_iff mem_Collect_eq old.prod.exhaust prod.inject)
+    by (smt \<open>i1 \<equiv> op ` fst\<close> contra_subsetD fst_conv imageI image_iff mem_Collect_eq old.prod.exhaust prod.inject)
+
+  define D2 where "D2 = i1 ` D1" 
+  have "D2 = Pow (explode ((Power ^^ n) Inf))"
+    unfolding D2_def i1_def D1 explode_def
+    apply (subst image_Pow_surj) apply rule
+    apply (subst image_Collect) by auto
+  hence D2: "D2 = explode ` explode ((Power ^^ Suc n) Inf)"
+    unfolding ZF_Pow_explode by simp
+      
+  define i2 where "i2 = implode"
+  have "inj_on i2 D2"
+    apply (rule inj_onI) unfolding D2 i2_def by auto
+
+  define D3 where "D3 = i2 ` D2"
+  have D3: "D3 = explode ((Power ^^ Suc n) Inf)"
+    unfolding D3_def D2 i2_def  image_comp o_def  by simp
+  define i3 where "i3 z = Abs_val (z, Suc n)" for z
+  have "inj_on i3 D3"
+    apply (rule inj_onI)
+    unfolding i3_def
+    by (metis D3 Domainp.cases Rep_val_inverse cr_val_def explode_Elem prod.sel(1) val.domain_eq val.pcr_cr_eq)
+      
+  define D4 where "D4 = i3 ` D3" 
+  have D4: "D4 = val_powertower (Suc n)" 
+    unfolding val_powertower_def D4_def D3 i3_def
+    by (simp add: explode_def image_Collect)
+      
+  define i where "i = i3 o i2 o i1 o i0"
+  have inj_i: "inj_on i D0" 
+    unfolding i_def 
+    apply (rule comp_inj_on, fact \<open>inj_on i0 D0\<close>)
+    unfolding D1_def[symmetric]
+    apply (rule comp_inj_on, fact \<open>inj_on i1 D1\<close>)
+    unfolding D2_def[symmetric]
+    apply (rule comp_inj_on, fact \<open>inj_on i2 D2\<close>)
+    unfolding D3_def[symmetric]
+    by (fact \<open>inj_on i3 D3\<close>)
+      
+  have i_D0: "i ` D0 = D4" 
+    unfolding D4_def D3_def D2_def D1_def i_def by auto
+      
+  show ?thesis
+    apply (rule exI[of _ i])
+    using D0_def inj_i i_D0 D4
+    by auto
+qed
+  
+lemma val_powertower_disjoint: "x \<in> val_powertower n \<Longrightarrow> x \<in> val_powertower m \<Longrightarrow> n=m"
+  using type_definition.Abs_inject type_definition_val val_powertower_def by fastforce
+  
+lemma val_powertower_nat: "\<exists>n (i::nat\<Rightarrow>val). inj i \<and> range i \<subseteq> val_powertower n"
+proof - 
+  define i where "i m = Abs_val (nat2Nat m, 0)" for m
+  have "inj i" 
+    apply (rule injI) unfolding i_def
+    apply (subst (asm) Abs_val_inject)
+      apply (simp add: Elem_nat2Nat_inf)
+     apply (simp add: Elem_nat2Nat_inf)
+    by (meson injD inj_nat2Nat old.prod.inject)
+      
+  moreover have "range i \<subseteq> val_powertower 0"
+    unfolding val_powertower_def i_def by auto
+      
+  ultimately show ?thesis
+    by auto
+qed
+  
+lemma val_powertower_all: "(\<Union>n. val_powertower n) = UNIV"
+  unfolding val_powertower_def
+  apply auto
+  by (smt Rep_val Rep_val_inverse mem_Collect_eq)
+
 
 instantiation val :: equal begin
 definition "equal_val (v::val) w = (v=w)"
-instance apply intro_classes by (simp add: equal_val_def)
+instance apply intro_classes
+  by (simp add: equal_val_def)
 end
 
 (* definition "small_cardinal (_::'a itself) = (\<exists>t n (i::'a\<Rightarrow>val). powertower t \<and> inj i \<and> range i \<subseteq> t n)" *)
