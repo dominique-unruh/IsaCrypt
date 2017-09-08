@@ -1,5 +1,5 @@
 theory Universe
-imports Main BNF_Cardinal_Order_Relation Misc Tools TermX_Antiquot Nat_Bijection Rewrite "~~/src/HOL/ZF/HOLZF"
+imports Main BNF_Cardinal_Order_Relation Misc Tools TermX_Antiquot Nat_Bijection "~~/src/HOL/Library/Rewrite" "~~/src/HOL/ZF/HOLZF"
 begin
 
 (* For proving instances of types declared with 
