@@ -1,5 +1,5 @@
 theory Hoare_Untyped
-imports Lang_Untyped "HOL-Library.Rewrite"
+imports Lang_Untyped 
 begin
 
 definition hoare_untyped :: "(memory \<Rightarrow> bool) \<Rightarrow> program_rep \<Rightarrow> (memory \<Rightarrow> bool) \<Rightarrow> bool" where

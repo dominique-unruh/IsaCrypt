@@ -1,17 +1,8 @@
 #!/bin/bash
 
-HEAP=IsaCrypt-Prereqs
+HEAP=HOL-Analysis
 ISADIR=/opt/Isabelle2016-1
 
 git pull &
 
-if [ "$1" = "x" ]; then
-    HEAP=IsaCrypt-Core
-    shift
-fi
-
-( 
-    "$ISADIR"/bin/isabelle jedit -l "$HEAP" -d . "$@"
-    git gui
-    git push
-) &
+"$ISADIR"/bin/isabelle jedit -s -l "$HEAP" -d . "$@"
