@@ -1,5 +1,5 @@
 theory TypedLambdaNominal
-imports "~~/src/HOL/Nominal/Nominal"
+imports "HOL-Nominal.Nominal"
 begin
 
 text {* 

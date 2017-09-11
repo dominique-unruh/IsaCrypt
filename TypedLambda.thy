@@ -1,5 +1,5 @@
 theory TypedLambda
-imports Main Tools "~~/src/HOL/Proofs/Lambda/ListOrder" TypedLambdaNominal
+imports Main Tools "HOL-Proofs-Lambda.ListOrder" TypedLambdaNominal
 begin
 
 locale typed_lambda begin (* to hide syntax *)

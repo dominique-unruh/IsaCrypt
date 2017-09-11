@@ -512,6 +512,8 @@ fun mk_procedure_typed :: "procedure_rep \<Rightarrow> ('a::prog_type, 'b::prog_
 class singleton = 
   fixes the_singleton::'a (* Why do we need this? *)
   assumes singleton_eq [simp]: "a=b"
+hide_const the_singleton
+
 instantiation unit :: singleton begin
   instance apply intro_classes by auto
 end

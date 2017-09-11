@@ -1,5 +1,5 @@
 theory Procedures
-imports "~~/src/HOL/Proofs/Lambda/Commutation" TypedLambda Lang_Untyped 
+imports "HOL-Proofs-Lambda.Commutation" TypedLambda Lang_Untyped 
 begin
 
 
