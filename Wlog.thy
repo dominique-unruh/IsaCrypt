@@ -6,7 +6,6 @@ begin
 
 ML_file "wlog.ML"
 
-(* lemma assumes "X \<Longrightarrow> Y"  and "\<not> X \<Longrightarrow> Y" shows "Y" *)
   
 
 

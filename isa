@@ -1,8 +1,0 @@
-#!/bin/bash
-
-HEAP=HOL-Analysis
-ISADIR=/opt/Isabelle2016-1
-
-git pull &
-
-"$ISADIR"/bin/isabelle jedit -s -l "$HEAP" -d . "$@"

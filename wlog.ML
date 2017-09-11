@@ -80,6 +80,7 @@ fun get_fixes ctx =
 
 
 fun negate (Const(@{const_name Trueprop},_) $ t) = HOLogic.mk_Trueprop (HOLogic.mk_not t)
+  | negate t = raise TERM ("expected boolean proposition",[t])
 
 (* Assumes: goal=X, thm=\<not>Y\<Longrightarrow>X, hyp_thm="Y\<Longrightarrow>A\<^sub>1\<Longrightarrow>\<dots>\<Longrightarrow>A\<^sub>n\<Longrightarrow>X", assms=[A1,\<dots>,A\<^sub>n] *)
 fun negation_tac ctx thm hyp_thm assms = 
@@ -122,23 +123,18 @@ fun wlog (newassm_name,newassm) (fixes:(binding*string*typ) list) (thesis:term) 
       let 
           val proven_thm = Proof.the_fact state
           val _ = @{print} (proven_thm)
-val _ = @{print} 1
           val (_,state) = Proof.show true NONE (fn _ => I) [] [] [((Binding.empty,[]),[(thesis,[])])] int state
-val _ = @{print} 2
            val state = Proof.apply (Method.Basic (fn ctx => 
               (Method.SIMPLE_METHOD (negation_tac ctx proven_thm hyp_thm (assms |> map snd |> List.concat)))),
                       Position.no_range) state
               |> Seq.the_result "internal error: negation_tac failed"
-val _ = @{print} 31
           val state = Proof.local_done_proof state
-val _ = @{print} 32
           val let_bindings = Variable.binds_of (Proof.context_of state) |> Vartab.dest
           val state = Proof.next_block state
           val lost_facts = dest_static2 (Proof.context_of state) false [Proof_Context.facts_of (Proof.context_of state)] facts
           val _ = @{print} ("lost_facts",map #1 lost_facts)
           val (fixed,state) = Proof.map_context_result (Proof_Context.add_fixes (map (fn (a,_,T) => (a,SOME T,NoSyn)) fixes)) state
           val rename_fixed = ren_frees (map2 (fn (_,a,_) => fn b => (a,b)) fixes fixed)
-val _ = @{print} 3
           val state = fold (fn (name,(_,t)) => Proof.map_context (Variable.bind_term (name,rename_fixed t))) let_bindings state
           val state = Proof.map_context (Variable.bind_term (("wlog_goal",0),rename_fixed thesis)) state
           val state = fold (fn (name,assm) => fn state => 
@@ -148,11 +144,8 @@ val _ = @{print} 3
           val state = Proof.assume [] [] [((newassm_name,[]),[(rename_fixed newassm,[])])] state (* Should be last in order to override "this" *)
           (* TODO: define assms to contain all assumptions (carried over and new) *)
       in state end
-      | after_qed _ _ = error "internal error"
                             
       val (_,state) = Proof.have true NONE after_qed [] [((@{binding negation},[]),[(negate newassm,[])])] [((Binding.empty,[]),[(thesis,[])])] int state 
-      (* val state = Proof.assume [] [] [((@{binding negation},[case_names]),[(hyp,[])])] state *)
-      (* val (_,state) = Proof.show true NONE after_qed [] [] [((Binding.empty,[]),[(thesis,[])])] int state *)
   in state end
 
 fun wlog_cmd ((bind,stmt) : Binding.binding * string) (* New assumptions added wlog *)
