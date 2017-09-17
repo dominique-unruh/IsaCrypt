@@ -43,8 +43,6 @@ datatype lambda =
   Abs lambda | Nat nat | Plus lambda lambda | Invoke "lambda procedure"
 
 
-value "size (Plus (Nat 3) (Abs (Nat 5)))"
-
 (* record (overloaded) ('a,'b,'c) procedure = 
   p_body :: 'a
   p_arg :: 'b
@@ -57,28 +55,33 @@ datatype procedure_type_open =
  | ProcTPair procedure_type_open procedure_type_open
  | ProcTUnit
 
-(* fun program_set :: "'program procedure \<Rightarrow> 'program set" where
-  "program_set ProcUnit = {}" *)
-
 locale modules =
   (* 'program = type of programs *)
-  fixes well_typed_program :: "procedure_type_open list \<Rightarrow> 'program \<Rightarrow> procedure_type \<Rightarrow> bool"
+  fixes well_typed_program :: "(procedure_type_open list \<Rightarrow> 'program procedure \<Rightarrow> procedure_type_open \<Rightarrow> bool)
+                             \<Rightarrow> procedure_type_open list \<Rightarrow> 'program \<Rightarrow> procedure_type \<Rightarrow> bool"
     and proc_map :: "('program procedure \<Rightarrow> 'program procedure) \<Rightarrow> 'program \<Rightarrow> 'program"
     and proc_list :: "'program \<Rightarrow> 'program procedure list"
     and proc_size :: "'program procedure \<Rightarrow> nat"
   assumes proc_size_Proc: "y \<in> set (proc_list x) \<Longrightarrow> proc_size y < proc_size (Proc x)" 
       and proc_size_ProcAppl[simp]: "proc_size (ProcAppl s t) = proc_size s + proc_size t + 1"
-and proc_size_ProcPair[simp]: "proc_size (ProcPair s t) = proc_size s + proc_size t + 1"
-and proc_size_ProcUnpair[simp]: "proc_size (ProcUnpair b s) = proc_size s + 1"
-and proc_size_ProcAbs[simp]: "proc_size (ProcAbs s) = proc_size s + 1"
-
-  and proc_map_cong[fundef_cong]: "p=q \<Longrightarrow> (\<And>z. proc_size z < proc_size (Proc q) \<Longrightarrow> f z = g z) \<Longrightarrow> proc_map f p = proc_map g q"
-  and proc_list_map: "proc_list (proc_map f p) = map f (proc_list p)"
-(* and proc_map_Proc: "proc_map f (Proc p) = Proc (proc_map f p)" *)
+      and proc_size_ProcPair[simp]: "proc_size (ProcPair s t) = proc_size s + proc_size t + 1"
+      and proc_size_ProcUnpair[simp]: "proc_size (ProcUnpair b s) = proc_size s + 1"
+      and proc_size_ProcAbs[simp]: "proc_size (ProcAbs s) = proc_size s + 1"
+      (* and proc_map_cong[fundef_cong]: "p=q \<Longrightarrow> (\<And>z. proc_size z < proc_size (Proc q) \<Longrightarrow> f z = g z) \<Longrightarrow> proc_map f p = proc_map g q" *)
+      and proc_map_cong[fundef_cong]: "p=q \<Longrightarrow> (\<And>z. z \<in> set (proc_list q) \<Longrightarrow> f z = g z) \<Longrightarrow> proc_map f p = proc_map g q"
+      and proc_list_map: "proc_list (proc_map f p) = map f (proc_list p)"
+      and proc_map_proc_map [simp]: "proc_map f (proc_map g p) = proc_map (\<lambda>x. f (g x)) p"
+      and proc_map_id[simp]: "proc_map (\<lambda>x. x) p = p"
+(* and well_typed_program_cong[fundef_cong]: "\<lbrakk>E=E'; pg=pg'; T=T'; \<And>pc. pc\<in>set(proc_list pg') \<Longrightarrow> wt E' pc (ProcTSimple T') = wt' E' pc (ProcTSimple T')\<rbrakk>
+                   \<Longrightarrow> well_typed_program wt E pg T = well_typed_program wt' E' pg' T'" *)
+      and well_typed_program_mono[mono]: "wt \<le> wt' \<Longrightarrow> well_typed_program wt E p T \<longrightarrow> well_typed_program wt' E p T"
 begin
+
+abbreviation "proc_set proc \<equiv> set (proc_list proc)"
 
 (* definition "subterm_relation = {(p,q) | p q r . q \<in> proc_set r \<and> r \<in> program_set (p::'program procedure) }" *)
 (* lemma wf_subterm_relation[simp]: "wf subterm_relation" using proc_set_wellfounded unfolding subterm_relation_def . *)
+
 
 inductive well_typed :: "procedure_type_open list \<Rightarrow> 'program procedure \<Rightarrow> procedure_type_open \<Rightarrow> bool"
   where wt_ProcRef: "i<length E \<Longrightarrow> E!i = T \<Longrightarrow> well_typed E (ProcRef i) T"
@@ -89,7 +92,7 @@ inductive well_typed :: "procedure_type_open list \<Rightarrow> 'program procedu
 | wt_ProcPair: "well_typed E p T \<Longrightarrow> well_typed E q U \<Longrightarrow> well_typed E (ProcPair p q) (ProcTPair T U)"
 | wt_ProcUnpair: "well_typed E p (ProcTPair T U) \<Longrightarrow> well_typed E (ProcUnpair b p) (if b then T else U)"
 | wt_ProcUnit: "well_typed E ProcUnit ProcTUnit"
-| wt_Proc: "well_typed_program E p T \<Longrightarrow> well_typed E (Proc p) (ProcTSimple T)"
+| wt_Proc: "well_typed_program well_typed E p T \<Longrightarrow> well_typed E (Proc p) (ProcTSimple T)"
 
 (* lemma proc_map_cong[fundef_cong]: "\<lbrakk>x=y; \<And>z. proc_size \<Longrightarrow> f z=g z\<rbrakk> \<Longrightarrow> proc_map f x = proc_map g y" *)
    
@@ -103,7 +106,8 @@ function lift_proc :: "['program procedure, nat] \<Rightarrow> 'program procedur
 | lift_proc_ProcAbs: "lift_proc (ProcAbs s) k = ProcAbs (lift_proc s (Suc k))"
 | lift_proc_ProcUnit: "lift_proc ProcUnit k = ProcUnit"
   by pat_completeness auto
-termination apply (relation "measure (\<lambda>(p,k). proc_size p)") by auto 
+termination apply (relation "measure (\<lambda>(p,k). proc_size p)") 
+  using proc_size_Proc by auto
 
 function subst_proc :: "[nat, 'program procedure, 'program procedure] \<Rightarrow> 'program procedure"
 where
@@ -117,7 +121,116 @@ where
 | subst_proc_ProcAbs: "subst_proc k s (ProcAbs t) = ProcAbs (subst_proc (Suc k) (lift_proc s 0) t)"
 | subst_proc_ProcUnit: "subst_proc k s ProcUnit = ProcUnit"
   by pat_completeness auto
-termination apply (relation "measure (\<lambda>(_,_,p). proc_size p)") by auto 
+termination apply (relation "measure (\<lambda>(_,_,p). proc_size p)") 
+  using proc_size_Proc by auto
+
+lemma procedure_induct[case_names Proc ProcRef ProcUnit ProcAbs ProcAppl ProcPair ProcUnpair]:
+  assumes proc: "\<And>pg. (\<And>p. p \<in> proc_set pg \<Longrightarrow> P p) \<Longrightarrow> P (Proc pg)"
+    and "\<And>p. P (ProcRef p)"
+    and "P ProcUnit "
+    and procabs: "(\<And>p. P p \<Longrightarrow> P (ProcAbs p))"
+    and procappl: "(\<And>a b. P a \<Longrightarrow> P b \<Longrightarrow> P (ProcAppl a b))"
+    and procpair: "(\<And>a b. P a \<Longrightarrow> P b \<Longrightarrow> P (ProcPair a b))"
+    and procunpair: "(\<And>b p. P p \<Longrightarrow> P (ProcUnpair b p))"
+  shows "P proc"
+proof (induct n\<equiv>"proc_size proc" arbitrary: proc rule:nat_less_induct)
+  case 1
+  hence "P p" if "proc_size p < proc_size proc" for p
+    using that by blast
+  show ?case
+  proof (cases proc)
+    case (Proc pg)
+    then show ?thesis
+      using 1 proc proc_size_Proc by blast
+  next
+    case (ProcAbs x4)
+    then show ?thesis 
+      using 1 procabs proc_size_ProcAbs by auto
+  next
+    case (ProcAppl a b)
+    then show ?thesis 
+      using 1 procappl proc_size_ProcAppl
+      by (metis (no_types, lifting) Nat.add_0_right One_nat_def add_Suc_right lessI lift_Suc_mono_less_iff trans_less_add2 zero_less_Suc)
+  next
+    case (ProcPair x61 x62)
+    then show ?thesis 
+      using 1 procpair proc_size_ProcPair
+      by (metis add.commute add_lessD1 less_add_one)
+  next
+    case (ProcUnpair x71 x72)
+    then show ?thesis apply auto
+      using 1 procunpair proc_size_ProcUnpair by auto
+  qed (auto simp: assms)
+qed
+
+
+lemma lift_lift:
+  assumes "i < k + 1"
+  shows "lift_proc (lift_proc t i) (Suc k) = lift_proc (lift_proc t k) i"
+proof (insert assms, induction t arbitrary: i k rule:procedure_induct)
+  case (Proc p pg)
+  show ?case 
+    apply auto
+    apply (rule proc_map_cong)
+    using Proc by auto
+qed auto
+
+lemma lift_subst [simp]:
+  assumes "j < Suc i"
+  shows "lift_proc (subst_proc j s t) i = subst_proc j (lift_proc s i) (lift_proc t (Suc i))"
+proof (insert assms, induction t arbitrary: i j s rule:procedure_induct)
+  case (Proc p pg)
+  show ?case 
+    apply auto
+    apply (rule proc_map_cong)
+    using Proc by auto
+next
+  case (ProcAbs p)
+  then show ?case 
+    by (simp add: diff_Suc lift_lift split: nat.split)
+qed auto
+
+lemma lift_subst_lt:
+  assumes "i < j + 1"
+  shows "lift_proc (subst_proc j s t) i = subst_proc (j+1) (lift_proc s i) (lift_proc t i)"
+proof (insert assms, induction t arbitrary: i j s rule:procedure_induct)
+  case (Proc p pg)
+  show ?case 
+    apply auto
+    apply (rule proc_map_cong)
+    using Proc by auto
+next
+  case (ProcAbs p)
+  then show ?case 
+    by (simp add: lift_lift)
+qed auto
+
+lemma subst_lift [simp]:
+  shows "subst_proc k s (lift_proc t k) = t"
+proof (induction t arbitrary: k s rule:procedure_induct)
+  case (Proc p pg)
+  show ?case 
+    apply auto
+    apply (rewrite in "_=\<hole>" proc_map_id[symmetric])
+    apply (rule proc_map_cong)
+    using Proc by auto
+qed auto
+
+
+lemma subst_subst:
+  assumes "i < Suc j"
+  shows "subst_proc i (subst_proc j v u) (subst_proc (Suc j) (lift_proc v i) q) = subst_proc j v (subst_proc i u q)"
+proof (insert assms, induction q arbitrary: i j u v rule:procedure_induct)
+  case (Proc pg)
+  then show ?case 
+    apply auto 
+    apply (rule proc_map_cong)
+    using Proc by auto
+next
+  case (ProcAbs p)
+  then show ?case 
+    by (simp_all add: diff_Suc lift_lift [symmetric] lift_subst_lt split: nat.split)
+qed auto
 
 end
 
@@ -129,8 +242,6 @@ begin
   "prog_to_dB p = fold (\<lambda>dB pc \<Rightarrow> dB \<degree> pc) Proc0 (proc_list p)" *)
 
 abbreviation "Proc0 == Abs(Var 0)"
-abbreviation "Proc1 == Abs(Var 0)"
-abbreviation "Proc2 == Abs(Abs(Var 0))"
 
 function proc_to_dB :: "'a procedure \<Rightarrow> dB" where
   proc_to_dB_Proc: "proc_to_dB (Proc p) = (foldl (\<lambda>(dB::dB) pc. dB \<degree> proc_to_dB pc) Proc0 (proc_list p))" 
@@ -150,17 +261,17 @@ proof (induction rule:lift_proc.induct)
   define app where "app = (\<lambda>(dB::dB) pc. dB \<degree> proc_to_dB pc)"
   define pl where "pl = proc_list p"
   define P0 where "P0 = Proc0"
-  have app_lift: "app (lift a k) (lift_proc x k) = lift (app a x) k" if "proc_size x < proc_size (Proc p)" for a x
+  have app_lift: "app (lift a k) (lift_proc x k) = lift (app a x) k" if "x \<in> proc_set p" for a x
     unfolding app_def using that 1 by auto
-  have size: "proc_size x < proc_size (Proc p)" if "x\<in>set pl" for x
-    using pl_def modules.proc_size_Proc modules_axioms that by fastforce
+  have x_pl: "x \<in> proc_set p" if "x\<in>set pl" for x
+    using pl_def that by simp
 
   have "proc_to_dB (lift_proc (Proc p) k) = foldl app P0 (proc_list (proc_map (\<lambda>p. lift_proc p k) p))"
     unfolding app_def P0_def by simp
   also have "\<dots> = foldl app P0 (map (\<lambda>p. lift_proc p k) pl)"
     using proc_list_map pl_def by simp
   also have "\<dots> = lift (foldl app P0 pl) k"
-    apply (insert size, induction pl rule:rev_induct)
+    apply (insert x_pl, induction pl rule:rev_induct)
      using P0_def apply simp
     using app_lift by simp
   also have "\<dots> = lift (proc_to_dB (Proc p)) k" 
@@ -170,16 +281,30 @@ qed auto
 
 lemma proc_to_dB_subst [iff]:
    "proc_to_dB (subst_proc k x q) = proc_to_dB q[proc_to_dB x/k]"
-proof (induction rule:lift_proc.induct)
-  case (1 p k)
-
-  show ?case sorry
+proof (induction arbitrary: k x rule:procedure_induct)
+  case (Proc pg)
+  define f and start where "f dB pc = (dB \<degree> proc_to_dB pc)" and "start = (dB.Abs (dB.Var 0))" for dB pc
+  define pl where "pl = proc_list pg"
+  then have pl: "set pl \<subseteq> proc_set pg" by simp
+  have "foldl f start (map (subst_proc k x) pl) = foldl f start pl[proc_to_dB x/k]" 
+  proof (insert pl, induction pl rule:rev_induct)
+    case Nil
+    then show ?case unfolding start_def by simp
+  next
+    case (snoc a pl)
+    hence a_pg: "a \<in> proc_set pg" by simp
+    have "f (foldl f start pl) a[proc_to_dB x/k] = foldl f start pl[proc_to_dB x/k] \<degree> proc_to_dB a[proc_to_dB x/k]"
+      unfolding f_def by simp 
+    also have "\<dots> = foldl f start (map (subst_proc k x) pl) \<degree> proc_to_dB a[proc_to_dB x/k]" 
+      using snoc by simp
+    also have "\<dots> = foldl f start (map (subst_proc k x) pl) \<degree> proc_to_dB (subst_proc k x a)"
+      by (subst Proc[OF a_pg], simp)
+    also have "\<dots> = f (foldl f start (map (subst_proc k x) pl)) (subst_proc k x a)" unfolding f_def by simp
+    finally show ?case by simp
+  qed
+  then show ?case 
+    unfolding subst_proc_Proc proc_to_dB_Proc proc_list_map f_def start_def pl_def by simp
 qed auto
-by (induction p and q arbitrary: k x and k x, auto)
-
-fun to_dB where
-  "to_dB (Inl p) = prog_to_dB p"
-| "to_dB (Inr p) = proc_to_dB p"
 
 abbreviation "ProcT == Fun (Atom 0) (Atom 0)"
 
@@ -190,14 +315,47 @@ fun typ_conv :: "procedure_type_open \<Rightarrow> lambda_type" where
 | "typ_conv (ProcTPair T U) = Prod (typ_conv T) (typ_conv U)"
 
 lemma typ_pres:
-  shows "well_typed'' E pg \<Longrightarrow> (\<lambda>i. typ_conv (E!i)) \<turnstile> prog_to_dB pg : ProcT"
-  and   "well_typed_proc'' E p T \<Longrightarrow>(\<lambda>i. typ_conv (E!i)) \<turnstile> proc_to_dB p : typ_conv T"
-proof (induction E pg and E p T rule:well_typed''_well_typed_proc''.inducts)
-case (wt_ProcAbs T E p U) show ?case apply auto 
-  apply (rule rev_iffD1[OF wt_ProcAbs.IH])
-  apply (tactic "cong_tac @{context} 1")+
-  by (auto simp: shift_def)
+  (* shows "well_typed'' E pg \<Longrightarrow> (\<lambda>i. typ_conv (E!i)) \<turnstile> prog_to_dB pg : ProcT" *)
+  assumes "well_typed E p T"
+  shows "(\<lambda>i. typ_conv (E!i)) \<turnstile> proc_to_dB p : typ_conv T"
+  using assms
+proof (induction E p T rule:well_typed.induct)
+  case (wt_ProcAbs T E p U)
+  then show ?case 
+    apply auto 
+    apply (rule rev_iffD1[OF wt_ProcAbs.IH])
+    apply (tactic "cong_tac @{context} 1")+
+    by (auto simp: shift_def)
+next
+  case (wt_Proc E p T)
+  define E' where "E' = (\<lambda>i. beta_reduce_proofs.typ_conv (E ! i))"
+  define pl where "pl = proc_list p"
+  define start where "start =  (dB.Abs (dB.Var 0))"
+  hence startT: "E' \<turnstile> start: ProcT" by auto
+  have "E' \<turnstile> foldl (\<lambda>dB pc. dB \<degree> proc_to_dB pc) start pl : Atom 0 \<Rightarrow> Atom 0" 
+  proof (insert startT, induction pl arbitrary: start)
+    case Nil
+    then show ?case by simp
+  next
+    case (Cons p1 ps)
+    have start_p1_T: "E' \<turnstile> start \<degree> proc_to_dB p1 : Atom 0 \<Rightarrow> Atom 0"
+      apply (rule typed_lambda.App)
+      
+      by x
+    show ?case
+      apply simp
+      apply (rule Cons.IH)
+      by (fact start_p1_T)
+  qed
+  
+  then show ?case 
+    unfolding start_def by simp
+    apply simp
+   
+    by later
 qed auto
+
+
 
 
 
@@ -786,9 +944,4 @@ qed
 *)
 
 end
-
-abbreviation "Proc0 == Abs(Var 0)"
-abbreviation "Proc1 == Abs(Var 0)"
-abbreviation "Proc2 == Abs(Abs(Var 0))"
-
 
