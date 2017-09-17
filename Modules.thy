@@ -75,6 +75,8 @@ locale modules =
 (* and well_typed_program_cong[fundef_cong]: "\<lbrakk>E=E'; pg=pg'; T=T'; \<And>pc. pc\<in>set(proc_list pg') \<Longrightarrow> wt E' pc (ProcTSimple T') = wt' E' pc (ProcTSimple T')\<rbrakk>
                    \<Longrightarrow> well_typed_program wt E pg T = well_typed_program wt' E' pg' T'" *)
       and well_typed_program_mono[mono]: "wt \<le> wt' \<Longrightarrow> well_typed_program wt E p T \<longrightarrow> well_typed_program wt' E p T"
+      and well_typed_program_simple: "well_typed_program wt E p T \<Longrightarrow> \<forall>pc\<in>set(proc_list pc). \<exists>T'. wt E pc (ProcTSimple T')"
+          (* Or should we require that all subprocs of p have only type Simple? *)
 begin
 
 abbreviation "proc_set proc \<equiv> set (proc_list proc)"
@@ -244,7 +246,7 @@ begin
 abbreviation "Proc0 == Abs(Var 0)"
 
 function proc_to_dB :: "'a procedure \<Rightarrow> dB" where
-  proc_to_dB_Proc: "proc_to_dB (Proc p) = (foldl (\<lambda>(dB::dB) pc. dB \<degree> proc_to_dB pc) Proc0 (proc_list p))" 
+  proc_to_dB_Proc: "proc_to_dB (Proc p) = (foldl (\<lambda>(dB::dB) pc. (Abs(Abs(Var 0))) \<degree> dB \<degree> (proc_to_dB pc)) Proc0 (proc_list p))" 
 | "proc_to_dB (ProcRef i) = Var i"
 | "proc_to_dB (ProcAbs p) = Abs (proc_to_dB p)"
 | "proc_to_dB (ProcAppl p q) = proc_to_dB p \<degree> proc_to_dB q"
@@ -258,7 +260,7 @@ lemma proc_to_dB_lift [iff]:
   shows   "proc_to_dB (lift_proc q k) = lift (proc_to_dB q) k"
 proof (induction rule:lift_proc.induct)
   case (1 p k) (* Proc *) 
-  define app where "app = (\<lambda>(dB::dB) pc. dB \<degree> proc_to_dB pc)"
+  define app where "app = (\<lambda>(dB::dB) pc.  (Abs(Abs(Var 0))) \<degree> dB \<degree> proc_to_dB pc)"
   define pl where "pl = proc_list p"
   define P0 where "P0 = Proc0"
   have app_lift: "app (lift a k) (lift_proc x k) = lift (app a x) k" if "x \<in> proc_set p" for a x
@@ -283,7 +285,7 @@ lemma proc_to_dB_subst [iff]:
    "proc_to_dB (subst_proc k x q) = proc_to_dB q[proc_to_dB x/k]"
 proof (induction arbitrary: k x rule:procedure_induct)
   case (Proc pg)
-  define f and start where "f dB pc = (dB \<degree> proc_to_dB pc)" and "start = (dB.Abs (dB.Var 0))" for dB pc
+  define f and start where "f dB pc = ((Abs(Abs(Var 0))) \<degree> dB \<degree> proc_to_dB pc)" and "start = (dB.Abs (dB.Var 0))" for dB pc
   define pl where "pl = proc_list pg"
   then have pl: "set pl \<subseteq> proc_set pg" by simp
   have "foldl f start (map (subst_proc k x) pl) = foldl f start pl[proc_to_dB x/k]" 
@@ -293,11 +295,11 @@ proof (induction arbitrary: k x rule:procedure_induct)
   next
     case (snoc a pl)
     hence a_pg: "a \<in> proc_set pg" by simp
-    have "f (foldl f start pl) a[proc_to_dB x/k] = foldl f start pl[proc_to_dB x/k] \<degree> proc_to_dB a[proc_to_dB x/k]"
+    have "f (foldl f start pl) a[proc_to_dB x/k] = (Abs(Abs(Var 0))) \<degree>foldl f start pl[proc_to_dB x/k] \<degree> proc_to_dB a[proc_to_dB x/k]"
       unfolding f_def by simp 
-    also have "\<dots> = foldl f start (map (subst_proc k x) pl) \<degree> proc_to_dB a[proc_to_dB x/k]" 
+    also have "\<dots> = (Abs(Abs(Var 0))) \<degree> foldl f start (map (subst_proc k x) pl) \<degree> proc_to_dB a[proc_to_dB x/k]" 
       using snoc by simp
-    also have "\<dots> = foldl f start (map (subst_proc k x) pl) \<degree> proc_to_dB (subst_proc k x a)"
+    also have "\<dots> = (Abs(Abs(Var 0))) \<degree> foldl f start (map (subst_proc k x) pl) \<degree> proc_to_dB (subst_proc k x a)"
       by (subst Proc[OF a_pg], simp)
     also have "\<dots> = f (foldl f start (map (subst_proc k x) pl)) (subst_proc k x a)" unfolding f_def by simp
     finally show ?case by simp
@@ -318,6 +320,112 @@ lemma typ_pres:
   (* shows "well_typed'' E pg \<Longrightarrow> (\<lambda>i. typ_conv (E!i)) \<turnstile> prog_to_dB pg : ProcT" *)
   assumes "well_typed E p T"
   shows "(\<lambda>i. typ_conv (E!i)) \<turnstile> proc_to_dB p : typ_conv T"
+  apply (insert assms)
+proof (induction n\<equiv>"proc_size p" arbitrary: E p T rule:nat_less_induct[case_names induct_n])
+  case induct_n
+  hence IH: "proc_size q < proc_size p \<Longrightarrow>
+           well_typed E q T \<Longrightarrow> (\<lambda>i. typ_conv (E!i)) \<turnstile> proc_to_dB q : typ_conv T"
+    for q E T
+    by auto
+
+  from induct_n have wt_EpT: "well_typed E p T" ..
+  define E' where "E' = (\<lambda>i. beta_reduce_proofs.typ_conv (E ! i))"
+  from wt_EpT show ?case
+  proof cases
+    case (wt_ProcAppl p' T' q')
+    hence aux: "(\<lambda>i. beta_reduce_proofs.typ_conv (E ! i)) \<turnstile> proc_to_dB p' : typ_conv (ProcTFun T' T)"
+      apply (rule_tac IH) by auto
+    show ?thesis 
+      unfolding wt_ProcAppl
+      apply simp
+      apply (rule typed_lambda.App)
+      using wt_ProcAppl 
+      using aux close
+      apply (rule IH)
+      using wt_ProcAppl by auto
+  next
+    case (wt_ProcAbs T p U)
+    have shift: "(\<lambda>i. beta_reduce_proofs.typ_conv (E ! i))<0:beta_reduce_proofs.typ_conv T> =
+             (\<lambda>i. beta_reduce_proofs.typ_conv ((T#E) ! i))" by (auto simp: shift_def)
+    show ?thesis unfolding wt_ProcAbs
+      apply simp
+      apply (rule typed_lambda.Abs)
+      apply (subst shift)
+      apply (rule IH)
+      using wt_ProcAbs by auto
+  next
+    case (wt_ProcPair p T q U)
+    show ?thesis
+      unfolding wt_ProcPair
+      apply simp
+      apply (rule typed_lambda.MkPair)
+       apply (rule IH)
+      using wt_ProcPair close 2
+      apply (rule IH)
+      using wt_ProcPair by auto
+  next
+    case (wt_ProcUnpair p T U b)
+    have aux: "(\<lambda>i. beta_reduce_proofs.typ_conv (E ! i)) \<turnstile> proc_to_dB p : (beta_reduce_proofs.typ_conv (ProcTPair T U))"
+      apply (rule IH)
+      using wt_ProcUnpair by auto
+    show ?thesis 
+      unfolding wt_ProcUnpair
+      apply (cases b)
+       apply simp
+       apply (rule typed_lambda.Fst)
+      using aux close simp
+      apply simp
+      apply (rule typed_lambda.Snd)
+      using aux by simp
+  next
+    case (wt_Proc p' T')
+    define E' where "E' = (\<lambda>i. beta_reduce_proofs.typ_conv (E ! i))"
+    define pl where "pl = proc_list p'"
+    define start where "start =  (dB.Abs (dB.Var 0))"
+    hence startT: "E' \<turnstile> start: ProcT" by auto
+    have wt_Proc': "well_typed_program well_typed E p' T'"
+      apply (rule well_typed_program_mono[THEN mp, rotated])
+       apply (fact wt_Proc)
+      by (simp add: le_funI)
+    have plT: "E' \<turnstile> proc_to_dB p1 : ProcT" if p1pl: "p1 \<in> set pl" for p1
+    proof -
+      obtain U where U: "well_typed E p1 (ProcTSimple U)"
+        apply atomize_elim apply (rule well_typed_program_simple[THEN bspec])
+         apply (fact wt_Proc')
+        using p1pl unfolding pl_def by simp
+      have size: "proc_size p1 < proc_size p"
+        using local.wt_Proc(1) pl_def proc_size_Proc that by blast
+      have "E' \<turnstile> proc_to_dB p1 : typ_conv (ProcTSimple U)"
+        unfolding E'_def using size U by (rule IH)
+      then show ?thesis by auto
+    qed
+    have "E' \<turnstile> foldl (\<lambda>dB pc. (Abs(Abs(Var 0))) \<degree> dB \<degree> proc_to_dB pc) start pl : Atom 0 \<Rightarrow> Atom 0" 
+    proof (insert startT plT, induction pl arbitrary: start)
+      case Nil
+      then show ?case by simp
+    next
+      case (Cons p1 ps)
+      have start_p1_T: "E' \<turnstile> (Abs(Abs(Var 0))) \<degree> start \<degree> proc_to_dB p1 : Atom 0 \<Rightarrow> Atom 0"
+        apply (rule typed_lambda.App[where T=ProcT])
+         apply (rule typed_lambda.App[where T=ProcT])
+          close (rule typed_lambda.Abs, rule typed_lambda.Abs, rule typed_lambda.Var, simp)
+         apply (rule Cons)+
+        by simp
+      show ?case
+        apply simp
+        apply (rule Cons.IH)
+        using  start_p1_T Cons.prems by auto
+    qed
+
+    then show ?thesis
+      unfolding start_def E'_def pl_def wt_Proc by auto
+  qed auto
+qed
+
+(* lemma typ_pres:
+  (* shows "well_typed'' E pg \<Longrightarrow> (\<lambda>i. typ_conv (E!i)) \<turnstile> prog_to_dB pg : ProcT" *)
+  assumes "well_typed E p T"
+  shows "(\<lambda>i. typ_conv (E!i)) \<turnstile> proc_to_dB p : typ_conv T"
   using assms
 proof (induction E p T rule:well_typed.induct)
   case (wt_ProcAbs T E p U)
@@ -332,29 +440,41 @@ next
   define pl where "pl = proc_list p"
   define start where "start =  (dB.Abs (dB.Var 0))"
   hence startT: "E' \<turnstile> start: ProcT" by auto
-  have "E' \<turnstile> foldl (\<lambda>dB pc. dB \<degree> proc_to_dB pc) start pl : Atom 0 \<Rightarrow> Atom 0" 
-  proof (insert startT, induction pl arbitrary: start)
+  have wt_Proc': "well_typed_program well_typed E p T"
+    apply (rule well_typed_program_mono[THEN mp, rotated])
+     apply (fact wt_Proc)
+    by (simp add: le_funI)
+  have plT: "E' \<turnstile> proc_to_dB p1 : ProcT" if p1pl: "p1 \<in> set pl" for p1
+  proof -
+    obtain T' where "well_typed E p1 (ProcTSimple T')"
+      apply atomize_elim apply (rule well_typed_program_simple[THEN bspec])
+       apply (fact wt_Proc')
+      using p1pl unfolding pl_def by simp
+    hence "E' \<turnstile> proc_to_dB p1 : typ_conv (ProcTSimple T')" by later (* Induction principle too weak! Need congruence for well_typed_program *)
+    then show ?thesis by auto
+  qed
+  have "E' \<turnstile> foldl (\<lambda>dB pc. (Abs(Abs(Var 0))) \<degree> dB \<degree> proc_to_dB pc) start pl : Atom 0 \<Rightarrow> Atom 0" 
+  proof (insert startT plT, induction pl arbitrary: start)
     case Nil
     then show ?case by simp
   next
     case (Cons p1 ps)
-    have start_p1_T: "E' \<turnstile> start \<degree> proc_to_dB p1 : Atom 0 \<Rightarrow> Atom 0"
-      apply (rule typed_lambda.App)
-      
-      by x
+    have start_p1_T: "E' \<turnstile> (Abs(Abs(Var 0))) \<degree> start \<degree> proc_to_dB p1 : Atom 0 \<Rightarrow> Atom 0"
+      apply (rule typed_lambda.App[where T=ProcT])
+       apply (rule typed_lambda.App[where T=ProcT])
+        close (rule typed_lambda.Abs, rule typed_lambda.Abs, rule typed_lambda.Var, simp)
+       apply (rule Cons)+
+      by simp
     show ?case
       apply simp
       apply (rule Cons.IH)
-      by (fact start_p1_T)
+      using  start_p1_T Cons.prems by auto
   qed
-  
-  then show ?case 
-    unfolding start_def by simp
-    apply simp
-   
-    by later
-qed auto
 
+  then show ?case 
+    unfolding start_def E'_def pl_def by simp
+qed auto
+ *)
 
 
 
