@@ -62,6 +62,7 @@ locale modules =
     and proc_map :: "('program procedure \<Rightarrow> 'program procedure) \<Rightarrow> 'program \<Rightarrow> 'program"
     and proc_list :: "'program \<Rightarrow> 'program procedure list"
     and proc_size :: "'program procedure \<Rightarrow> nat"
+    and proc_relation :: "('program procedure \<Rightarrow> 'program procedure \<Rightarrow> bool) \<Rightarrow> 'program \<Rightarrow> 'program \<Rightarrow> bool"
   assumes proc_size_Proc: "y \<in> set (proc_list x) \<Longrightarrow> proc_size y < proc_size (Proc x)" 
       and proc_size_ProcAppl[simp]: "proc_size (ProcAppl s t) = proc_size s + proc_size t + 1"
       and proc_size_ProcPair[simp]: "proc_size (ProcPair s t) = proc_size s + proc_size t + 1"
@@ -76,7 +77,7 @@ locale modules =
                    \<Longrightarrow> well_typed_program wt E pg T = well_typed_program wt' E' pg' T'" *)
       and well_typed_program_mono[mono]: "wt \<le> wt' \<Longrightarrow> well_typed_program wt E p T \<longrightarrow> well_typed_program wt' E p T"
       and well_typed_program_simple: "well_typed_program wt E p T \<Longrightarrow> \<forall>pc\<in>set(proc_list pc). \<exists>T'. wt E pc (ProcTSimple T')"
-          (* Or should we require that all subprocs of p have only type Simple? *)
+      and proc_relation_mono[mono]: "R \<le> R' \<Longrightarrow> proc_relation R \<le> proc_relation R'"
 begin
 
 abbreviation "proc_set proc \<equiv> set (proc_list proc)"
@@ -96,7 +97,6 @@ inductive well_typed :: "procedure_type_open list \<Rightarrow> 'program procedu
 | wt_ProcUnit: "well_typed E ProcUnit ProcTUnit"
 | wt_Proc: "well_typed_program well_typed E p T \<Longrightarrow> well_typed E (Proc p) (ProcTSimple T)"
 
-(* lemma proc_map_cong[fundef_cong]: "\<lbrakk>x=y; \<And>z. proc_size \<Longrightarrow> f z=g z\<rbrakk> \<Longrightarrow> proc_map f x = proc_map g y" *)
    
 
 function lift_proc :: "['program procedure, nat] \<Rightarrow> 'program procedure" where
@@ -317,7 +317,6 @@ fun typ_conv :: "procedure_type_open \<Rightarrow> lambda_type" where
 | "typ_conv (ProcTPair T U) = Prod (typ_conv T) (typ_conv U)"
 
 lemma typ_pres:
-  (* shows "well_typed'' E pg \<Longrightarrow> (\<lambda>i. typ_conv (E!i)) \<turnstile> prog_to_dB pg : ProcT" *)
   assumes "well_typed E p T"
   shows "(\<lambda>i. typ_conv (E!i)) \<turnstile> proc_to_dB p : typ_conv T"
   apply (insert assms)
@@ -477,6 +476,25 @@ qed auto
  *)
 
 
+inductive beta_reduce_proc :: "'a procedure \<Rightarrow> 'a procedure \<Rightarrow> bool" where
+  br_Proc: "proc_relation beta_reduce_proc s t \<Longrightarrow> beta_reduce_proc (Proc s) (Proc t)"
+| br_beta: "beta_reduce_proc (ProcAppl (ProcAbs s) t) (subst_proc 0 t s)"
+| br_ProcAppl1: "beta_reduce_proc s t \<Longrightarrow> beta_reduce_proc (ProcAppl s u) (ProcAppl t u)"
+| br_ProcAppl2: "beta_reduce_proc s t \<Longrightarrow> beta_reduce_proc (ProcAppl u s) (ProcAppl u t)"
+| br_ProcAbs: "beta_reduce_proc s t \<Longrightarrow> beta_reduce_proc (ProcAbs s) (ProcAbs t)"
+| br_ProcPair1: "beta_reduce_proc s t \<Longrightarrow> beta_reduce_proc (ProcPair s u) (ProcPair t u)"
+| br_ProcPair2: "beta_reduce_proc s t \<Longrightarrow> beta_reduce_proc (ProcPair u s) (ProcPair u t)"
+| br_ProcUnpair: "beta_reduce_proc s t \<Longrightarrow> beta_reduce_proc (ProcUnpair b s) (ProcUnpair b t)"
+| br_ProcUnpairPair: "beta_reduce_proc (ProcUnpair b (ProcPair s t)) (if b then s else t)"
+  
+inductive_cases
+    brc_Proc: "beta_reduce_proc (Proc p) u"
+and brc_ProcAppl: "beta_reduce_proc (ProcApply p1 p2) u"
+and brc_ProcAbs: "beta_reduce_proc (ProcAbs p) u"
+and brc_ProcPair: "beta_reduce_proc (ProcPair p1 p2) u"
+and brc_ProcUnpair: "beta_reduce_proc (ProcUnpair b p) u"
+and brc_ProcRef: "beta_reduce_proc (ProcRef i) u"
+and brc_ProcUnit: "beta_reduce_proc ProcUnit u"
 
 
 
@@ -503,18 +521,14 @@ proof -
 qed
 
 lemma well_typed_beta_reduce:
-  shows "well_typed'' E p' \<Longrightarrow> termip beta_reduce_prog p'"                                                  
-    and "well_typed_proc'' E p T \<Longrightarrow> termip beta_reduce_proc p"
+  assumes "well_typed E p T"
+  shows "termip beta_reduce_proc p"
 proof -
-  define beta1 where "beta1 == \<lambda>p q. (prog_to_dB p) \<rightarrow>\<^sub>\<beta> (prog_to_dB q)"
   define beta2 where "beta2 == \<lambda>p q. (proc_to_dB p) \<rightarrow>\<^sub>\<beta> (proc_to_dB q)"
 
-  {fix p1 p2 q1 q2 
-   have "beta_reduce_prog p1 p2 \<Longrightarrow> beta1 p1 p2"
-    and "beta_reduce_proc q1 q2 \<Longrightarrow> beta2 q1 q2"
-    unfolding beta1_def beta2_def
-    by (induction rule:beta_reduce_prog_beta_reduce_proc.inducts, auto)}
-  note rel = this
+  have rel: "beta_reduce_proc q1 q2 \<Longrightarrow> beta2 q1 q2" for q1 q2
+    unfolding beta2_def
+    by (induction rule:beta_reduce_proc.inducts, auto)
 
   show "well_typed_proc'' E p T \<Longrightarrow> termip beta_reduce_proc p"
   proof -
