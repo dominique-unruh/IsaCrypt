@@ -60,9 +60,11 @@ locale modules =
   fixes well_typed_program :: "(procedure_type_open list \<Rightarrow> 'program procedure \<Rightarrow> procedure_type_open \<Rightarrow> bool)
                              \<Rightarrow> procedure_type_open list \<Rightarrow> 'program \<Rightarrow> procedure_type \<Rightarrow> bool"
     and proc_map :: "('program procedure \<Rightarrow> 'program procedure) \<Rightarrow> 'program \<Rightarrow> 'program"
+(* proc_map can be implemented using proc_update *)
     and proc_list :: "'program \<Rightarrow> 'program procedure list"
     and proc_size :: "'program procedure \<Rightarrow> nat"
-    and proc_relation :: "('program procedure \<Rightarrow> 'program procedure \<Rightarrow> bool) \<Rightarrow> 'program \<Rightarrow> 'program \<Rightarrow> bool"
+    (* and proc_relation :: "('program procedure \<Rightarrow> 'program procedure \<Rightarrow> bool) \<Rightarrow> 'program \<Rightarrow> 'program \<Rightarrow> bool" *)
+    and proc_update :: "'program \<Rightarrow> nat \<Rightarrow> 'program procedure \<Rightarrow> 'program"
   assumes proc_size_Proc: "y \<in> set (proc_list x) \<Longrightarrow> proc_size y < proc_size (Proc x)" 
       and proc_size_ProcAppl[simp]: "proc_size (ProcAppl s t) = proc_size s + proc_size t + 1"
       and proc_size_ProcPair[simp]: "proc_size (ProcPair s t) = proc_size s + proc_size t + 1"
@@ -77,7 +79,8 @@ locale modules =
                    \<Longrightarrow> well_typed_program wt E pg T = well_typed_program wt' E' pg' T'" *)
       and well_typed_program_mono[mono]: "wt \<le> wt' \<Longrightarrow> well_typed_program wt E p T \<longrightarrow> well_typed_program wt' E p T"
       and well_typed_program_simple: "well_typed_program wt E p T \<Longrightarrow> \<forall>pc\<in>set(proc_list pc). \<exists>T'. wt E pc (ProcTSimple T')"
-      and proc_relation_mono[mono]: "R \<le> R' \<Longrightarrow> proc_relation R \<le> proc_relation R'"
+      (* and proc_relation_mono[mono]: "R \<le> R' \<Longrightarrow> proc_relation R \<le> proc_relation R'" *)
+      and proc_update_list: "proc_list (proc_update p i y) = proc_list p[i:=y]"
 begin
 
 abbreviation "proc_set proc \<equiv> set (proc_list proc)"
@@ -475,9 +478,16 @@ next
 qed auto
  *)
 
+definition "proc_relation_nth R i s t = (i < length (proc_list s) \<and>
+   t = proc_update s i (nth (proc_list t) i) \<and> R (nth (proc_list s) i) (nth (proc_list t) i))"
+
+lemma proc_relation_nth_mono[mono]:
+  assumes "R \<le> R'"
+  shows "proc_relation_nth R i \<le> proc_relation_nth R' i"
+  using assms unfolding proc_relation_nth_def by auto
 
 inductive beta_reduce_proc :: "'a procedure \<Rightarrow> 'a procedure \<Rightarrow> bool" where
-  br_Proc: "proc_relation beta_reduce_proc s t \<Longrightarrow> beta_reduce_proc (Proc s) (Proc t)"
+  br_Proc: "proc_relation_nth beta_reduce_proc i s t \<Longrightarrow> beta_reduce_proc (Proc s) (Proc t)"
 | br_beta: "beta_reduce_proc (ProcAppl (ProcAbs s) t) (subst_proc 0 t s)"
 | br_ProcAppl1: "beta_reduce_proc s t \<Longrightarrow> beta_reduce_proc (ProcAppl s u) (ProcAppl t u)"
 | br_ProcAppl2: "beta_reduce_proc s t \<Longrightarrow> beta_reduce_proc (ProcAppl u s) (ProcAppl u t)"
@@ -486,7 +496,8 @@ inductive beta_reduce_proc :: "'a procedure \<Rightarrow> 'a procedure \<Rightar
 | br_ProcPair2: "beta_reduce_proc s t \<Longrightarrow> beta_reduce_proc (ProcPair u s) (ProcPair u t)"
 | br_ProcUnpair: "beta_reduce_proc s t \<Longrightarrow> beta_reduce_proc (ProcUnpair b s) (ProcUnpair b t)"
 | br_ProcUnpairPair: "beta_reduce_proc (ProcUnpair b (ProcPair s t)) (if b then s else t)"
-  
+
+
 inductive_cases
     brc_Proc: "beta_reduce_proc (Proc p) u"
 and brc_ProcAppl: "beta_reduce_proc (ProcApply p1 p2) u"
@@ -520,19 +531,108 @@ proof -
   with assms show ?thesis by auto
 qed
 
+lemma rev_list_induct2 [consumes 1, case_names Nil snoc]:
+  assumes len: "length xs = length ys" and Nil: "P [] []"
+    and snoc: "(\<And>x xs y ys. length xs = length ys \<Longrightarrow> P xs ys \<Longrightarrow> P (xs@[x]) (ys@[y]))"
+  shows "P xs ys"
+proof -
+  define P' where "P' xs ys = P (rev xs) (rev ys)" for xs ys
+  define rxs rys where "rxs = rev xs" and "rys = rev ys" 
+  have "length rxs = length rys" using len unfolding rxs_def rys_def by simp
+  hence "P' rxs rys" 
+    apply (induction rule:list_induct2)
+    unfolding P'_def using Nil apply simp
+    using snoc by simp
+  thus ?thesis
+    unfolding P'_def rxs_def rys_def by simp
+qed
+
 lemma well_typed_beta_reduce:
-  assumes "well_typed E p T"
+  assumes wt: "well_typed E p T"
   shows "termip beta_reduce_proc p"
 proof -
   define beta2 where "beta2 == \<lambda>p q. (proc_to_dB p) \<rightarrow>\<^sub>\<beta> (proc_to_dB q)"
 
   have rel: "beta_reduce_proc q1 q2 \<Longrightarrow> beta2 q1 q2" for q1 q2
     unfolding beta2_def
-    by (induction rule:beta_reduce_proc.inducts, auto)
+  proof (induction rule:beta_reduce_proc.induct)
+    case (br_Proc i s t)
+    find_theorems length rev nth
+    define f and start and j and sl tl and sj tj
+      where "f = (\<lambda>dB pc. dB.Abs (dB.Abs (dB.Var 0)) \<degree> dB \<degree> proc_to_dB pc)"
+      and "start = Abs (Var 0)"
+      and "j = length (proc_list s) - i - 1"
+      and "sl = rev (proc_list s)" and "tl = rev (proc_list t)"
+      and "sj = sl ! j" and "tj = tl ! j"
+    from br_Proc have i_sl: "i < length (proc_list s)" unfolding proc_relation_nth_def by simp
+    from br_Proc  have tmp: "t = proc_update s i (proc_list t ! i)" unfolding proc_relation_nth_def by simp
+    hence len': "length (proc_list s) = length (proc_list t)"
+      by (metis length_list_update proc_update_list)
+    hence len: "length sl = length tl" unfolding sl_def tl_def by simp
+    have "proc_list t = proc_list s[i:=proc_list t!i]"
+      apply (subst tmp)  unfolding proc_update_list by simp
+    hence tl_sl: "tl = sl[j:=tj]"
+      unfolding proc_relation_nth_def sl_def tj_def j_def 
+      apply (subst rev_update[symmetric])
+      using i_sl close
+      unfolding tl_def len' 
+      apply (subst rev_nth)
+      using i_sl len' by auto
+    from i_sl have j_sl: "j < length sl"
+      unfolding j_def sl_def by auto
+    from br_Proc have "proc_to_dB (proc_list s!i) \<rightarrow>\<^sub>\<beta> proc_to_dB (proc_list t!i)"
+      unfolding proc_relation_nth_def unfolding sj_def tj_def sl_def tl_def by auto
+    hence sj_tj_beta: "proc_to_dB sj \<rightarrow>\<^sub>\<beta> proc_to_dB tj"
+      unfolding sj_def tj_def j_def sl_def tl_def using i_sl apply auto 
+      apply (subst rev_nth) using i_sl close
+      apply (subst rev_nth) using i_sl len' close
+      using len' by auto
 
-  show "well_typed_proc'' E p T \<Longrightarrow> termip beta_reduce_proc p"
+(*    have fold_fax: "foldl f a xs \<rightarrow>\<^sub>\<beta> foldl f b xs" if "a \<rightarrow>\<^sub>\<beta> b" for a b xs
+      apply (induction xs rule:rev_induct)
+      using that close
+      unfolding f_def by auto *)
+    
+    have "foldr (\<lambda>x y. f y x) sl start \<rightarrow>\<^sub>\<beta> foldr (\<lambda>x y. f y x) tl start"
+      using len 
+    proof (insert j_sl tl_sl sj_def, induction arbitrary: j rule:list_induct2)
+      case Nil then show ?case by simp
+    next
+      case (Cons s0 sl t0 tl)
+      show ?case
+      proof (cases j)
+        case 0
+        with Cons have "t0=tj"
+          by (metis nth_Cons_0 nth_list_update_eq)
+        from 0 Cons have "s0=sj"
+          by (metis nth_Cons')
+        from Cons 0 have "tl=sl"
+          by (metis list.inject list_update_code(2))
+(*         have s0_t0_beta: "f start s0 \<rightarrow>\<^sub>\<beta> f start t0"
+          unfolding f_def \<open>t0=tj\<close> \<open>s0=sj\<close> using sj_tj_beta by auto *)
+        have fax: "f a s0 \<rightarrow>\<^sub>\<beta> f a t0" for a
+          unfolding f_def \<open>t0=tj\<close> \<open>s0=sj\<close> apply (rule appR) using sj_tj_beta by auto
+        show ?thesis apply simp
+          unfolding \<open>tl=sl\<close> by (rule fax)
+      next
+        case (Suc j')
+        with Cons have "s0=t0"
+          by (metis list_update_code(3) nth_Cons_0) by a
+        have fax: "f a x \<rightarrow>\<^sub>\<beta> f b x" if "a \<rightarrow>\<^sub>\<beta> b" for a b x
+          unfolding f_def using that by auto
+        have foldf: "foldr (\<lambda>x y. f y x) sl start \<rightarrow>\<^sub>\<beta> foldr (\<lambda>x y. f y x) tl start"
+          apply (rule Cons.IH[where j=j'])
+          using Cons.prems Suc by auto
+        show ?thesis
+          apply simp unfolding \<open>s0=t0\<close> using foldf by (rule fax)
+      qed
+    qed
+    then show ?case
+      unfolding foldr_conv_foldl sl_def tl_def start_def f_def by simp
+  qed auto
+
+  show "termip beta_reduce_proc p"
   proof -
-    assume wt: "well_typed_proc'' E p T"
     have leq: "beta_reduce_proc \<le> beta2" by (auto simp: rel)
     have termip_leq: "termip beta2 \<le> termip beta_reduce_proc"
       by (rule accp_subset, simp add: leq)
@@ -542,7 +642,7 @@ proof -
     with termip_leq show ?thesis by auto
   qed
 
-  show "well_typed'' E p' \<Longrightarrow> termip beta_reduce_prog p'"
+(*   show "well_typed'' E p' \<Longrightarrow> termip beta_reduce_prog p'"
   proof -
     assume wt: "well_typed'' E p'"
     have leq: "beta_reduce_prog \<le> beta1" by (auto simp: rel)
@@ -552,7 +652,7 @@ proof -
     hence "termip beta (prog_to_dB p')" by (rule type_implies_termi)
     hence "termip beta1 p'" unfolding beta1_def by (rule termip_map)
     with termip_leq show ?thesis by auto
-  qed
+  qed *)
 qed
 
 inductive par_beta' :: "[program_rep, program_rep] => bool"  (infixl "\<rightarrow>>" 50)
