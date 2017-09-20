@@ -59,31 +59,143 @@ locale modules =
   (* 'program = type of programs *)
   fixes well_typed_program :: "(procedure_type_open list \<Rightarrow> 'program procedure \<Rightarrow> procedure_type_open \<Rightarrow> bool)
                              \<Rightarrow> procedure_type_open list \<Rightarrow> 'program \<Rightarrow> procedure_type \<Rightarrow> bool"
-    and proc_map :: "('program procedure \<Rightarrow> 'program procedure) \<Rightarrow> 'program \<Rightarrow> 'program"
+    (* and proc_map :: "('program procedure \<Rightarrow> 'program procedure) \<Rightarrow> 'program \<Rightarrow> 'program" *)
 (* proc_map can be implemented using proc_update *)
     and proc_list :: "'program \<Rightarrow> 'program procedure list"
     and proc_size :: "'program procedure \<Rightarrow> nat"
     (* and proc_relation :: "('program procedure \<Rightarrow> 'program procedure \<Rightarrow> bool) \<Rightarrow> 'program \<Rightarrow> 'program \<Rightarrow> bool" *)
-    and proc_update :: "'program \<Rightarrow> nat \<Rightarrow> 'program procedure \<Rightarrow> 'program"
+(* proc_relation can be implemented using proc_update *)
+    (* and proc_update :: "'program \<Rightarrow> nat \<Rightarrow> 'program procedure \<Rightarrow> 'program" (* proc_update can be written using proc_update' *) *)
+    and proc_update' :: "'program \<Rightarrow> 'program procedure list \<Rightarrow> 'program"
   assumes proc_size_Proc: "y \<in> set (proc_list x) \<Longrightarrow> proc_size y < proc_size (Proc x)" 
       and proc_size_ProcAppl[simp]: "proc_size (ProcAppl s t) = proc_size s + proc_size t + 1"
       and proc_size_ProcPair[simp]: "proc_size (ProcPair s t) = proc_size s + proc_size t + 1"
       and proc_size_ProcUnpair[simp]: "proc_size (ProcUnpair b s) = proc_size s + 1"
       and proc_size_ProcAbs[simp]: "proc_size (ProcAbs s) = proc_size s + 1"
       (* and proc_map_cong[fundef_cong]: "p=q \<Longrightarrow> (\<And>z. proc_size z < proc_size (Proc q) \<Longrightarrow> f z = g z) \<Longrightarrow> proc_map f p = proc_map g q" *)
-      and proc_map_cong[fundef_cong]: "p=q \<Longrightarrow> (\<And>z. z \<in> set (proc_list q) \<Longrightarrow> f z = g z) \<Longrightarrow> proc_map f p = proc_map g q"
-      and proc_list_map: "proc_list (proc_map f p) = map f (proc_list p)"
-      and proc_map_proc_map [simp]: "proc_map f (proc_map g p) = proc_map (\<lambda>x. f (g x)) p"
-      and proc_map_id[simp]: "proc_map (\<lambda>x. x) p = p"
+      (* and proc_map_cong[fundef_cong]: "p=q \<Longrightarrow> (\<And>z. z \<in> set (proc_list q) \<Longrightarrow> f z = g z) \<Longrightarrow> proc_map f p = proc_map g q" *)
+      (* and proc_list_map: "proc_list (proc_map f p) = map f (proc_list p)" *)
+      (* and proc_map_proc_map [simp]: "proc_map f (proc_map g p) = proc_map (\<lambda>x. f (g x)) p" *)
+      (* and proc_map_id[simp]: "proc_map (\<lambda>x. x) p = p" *)
 (* and well_typed_program_cong[fundef_cong]: "\<lbrakk>E=E'; pg=pg'; T=T'; \<And>pc. pc\<in>set(proc_list pg') \<Longrightarrow> wt E' pc (ProcTSimple T') = wt' E' pc (ProcTSimple T')\<rbrakk>
                    \<Longrightarrow> well_typed_program wt E pg T = well_typed_program wt' E' pg' T'" *)
       and well_typed_program_mono[mono]: "wt \<le> wt' \<Longrightarrow> well_typed_program wt E p T \<longrightarrow> well_typed_program wt' E p T"
       and well_typed_program_simple: "well_typed_program wt E p T \<Longrightarrow> \<forall>pc\<in>set(proc_list pc). \<exists>T'. wt E pc (ProcTSimple T')"
       (* and proc_relation_mono[mono]: "R \<le> R' \<Longrightarrow> proc_relation R \<le> proc_relation R'" *)
-      and proc_update_list: "proc_list (proc_update p i y) = proc_list p[i:=y]"
+      (* and proc_update_list: "proc_list (proc_update p i y) = proc_list p[i:=y]" *)
+      (* and proc_relation_eq[simp]: "proc_relation (op=) p q = (p=q)" *)
+      (* and proc_relation_cong[fundef_cong]: "\<lbrakk>p=p'; q=q'; \<And>z z'. (z,z')\<in>set(zip (proc_list p) (proc_list q)) \<Longrightarrow> R z z' = R' z z'\<rbrakk> \<Longrightarrow> proc_relation R p q = proc_relation R' p' q'" *)
+      and proc_update'_list: "length l = length (proc_list proc) \<Longrightarrow> proc_list (proc_update' proc l) = l"
+      and proc_update'_self[simp]: "proc_update' proc (proc_list proc) = proc"
+      and proc_update'_twice[simp]: "proc_update' (proc_update' proc l) l' = proc_update' proc l'"
 begin
 
+
+definition "same_shape s t = (s = proc_update' t (proc_list s))"
+
+
+definition "proc_map f p = proc_update' p (map f (proc_list p))"
+
+lemma proc_map_cong[fundef_cong]: "p=q \<Longrightarrow> (\<And>z. z \<in> set (proc_list q) \<Longrightarrow> f z = g z) \<Longrightarrow> proc_map f p = proc_map g q"
+  unfolding proc_map_def apply auto
+  by (metis map_eq_conv)
+
+lemma proc_list_map: "proc_list (proc_map f p) = map f (proc_list p)"
+  unfolding proc_map_def
+  by (simp add: proc_update'_list) 
+
+lemma same_shape_refl[simp]: "same_shape x x"
+  unfolding same_shape_def
+  using proc_update'_self by auto
+
+lemma same_shape_list: 
+ "same_shape p q \<and> proc_list p = proc_list q \<longleftrightarrow> p = q" 
+proof (rule)
+  assume "same_shape p q \<and> proc_list p = proc_list q"
+  hence "p = proc_update' q (proc_list q)" and "proc_list p = proc_list q" unfolding same_shape_def by auto
+  then show "p=q" 
+    by simp
+next
+  assume "p=q"
+  then show "same_shape p q \<and> proc_list p = proc_list q"
+    by simp
+qed
+
+lemma same_shape_trans[trans]: assumes "same_shape a b" and "same_shape b c" shows "same_shape a c" 
+proof -
+  have a: "a = proc_update' b (proc_list a)" and b: "b = proc_update' c (proc_list b)"
+    using assms unfolding same_shape_def by auto
+  show ?thesis
+    unfolding same_shape_def
+    apply (subst a, subst b) 
+    by simp
+qed
+
+lemma same_shape_sym[sym]: assumes "same_shape a b" shows "same_shape b a"
+proof -
+  have a: "a = proc_update' b (proc_list a)"
+    using assms unfolding same_shape_def by auto
+  show ?thesis
+    unfolding same_shape_def
+    apply (subst a) 
+    by simp
+qed
+
+lemma same_shape_update'L[simp]: "same_shape (proc_update' p l) p"
+  unfolding same_shape_def
+  by (metis modules.proc_update'_twice modules_axioms proc_update'_self) 
+
+lemma same_shape_update'R[simp]: "same_shape p (proc_update' p l)"
+  unfolding same_shape_def
+  by (metis modules.proc_update'_twice modules_axioms proc_update'_self) 
+
+lemma same_shape_mapL[simp]: "same_shape (proc_map f p) p"
+  unfolding proc_map_def by simp
+
+lemma same_shape_mapR[simp]: "same_shape p (proc_map f p)"
+  unfolding proc_map_def by simp
+
+lemma proc_map_proc_map [simp]: "proc_map f (proc_map g p) = proc_map (\<lambda>x. f (g x)) p"
+proof -
+  have list: "proc_list (proc_map f (proc_map g p)) = proc_list (proc_map (\<lambda>x. f (g x)) p)"
+    apply (subst proc_list_map)+ by auto
+  have "same_shape (proc_map f (proc_map g p)) (proc_map g p)" by simp
+  also have "same_shape \<dots> p" by simp
+  also have "same_shape \<dots> (proc_map (\<lambda>x. f (g x)) p)" by simp
+  finally have shape: "same_shape (proc_map f (proc_map g p)) (proc_map (\<lambda>x. f (g x)) p)"  by simp
+  from list shape show ?thesis
+    apply (subst same_shape_list[symmetric]) by simp
+qed
+
+lemma proc_map_id[simp]: "proc_map (\<lambda>x. x) p = p"
+  unfolding proc_map_def by simp
+
 abbreviation "proc_set proc \<equiv> set (proc_list proc)"
+
+abbreviation "proc_length proc \<equiv> length (proc_list proc)"
+
+definition "proc_update p i y = (proc_update' p (proc_list p[i:=y]))"
+
+lemma proc_update_list: "proc_list (proc_update p i y) = proc_list p[i:=y]"
+  unfolding proc_update_def 
+  apply (rule proc_update'_list) by simp
+
+definition "proc_relation R s t = (same_shape s t \<and> list_all2 R (proc_list s) (proc_list t))"
+
+lemma proc_relation_mono[mono]: assumes "R \<le> R'" shows "proc_relation R \<le> proc_relation R'"
+  unfolding proc_relation_def using assms list_all2_mono predicate2D by fastforce
+
+(*definition "proc_relation_nth R i s t = (i < length (proc_list s) \<and>
+   t = proc_update s i (nth (proc_list t) i) \<and> R (nth (proc_list s) i) (nth (proc_list t) i))"*)
+
+definition "proc_relation_nth R i s t = (same_shape s t \<and> i < proc_length s \<and> (proc_list t = proc_list s[i:=proc_list t!i]) \<and> R (proc_list s!i) (proc_list t!i))"
+
+lemma proc_relation_nth_mono[mono]:
+  assumes "R \<le> R'"
+  shows "proc_relation_nth R i \<le> proc_relation_nth R' i"
+  using assms unfolding proc_relation_nth_def by auto
+
+
 
 (* definition "subterm_relation = {(p,q) | p q r . q \<in> proc_set r \<and> r \<in> program_set (p::'program procedure) }" *)
 (* lemma wf_subterm_relation[simp]: "wf subterm_relation" using proc_set_wellfounded unfolding subterm_relation_def . *)
@@ -424,67 +536,7 @@ proof (induction n\<equiv>"proc_size p" arbitrary: E p T rule:nat_less_induct[ca
   qed auto
 qed
 
-(* lemma typ_pres:
-  (* shows "well_typed'' E pg \<Longrightarrow> (\<lambda>i. typ_conv (E!i)) \<turnstile> prog_to_dB pg : ProcT" *)
-  assumes "well_typed E p T"
-  shows "(\<lambda>i. typ_conv (E!i)) \<turnstile> proc_to_dB p : typ_conv T"
-  using assms
-proof (induction E p T rule:well_typed.induct)
-  case (wt_ProcAbs T E p U)
-  then show ?case 
-    apply auto 
-    apply (rule rev_iffD1[OF wt_ProcAbs.IH])
-    apply (tactic "cong_tac @{context} 1")+
-    by (auto simp: shift_def)
-next
-  case (wt_Proc E p T)
-  define E' where "E' = (\<lambda>i. beta_reduce_proofs.typ_conv (E ! i))"
-  define pl where "pl = proc_list p"
-  define start where "start =  (dB.Abs (dB.Var 0))"
-  hence startT: "E' \<turnstile> start: ProcT" by auto
-  have wt_Proc': "well_typed_program well_typed E p T"
-    apply (rule well_typed_program_mono[THEN mp, rotated])
-     apply (fact wt_Proc)
-    by (simp add: le_funI)
-  have plT: "E' \<turnstile> proc_to_dB p1 : ProcT" if p1pl: "p1 \<in> set pl" for p1
-  proof -
-    obtain T' where "well_typed E p1 (ProcTSimple T')"
-      apply atomize_elim apply (rule well_typed_program_simple[THEN bspec])
-       apply (fact wt_Proc')
-      using p1pl unfolding pl_def by simp
-    hence "E' \<turnstile> proc_to_dB p1 : typ_conv (ProcTSimple T')" by later (* Induction principle too weak! Need congruence for well_typed_program *)
-    then show ?thesis by auto
-  qed
-  have "E' \<turnstile> foldl (\<lambda>dB pc. (Abs(Abs(Var 0))) \<degree> dB \<degree> proc_to_dB pc) start pl : Atom 0 \<Rightarrow> Atom 0" 
-  proof (insert startT plT, induction pl arbitrary: start)
-    case Nil
-    then show ?case by simp
-  next
-    case (Cons p1 ps)
-    have start_p1_T: "E' \<turnstile> (Abs(Abs(Var 0))) \<degree> start \<degree> proc_to_dB p1 : Atom 0 \<Rightarrow> Atom 0"
-      apply (rule typed_lambda.App[where T=ProcT])
-       apply (rule typed_lambda.App[where T=ProcT])
-        close (rule typed_lambda.Abs, rule typed_lambda.Abs, rule typed_lambda.Var, simp)
-       apply (rule Cons)+
-      by simp
-    show ?case
-      apply simp
-      apply (rule Cons.IH)
-      using  start_p1_T Cons.prems by auto
-  qed
 
-  then show ?case 
-    unfolding start_def E'_def pl_def by simp
-qed auto
- *)
-
-definition "proc_relation_nth R i s t = (i < length (proc_list s) \<and>
-   t = proc_update s i (nth (proc_list t) i) \<and> R (nth (proc_list s) i) (nth (proc_list t) i))"
-
-lemma proc_relation_nth_mono[mono]:
-  assumes "R \<le> R'"
-  shows "proc_relation_nth R i \<le> proc_relation_nth R' i"
-  using assms unfolding proc_relation_nth_def by auto
 
 inductive beta_reduce_proc :: "'a procedure \<Rightarrow> 'a procedure \<Rightarrow> bool" where
   br_Proc: "proc_relation_nth beta_reduce_proc i s t \<Longrightarrow> beta_reduce_proc (Proc s) (Proc t)"
@@ -557,7 +609,6 @@ proof -
     unfolding beta2_def
   proof (induction rule:beta_reduce_proc.induct)
     case (br_Proc i s t)
-    find_theorems length rev nth
     define f and start and j and sl tl and sj tj
       where "f = (\<lambda>dB pc. dB.Abs (dB.Abs (dB.Var 0)) \<degree> dB \<degree> proc_to_dB pc)"
       and "start = Abs (Var 0)"
@@ -565,7 +616,8 @@ proof -
       and "sl = rev (proc_list s)" and "tl = rev (proc_list t)"
       and "sj = sl ! j" and "tj = tl ! j"
     from br_Proc have i_sl: "i < length (proc_list s)" unfolding proc_relation_nth_def by simp
-    from br_Proc  have tmp: "t = proc_update s i (proc_list t ! i)" unfolding proc_relation_nth_def by simp
+    from br_Proc  have tmp: "t = proc_update s i (proc_list t ! i)" unfolding proc_relation_nth_def
+      by (metis modules.proc_update_def modules_axioms same_shape_def same_shape_sym)
     hence len': "length (proc_list s) = length (proc_list t)"
       by (metis length_list_update proc_update_list)
     hence len: "length sl = length tl" unfolding sl_def tl_def by simp
@@ -587,12 +639,6 @@ proof -
       apply (subst rev_nth) using i_sl close
       apply (subst rev_nth) using i_sl len' close
       using len' by auto
-
-(*    have fold_fax: "foldl f a xs \<rightarrow>\<^sub>\<beta> foldl f b xs" if "a \<rightarrow>\<^sub>\<beta> b" for a b xs
-      apply (induction xs rule:rev_induct)
-      using that close
-      unfolding f_def by auto *)
-    
     have "foldr (\<lambda>x y. f y x) sl start \<rightarrow>\<^sub>\<beta> foldr (\<lambda>x y. f y x) tl start"
       using len 
     proof (insert j_sl tl_sl sj_def, induction arbitrary: j rule:list_induct2)
@@ -608,8 +654,6 @@ proof -
           by (metis nth_Cons')
         from Cons 0 have "tl=sl"
           by (metis list.inject list_update_code(2))
-(*         have s0_t0_beta: "f start s0 \<rightarrow>\<^sub>\<beta> f start t0"
-          unfolding f_def \<open>t0=tj\<close> \<open>s0=sj\<close> using sj_tj_beta by auto *)
         have fax: "f a s0 \<rightarrow>\<^sub>\<beta> f a t0" for a
           unfolding f_def \<open>t0=tj\<close> \<open>s0=sj\<close> apply (rule appR) using sj_tj_beta by auto
         show ?thesis apply simp
@@ -617,7 +661,7 @@ proof -
       next
         case (Suc j')
         with Cons have "s0=t0"
-          by (metis list_update_code(3) nth_Cons_0) by a
+          by (metis list_update_code(3) nth_Cons_0)
         have fax: "f a x \<rightarrow>\<^sub>\<beta> f b x" if "a \<rightarrow>\<^sub>\<beta> b" for a b x
           unfolding f_def using that by auto
         have foldf: "foldr (\<lambda>x y. f y x) sl start \<rightarrow>\<^sub>\<beta> foldr (\<lambda>x y. f y x) tl start"
@@ -641,31 +685,11 @@ proof -
     hence "termip beta2 p" unfolding beta2_def by (rule termip_map)
     with termip_leq show ?thesis by auto
   qed
-
-(*   show "well_typed'' E p' \<Longrightarrow> termip beta_reduce_prog p'"
-  proof -
-    assume wt: "well_typed'' E p'"
-    have leq: "beta_reduce_prog \<le> beta1" by (auto simp: rel)
-    have termip_leq: "termip beta1 \<le> termip beta_reduce_prog"
-      by (rule accp_subset, simp add: leq)
-    have "(\<lambda>i. typ_conv (E!i)) \<turnstile> prog_to_dB p' : ProcT" using wt by (rule typ_pres)
-    hence "termip beta (prog_to_dB p')" by (rule type_implies_termi)
-    hence "termip beta1 p'" unfolding beta1_def by (rule termip_map)
-    with termip_leq show ?thesis by auto
-  qed *)
 qed
 
-inductive par_beta' :: "[program_rep, program_rep] => bool"  (infixl "\<rightarrow>>" 50)
-and par_beta :: "[procedure_rep, procedure_rep] \<Rightarrow> bool" (infixl "\<Rightarrow>>" 50)
+inductive par_beta :: "['a procedure, 'a procedure] \<Rightarrow> bool" (infixl "\<Rightarrow>>" 50)
   where
-  pb_Assign [simp, intro!]: "Assign x e \<rightarrow>> Assign x e"
-| pb_Sample[simp, intro!]: "Sample x e \<rightarrow>> Sample x e"
-| pb_Seq[simp, intro!]: "[| s \<rightarrow>> s'; t \<rightarrow>> t' |] ==> Seq s t \<rightarrow>> Seq s' t'"
-| pb_Skip[simp, intro!]: "Skip \<rightarrow>> Skip"
-| pb_IfTE[simp, intro!]: "[| s \<rightarrow>> s'; t \<rightarrow>> t' |] ==> IfTE c s t \<rightarrow>> IfTE c s' t'"
-| pb_While[simp, intro!]: "[| s \<rightarrow>> s' |] ==> While c s \<rightarrow>> While c s'"
-| pb_CallProc[simp, intro!]: "[| s \<Rightarrow>> s' |] ==> CallProc x s a \<rightarrow>> CallProc x s' a"
-| pb_Proc[simp, intro!]: "[| s \<rightarrow>> s' |] ==> Proc s x y \<Rightarrow>> Proc s' x y"
+  pb_Proc[simp, intro!]: "proc_relation par_beta s s' ==> Proc s \<Rightarrow>> Proc s'"
 | pb_ProcRef [simp, intro!]: "ProcRef n \<Rightarrow>> ProcRef n"
 | pb_ProcUnit [simp, intro!]: "ProcUnit \<Rightarrow>> ProcUnit"
 | pb_ProcAbs [simp, intro!]: "s \<Rightarrow>> t ==> ProcAbs s \<Rightarrow>> ProcAbs t"
@@ -677,47 +701,74 @@ and par_beta :: "[procedure_rep, procedure_rep] \<Rightarrow> bool" (infixl "\<R
 | pb_beta [simp, intro!]: "[| s \<Rightarrow>> s'; t \<Rightarrow>> t' |] ==> ProcAppl (ProcAbs s) t \<Rightarrow>> subst_proc 0 t' s'"
 
 inductive_cases par_beta_cases [elim!]:
-  "Assign x e \<rightarrow>> u"
-  "Sample x e \<rightarrow>> u"
-  "Skip \<rightarrow>> u"
   "ProcRef n \<Rightarrow>> t"
   "ProcAbs s \<Rightarrow>> ProcAbs t"
   "ProcAppl (ProcAbs s) t \<Rightarrow>> u"
   "ProcAppl s t \<Rightarrow>> u"
   "ProcAbs s \<Rightarrow>> t"
-  "Seq s t \<rightarrow>> u"
-  "IfTE c s t \<rightarrow>> u"
-  "While c s \<rightarrow>> u"
-  "CallProc x s a \<rightarrow>> u"
-  "Proc b r a \<Rightarrow>> u"
+  "Proc b \<Rightarrow>> u"
   "ProcPair p1 p2 \<Rightarrow>> u"
   "ProcUnpair b p \<Rightarrow>> u"
   "ProcUnit \<Rightarrow>> u"
 
-print_theorems
 lemma par_beta_varL [simp]:
     "(ProcRef n \<Rightarrow>> t) = (t = ProcRef n)"
   by blast
 
-lemma par_beta_refl [simp]: shows "p \<rightarrow>> p" and "t \<Rightarrow>> t"  (* par_beta_refl [intro!] causes search to blow up *)
-  apply (induct p and t) by simp_all
+lemma par_beta_refl [simp]: shows "t \<Rightarrow>> t"  (* par_beta_refl [intro!] causes search to blow up *)
+proof (induction n\<equiv>"proc_size t" arbitrary: t rule:nat_less_induct)
+  case 1
+  hence IH: "x \<Rightarrow>> x" if "proc_size x<proc_size t" for x using that by auto
+
+  show "t \<Rightarrow>> t"
+  proof (cases t)
+    case (Proc x')
+(*     have eq: "z=z'" if "(z, z') \<in> set (zip (proc_list x') (proc_list x'))" for z z'
+      by (meson that zip_same) *)
+    have size_z: "proc_size z < proc_size t" if "z \<in> set (proc_list x')" for z
+      using proc_size_Proc Proc that by simp
+(*     have beta: "z\<Rightarrow>>z'" if "(z, z') \<in> set (zip (proc_list x') (proc_list x'))" for z z'
+      apply (subst eq, fact that)
+      apply (rule IH)
+      apply (rule size_z)
+      using that
+      by (meson in_set_zipE) *)
+    show ?thesis
+      unfolding Proc apply (rule) unfolding proc_relation_def 
+      apply simp
+      by (meson "1.hyps" list.rel_refl_strong size_z)
+  qed (use 1 in auto)
+qed
 
 lemma beta_subset_par_beta: 
-shows "beta_reduce_prog <= par_beta'"
-  and "beta_reduce_proc <= par_beta"
-proof (rule_tac [2] predicate2I, rule predicate2I)
-  fix x y x' y'
-  show "beta_reduce_prog x' y' \<Longrightarrow> x' \<rightarrow>> y'"
-   and "beta_reduce_proc x y \<Longrightarrow> x \<Rightarrow>> y"
-  apply (induction rule:beta_reduce_prog_beta_reduce_proc.inducts)
-     apply (blast intro!: par_beta_refl)+
-proof -
-  fix b :: bool and s :: procedure_rep and t :: procedure_rep
-  obtain sp\<^sub>2 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> bool" and sk\<^sub>1\<^sub>2 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> procedure_rep" and sk\<^sub>1\<^sub>1 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> procedure_rep" and sk\<^sub>1\<^sub>0 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> procedure_rep" and sk\<^sub>9 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> procedure_rep" and sk\<^sub>8 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> procedure_rep" and sp\<^sub>5 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> bool" and sp\<^sub>1 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> bool" and sp\<^sub>0 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> bool" and sp\<^sub>4 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> bool" and sk\<^sub>7 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> nat" and sp\<^sub>3 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> bool" and sp\<^sub>6 :: "procedure_rep \<Rightarrow> procedure_rep \<Rightarrow> bool" where "sp\<^sub>6 (if b then s else t) (ProcUnpair b (ProcPair s t))" by simp
-  thus "ProcUnpair b (ProcPair s t) \<Rightarrow>> (if b then s else t)"
-    by (metis (full_types) beta_reduce_proofs.par_beta_refl(2) beta_reduce_proofs.pb_ProcUnpair1 beta_reduce_proofs.pb_ProcUnpair2)
-  qed
+  shows "beta_reduce_proc <= par_beta"
+proof (rule predicate2I)
+  fix x y
+  show "beta_reduce_proc x y \<Longrightarrow> x \<Rightarrow>> y"
+  proof (induction rule:beta_reduce_proc.induct)
+    case (br_Proc i s t)
+    hence "proc_relation_nth op \<Rightarrow>> i s t"
+      apply (rule predicate2D[where Q="proc_relation_nth op \<Rightarrow>> i", rotated]) 
+      apply (rule proc_relation_nth_mono)
+      by auto
+    hence shape: "same_shape s t" and "i < proc_length s" and upd: "proc_list t = proc_list s[i := proc_list t ! i]" 
+      and beta: "proc_list s ! i \<Rightarrow>> proc_list t ! i"
+      unfolding proc_relation_nth_def by auto
+    from upd have "proc_list s ! i \<Rightarrow>> proc_list t ! i"
+      using beta by blast
+    moreover from upd have "proc_list s ! n = proc_list t ! n" if "i\<noteq>n" for n using that
+      by (metis nth_list_update_neq)
+    then have "proc_list s ! n \<Rightarrow>> proc_list t ! n" if "i\<noteq>n" for n
+      using par_beta_refl that by auto
+    ultimately have "list_all2 op \<Rightarrow>> (proc_list s) (proc_list t)" 
+      apply (rule_tac list_all2_all_nthI)
+       apply (metis upd length_list_update)
+      by (case_tac "n=i", auto)
+    with shape have "proc_relation op \<Rightarrow>> s t" unfolding proc_relation_def by auto
+    then show ?case by auto
+  qed auto
 qed
+
 
 inductive_cases beta_reduce_cases [elim!]:
   "beta_reduce_proc (ProcRef i) t"
@@ -725,7 +776,6 @@ inductive_cases beta_reduce_cases [elim!]:
   "beta_reduce_proc (ProcAppl s t) u"
   "beta_reduce_proc (ProcPair s t) s"
   "beta_reduce_proc (ProcUnpair b t) u"
-  "beta_reduce_prog (Seq s t) u"
 
 lemma rtrancl_beta_Seq1 [intro!]:
   "beta_reduce_prog\<^sup>*\<^sup>* s s' \<Longrightarrow> beta_reduce_prog\<^sup>*\<^sup>* (Seq s t) (Seq s' t)"
@@ -800,24 +850,6 @@ lemma rtrancl_beta_ProcUnpair [intro!]:
 
 
 
-(*lemma rtrancl_beta_Abs [intro!]:
-    "s \<rightarrow>\<^sub>\<beta>\<^sup>* s' ==> Abs s \<rightarrow>\<^sub>\<beta>\<^sup>* Abs s'"
-  by (induct set: rtranclp) (blast intro: rtranclp.rtrancl_into_rtrancl)+
-
-lemma rtrancl_beta_AppL:
-    "s \<rightarrow>\<^sub>\<beta>\<^sup>* s' ==> s \<degree> t \<rightarrow>\<^sub>\<beta>\<^sup>* s' \<degree> t"
-  by (induct set: rtranclp) (blast intro: rtranclp.rtrancl_into_rtrancl)+
-
-lemma rtrancl_beta_AppR:
-    "t \<rightarrow>\<^sub>\<beta>\<^sup>* t' ==> s \<degree> t \<rightarrow>\<^sub>\<beta>\<^sup>* s \<degree> t'"
-  by (induct set: rtranclp) (blast intro: rtranclp.rtrancl_into_rtrancl)+
-
-lemma rtrancl_beta_App [intro]:
-    "[| s \<rightarrow>\<^sub>\<beta>\<^sup>* s'; t \<rightarrow>\<^sub>\<beta>\<^sup>* t' |] ==> s \<degree> t \<rightarrow>\<^sub>\<beta>\<^sup>* s' \<degree> t'"
-  by (blast intro!: rtrancl_beta_AppL rtrancl_beta_AppR intro: rtranclp_trans)
-*)
-
-
 lemma par_beta_subset_beta: shows "par_beta' <= beta_reduce_prog^**" and "par_beta <= beta_reduce_proc^**" 
 proof (rule_tac [2] predicate2I, rule predicate2I)
   fix x y x' y'
@@ -878,24 +910,7 @@ lemma par_beta_lift [simp]:
 proof (induct t and p arbitrary: t' n and p' n) 
 case (ProcAppl p1 p2) thus ?case by fastforce
 next case (ProcPair p1 p2) thus ?case by fastforce
-    (*  fix s s' t t'
-      assume "\<And>p' n. ProcAbs s \<Rightarrow>> p' \<Longrightarrow> ProcAbs (lift_proc s (Suc n)) \<Rightarrow>> lift_proc p' n"
-      also assume "s \<Rightarrow>> s'"
-      hence "ProcAbs s \<Rightarrow>> ProcAbs s'" by auto
-      ultimately have "ProcAbs (lift_proc s (Suc n)) \<Rightarrow>> lift_proc (ProcAbs s') n" by metis 
-      hence "ProcAbs (lift_proc s (Suc n)) \<Rightarrow>> ProcAbs (lift_proc s' (Suc n))" by auto
-      hence "lift_proc s (Suc n) \<Rightarrow>> lift_proc s' (Suc n)"
-        by (metis open_proc_termination.par_beta_cases(5))
-      assume "p2 \<Rightarrow>> t'" and "\<And>p' n. p2 \<Rightarrow>> p' \<Longrightarrow> lift_proc p2 n \<Rightarrow>> lift_proc p' n"
-      hence "lift_proc p2 n \<Rightarrow>> lift_proc t' n" by auto
-      have "ProcAppl (ProcAbs (lift_proc s (Suc n))) (lift_proc p2 n) \<Rightarrow>> subst_proc 0 (lift_proc t' n) (lift_proc s' (Suc n))"
-        by (metis `lift_proc p2 n \<Rightarrow>> lift_proc t' n` `lift_proc s (Suc n) \<Rightarrow>> lift_proc s' (Suc n)` open_proc_termination.pb_beta)
-      have "subst_proc 0 (lift_proc t' n) (lift_proc s' (Suc n)) = lift_proc (subst_proc 0 t' s') n"
-        by (metis Procedures.lift_subst zero_less_Suc)
-      show "ProcAppl (ProcAbs (lift_proc s (Suc n))) (lift_proc p2 n) \<Rightarrow>> lift_proc (subst_proc 0 t' s') n" *)
 next case (ProcUnpair b p)
-(*     p \<Rightarrow>> ?p' \<Longrightarrow> lift_proc p ?n \<Rightarrow>> lift_proc ?p' ?n
-     *) 
   from ProcUnpair.prems show ?case
   proof (erule_tac par_beta_cases)
     fix t assume p':"p' = ProcUnpair b t" and "p \<Rightarrow>> t" 
@@ -999,7 +1014,6 @@ qed
 
 subsection {* Confluence (directly) *}
 
-(* If this lemma breaks, can use diamond_par_beta2 below instead. *)
 lemma diamond_par_beta: shows "diamond par_beta'" and "diamond par_beta" 
 proof -
   {fix x y x' y' 
@@ -1082,24 +1096,7 @@ and cd :: "procedure_rep \<Rightarrow> procedure_rep" where
 | "cd (ProcUnpair b (ProcPair p1 p2)) = (if b then cd p1 else cd p2)"
 | "cd (ProcUnpair b t) = ProcUnpair b (cd t)"
 
-(*
-lemma par_beta_cd:
-  shows "s' \<rightarrow>> t' \<Longrightarrow> t' \<rightarrow>> cd' s'"
-  and   "s \<Rightarrow>> t \<Longrightarrow> t \<Rightarrow>> cd s"
-  apply (induct s' and s arbitrary: t' and t rule: cd'_cd.induct)
-      apply auto
-  close (fast intro!: par_beta_subst)
-  close (fast intro!: par_beta_subst)
-  by (fast intro!: par_beta_subst)
-*)
-
 subsection {* Confluence (via complete developments) *}
-
-(*
-lemma diamond_par_beta2: "diamond par_beta"
-  apply (unfold diamond_def commute_def square_def)
-  by (blast intro: par_beta_cd)
-*)
 
 theorem beta_confluent: "confluent beta_reduce_proc"
   apply (rule diamond_to_confluence)
@@ -1113,69 +1110,6 @@ theorem beta_prog_confluent: "confluent beta_reduce_prog"
   close (rule beta_subset_par_beta)
   by (rule par_beta_subset_beta)
 
-(*
-theorem newman:
-  assumes lc: "\<And>a b c. 
-    termip R a \<Longrightarrow>
-    R a b \<Longrightarrow> R a c \<Longrightarrow>
-    \<exists>d. R\<^sup>*\<^sup>* b d \<and> R\<^sup>*\<^sup>* c d"
-  assumes "termip R a"
-      and "R\<^sup>*\<^sup>* a b"
-      and "R\<^sup>*\<^sup>* a c"
-  shows "\<exists>d. R\<^sup>*\<^sup>* b d \<and> R\<^sup>*\<^sup>* c d"
-proof -
-  define S where "S \<equiv> \<lambda>x y. R x y \<and> termip R x"
-  have termipRS: "termip R \<le> termip S"
-    by (rule accp_subset, auto simp: S_def)
-  note le_fun_def[simp]
-
-  have "wfP (S\<inverse>\<inverse>)"
-    apply (rule accp_wfPI, auto)
-    apply (case_tac "termip R x")
-    using termipRS apply simp
-    by (rule accpI, auto simp: S_def)
-
-  have RS: "\<And>x y. termip R x \<Longrightarrow> R\<^sup>*\<^sup>* x y \<Longrightarrow> S\<^sup>*\<^sup>* x y"
-  proof -
-    fix x y assume "R\<^sup>*\<^sup>* x y"
-    thus "termip R x \<Longrightarrow> S\<^sup>*\<^sup>* x y"
-      apply (induction, auto)
-      apply (rule rtranclp.rtrancl_into_rtrancl, auto simp: S_def)
-      by (metis (poly_guards_query) accp_downwards rtranclp_converseI)
-  qed
-
-  have lcS: "\<And>a b c. S a b \<Longrightarrow> S a c \<Longrightarrow>
-    \<exists>d. S\<^sup>*\<^sup>* b d \<and> S\<^sup>*\<^sup>* c d"
-  proof - fix a b c
-    assume "S a b" hence "R a b" and "termip R a" unfolding S_def by auto
-    also assume "S a c" hence "R a c" unfolding S_def by auto
-    ultimately obtain d where "R\<^sup>*\<^sup>* b d" and "R\<^sup>*\<^sup>* c d" using lc by blast
-    from `termip R a` and `R a b` have "termip R b"
-      by (metis accp_downward conversep_iff) 
-    from `termip R a` and `R a c` have "termip R c"
-      by (metis accp_downward conversep_iff) 
-    from `termip R b` `R\<^sup>*\<^sup>* b d` have "S\<^sup>*\<^sup>* b d" by (rule RS)
-    also from `termip R c` `R\<^sup>*\<^sup>* c d` have "S\<^sup>*\<^sup>* c d" by (rule RS)
-    ultimately show "\<exists>d. S\<^sup>*\<^sup>* b d \<and> S\<^sup>*\<^sup>* c d" by auto
-  qed
-
-  obtain d where "S\<^sup>*\<^sup>* b d" and "S\<^sup>*\<^sup>* c d"
-    apply (atomize_elim)
-    apply (rule newman)
-    apply (fact `wfP S\<inverse>\<inverse>`)
-    apply (fact lcS)
-    using `termip R a` `R\<^sup>*\<^sup>* a b` apply (rule RS)
-    using `termip R a` `R\<^sup>*\<^sup>* a c` by (rule RS)
-  
-
-  show "\<exists>d. R\<^sup>*\<^sup>* b d \<and> R\<^sup>*\<^sup>* c d"
-    apply (rule exI[of _ d], auto)
-    apply (rule rtranclp_mono[where r=S, simplified, rule_format])
-    apply (simp add: S_def, fact `S\<^sup>*\<^sup>* b d`)
-    apply (rule rtranclp_mono[where r=S, simplified, rule_format])
-    by (simp add: S_def, fact `S\<^sup>*\<^sup>* c d`)
-qed
-*)
 
 end
 
