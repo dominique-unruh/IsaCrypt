@@ -1,5 +1,5 @@
 theory Modules
-  imports Universe TypedLambda "HOL-Library.Multiset"
+  imports Universe TypedLambda "HOL-Library.Multiset"  "HOL-Proofs-Lambda.Commutation"
 begin
 
 subsection {* Types *}
@@ -247,50 +247,49 @@ where
 termination apply (relation "measure (\<lambda>(_,_,p). proc_size p)") 
   using proc_size_Proc by auto
 
-lemma procedure_induct[case_names Proc ProcRef ProcUnit ProcAbs ProcAppl ProcPair ProcUnpair]:
-  assumes proc: "\<And>pg. (\<And>p. p \<in> proc_set pg \<Longrightarrow> P p) \<Longrightarrow> P (Proc pg)"
-    and "\<And>p. P (ProcRef p)"
-    and "P ProcUnit "
-    and procabs: "(\<And>p. P p \<Longrightarrow> P (ProcAbs p))"
-    and procappl: "(\<And>a b. P a \<Longrightarrow> P b \<Longrightarrow> P (ProcAppl a b))"
-    and procpair: "(\<And>a b. P a \<Longrightarrow> P b \<Longrightarrow> P (ProcPair a b))"
-    and procunpair: "(\<And>b p. P p \<Longrightarrow> P (ProcUnpair b p))"
-  shows "P proc"
-proof (induct n\<equiv>"proc_size proc" arbitrary: proc rule:nat_less_induct)
-  case 1
-  hence "P p" if "proc_size p < proc_size proc" for p
-    using that by blast
+
+theorem procedure_induct[case_names Proc ProcRef ProcUnit ProcAbs ProcAppl ProcPair ProcUnpair, induct type: procedure]:
+  fixes P :: "'program procedure \<Rightarrow> bool" 
+    and p :: "'program procedure" 
+  assumes "\<And>x. (\<And>y. y \<in> proc_set x \<Longrightarrow> P y) \<Longrightarrow> P (Proc x)"
+    and "\<And>x. P (ProcRef x)"
+    and "P ProcUnit"
+    and "\<And>x. P x \<Longrightarrow> P (ProcAbs x)"                       
+    and "\<And>x1a x2a. P x1a \<Longrightarrow> P x2a \<Longrightarrow> P (ProcAppl x1a x2a)"
+    and "\<And>x1a x2a. P x1a \<Longrightarrow> P x2a \<Longrightarrow> P (ProcPair x1a x2a)"
+    and "\<And>x1a x2a. P x2a \<Longrightarrow> P (ProcUnpair x1a x2a)"
+  shows "P p"
+proof (induction n\<equiv>"proc_size p" arbitrary: p rule:nat_less_induct)
+  case 1 hence IH: "P x" if "proc_size x < proc_size p" for x using that by auto
   show ?case
-  proof (cases proc)
-    case (Proc pg)
-    then show ?thesis
-      using 1 proc proc_size_Proc by blast
+  proof (cases p)
+    case (Proc x1)
+    show ?thesis 
+      unfolding Proc
+      apply (rule assms)
+      apply (rule IH)
+      unfolding Proc
+      by (rule proc_size_Proc)
   next
     case (ProcAbs x4)
-    then show ?thesis 
-      using 1 procabs proc_size_ProcAbs by auto
+    then show ?thesis apply hypsubst by (rule assms, rule IH, auto)
   next
-    case (ProcAppl a b)
-    then show ?thesis 
-      using 1 procappl proc_size_ProcAppl
-      by (metis (no_types, lifting) Nat.add_0_right One_nat_def add_Suc_right lessI lift_Suc_mono_less_iff trans_less_add2 zero_less_Suc)
+    case (ProcAppl x51 x52)
+    then show ?thesis apply hypsubst by (rule assms, rule IH, auto, rule IH, auto)
   next
     case (ProcPair x61 x62)
-    then show ?thesis 
-      using 1 procpair proc_size_ProcPair
-      by (metis add.commute add_lessD1 less_add_one)
+    then show ?thesis apply hypsubst by (rule assms, rule IH, auto, rule IH, auto)
   next
     case (ProcUnpair x71 x72)
-    then show ?thesis apply auto
-      using 1 procunpair proc_size_ProcUnpair by auto
-  qed (auto simp: assms)
+    then show ?thesis  apply hypsubst by (rule assms, rule IH, auto)
+  qed (auto, use assms in auto)
 qed
 
 
 lemma lift_lift:
   assumes "i < k + 1"
   shows "lift_proc (lift_proc t i) (Suc k) = lift_proc (lift_proc t k) i"
-proof (insert assms, induction t arbitrary: i k rule:procedure_induct)
+proof (insert assms, induction t arbitrary: i k)
   case (Proc p pg)
   show ?case 
     apply auto
@@ -301,7 +300,7 @@ qed auto
 lemma lift_subst [simp]:
   assumes "j < Suc i"
   shows "lift_proc (subst_proc j s t) i = subst_proc j (lift_proc s i) (lift_proc t (Suc i))"
-proof (insert assms, induction t arbitrary: i j s rule:procedure_induct)
+proof (insert assms, induction t arbitrary: i j s)
   case (Proc p pg)
   show ?case 
     apply auto
@@ -436,6 +435,8 @@ fun typ_conv :: "procedure_type_open \<Rightarrow> lambda_type" where
 | "typ_conv ProcTUnit = ProcT"
 | "typ_conv (ProcTFun T U) = Fun (typ_conv T) (typ_conv U)"
 | "typ_conv (ProcTPair T U) = Prod (typ_conv T) (typ_conv U)"
+
+
 
 lemma typ_pres:
   assumes "well_typed E p T"
@@ -722,29 +723,8 @@ lemma par_beta_varL [simp]:
   by blast
 
 lemma par_beta_refl [simp]: shows "t \<Rightarrow>> t"  (* par_beta_refl [intro!] causes search to blow up *)
-proof (induction n\<equiv>"proc_size t" arbitrary: t rule:nat_less_induct)
-  case 1
-  hence IH: "x \<Rightarrow>> x" if "proc_size x<proc_size t" for x using that by auto
-
-  show "t \<Rightarrow>> t"
-  proof (cases t)
-    case (Proc x')
-(*     have eq: "z=z'" if "(z, z') \<in> set (zip (proc_list x') (proc_list x'))" for z z'
-      by (meson that zip_same) *)
-    have size_z: "proc_size z < proc_size t" if "z \<in> set (proc_list x')" for z
-      using proc_size_Proc Proc that by simp
-(*     have beta: "z\<Rightarrow>>z'" if "(z, z') \<in> set (zip (proc_list x') (proc_list x'))" for z z'
-      apply (subst eq, fact that)
-      apply (rule IH)
-      apply (rule size_z)
-      using that
-      by (meson in_set_zipE) *)
-    show ?thesis
-      unfolding Proc apply (rule) unfolding proc_relation_def 
-      apply simp
-      by (meson "1.hyps" list.rel_refl_strong size_z)
-  qed (use 1 in auto)
-qed
+  apply (induct t) apply simp_all
+  by (simp add: list_all2_all_nthI proc_relation_def)
 
 lemma beta_subset_par_beta: 
   shows "beta_reduce_proc <= par_beta"
@@ -1062,21 +1042,50 @@ qed
 
 lemma par_beta_lift [simp]:
   shows "p \<Rightarrow>> p' \<Longrightarrow> lift_proc p n \<Rightarrow>> lift_proc p' n"
-proof (induction p arbitrary: p' n) 
+proof (induct p arbitrary: p' n)
   case (Proc p1)
-  then show ?case by later
-next case (ProcAppl p1 p2) thus ?case by fastforce
+  from \<open>Proc p1 \<Rightarrow>> p'\<close> show ?case
+  proof (erule_tac par_beta_cases)
+    fix s' assume p': "p' = Proc s'" and p1_s': "proc_relation op \<Rightarrow>> p1 s'"
+    have shape: "same_shape (proc_map (\<lambda>p. lift_proc p n) p1) (proc_map (\<lambda>p. lift_proc p n) s')"
+      by (meson p1_s' proc_relation_def same_shape_mapL same_shape_mapR same_shape_trans)
+    have list_xy: "list_all2 (\<lambda>x y. x \<Rightarrow>> y)  (proc_list p1) (proc_list s')"
+      using p1_s' proc_relation_def by blast
+    hence xy: "x \<Rightarrow>> y" if "(x,y) \<in> set (zip  (proc_list p1) (proc_list s'))" for x y 
+      unfolding list_all2_iff using that by auto
+    from list_xy have len: "length (proc_list p1) = length (proc_list s')" 
+      unfolding list_all2_iff by simp
+    hence "lift_proc x n \<Rightarrow>> lift_proc y n" if "(x,y) \<in> set (zip  (proc_list p1) (proc_list s'))" for x y 
+    proof -
+      from xy that have "x \<Rightarrow>> y" by simp
+      moreover 
+      from that have "x \<in> proc_set p1"
+        by (meson set_zip_leftD)
+          (* hence "proc_size x < proc_size p" unfolding Proc by (rule proc_size_Proc) *)
+      ultimately show ?thesis 
+        by (rule Proc.hyps[rotated])
+    qed
+    hence "list_all2 (\<lambda>x y. lift_proc x n \<Rightarrow>> lift_proc y n) (proc_list p1) (proc_list s')"
+      apply (rule_tac list_all2I) using len by auto
+    hence "proc_relation op \<Rightarrow>> (proc_map (\<lambda>p. lift_proc p n) p1) (proc_map (\<lambda>p. lift_proc p n) s')"
+      unfolding proc_relation_def proc_list_map list_all2_map1 list_all2_map2
+      using shape by simp
+    then show ?thesis
+      unfolding p' Proc by simp 
+  qed
+next
+  case (ProcAppl p1 p2) thus ?case by fastforce
 next case (ProcPair p1 p2) thus ?case by fastforce
 next case (ProcUnpair b p)
   from ProcUnpair.prems show ?case
   proof (erule_tac par_beta_cases)
     fix t assume p':"p' = ProcUnpair b t" and "p \<Rightarrow>> t" 
-    with ProcUnpair.IH show "lift_proc (ProcUnpair b p) n \<Rightarrow>> lift_proc p' n" by auto
+    with ProcUnpair.hyps show "lift_proc (ProcUnpair b p) n \<Rightarrow>> lift_proc p' n" by auto
   next
     fix s t assume b:"b" assume sp':"s \<Rightarrow>> p'" assume p:"p = ProcPair s t"
     have "p \<Rightarrow>> ProcPair p' t"  unfolding p
       using sp' by auto
-    with ProcUnpair.IH
+    with ProcUnpair.hyps
     have "lift_proc p n \<Rightarrow>> lift_proc (ProcPair p' t) n" by metis
     also have "lift_proc p n = ProcPair (lift_proc s n) (lift_proc t n)"
       by (metis lift_proc.simps(4) p)
@@ -1087,7 +1096,7 @@ next case (ProcUnpair b p)
     fix s t assume b:"\<not>b" assume sp':"t \<Rightarrow>> p'" assume p:"p = ProcPair s t"
     have "p \<Rightarrow>> ProcPair s p'"  unfolding p
       using sp' by auto
-    with ProcUnpair.IH
+    with ProcUnpair.hyps
     have "lift_proc p n \<Rightarrow>> lift_proc (ProcPair s p') n" by metis
     also have "lift_proc p n = ProcPair (lift_proc s n) (lift_proc t n)"
       by (metis lift_proc.simps(4) p)
@@ -1097,9 +1106,11 @@ next case (ProcUnpair b p)
   qed
 qed auto
 
+
+
 lemma par_beta_subst:
   shows "s \<Rightarrow>> s' \<Longrightarrow> t \<Rightarrow>> t' \<Longrightarrow> subst_proc n s t \<Rightarrow>> subst_proc n s' t'"
-proof (induction t arbitrary: s s' t' n)
+proof (induct t arbitrary: s s' t' n)
 next case Proc thus ?case by auto
 next case ProcRef thus ?case by auto
 next case ProcUnit thus ?case by auto
@@ -1115,7 +1126,7 @@ next case (ProcAppl p q)
     assume t': "t' = subst_proc 0 q' p'" and p:"p = ProcAbs p''" and p': "p'' \<Rightarrow>> p'" and q': "q \<Rightarrow>> q'"
     have l1: "subst_proc n s' t' = subst_proc 0 (subst_proc n s' q') (subst_proc (Suc n) (lift_proc s' 0) p')"
       unfolding t'
-      by (simp add: Procedures.subst_subst(2))
+      by (simp add: subst_subst)
     have "ProcAbs (subst_proc (Suc n) (lift_proc s 0) p'') \<Rightarrow>> ProcAbs (subst_proc (Suc n) (lift_proc s' 0) p')"
       apply (subst subst_proc_ProcAbs[symmetric])+ 
       apply (rule ProcAppl.hyps[unfolded p]) 
@@ -1137,7 +1148,7 @@ next case (ProcUnpair b t)
   proof (erule_tac par_beta_cases)
     fix t0 assume "s \<Rightarrow>> s'" and "t' = ProcUnpair b t0" and "t \<Rightarrow>> t0"
     thus "subst_proc n s (ProcUnpair b t) \<Rightarrow>> subst_proc n s' t'"
-      by (metis (poly_guards_query) ProcUnpair.hyps Procedures.subst_proc_ProcUnpair beta_reduce_proofs.pb_ProcUnpair)
+      by (simp add: ProcUnpair.hyps)
   next
     fix s0 t0 assume ss': "s \<Rightarrow>> s'" assume s0t': "s0 \<Rightarrow>> t'"
     assume b:"b" assume t:"t = ProcPair s0 t0"
@@ -1163,20 +1174,18 @@ qed
 
 subsection {* Confluence (directly) *}
 
-lemma diamond_par_beta: shows "diamond par_beta'" and "diamond par_beta" 
+lemma diamond_par_beta: shows "diamond par_beta" 
 proof -
   {fix x y x' y' 
-  have "y' \<rightarrow>> x' \<Longrightarrow> \<forall>z'. y' \<rightarrow>> z' \<longrightarrow> (\<exists>u'. x' \<rightarrow>> u' \<and> z' \<rightarrow>> u')"
-  and  "y \<Rightarrow>> x \<Longrightarrow> \<forall>z. y \<Rightarrow>> z \<longrightarrow> (\<exists>u. x \<Rightarrow>> u \<and> z \<Rightarrow>> u)"
-    proof (induction y' x' and y x rule:par_beta'_par_beta.inducts)
-    case pb_Assign thus ?case by (blast intro!: par_beta_subst)
-    next case pb_Sample thus ?case by (blast intro!: par_beta_subst)
-    next case pb_Seq thus ?case by (blast intro!: par_beta_subst)
-    next case pb_Skip thus ?case by (blast intro!: par_beta_subst)
-    next case pb_IfTE thus ?case by (blast intro!: par_beta_subst)
-    next case pb_While thus ?case by (blast intro!: par_beta_subst)
-    next case pb_CallProc thus ?case by (blast intro!: par_beta_subst)
-    next case pb_Proc thus ?case by (blast intro!: par_beta_subst)
+  have "y \<Rightarrow>> x \<Longrightarrow> \<forall>z. y \<Rightarrow>> z \<longrightarrow> (\<exists>u. x \<Rightarrow>> u \<and> z \<Rightarrow>> u)"
+    proof (induction y x rule:par_beta.inducts)
+    next case (pb_Proc s s') 
+      show ?case apply auto
+        apply (rule par_beta_subst)
+        thm par_beta_subst
+        
+        by (blast intro!: par_beta_subst)
+      thm par_beta_subst
     next case pb_ProcRef thus ?case by (blast intro!: par_beta_subst)
     next case pb_ProcUnit thus ?case by auto
     next case pb_ProcAbs thus ?case by auto
@@ -1189,16 +1198,15 @@ proof -
       proof auto
         fix ta assume "s \<Rightarrow>> ta" 
         thus "\<exists>u. ProcUnpair b t \<Rightarrow>> u \<and> ProcUnpair b ta \<Rightarrow>> u"
-          by (metis (full_types) beta_reduce_proofs.pb_ProcUnpair pb_ProcUnpair.IH)
+          using pb_ProcUnpair.IH by auto
       next
         fix z sa ta assume saz:"sa \<Rightarrow>> z" assume b assume s:"s = ProcPair sa ta" 
-        thm pb_ProcUnpair.IH
         obtain u where tu:"t \<Rightarrow>> u" and ztau:"ProcPair z ta \<Rightarrow>> u"
-          by (metis saz beta_reduce_proofs.par_beta_refl(2) beta_reduce_proofs.pb_ProcPair pb_ProcUnpair.IH s)
+          using par_beta_refl pb_ProcUnpair.IH s saz by blast
         obtain u1 u2 where u:"u=ProcPair u1 u2" and zu1:"z\<Rightarrow>>u1"
-          by (metis ztau beta_reduce_proofs.par_beta_cases(14))
+          using ztau by blast
         obtain sa0 ta0 where t:"t = ProcPair sa0 ta0"
-          by (metis s beta_reduce_proofs.par_beta_cases(14) pb_ProcUnpair.hyps)
+          using pb_ProcUnpair.hyps s by blast
         from tu have sa0u1: "sa0 \<Rightarrow>> u1" unfolding t u by (cases, auto)
         show "\<exists>u. ProcUnpair True t \<Rightarrow>> u \<and> z \<Rightarrow>> u"
           apply (rule exI[of _ u1])
@@ -1207,45 +1215,21 @@ proof -
         fix z sa ta assume taz:"ta \<Rightarrow>> z" assume "\<not>b" assume s:"s = ProcPair sa ta" 
         thm pb_ProcUnpair.IH
         obtain u where tu:"t \<Rightarrow>> u" and ztau:"ProcPair sa z \<Rightarrow>> u"
-          by (metis taz beta_reduce_proofs.par_beta_refl(2) beta_reduce_proofs.pb_ProcPair pb_ProcUnpair.IH s)
+          using par_beta_refl pb_ProcUnpair.IH s taz by blast
         obtain u1 u2 where u:"u=ProcPair u1 u2" and zu2:"z\<Rightarrow>>u2"
-          by (metis ztau beta_reduce_proofs.par_beta_cases(14))
+          using ztau by blast
         obtain sa0 ta0 where t:"t = ProcPair sa0 ta0"
-          by (metis s beta_reduce_proofs.par_beta_cases(14) pb_ProcUnpair.hyps)
+          using pb_ProcUnpair.hyps s by blast
         from tu have ta0u2: "ta0 \<Rightarrow>> u2" unfolding t u by (cases, auto)
         show "\<exists>u. ProcUnpair False t \<Rightarrow>> u \<and> z \<Rightarrow>> u"
           apply (rule exI[of _ u2])
           unfolding t using ta0u2 zu2 by auto
       qed
     qed}
-  thus "diamond par_beta'" and "diamond par_beta"
+  thus "diamond par_beta"
     unfolding diamond_def commute_def square_def by auto
 qed
 
-
-subsection {* Complete developments *}
-
-fun cd' :: "program_rep \<Rightarrow> program_rep"
-and cd :: "procedure_rep \<Rightarrow> procedure_rep" where
-  "cd' Skip = Skip"
-| "cd' (Assign x e) = Assign x e"
-| "cd' (Sample x e) = Sample x e"
-| "cd' (Seq p1 p2) = Seq (cd' p1) (cd' p2)"
-| "cd' (IfTE c p1 p2) = IfTE c (cd' p1) (cd' p2)"
-| "cd' (While c p) = While c (cd' p)"
-| "cd' (CallProc v p e) = CallProc v (cd p) e"
-| "cd (Proc body args ret) = Proc (cd' body) args ret"
-| "cd (ProcRef n) = ProcRef n"
-| "cd ProcUnit = ProcUnit"
-| "cd (ProcAppl (ProcAppl s1 s2) t) = ProcAppl (cd (ProcAppl s1 s2)) (cd t)"
-| "cd (ProcAppl (ProcAbs u) t) = subst_proc 0 (cd t) (cd u)"
-| "cd (ProcAppl t u) = ProcAppl (cd t) (cd u)"
-| "cd (ProcAbs s) = ProcAbs (cd s)"
-| "cd (ProcPair s t) = ProcPair (cd s) (cd t)"
-| "cd (ProcUnpair b (ProcPair p1 p2)) = (if b then cd p1 else cd p2)"
-| "cd (ProcUnpair b t) = ProcUnpair b (cd t)"
-
-subsection {* Confluence (via complete developments) *}
 
 theorem beta_confluent: "confluent beta_reduce_proc"
   apply (rule diamond_to_confluence)
@@ -1253,12 +1237,9 @@ theorem beta_confluent: "confluent beta_reduce_proc"
   close (rule beta_subset_par_beta)
   by (rule par_beta_subset_beta)
 
-theorem beta_prog_confluent: "confluent beta_reduce_prog"
-  apply (rule diamond_to_confluence)
-  close (rule diamond_par_beta)
-  close (rule beta_subset_par_beta)
-  by (rule par_beta_subset_beta)
 
 
-end
+end (* beta_reduce_proofs *)
+
+end (* theory *)
 
