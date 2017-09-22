@@ -59,32 +59,16 @@ locale modules =
   (* 'program = type of programs *)
   fixes well_typed_program :: "(procedure_type_open list \<Rightarrow> 'program procedure \<Rightarrow> procedure_type_open \<Rightarrow> bool)
                              \<Rightarrow> procedure_type_open list \<Rightarrow> 'program \<Rightarrow> procedure_type \<Rightarrow> bool"
-    (* and proc_map :: "('program procedure \<Rightarrow> 'program procedure) \<Rightarrow> 'program \<Rightarrow> 'program" *)
-(* proc_map can be implemented using proc_update *)
     and proc_list :: "'program \<Rightarrow> 'program procedure list"
     and proc_size :: "'program procedure \<Rightarrow> nat"
-    (* and proc_relation :: "('program procedure \<Rightarrow> 'program procedure \<Rightarrow> bool) \<Rightarrow> 'program \<Rightarrow> 'program \<Rightarrow> bool" *)
-(* proc_relation can be implemented using proc_update *)
-    (* and proc_update :: "'program \<Rightarrow> nat \<Rightarrow> 'program procedure \<Rightarrow> 'program" (* proc_update can be written using proc_update' *) *)
     and proc_update' :: "'program \<Rightarrow> 'program procedure list \<Rightarrow> 'program"
   assumes proc_size_Proc: "y \<in> set (proc_list x) \<Longrightarrow> proc_size y < proc_size (Proc x)" 
       and proc_size_ProcAppl[simp]: "proc_size (ProcAppl s t) = proc_size s + proc_size t + 1"
       and proc_size_ProcPair[simp]: "proc_size (ProcPair s t) = proc_size s + proc_size t + 1"
       and proc_size_ProcUnpair[simp]: "proc_size (ProcUnpair b s) = proc_size s + 1"
       and proc_size_ProcAbs[simp]: "proc_size (ProcAbs s) = proc_size s + 1"
-      (* and proc_map_cong[fundef_cong]: "p=q \<Longrightarrow> (\<And>z. proc_size z < proc_size (Proc q) \<Longrightarrow> f z = g z) \<Longrightarrow> proc_map f p = proc_map g q" *)
-      (* and proc_map_cong[fundef_cong]: "p=q \<Longrightarrow> (\<And>z. z \<in> set (proc_list q) \<Longrightarrow> f z = g z) \<Longrightarrow> proc_map f p = proc_map g q" *)
-      (* and proc_list_map: "proc_list (proc_map f p) = map f (proc_list p)" *)
-      (* and proc_map_proc_map [simp]: "proc_map f (proc_map g p) = proc_map (\<lambda>x. f (g x)) p" *)
-      (* and proc_map_id[simp]: "proc_map (\<lambda>x. x) p = p" *)
-(* and well_typed_program_cong[fundef_cong]: "\<lbrakk>E=E'; pg=pg'; T=T'; \<And>pc. pc\<in>set(proc_list pg') \<Longrightarrow> wt E' pc (ProcTSimple T') = wt' E' pc (ProcTSimple T')\<rbrakk>
-                   \<Longrightarrow> well_typed_program wt E pg T = well_typed_program wt' E' pg' T'" *)
       and well_typed_program_mono[mono]: "wt \<le> wt' \<Longrightarrow> well_typed_program wt E p T \<longrightarrow> well_typed_program wt' E p T"
       and well_typed_program_simple: "well_typed_program wt E p T \<Longrightarrow> \<forall>pc\<in>set(proc_list pc). \<exists>T'. wt E pc (ProcTSimple T')"
-      (* and proc_relation_mono[mono]: "R \<le> R' \<Longrightarrow> proc_relation R \<le> proc_relation R'" *)
-      (* and proc_update_list: "proc_list (proc_update p i y) = proc_list p[i:=y]" *)
-      (* and proc_relation_eq[simp]: "proc_relation (op=) p q = (p=q)" *)
-      (* and proc_relation_cong[fundef_cong]: "\<lbrakk>p=p'; q=q'; \<And>z z'. (z,z')\<in>set(zip (proc_list p) (proc_list q)) \<Longrightarrow> R z z' = R' z z'\<rbrakk> \<Longrightarrow> proc_relation R p q = proc_relation R' p' q'" *)
       and proc_update'_list: "length l = length (proc_list proc) \<Longrightarrow> proc_list (proc_update' proc l) = l"
       and proc_update'_self[simp]: "proc_update' proc (proc_list proc) = proc"
       and proc_update'_twice[simp]: "proc_update' (proc_update' proc l) l' = proc_update' proc l'"
@@ -160,6 +144,13 @@ lemma same_shape_mapL[simp]: "same_shape (proc_map f p) p"
 
 lemma same_shape_mapR[simp]: "same_shape p (proc_map f p)"
   unfolding proc_map_def by simp
+
+lemma same_shape_mapL'[simp]: "same_shape (proc_map f p) q = same_shape p q"
+  using same_shape_mapR same_shape_sym same_shape_trans by blast
+  
+lemma same_shape_mapR'[simp]: "same_shape p (proc_map f q) = same_shape p q"
+  using same_shape_mapR same_shape_sym same_shape_trans by blast
+
 
 lemma proc_map_proc_map [simp]: "proc_map f (proc_map g p) = proc_map (\<lambda>x. f (g x)) p"
 proof -
@@ -1111,7 +1102,21 @@ qed auto
 lemma par_beta_subst:
   shows "s \<Rightarrow>> s' \<Longrightarrow> t \<Rightarrow>> t' \<Longrightarrow> subst_proc n s t \<Rightarrow>> subst_proc n s' t'"
 proof (induct t arbitrary: s s' t' n)
-next case Proc thus ?case by auto
+  case (Proc p) 
+  from Proc.prems(2) 
+  obtain u' where t': "t' = Proc u'" and pu': "proc_relation op \<Rightarrow>> p u'"
+    by (rule par_beta_cases, auto)
+  have shape: "same_shape p u'"
+    using pu' proc_relation_def by blast
+  have "(x,y) \<in> set (zip (proc_list p) (proc_list u')) \<Longrightarrow> subst_proc n s x \<Rightarrow>> subst_proc n s' y" for x y 
+    by (smt Proc.hyps Proc.prems(1) case_prodI2 in_set_zip list_all2_conv_all_nth nth_mem proc_relation_def prod.sel(1) prod.sel(2) pu')
+  hence "proc_relation op \<Rightarrow>> (proc_map (subst_proc n s) p) (proc_map (subst_proc n s') u')"
+    unfolding proc_relation_def using shape apply simp unfolding proc_list_map
+    unfolding list_all2_map1 list_all2_map2
+    apply (rule list_all2I)
+    unfolding same_shape_def by auto
+  then show ?case
+    by (simp add: t')
 next case ProcRef thus ?case by auto
 next case ProcUnit thus ?case by auto
 next case ProcAbs thus ?case by auto
