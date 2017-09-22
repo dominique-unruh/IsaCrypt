@@ -6,6 +6,9 @@ session "IsaCrypt" = "HOL-Probability" +
   document_files (in ".")
     "root.tex"
 
+session "IsaCrypt-Partial" = "IsaCrypt-Prereqs" +
+  theories Universe TypedLambda
+
 session "IsaCrypt-Prereqs" = "HOL-Probability" +
   sessions "HOL-Nominal" "HOL-Proofs-Lambda" "HOL-ZF"
   theories [document = false] Prereqs

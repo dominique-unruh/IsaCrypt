@@ -91,7 +91,7 @@ locale modules =
 begin
 
 
-definition "same_shape s t = (s = proc_update' t (proc_list s))"
+definition "same_shape s t = (length (proc_list s) = length (proc_list t) \<and> s = proc_update' t (proc_list s))"
 
 
 definition "proc_map f p = proc_update' p (map f (proc_list p))"
@@ -125,9 +125,13 @@ lemma same_shape_trans[trans]: assumes "same_shape a b" and "same_shape b c" sho
 proof -
   have a: "a = proc_update' b (proc_list a)" and b: "b = proc_update' c (proc_list b)"
     using assms unfolding same_shape_def by auto
-  show ?thesis
-    unfolding same_shape_def
+  have len: "length (proc_list a) = length (proc_list c)" 
+    using assms unfolding same_shape_def by auto
+  moreover have "a = proc_update' c (proc_list a)" 
     apply (subst a, subst b) 
+    by simp
+  ultimately show ?thesis
+    unfolding same_shape_def
     by simp
 qed
 
@@ -135,19 +139,21 @@ lemma same_shape_sym[sym]: assumes "same_shape a b" shows "same_shape b a"
 proof -
   have a: "a = proc_update' b (proc_list a)"
     using assms unfolding same_shape_def by auto
-  show ?thesis
+  have "b = proc_update' a (proc_list b)"
+    apply (subst a) by simp
+  then show ?thesis
+    using assms
     unfolding same_shape_def
-    apply (subst a) 
     by simp
 qed
 
-lemma same_shape_update'L[simp]: "same_shape (proc_update' p l) p"
+lemma same_shape_update'L[simp]: "length (proc_list p) = length l \<Longrightarrow> same_shape (proc_update' p l) p"
   unfolding same_shape_def
-  by (metis modules.proc_update'_twice modules_axioms proc_update'_self) 
+  by (simp add: proc_update'_list)
 
-lemma same_shape_update'R[simp]: "same_shape p (proc_update' p l)"
+lemma same_shape_update'R[simp]: "length (proc_list p) = length l \<Longrightarrow> same_shape p (proc_update' p l)"
   unfolding same_shape_def
-  by (metis modules.proc_update'_twice modules_axioms proc_update'_self) 
+  by (simp add: proc_update'_list)
 
 lemma same_shape_mapL[simp]: "same_shape (proc_map f p) p"
   unfolding proc_map_def by simp
@@ -777,103 +783,254 @@ inductive_cases beta_reduce_cases [elim!]:
   "beta_reduce_proc (ProcPair s t) s"
   "beta_reduce_proc (ProcUnpair b t) u"
 
-lemma rtrancl_beta_Seq1 [intro!]:
-  "beta_reduce_prog\<^sup>*\<^sup>* s s' \<Longrightarrow> beta_reduce_prog\<^sup>*\<^sup>* (Seq s t) (Seq s' t)"
-  apply (induct set: rtranclp)  apply auto
-  by (metis beta_reduce_prog_beta_reduce_proc.intros(1) rtranclp.simps)
-
-lemma rtrancl_beta_Seq2 [intro!]:
-  "beta_reduce_prog\<^sup>*\<^sup>* t t' \<Longrightarrow> beta_reduce_prog\<^sup>*\<^sup>* (Seq s t) (Seq s t')"
-  apply (induct set: rtranclp)  apply auto
-  by (metis beta_reduce_prog_beta_reduce_proc.intros(2) rtranclp.simps)
-
-lemma rtrancl_beta_IfTE1 [intro!]:
-  "beta_reduce_prog\<^sup>*\<^sup>* s s' \<Longrightarrow> beta_reduce_prog\<^sup>*\<^sup>* (IfTE c s t) (IfTE c s' t)"
-  apply (induct set: rtranclp)  apply auto
-  by (metis beta_reduce_prog_beta_reduce_proc.intros(3) rtranclp.simps)
-
-lemma rtrancl_beta_IfTE2 [intro!]:
-  "beta_reduce_prog\<^sup>*\<^sup>* t t' \<Longrightarrow> beta_reduce_prog\<^sup>*\<^sup>* (IfTE c s t) (IfTE c s t')"
-  apply (induct set: rtranclp)  apply auto
-  by (metis beta_reduce_prog_beta_reduce_proc.intros(4) rtranclp.simps)
-
-
-lemma rtrancl_beta_While [intro!]:
-  "beta_reduce_prog\<^sup>*\<^sup>* s s' \<Longrightarrow> beta_reduce_prog\<^sup>*\<^sup>* (While c s) (While c s')"
-  apply (induct set: rtranclp)  apply auto
-  by (metis beta_reduce_prog_beta_reduce_proc.intros(5) rtranclp.simps)
-
-lemma rtrancl_beta_CallProc [intro!]:
-  "beta_reduce_proc\<^sup>*\<^sup>* s s' \<Longrightarrow> beta_reduce_prog\<^sup>*\<^sup>* (CallProc x s a) (CallProc x s' a)"
-apply (induct set: rtranclp)  apply auto
-by (metis beta_reduce_prog_beta_reduce_proc.intros(6) rtranclp.simps)
 
 lemma rtrancl_beta_Proc [intro!]:
-  "beta_reduce_prog\<^sup>*\<^sup>* s s' \<Longrightarrow> beta_reduce_proc\<^sup>*\<^sup>* (Proc s x y) (Proc s' x y)"
-apply (induct set: rtranclp)  apply auto
-by (metis beta_reduce_prog_beta_reduce_proc.intros(7) rtranclp.simps)
+  assumes "proc_relation_nth (beta_reduce_proc\<^sup>*\<^sup>*) i s s'"
+  shows "beta_reduce_proc\<^sup>*\<^sup>* (Proc s) (Proc s')"
+proof -
+  from assms
+  have shape: "same_shape s s'" and i_s: "i < proc_length s" and upd: "proc_list s' = proc_list s[i := proc_list s' ! i]" 
+      and beta: "beta_reduce_proc\<^sup>*\<^sup>* (proc_list s ! i) (proc_list s' ! i)"
+    unfolding proc_relation_nth_def by auto
+  define si s'i where "si = proc_list s!i" and "s'i = proc_list s'!i"
+  have br_proc: "beta_reduce_proc\<^sup>*\<^sup>* (Proc s) (Proc s')"
+    using beta unfolding si_def[symmetric] s'i_def[symmetric]
+  proof (insert si_def s'i_def upd shape, induction arbitrary: s' rule:rtranclp.induct)
+    case (rtrancl_refl a)
+    then have "s=s'"
+      by (subst same_shape_list[symmetric], simp)
+    then show ?case
+      by simp
+  next
+    case (rtrancl_into_rtrancl si ti s'i)
+    hence shape_ss': "same_shape s s'" and beta_ti_s'i: "beta_reduce_proc ti s'i" 
+      and s'i: "s'i = proc_list s' ! i" and si: "si = proc_list s ! i" 
+      and s's: "proc_list s' = proc_list s[i := proc_list s' ! i]" by auto
+    define t where "t = proc_update s i ti"
+    hence ti: "ti = proc_list t ! i"
+      by (simp add: i_s proc_update_list)
+    have shape_st: "same_shape s t"
+      by (simp add: proc_update_def t_def)
+    with shape_ss' have shape_ts': "same_shape t s'"
+      using same_shape_sym same_shape_trans by metis
+    have i_t: " i < proc_length t" using i_s shape_st
+      using modules.proc_update_list modules_axioms t_def by fastforce
+    have s't: "proc_list s'  = proc_list t[i := proc_list s' ! i]"
+      using proc_update_list rtrancl_into_rtrancl.prems(3) t_def by auto 
+    have ts: "proc_list t = proc_list s[i := proc_list t ! i]"
+      using s's s't
+      using proc_update_list t_def ti by presburger
+    have beta_Proc_st: "beta_reduce_proc\<^sup>*\<^sup>* (Proc s) (Proc t)"
+      apply (rule rtrancl_into_rtrancl.IH)
+      using si ti ts shape_st .
+    have "proc_relation_nth beta_reduce_proc i t s'"
+      unfolding proc_relation_nth_def 
+      using s't shape_st i_t shape_ts' shape_st beta_ti_s'i ti s'i by auto
+    hence beta_Proc_ts': "beta_reduce_proc (Proc t) (Proc s')"
+      by (rule br_Proc[where i=i])
+    from beta_Proc_st beta_Proc_ts' show ?case by rule
+  qed
+
+  then show ?thesis by auto
+qed
+
+
+lemma take_drop_nth:
+  assumes "i<length xs" and "i<length ys" 
+  shows "(take i xs @ drop i ys) ! i = ys ! i"
+proof -
+  have "length (take i xs) = i"
+    using assms(1) by auto
+  hence "(take i xs @ drop i ys) ! i = hd (drop i ys)"
+    by (metis Cons_nth_drop_Suc assms(2) hd_drop_conv_nth nth_append_length)
+  also have "\<dots> = ys ! i"
+    apply (rule hd_drop_conv_nth)
+    using assms by simp
+  finally show ?thesis .
+  find_theorems drop nth
+qed
+
+lemma take_append': assumes "n\<le>length xs" shows "take n (xs @ ys) = take n xs"
+  apply (subst take_append)
+  apply (subst diff_is_0_eq') using assms close
+  by simp
+
+lemma take_take': assumes "n\<le>m" shows "take n (take m xs) = take n xs"
+  apply (subst take_take)
+  apply (subst min.absorb1) using assms by auto
+
+lemma drop_append': assumes "n=length xs" shows "drop n (xs @ ys) = ys"
+  unfolding drop_append using assms by auto
+
+lemma rtrancl_beta_Proc' [intro!]:
+  assumes "proc_relation (beta_reduce_proc\<^sup>*\<^sup>*) s s'"
+  shows "beta_reduce_proc\<^sup>*\<^sup>* (Proc s) (Proc s')"
+proof -
+  define hyb where "hyb i = proc_update' s (take i (proc_list s') @ drop i (proc_list s))" for i
+  have shape: "same_shape (hyb i) s" for i
+  proof -
+    have hybi: "hyb i = proc_update' s (proc_list (hyb i))" 
+      unfolding hyb_def
+      by (metis proc_update'_self proc_update'_twice)
+    have len': "length (take i (proc_list s') @ drop i (proc_list s)) = proc_length s"
+      using assms list_all2_lengthD proc_relation_def by fastforce
+    have len: "proc_length (hyb i) = proc_length s"
+      unfolding hyb_def
+      apply (subst proc_update'_list)
+      unfolding len' ..
+    show ?thesis
+      unfolding same_shape_def using hybi len by simp
+  qed
+
+  have hybi_list: "proc_list (hyb (Suc i)) = proc_list (hyb i)[i := proc_list (hyb (Suc i)) ! i]" if "i<proc_length s" for i 
+  proof -
+    from that have is': "i<proc_length s'"       using assms proc_relation_def same_shape_def by auto
+
+    have "proc_list (hyb (Suc i)) = take i (proc_list (hyb (Suc i))) @ proc_list (hyb (Suc i)) ! i # drop (Suc i) (proc_list (hyb (Suc i)))"
+      apply (rule id_take_nth_drop[where i=i])
+      using same_shape_def shape that by auto
+    also have "take i (proc_list (hyb (Suc i))) = take i (proc_list s')"
+      apply (subst hyb_def)
+      apply (subst proc_update'_list)
+      using assms proc_relation_def same_shape_def close
+      apply (subst take_append') 
+       apply simp
+      using assms list_all2_lengthD proc_relation_def that close fastforce
+      apply (subst take_take') by auto
+    also have hybs_i: "proc_list (hyb (Suc i)) ! i = proc_list s' ! i"
+      unfolding hyb_def
+      apply (subst proc_update'_list)
+      using assms proc_relation_def same_shape_def close
+      apply (subst nth_append)
+      apply (rewrite at "i<_"  DEADID.rel_mono_strong[of _ True])
+      using assms list_all2_lengthD proc_relation_def that close fastforce
+      by simp
+    also have "drop (Suc i) (proc_list (hyb (Suc i))) = drop (Suc i) (proc_list s)"
+      unfolding hyb_def
+      apply (subst proc_update'_list)
+      using assms proc_relation_def same_shape_def close
+       apply (subst drop_append')
+      using assms proc_relation_def same_shape_def that by auto
+    finally have pl_hybsi: "proc_list (hyb (Suc i)) = take i (proc_list s') @ proc_list s' ! i # drop (Suc i) (proc_list s)" .
+
+    have "proc_list (hyb i) = take i (proc_list s') @ drop i (proc_list s)"
+      unfolding hyb_def
+      apply (subst proc_update'_list)
+      using assms proc_relation_def same_shape_def close
+      by auto
+    also have "drop i (proc_list s) = proc_list s ! i # drop (Suc i) (proc_list s)"
+      apply (subst Cons_nth_drop_Suc)
+      using that by auto
+    finally have pl_hybi: "proc_list (hyb i) = take i (proc_list s') @ proc_list s ! i # drop (Suc i) (proc_list s)" .
+
+    have "proc_list (hyb i)[i := proc_list (hyb (Suc i)) ! i] = take i (proc_list s') @ proc_list (hyb (Suc i)) ! i # drop (Suc i) (proc_list s)"
+      unfolding pl_hybi 
+      apply (rewrite at "_[\<hole>:=_]" DEADID.rel_mono_strong[where y="length (take i (proc_list s'))"])
+      using is' close
+      apply (subst list_update_length) ..
+    moreover note hybs_i
+    moreover note pl_hybsi[symmetric]
+    ultimately show ?thesis by simp
+  qed
+
+
+  have beta_hyb: "beta_reduce_proc\<^sup>*\<^sup>* (proc_list (hyb i) ! i) (proc_list (hyb (Suc i)) ! i)" if "i<proc_length s" for i
+  proof -
+    from that have is': "i<proc_length s'"       using assms proc_relation_def same_shape_def by auto
+
+    have hybi: "proc_list (hyb i) ! i = proc_list s ! i"
+      unfolding hyb_def 
+      apply (subst proc_update'_list) using assms list_all2_lengthD proc_relation_def close fastforce
+      apply (subst take_drop_nth)
+      using is' that by auto
+
+    have hybsi: "(proc_list (hyb (Suc i)) ! i) = proc_list s' ! i"
+      unfolding hyb_def
+      apply (subst proc_update'_list) using assms list_all2_lengthD proc_relation_def close fastforce
+      apply (subst nth_append)
+      apply (rewrite at "i<_"  DEADID.rel_mono_strong[of _ True])
+      using assms list_all2_lengthD proc_relation_def that close fastforce
+      by simp
+      
+    show ?thesis
+      unfolding hybi hybsi
+      using assms list_all2_nthD proc_relation_def that by auto
+  qed
+  have beta_hyb': "beta_reduce_proc\<^sup>*\<^sup>* (Proc (hyb i)) (Proc (hyb (Suc i)))" if " i < proc_length s" for i
+    apply (rule rtrancl_beta_Proc[where i=i])
+    unfolding proc_relation_nth_def apply auto
+    using shape same_shape_trans same_shape_sym close metis
+    using that shape same_shape_def close simp
+    using that apply (rule hybi_list)
+    using that by (rule beta_hyb)
+
+  define ls where "ls = (proc_length s)"
+  hence ls': "ls \<le> proc_length s" by simp
+  have beta_n: "beta_reduce_proc\<^sup>*\<^sup>* (Proc (hyb 0)) (Proc (hyb ls))"
+    apply (insert ls', induction ls)
+     close
+    apply (rule rtranclp_trans)
+     close simp
+    apply (rule beta_hyb')
+    by auto
+
+  have hyb0: "hyb 0 = s"
+    unfolding hyb_def by simp
+  have hybn: "hyb (proc_length s) = s'"
+    unfolding hyb_def apply simp
+    using assms proc_relation_def same_shape_def same_shape_sym by auto
+
+  show ?thesis
+    using beta_n unfolding ls_def hyb0 hybn .
+qed
 
 lemma rtrancl_beta_ProcAbs [intro!]:
   "beta_reduce_proc\<^sup>*\<^sup>* s s' \<Longrightarrow> beta_reduce_proc\<^sup>*\<^sup>* (ProcAbs s) (ProcAbs s')"
 apply (induct set: rtranclp)  apply auto
-by (metis beta_reduce_prog_beta_reduce_proc.intros(11) rtranclp.rtrancl_into_rtrancl)
+  by (meson br_ProcAbs rtranclp.simps)
 
 lemma rtrancl_beta_ProcAppl1 [intro!]:
   "beta_reduce_proc\<^sup>*\<^sup>* s s' \<Longrightarrow> beta_reduce_proc\<^sup>*\<^sup>* (ProcAppl s t) (ProcAppl s' t)"
   apply (induct set: rtranclp)  apply auto
-by (metis beta_reduce_prog_beta_reduce_proc.intros(9) rtranclp.rtrancl_into_rtrancl)
+  by (meson beta_reduce_proofs.br_ProcAppl1 beta_reduce_proofs_axioms rtranclp.simps)
 
 
 lemma rtrancl_beta_ProcAppl2 [intro!]:
   "beta_reduce_proc\<^sup>*\<^sup>* t t' \<Longrightarrow> beta_reduce_proc\<^sup>*\<^sup>* (ProcAppl s t) (ProcAppl s t')"
   apply (induct set: rtranclp)  apply auto
-by (metis beta_reduce_prog_beta_reduce_proc.intros(10) rtranclp.rtrancl_into_rtrancl)
+  by (meson beta_reduce_proofs.beta_reduce_proc.intros(4) beta_reduce_proofs_axioms rtranclp.simps)
 
 lemma rtrancl_beta_ProcPair1 [intro!]:
   "beta_reduce_proc\<^sup>*\<^sup>* s s' \<Longrightarrow> beta_reduce_proc\<^sup>*\<^sup>* (ProcPair s t) (ProcPair s' t)"
   apply (induct set: rtranclp)  apply auto
-  by (metis beta_reduce_prog_beta_reduce_proc.intros(12) rtranclp.rtrancl_into_rtrancl)
-
+  by (meson beta_reduce_proofs.br_ProcPair1 beta_reduce_proofs_axioms rtranclp.simps)
 
 lemma rtrancl_beta_ProcPair2 [intro!]:
   "beta_reduce_proc\<^sup>*\<^sup>* t t' \<Longrightarrow> beta_reduce_proc\<^sup>*\<^sup>* (ProcPair s t) (ProcPair s t')"
   apply (induct set: rtranclp)  apply auto
-  by (metis beta_reduce_prog_beta_reduce_proc.intros(13) rtranclp.rtrancl_into_rtrancl)
+  by (meson beta_reduce_proofs.br_ProcPair2 beta_reduce_proofs_axioms rtranclp.simps)
+
 
 lemma rtrancl_beta_ProcUnpair [intro!]:
   "beta_reduce_proc\<^sup>*\<^sup>* s s' \<Longrightarrow> beta_reduce_proc\<^sup>*\<^sup>* (ProcUnpair b s) (ProcUnpair b s')"
   apply (induct set: rtranclp)  apply auto
-  by (metis beta_reduce_prog_beta_reduce_proc.intros(14) rtranclp.rtrancl_into_rtrancl)
+  by (meson beta_reduce_proofs.beta_reduce_proc.intros(8) beta_reduce_proofs_axioms rtranclp.simps)
 
 
 
 
 
 
-lemma par_beta_subset_beta: shows "par_beta' <= beta_reduce_prog^**" and "par_beta <= beta_reduce_proc^**" 
-proof (rule_tac [2] predicate2I, rule predicate2I)
-  fix x y x' y'
-  show "x' \<rightarrow>> y' \<Longrightarrow> beta_reduce_prog\<^sup>*\<^sup>* x' y'"
-   and "x \<Rightarrow>> y \<Longrightarrow> beta_reduce_proc\<^sup>*\<^sup>* x y"
-  proof (induction rule:par_beta'_par_beta.inducts)
-  case pb_Assign thus ?case by auto
-  next case pb_Sample thus ?case by auto
-  next case (pb_Seq s s' t t') thus ?case
-    apply (rule_tac rtranclp_trans[where y="Seq s' t"])
-    apply (rule rtrancl_beta_Seq1, simp)
-    by (rule rtrancl_beta_Seq2, simp)
-  next case pb_Skip thus ?case by auto[]
-  next case (pb_IfTE s s' t t' c) thus ?case
-    apply (rule_tac y="IfTE c s' t" in rtranclp_trans)
-    apply (rule rtrancl_beta_IfTE1, simp)
-    by (rule rtrancl_beta_IfTE2, simp)
-  next case (pb_While s s' c) thus ?case
-    by (rule_tac rtrancl_beta_While, simp)
-  next case (pb_CallProc s s') thus ?case
-     by (rule_tac rtrancl_beta_CallProc, simp)
-  next case (pb_Proc s s') thus ?case
-     by (rule_tac rtrancl_beta_Proc, simp)
-  next case (pb_ProcRef) thus ?case by auto
+lemma par_beta_subset_beta: shows "par_beta <= beta_reduce_proc^**" 
+proof (rule predicate2I)
+  fix x y
+  show "x \<Rightarrow>> y \<Longrightarrow> beta_reduce_proc\<^sup>*\<^sup>* x y"
+  proof (induction rule:par_beta.induct)
+    case (pb_Proc s s') 
+    hence "proc_relation beta_reduce_proc\<^sup>*\<^sup>* s s'"
+      using list_all2_mono proc_relation_def by auto
+    then show ?case
+      by (rule rtrancl_beta_Proc')
   next case (pb_ProcAbs s t) thus ?case
      by (rule_tac rtrancl_beta_ProcAbs, simp)
   next case (pb_ProcAppl s s' t t') thus ?case
@@ -886,7 +1043,7 @@ proof (rule_tac [2] predicate2I, rule predicate2I)
     apply (rule rtrancl_beta_ProcAppl2, simp)
     apply (rule rtrancl_beta_ProcAppl1)
     apply (rule rtrancl_beta_ProcAbs, simp)
-    using beta_reduce_prog_beta_reduce_proc.intros by auto
+    using beta_reduce_proc.intros by auto
   next case (pb_ProcPair s s' t t') thus ?case
     apply (rule_tac rtranclp_trans[where y="ProcPair s' t"])
     apply (rule rtrancl_beta_ProcPair1, simp)
@@ -895,31 +1052,31 @@ proof (rule_tac [2] predicate2I, rule predicate2I)
      by (rule_tac rtrancl_beta_ProcUnpair, simp)
   next case (pb_ProcUnpair1 s s' t) thus ?case
     apply (rule_tac Transitive_Closure.converse_rtranclp_into_rtranclp[where b=s], auto)
-    using beta_reduce_prog_beta_reduce_proc.intros by presburger
+    using beta_reduce_proc.intros by presburger
   next case (pb_ProcUnpair2 t t' s) thus ?case
     apply (rule_tac Transitive_Closure.converse_rtranclp_into_rtranclp[where b=t], auto)
-    using beta_reduce_prog_beta_reduce_proc.intros by (metis (full_types))
-  next case (pb_ProcUnit) show ?case by auto
-  qed
+    using beta_reduce_proc.intros by (metis (full_types))
+  qed auto
 qed
 
 
 lemma par_beta_lift [simp]:
-  shows "t \<rightarrow>> t' \<Longrightarrow> lift_proc_in_prog t n \<rightarrow>> lift_proc_in_prog t' n"
-    and "p \<Rightarrow>> p' \<Longrightarrow> lift_proc p n \<Rightarrow>> lift_proc p' n"
-proof (induct t and p arbitrary: t' n and p' n) 
-case (ProcAppl p1 p2) thus ?case by fastforce
+  shows "p \<Rightarrow>> p' \<Longrightarrow> lift_proc p n \<Rightarrow>> lift_proc p' n"
+proof (induction p arbitrary: p' n) 
+  case (Proc p1)
+  then show ?case by later
+next case (ProcAppl p1 p2) thus ?case by fastforce
 next case (ProcPair p1 p2) thus ?case by fastforce
 next case (ProcUnpair b p)
   from ProcUnpair.prems show ?case
   proof (erule_tac par_beta_cases)
     fix t assume p':"p' = ProcUnpair b t" and "p \<Rightarrow>> t" 
-    with ProcUnpair.hyps show "lift_proc (ProcUnpair b p) n \<Rightarrow>> lift_proc p' n" by auto
+    with ProcUnpair.IH show "lift_proc (ProcUnpair b p) n \<Rightarrow>> lift_proc p' n" by auto
   next
     fix s t assume b:"b" assume sp':"s \<Rightarrow>> p'" assume p:"p = ProcPair s t"
     have "p \<Rightarrow>> ProcPair p' t"  unfolding p
       using sp' by auto
-    with ProcUnpair.hyps
+    with ProcUnpair.IH
     have "lift_proc p n \<Rightarrow>> lift_proc (ProcPair p' t) n" by metis
     also have "lift_proc p n = ProcPair (lift_proc s n) (lift_proc t n)"
       by (metis lift_proc.simps(4) p)
@@ -930,7 +1087,7 @@ next case (ProcUnpair b p)
     fix s t assume b:"\<not>b" assume sp':"t \<Rightarrow>> p'" assume p:"p = ProcPair s t"
     have "p \<Rightarrow>> ProcPair s p'"  unfolding p
       using sp' by auto
-    with ProcUnpair.hyps
+    with ProcUnpair.IH
     have "lift_proc p n \<Rightarrow>> lift_proc (ProcPair s p') n" by metis
     also have "lift_proc p n = ProcPair (lift_proc s n) (lift_proc t n)"
       by (metis lift_proc.simps(4) p)
@@ -941,16 +1098,8 @@ next case (ProcUnpair b p)
 qed auto
 
 lemma par_beta_subst:
-  shows "s \<Rightarrow>> s' \<Longrightarrow> p \<rightarrow>> p' \<Longrightarrow> subst_proc_in_prog n s p \<rightarrow>> subst_proc_in_prog n s' p'"
-    and "s \<Rightarrow>> s' \<Longrightarrow> t \<Rightarrow>> t' \<Longrightarrow> subst_proc n s t \<Rightarrow>> subst_proc n s' t'"
-proof (induct p and t arbitrary: s s' p' n and s s' t' n)
-case Assign thus ?case by auto
-next case Sample thus ?case by auto
-next case Skip thus ?case by auto
-next case (Seq p q) thus ?case by auto
-next case IfTE thus ?case by auto
-next case While thus ?case by auto
-next case CallProc thus ?case by auto
+  shows "s \<Rightarrow>> s' \<Longrightarrow> t \<Rightarrow>> t' \<Longrightarrow> subst_proc n s t \<Rightarrow>> subst_proc n s' t'"
+proof (induction t arbitrary: s s' t' n)
 next case Proc thus ?case by auto
 next case ProcRef thus ?case by auto
 next case ProcUnit thus ?case by auto
