@@ -1,6 +1,5 @@
 theory LangSyntax2
   imports Lang_Typed Procs_Typed
-      (* "~~/src/Tools/Adhoc_Overloading" (* REMOVE? *) *)
 begin
                
 consts MODULE_FIELD_SELECTOR :: "string \<Rightarrow> 'a::procedure_functor \<Rightarrow> 'b"

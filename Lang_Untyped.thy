@@ -1,5 +1,5 @@
 theory Lang_Untyped
-imports Main Orderings Series Distr Universe 
+imports Main "HOL.Orderings" "HOL.Series" Distr Universe 
 begin
 
 subsection {* Types *}

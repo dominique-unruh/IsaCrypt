@@ -1,5 +1,5 @@
 theory Tools 
-imports HOL
+imports "HOL.HOL"
 keywords "close" :: "prf_script" % "proof"
 begin
 

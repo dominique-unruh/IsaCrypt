@@ -1,1 +1,1 @@
-/opt/Isabelle2017-RC2/Isabelle2017-RC2 Modules.thy &
+/opt/Isabelle2017-RC3/bin/isabelle jedit -d . -s Modules.thy &
