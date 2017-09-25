@@ -1177,30 +1177,57 @@ next case (ProcPair p q) thus ?case
    by (auto simp: subst_subst [symmetric])
 qed
 
-subsection {* Confluence (directly) *}
 
 lemma diamond_par_beta: shows "diamond par_beta" 
 proof -
   {fix x y x' y' 
-  have "y \<Rightarrow>> x \<Longrightarrow> \<forall>z. y \<Rightarrow>> z \<longrightarrow> (\<exists>u. x \<Rightarrow>> u \<and> z \<Rightarrow>> u)"
-    proof (induction y x rule:par_beta.inducts)
-    next case (pb_Proc s s') 
-      show ?case apply auto
-        apply (rule par_beta_subst)
-        thm par_beta_subst
-        
-        by (blast intro!: par_beta_subst)
-      thm par_beta_subst
-    next case pb_ProcRef thus ?case by (blast intro!: par_beta_subst)
-    next case pb_ProcUnit thus ?case by auto
+  have "y \<Rightarrow>> x \<Longrightarrow> y \<Rightarrow>> z \<Longrightarrow> (\<exists>u. x \<Rightarrow>> u \<and> z \<Rightarrow>> u)" for z
+  proof (induction y x arbitrary: z rule:par_beta.inducts)
+  next case (pb_Proc s s') hence Procsz: "Proc s \<Rightarrow>> z" by auto
+    then obtain z' where z': "z = Proc z'" by auto
+    have pl_s's: "proc_length s' = proc_length s" using pb_Proc unfolding proc_relation_def same_shape_def by auto
+    from Procsz have pl_z's: "proc_length z' = proc_length s" apply auto unfolding proc_relation_def same_shape_def
+      by (simp add: z') 
+    from pb_Proc.IH
+    have IH: "a \<Rightarrow>> x \<Longrightarrow> (\<exists>u. b \<Rightarrow>> u \<and> x \<Rightarrow>> u)" if  "(a,b) \<in> set (zip (proc_list s) (proc_list s'))" for a b x
+      unfolding proc_relation_def list_all2_iff using that by auto
+    define join where "join = (\<lambda>(b, x). SOME u. b \<Rightarrow>> u \<and> x \<Rightarrow>> u)" 
+    have "b \<Rightarrow>> join (b, x)" and "x \<Rightarrow>> join (b, x)" 
+      if "(a,b) \<in> set (zip (proc_list s) (proc_list s'))" and "a \<Rightarrow>> x" for a b x
+      unfolding atomize_conj join_def unfolding prod.case apply (rule someI_ex) 
+      using that by (rule IH)
+    define u' where "u' = proc_update' s (map join (zip (proc_list s') (proc_list z')))"
+    have shape_s'u': "same_shape s' u'" unfolding u'_def
+      by (smt Procsz length_map list_all2_lengthD map_fst_zip modules.proc_relation_def modules_axioms par_beta_cases(6) pb_Proc.IH procedure.inject(1) same_shape_sym same_shape_trans same_shape_update'R z')
+    have "x \<Rightarrow>> y" if "(x, y)\<in>set (zip (proc_list s') (proc_list u'))" for x y
+    proof -
+      define triple where "triple = set (zip (proc_list s') (zip (proc_list s') (proc_list z')))"
+      from that have "(x, y) \<in> set (zip (proc_list s') (map join (zip (proc_list s') (proc_list z'))))"
+        unfolding u'_def apply (subst (asm) proc_update'_list) using pl_s's pl_z's by auto
+      hence "xxx"
+        unfolding  zip_map2 set_map 
+      find_theorems "zip _ (zip _ _) " 
+      show ?thesis by x
+    qed
+    hence "list_all2 op \<Rightarrow>> (proc_list s') (proc_list u')"
+      unfolding list_all2_iff using shape_s'u' unfolding same_shape_def by auto 
+    hence Proc_s'u': "Proc s' \<Rightarrow>> Proc u'" 
+      apply auto unfolding proc_relation_def using shape_s'u' by auto
+    have zProcU: "z \<Rightarrow>> Proc u'" by later
+    from Proc_s'u' zProcU show ?case by auto
+  next case pb_ProcRef thus ?case by (blast intro!: par_beta_subst)
+  next case pb_ProcUnit thus ?case by auto
     next case pb_ProcAbs thus ?case by auto
     next case pb_ProcAppl thus ?case  by (blast intro!: par_beta_subst)
     next case pb_ProcPair thus ?case by (blast intro!: par_beta_subst)
     next case pb_beta thus ?case by (blast intro!: par_beta_subst)
     next case pb_ProcUnpair1 thus ?case by (blast intro!: par_beta_subst)
     next case pb_ProcUnpair2 thus ?case by (blast intro!: par_beta_subst)
-    next case (pb_ProcUnpair s t b) show ?case 
-      proof auto
+    next case (pb_ProcUnpair s t b) show ?case  (* XXX ProcUnpair b s \<Rightarrow>> z \<longrightarrow> (\<exists>u. ProcUnpair b t \<Rightarrow>> u \<and> z \<Rightarrow>> u) *)
+      using pb_ProcUnpair.prems proof auto
+(*  1. \<And>ta. s \<Rightarrow>> ta \<Longrightarrow> z = ProcUnpair b ta \<Longrightarrow> \<exists>u. ProcUnpair b t \<Rightarrow>> u \<and> ProcUnpair b ta \<Rightarrow>> u
+ 2. \<And>sa ta. sa \<Rightarrow>> z \<Longrightarrow> b \<Longrightarrow> s = ProcPair sa ta \<Longrightarrow> \<exists>u. ProcUnpair True t \<Rightarrow>> u \<and> z \<Rightarrow>> u
+ 3. \<And>ta sa. ta \<Rightarrow>> z \<Longrightarrow> \<not> b \<Longrightarrow> s = ProcPair sa ta \<Longrightarrow> \<exists>u. ProcUnpair False t \<Rightarrow>> u \<and> z \<Rightarrow>> u *)
         fix ta assume "s \<Rightarrow>> ta" 
         thus "\<exists>u. ProcUnpair b t \<Rightarrow>> u \<and> ProcUnpair b ta \<Rightarrow>> u"
           using pb_ProcUnpair.IH by auto
