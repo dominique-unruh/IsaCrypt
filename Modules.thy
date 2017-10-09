@@ -1,5 +1,5 @@
 theory Modules
-  imports Universe TypedLambda "HOL-Library.Multiset"  "HOL-Proofs-Lambda.Commutation"
+  imports Universe TypedLambda "HOL-Library.Multiset" "HOL-Proofs-Lambda.Commutation"
 begin
 
 subsection {* Types *}
@@ -73,7 +73,6 @@ locale modules =
       and proc_update'_self[simp]: "proc_update' proc (proc_list proc) = proc"
       and proc_update'_twice[simp]: "proc_update' (proc_update' proc l) l' = proc_update' proc l'"
 begin
-
 
 definition "same_shape s t = (length (proc_list s) = length (proc_list t) \<and> s = proc_update' t (proc_list s))"
 
