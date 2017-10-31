@@ -1183,37 +1183,69 @@ proof -
   {fix x y x' y' 
   have "y \<Rightarrow>> x \<Longrightarrow> y \<Rightarrow>> z \<Longrightarrow> (\<exists>u. x \<Rightarrow>> u \<and> z \<Rightarrow>> u)" for z
   proof (induction y x arbitrary: z rule:par_beta.inducts)
+
   next case (pb_Proc s s') hence Procsz: "Proc s \<Rightarrow>> z" by auto
     then obtain z' where z': "z = Proc z'" by auto
-    have pl_s's: "proc_length s' = proc_length s" using pb_Proc unfolding proc_relation_def same_shape_def by auto
-    from Procsz have pl_z's: "proc_length z' = proc_length s" apply auto unfolding proc_relation_def same_shape_def
+    define len  where len_s: "len =  proc_length s" 
+    have len_s': "len = proc_length s'" using pb_Proc unfolding proc_relation_def same_shape_def len_s by auto
+    from Procsz have len_z': "len = proc_length z'" apply auto unfolding proc_relation_def same_shape_def len_s
       by (simp add: z') 
+    from Procsz z' have  si_z'i_: "si \<Rightarrow>> z'i" if "(si,z'i) \<in> set (zip (proc_list s) (proc_list z'))" for si z'i
+      using that
+      by (metis in_set_zip list_all2_nthD2 par_beta_cases(6) proc_relation_def procedure.inject(1) prod.sel(1) prod.sel(2))
+    have aux: "(proc_list s!i, proc_list z'!i) \<in> set (zip (proc_list s) (proc_list z'))" if "i<len" for i
+      using in_set_zip len_s len_z' that by fastforce 
+    have si_z'i: "proc_list s!i \<Rightarrow>> proc_list z'!i" if "i<len" for i
+      using aux si_z'i_ that by auto
     from pb_Proc.IH
-    have IH: "a \<Rightarrow>> x \<Longrightarrow> (\<exists>u. b \<Rightarrow>> u \<and> x \<Rightarrow>> u)" if  "(a,b) \<in> set (zip (proc_list s) (proc_list s'))" for a b x
+    have "si \<Rightarrow>> x \<Longrightarrow> (\<exists>u. s'i \<Rightarrow>> u \<and> x \<Rightarrow>> u)" if  "(si,s'i) \<in> set (zip (proc_list s) (proc_list s'))" for si s'i x
       unfolding proc_relation_def list_all2_iff using that by auto
+    hence IH: "proc_list s!i \<Rightarrow>> x \<Longrightarrow> (\<exists>u. proc_list s'!i \<Rightarrow>> u \<and> x \<Rightarrow>> u)" if "i<len" for i x
+      using len_s len_s' apply auto
+      by (smt list_all2_conv_all_nth modules.proc_relation_def modules_axioms pb_Proc.IH that)
     define join where "join = (\<lambda>(b, x). SOME u. b \<Rightarrow>> u \<and> x \<Rightarrow>> u)" 
-    have "b \<Rightarrow>> join (b, x)" and "x \<Rightarrow>> join (b, x)" 
-      if "(a,b) \<in> set (zip (proc_list s) (proc_list s'))" and "a \<Rightarrow>> x" for a b x
-      unfolding atomize_conj join_def unfolding prod.case apply (rule someI_ex) 
+    have joinI1: "x \<Rightarrow>> join (x,y)" and joinI2: "y \<Rightarrow>> join(x,y)" if "\<exists>z. x \<Rightarrow>> z \<and> y \<Rightarrow>> z" for x y
+      unfolding atomize_conj join_def unfolding prod.case using that by (rule someI_ex)
+    have "proc_list s'!i \<Rightarrow>> join (proc_list s'!i, x)" and "x \<Rightarrow>> join (proc_list s'!i, x)" 
+      if "i<len" and "proc_list s!i \<Rightarrow>> x" for i x
+      unfolding atomize_conj join_def unfolding prod.case apply (rule someI_ex)
       using that by (rule IH)
     define u' where "u' = proc_update' s (map join (zip (proc_list s') (proc_list z')))"
     have shape_s'u': "same_shape s' u'" unfolding u'_def
       by (smt Procsz length_map list_all2_lengthD map_fst_zip modules.proc_relation_def modules_axioms par_beta_cases(6) pb_Proc.IH procedure.inject(1) same_shape_sym same_shape_trans same_shape_update'R z')
-    have "x \<Rightarrow>> y" if "(x, y)\<in>set (zip (proc_list s') (proc_list u'))" for x y
-    proof -
-      define triple where "triple = set (zip (proc_list s') (zip (proc_list s') (proc_list z')))"
-      from that have "(x, y) \<in> set (zip (proc_list s') (map join (zip (proc_list s') (proc_list z'))))"
-        unfolding u'_def apply (subst (asm) proc_update'_list) using pl_s's pl_z's by auto
-      hence "xxx"
-        unfolding  zip_map2 set_map 
-      find_theorems "zip _ (zip _ _) " 
-      show ?thesis by x
-    qed
+    have shape_z'u': "same_shape z' u'" unfolding u'_def
+      by (smt Procsz length_map list_all2_lengthD map_fst_zip modules.proc_relation_def modules_axioms par_beta_cases(6) pb_Proc.IH procedure.inject(1) same_shape_sym same_shape_trans same_shape_update'R z')
+    have u'i: "proc_list u' ! i = join (proc_list s'!i, proc_list z'!i)" if "i<len" for i
+      unfolding u'_def 
+      apply (subst proc_update'_list) using len_s' len_z' len_s close simp
+      apply (subst nth_map) using len_s' len_z' that close simp
+      apply (subst nth_zip) using len_s' len_z' that close 2 simp_all
+      by simp
+    have ex_ui: "\<exists>ui. proc_list s'!i \<Rightarrow>> ui \<and> proc_list z'!i \<Rightarrow>> ui" if "i<len" for i
+        apply (rule IH) using that si_z'i by auto
+    have "proc_list s'!i \<Rightarrow>> join (proc_list s'!i, proc_list z'!i)" if "i<len" for i
+      apply (rule joinI1) apply (rule ex_ui) using that by simp
+    hence "proc_list s'!i \<Rightarrow>> proc_list u'!i" if "i<len" for i
+      unfolding u'i[OF that] using that by auto
+    hence "s'i \<Rightarrow>> u'i" if "(s'i,u'i) \<in> set (zip (proc_list s') (proc_list u'))" for s'i u'i
+      by (metis in_set_zip len_s' prod.sel(1) prod.sel(2) that)
     hence "list_all2 op \<Rightarrow>> (proc_list s') (proc_list u')"
       unfolding list_all2_iff using shape_s'u' unfolding same_shape_def by auto 
     hence Proc_s'u': "Proc s' \<Rightarrow>> Proc u'" 
       apply auto unfolding proc_relation_def using shape_s'u' by auto
-    have zProcU: "z \<Rightarrow>> Proc u'" by later
+
+    have "proc_list z'!i \<Rightarrow>> join (proc_list s'!i, proc_list z'!i)" if "i<len" for i
+      apply (rule joinI2) apply (rule ex_ui) using that by simp
+    hence "proc_list z'!i \<Rightarrow>> proc_list u'!i" if "i<len" for i
+      unfolding u'i[OF that] using that by auto
+    hence "z'i \<Rightarrow>> u'i" if "(z'i,u'i) \<in> set (zip (proc_list z') (proc_list u'))" for z'i u'i
+      by (metis in_set_zip len_z' prod.sel(1) prod.sel(2) that)
+    hence "list_all2 op \<Rightarrow>> (proc_list z') (proc_list u')"
+      unfolding list_all2_iff using shape_z'u' unfolding same_shape_def by auto 
+    hence Proc_z'u': "Proc z' \<Rightarrow>> Proc u'" 
+      apply auto unfolding proc_relation_def using shape_z'u' by auto
+    hence zProcU: "z \<Rightarrow>> Proc u'"
+      unfolding z' by simp
     from Proc_s'u' zProcU show ?case by auto
   next case pb_ProcRef thus ?case by (blast intro!: par_beta_subst)
   next case pb_ProcUnit thus ?case by auto

@@ -5,11 +5,13 @@ begin
 
 subsection {* Simply-typed lambda calculus over procedures *}
 
+(*
 datatype procedure_type_open = 
    ProcTSimple procedure_type
  | ProcTFun procedure_type_open procedure_type_open
  | ProcTPair procedure_type_open procedure_type_open
  | ProcTUnit
+*)
 
 inductive well_typed'' :: "procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool"
 and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \<Rightarrow> procedure_type_open \<Rightarrow> bool" where

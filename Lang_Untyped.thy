@@ -1,10 +1,10 @@
 theory Lang_Untyped
-imports Main "HOL.Orderings" "HOL.Series" Distr Universe 
+imports Main "HOL.Orderings" "HOL.Series" Distr Universe Modules
 begin
 
 subsection {* Types *}
 
-record type_rep = 
+(* record type_rep = 
   tr_domain :: "val set"
   tr_default :: "val"
 typedef type = "{(t::type_rep). tr_default t \<in> tr_domain t}"
@@ -14,7 +14,7 @@ definition t_domain :: "type \<Rightarrow> val set" where
 definition t_default :: "type \<Rightarrow> val" where
   "t_default t = tr_default (Rep_type t)"
 lemma [simp]: "t_default t \<in> t_domain t"
-  unfolding t_domain_def t_default_def using Rep_type ..
+  unfolding t_domain_def t_default_def using Rep_type .. *)
 type_synonym variable_name = string
 
 subsection {* Variables *}
@@ -812,9 +812,9 @@ qed
 
 subsection {* Procedures *}
 
-record procedure_type =
+(*record procedure_type =
   pt_argtype :: "type"
-  pt_returntype :: "type"
+  pt_returntype :: "type"*)
 
 datatype program_rep =
   Assign pattern_untyped expression_untyped
@@ -824,15 +824,24 @@ datatype program_rep =
 | Skip
 | IfTE expression_untyped program_rep program_rep
 | While expression_untyped program_rep
-| CallProc pattern_untyped procedure_rep expression_untyped
-and procedure_rep =
+(* | CallProc pattern_untyped procedure_rep expression_untyped *)
+| CallProc pattern_untyped "(program_rep*pattern_untyped*expression_untyped) Modules.procedure" expression_untyped
+(*and procedure_rep =
   Proc program_rep pattern_untyped expression_untyped
 | ProcRef nat (* deBruijn index *)
 | ProcUnit
 | ProcAbs procedure_rep
 | ProcAppl procedure_rep procedure_rep
 | ProcPair procedure_rep procedure_rep
-| ProcUnpair bool procedure_rep (* ProcUnpair True = fst, ProcUnpair False = snd *)
+| ProcUnpair bool procedure_rep (* ProcUnpair True = fst, ProcUnpair False = snd *)*)
+
+type_synonym procedure_rep = "(program_rep*pattern_untyped*expression_untyped) Modules.procedure"
+abbreviation "(proc_size :: procedure_rep\<Rightarrow>nat) == size_procedure (size_prod size (\<lambda>x. 0))"
+
+fun procs_in_program :: "program_rep \<Rightarrow> (program_rep*pattern_untyped*expression_untyped) Modules.procedure list" where
+  "procs_in_program (CallProc a p r) = [p]"
+(* TODO finish *)
+
 
 (*
 fun is_concrete_proc where 
@@ -841,7 +850,7 @@ fun is_concrete_proc where
 *)
 
 fun proctype_of :: "procedure_rep \<Rightarrow> procedure_type" where
-  "proctype_of (Proc body argpat return) = \<lparr> pt_argtype=pu_type argpat, pt_returntype=eu_type return \<rparr>"
+  "proctype_of (Proc (body, argpat, return)) = \<lparr> pt_argtype=pu_type argpat, pt_returntype=eu_type return \<rparr>"
 | "proctype_of _ = undefined" (* Cannot happen for well-typed programs *)
 
 subsection {* Well-typed programs *}
@@ -853,14 +862,14 @@ fun well_typed :: "program_rep \<Rightarrow> bool" where
 | "well_typed Skip = True"
 | "well_typed (While e p) = ((eu_type e = bool_type) \<and> well_typed p)"
 | "well_typed (IfTE e thn els) = ((eu_type e = bool_type) \<and> well_typed thn \<and> well_typed els)"
-| "well_typed (CallProc v (Proc body argpat ret) args) =
+| "well_typed (CallProc v (Proc (body, argpat, ret)) args) =
     (pu_type v = eu_type ret \<and> 
     eu_type args = pu_type argpat \<and>
     well_typed body)" (* \<and> (\<forall>v\<in>set(p_vars argpat). \<not> vu_global v) *)
 | "well_typed (CallProc v _ args) = False"
 
 fun well_typed_proc :: "procedure_rep \<Rightarrow> bool" where
-  "well_typed_proc (Proc body argpat ret) = 
+  "well_typed_proc (Proc (body, argpat, ret)) = 
     (well_typed body)" (*  \<and> (\<forall>v\<in>set(pu_vars argpat). \<not> vu_global v) *)
 | "well_typed_proc _ = False"
 
@@ -965,7 +974,7 @@ fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
                                             (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)) m')))" *)
 | denotation_untyped_While: "denotation_untyped (While e p) m =
   (SUP n. while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)"
-| denotation_untyped_CallProc: "denotation_untyped (CallProc v (Proc body pargs return) args) m = 
+| denotation_untyped_CallProc: "denotation_untyped (CallProc v (Proc (body, pargs, return)) args) m = 
   (let argval = eu_fun args m in
   let m' = init_locals m in
   let m' = memory_update_untyped_pattern m' pargs argval in
@@ -1133,7 +1142,8 @@ qed
 
 subsection {* Misc (free vars, lossless) *}
 
-fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
+function vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
+(* and vars_proc_untyped0 :: "(program_rep*pattern_untyped*expression_untyped) \<Rightarrow> variable_untyped list" *)
 and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" where
   "vars_untyped Skip = []"
 | "vars_untyped (Seq p1 p2) = (vars_untyped p1) @ (vars_untyped p2)"
@@ -1143,20 +1153,24 @@ and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" whe
 | "vars_untyped (While e p) = eu_vars e @ vars_untyped p"
 | "vars_untyped (CallProc v proc args) = 
       pu_vars v @ eu_vars args @ vars_proc_untyped proc"
-| "vars_proc_untyped (Proc body pargs return) =
+| "vars_proc_untyped (Proc (body, pargs, return)) =
       [v. v\<leftarrow>pu_vars pargs, vu_global v]
       @ [v. v\<leftarrow>vars_untyped body, vu_global v]
       @ [v. v\<leftarrow>eu_vars return, vu_global v]"
 | "vars_proc_untyped (ProcRef i) = []"
 | "vars_proc_untyped (ProcAppl p q) = (vars_proc_untyped p) @ (vars_proc_untyped q)"
-| "vars_proc_untyped (ProcAbs p) = vars_proc_untyped p"
+| "vars_proc_untyped (ProcAbs p) = vars_proc_untyped p"                                                        
 | "vars_proc_untyped (ProcPair p q) = vars_proc_untyped p @ vars_proc_untyped q"
 | "vars_proc_untyped (ProcUnpair _ p) = vars_proc_untyped p"
-| "vars_proc_untyped ProcUnit = []"
+| "vars_proc_untyped ProcUnit = []" 
+(* | "vars_proc_untyped proc = concat (map vars_proc_untyped0 (procs_in_program proc))" *)
+  by pat_completeness auto
+termination 
+  by (relation "Wellfounded.measure (case_sum size proc_size)") auto
 
 definition "vars prog = vars_untyped (Rep_program prog)"
 
-fun write_vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
+function write_vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
 and write_vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" where
   "write_vars_untyped Skip = []"
 | "write_vars_untyped (Seq p1 p2) = (write_vars_untyped p1) @ (write_vars_untyped p2)"
@@ -1166,7 +1180,7 @@ and write_vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped lis
 | "write_vars_untyped (While e p) = write_vars_untyped p"
 | "write_vars_untyped (CallProc v prc args) = 
       pu_vars v @ write_vars_proc_untyped prc"
-| "write_vars_proc_untyped (Proc body pargs ret) =
+| "write_vars_proc_untyped (Proc (body, pargs, ret)) =
       [v. v\<leftarrow>pu_vars pargs, vu_global v]
       @ [v. v\<leftarrow>write_vars_untyped body, vu_global v]"
 | "write_vars_proc_untyped (ProcRef i) = []"
@@ -1175,6 +1189,10 @@ and write_vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped lis
 | "write_vars_proc_untyped (ProcPair p q) = write_vars_proc_untyped p @ write_vars_proc_untyped q"
 | "write_vars_proc_untyped (ProcUnpair _ p) = write_vars_proc_untyped p"
 | "write_vars_proc_untyped ProcUnit = []"
+  by pat_completeness auto
+termination 
+  by (relation "Wellfounded.measure (case_sum size proc_size)") auto
+
 definition "write_vars prog = write_vars_untyped (Rep_program prog)"
 
 lemma write_vars_subset_vars_untyped: 
