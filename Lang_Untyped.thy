@@ -885,33 +885,21 @@ fun proc_update' :: "program_rep \<Rightarrow> (program_rep*pattern_untyped*expr
 
 
 
-inductive well_typed'' :: 
+inductive well_typed''' :: 
  "(procedure_type procedure_type_open list \<Rightarrow> procedure_rep \<Rightarrow> procedure_type procedure_type_open \<Rightarrow> bool)
      \<Rightarrow> procedure_type procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool"
  where
-  wt_Seq: "well_typed'' wt E p1 \<and> well_typed'' wt E p2 \<Longrightarrow> well_typed'' wt E (Seq p1 p2)"
-| wt_Assign: "eu_type e = pu_type pat \<Longrightarrow> well_typed'' wt E (Assign pat e)"
-| wt_Sample: "ed_type e = pu_type pat \<Longrightarrow> well_typed'' wt E (Sample pat e)"
-| wt_Skip: "well_typed'' wt E Skip"
-| wt_While: "eu_type e = bool_type \<Longrightarrow> well_typed'' wt E p \<Longrightarrow> well_typed'' wt E (While e p)"
-| wt_IfTE: "eu_type e = bool_type \<Longrightarrow> well_typed'' wt E thn \<Longrightarrow>  well_typed'' wt E els \<Longrightarrow> well_typed'' wt E (IfTE e thn els)"
+  wt_Seq: "well_typed''' wt E p1 \<and> well_typed''' wt E p2 \<Longrightarrow> well_typed''' wt E (Seq p1 p2)"
+| wt_Assign: "eu_type e = pu_type pat \<Longrightarrow> well_typed''' wt E (Assign pat e)"
+| wt_Sample: "ed_type e = pu_type pat \<Longrightarrow> well_typed''' wt E (Sample pat e)"
+| wt_Skip: "well_typed''' wt E Skip"
+| wt_While: "eu_type e = bool_type \<Longrightarrow> well_typed''' wt E p \<Longrightarrow> well_typed''' wt E (While e p)"
+| wt_IfTE: "eu_type e = bool_type \<Longrightarrow> well_typed''' wt E thn \<Longrightarrow>  well_typed''' wt E els \<Longrightarrow> well_typed''' wt E (IfTE e thn els)"
 | wt_CallProc: "wt E prc (ProcTSimple \<lparr> pt_argtype=eu_type args, pt_returntype=pu_type v \<rparr>) \<Longrightarrow>
-   well_typed'' wt E (CallProc v prc args)"
-(* | wt_Proc: "well_typed'' wt E body \<Longrightarrow>
-(*   (\<forall>v\<in>set pargs. \<not> vu_global v) \<Longrightarrow>
-   distinct pargs \<Longrightarrow> *)
-   well_typed_proc'' E (Proc (body, pargs, ret)) (ProcTSimple \<lparr> pt_argtype=pu_type pargs, pt_returntype=eu_type ret\<rparr>)"
-| wt_ProcRef: "i<length E \<Longrightarrow> E!i = T \<Longrightarrow> well_typed_proc'' E (ProcRef i) T"
-| wt_ProcAppl: "well_typed_proc'' E p (ProcTFun T U) \<Longrightarrow>
-  well_typed_proc'' E q T \<Longrightarrow>
-  well_typed_proc'' E (ProcAppl p q) U"
-| wt_ProcAbs: "well_typed_proc'' (T#E) p U \<Longrightarrow> well_typed_proc'' E (ProcAbs p) (ProcTFun T U)"
-| wt_ProcPair: "well_typed_proc'' E p T \<Longrightarrow> well_typed_proc'' E q U \<Longrightarrow> well_typed_proc'' E (ProcPair p q) (ProcTPair T U)"
-| wt_ProcUnpair: "well_typed_proc'' E p (ProcTPair T U) \<Longrightarrow> well_typed_proc'' E (ProcUnpair b p) (if b then T else U)"
-| wt_ProcUnit: "well_typed_proc'' E ProcUnit ProcTUnit"  *)
+   well_typed''' wt E (CallProc v prc args)"
 
 inductive well_typed_program where
-"well_typed'' wt E body \<Longrightarrow> well_typed_program wt E (body, pargs, ret) \<lparr> pt_argtype=pu_type pargs, pt_returntype=eu_type ret\<rparr>" 
+"well_typed''' wt E body \<Longrightarrow> well_typed_program wt E (body, pargs, ret) \<lparr> pt_argtype=pu_type pargs, pt_returntype=eu_type ret\<rparr>" 
  
 
 definition "procs_in_program' = (\<lambda>(b,_::pattern_untyped,_::expression_untyped). procs_in_program b)"
@@ -961,14 +949,14 @@ next
   show "proc_size (ProcUnpair b s) = proc_size s + 1" for b s by auto
   show "proc_size (ProcAbs s) = proc_size s + 1" for s by auto
 next
-  have "well_typed'' wt E body \<Longrightarrow> well_typed'' wt' E body" if "wt \<le> wt'" for wt wt' E body
-    apply (insert that, induction pred:well_typed'')
+  have "well_typed''' wt E body \<Longrightarrow> well_typed''' wt' E body" if "wt \<le> wt'" for wt wt' E body
+    apply (insert that, induction pred:well_typed''')
     apply (auto simp: wt_Seq wt_Assign wt_Sample wt_Skip wt_While wt_IfTE)
     by (meson le_boolD le_funE wt_CallProc)
   then show "well_typed_program wt E p T \<longrightarrow> well_typed_program wt' E p T" if "wt \<le> wt'" for wt wt' E p T
     using that well_typed_program.simps by auto
 next    
-  have 1:"\<exists>T'. wt E pc (ProcTSimple T')" if wt: "well_typed'' wt E body" and pc:"pc\<in>set (procs_in_program body)" for wt E body pc
+  have 1:"\<exists>T'. wt E pc (ProcTSimple T')" if wt: "well_typed''' wt E body" and pc:"pc\<in>set (procs_in_program body)" for wt E body pc
     apply (insert pc) using wt apply (induction) by auto
   show "well_typed_program wt E p T \<Longrightarrow> \<forall>pc\<in>set (procs_in_program' p). \<exists>T'. wt E pc (ProcTSimple T')" for wt E p T 
     apply (induction pred:well_typed_program) using 1 unfolding procs_in_program'_def by simp
@@ -1447,7 +1435,7 @@ definition "write_vars prog = write_vars_untyped (Rep_program prog)"
 lemma write_vars_subset_vars_untyped: 
   shows "set (write_vars_untyped p) \<subseteq> set (vars_untyped p)"
     and "set (write_vars_proc_untyped q) \<subseteq> set (vars_proc_untyped q)"
-  apply (induct p and q) by auto 
+  apply (induct p and q) by auto  (* TODO: need joint induction rule *)
 
 definition "lossless_untyped p = (\<forall>m. weight_distr (denotation_untyped p m) = 1)"
 definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"
