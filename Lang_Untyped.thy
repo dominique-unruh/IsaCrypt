@@ -1,10 +1,10 @@
 theory Lang_Untyped
-imports Main "HOL.Orderings" "HOL.Series" Distr Universe 
+imports Main "HOL.Orderings" "HOL.Series" Distr Universe Modules
 begin
 
 subsection {* Types *}
 
-record type_rep = 
+(* record type_rep = 
   tr_domain :: "val set"
   tr_default :: "val"
 typedef type = "{(t::type_rep). tr_default t \<in> tr_domain t}"
@@ -14,7 +14,7 @@ definition t_domain :: "type \<Rightarrow> val set" where
 definition t_default :: "type \<Rightarrow> val" where
   "t_default t = tr_default (Rep_type t)"
 lemma [simp]: "t_default t \<in> t_domain t"
-  unfolding t_domain_def t_default_def using Rep_type ..
+  unfolding t_domain_def t_default_def using Rep_type .. *)
 type_synonym variable_name = string
 
 subsection {* Variables *}
@@ -812,9 +812,9 @@ qed
 
 subsection {* Procedures *}
 
-record procedure_type =
+(*record procedure_type =
   pt_argtype :: "type"
-  pt_returntype :: "type"
+  pt_returntype :: "type"*)
 
 datatype program_rep =
   Assign pattern_untyped expression_untyped
@@ -824,15 +824,262 @@ datatype program_rep =
 | Skip
 | IfTE expression_untyped program_rep program_rep
 | While expression_untyped program_rep
-| CallProc pattern_untyped procedure_rep expression_untyped
-and procedure_rep =
+(* | CallProc pattern_untyped procedure_rep expression_untyped *)
+| CallProc pattern_untyped "(program_rep*pattern_untyped*expression_untyped) Modules.procedure" expression_untyped
+(*and procedure_rep =
   Proc program_rep pattern_untyped expression_untyped
 | ProcRef nat (* deBruijn index *)
 | ProcUnit
 | ProcAbs procedure_rep
 | ProcAppl procedure_rep procedure_rep
 | ProcPair procedure_rep procedure_rep
-| ProcUnpair bool procedure_rep (* ProcUnpair True = fst, ProcUnpair False = snd *)
+| ProcUnpair bool procedure_rep (* ProcUnpair True = fst, ProcUnpair False = snd *)*)
+
+(* print_theorems  *)
+
+record procedure_type =
+  pt_argtype :: "type"
+  pt_returntype :: "type"
+
+type_synonym procedure_rep = "(program_rep*pattern_untyped*expression_untyped) Modules.procedure"
+
+(* fun prog_size :: "program_rep \<Rightarrow> nat" and proc_size :: "procedure_rep \<Rightarrow> nat" where
+  "prog_size (Assign x y) = 1"
+| "prog_size (Sample x y) = 1"
+| "prog_size Skip = 1"
+| "prog_size (Seq x y) = prog_size x + prog_size y + 1"
+| "prog_size (IfTE c x y) = prog_size x + prog_size y + 1"
+| "prog_size (While c p) = prog_size p + 1"
+| "prog_size (CallProc x p y) = proc_size p + 1"
+| "proc_size (Proc (b,x,y)) = prog_size b + 1"
+| "proc_size (ProcRef i) = 1"
+| "proc_size (ProcAbs p) = proc_size p + 1"
+| "proc_size (ProcAppl p q) = proc_size p + proc_size q + 1"
+| "proc_size (ProcPair p q) = proc_size p + proc_size q + 1"
+| "proc_size (ProcUnpair b p) = proc_size p + 1"
+| "proc_size ProcUnit = 1" *)
+
+(* find_theorems size size_procedure *)
+abbreviation "(proc_size :: procedure_rep\<Rightarrow>nat) == size_procedure (size_prod size (\<lambda>x. 0))"
+
+
+
+fun procs_in_program :: "program_rep \<Rightarrow> (program_rep*pattern_untyped*expression_untyped) Modules.procedure list" where
+  "procs_in_program (CallProc a p r) = [p]"
+| "procs_in_program (Assign x y) = []"
+| "procs_in_program (Sample x y) = []"
+| "procs_in_program Skip = []"
+| "procs_in_program (Seq x y) = procs_in_program x @ procs_in_program y" 
+| "procs_in_program (IfTE c x y) = procs_in_program x @ procs_in_program y" 
+| "procs_in_program (While c x) = procs_in_program x" 
+
+fun proc_update' :: "program_rep \<Rightarrow> (program_rep*pattern_untyped*expression_untyped) Modules.procedure list \<Rightarrow> program_rep" where
+  "proc_update' Skip [] = Skip"
+| "proc_update' (Assign x y) [] = Assign x y"
+| "proc_update' (Sample x y) [] = Sample x y"
+| "proc_update' (Seq x y) l = (let n = size (procs_in_program x) in Seq (proc_update' x (take n l)) (proc_update' y (drop n l)))"
+| "proc_update' (IfTE c x y) l = (let n = size (procs_in_program x) in IfTE c (proc_update' x (take n l)) (proc_update' y (drop n l)))"
+| "proc_update' (While c x) l = While c (proc_update' x l)"
+| "proc_update' (CallProc args p ret) [r] = CallProc args r ret"
+| "proc_update' x y = x"
+
+
+
+inductive well_typed''' :: 
+ "(procedure_type procedure_type_open list \<Rightarrow> procedure_rep \<Rightarrow> procedure_type procedure_type_open \<Rightarrow> bool)
+     \<Rightarrow> procedure_type procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool"
+ where
+  wt_Seq: "well_typed''' wt E p1 \<and> well_typed''' wt E p2 \<Longrightarrow> well_typed''' wt E (Seq p1 p2)"
+| wt_Assign: "eu_type e = pu_type pat \<Longrightarrow> well_typed''' wt E (Assign pat e)"
+| wt_Sample: "ed_type e = pu_type pat \<Longrightarrow> well_typed''' wt E (Sample pat e)"
+| wt_Skip: "well_typed''' wt E Skip"
+| wt_While: "eu_type e = bool_type \<Longrightarrow> well_typed''' wt E p \<Longrightarrow> well_typed''' wt E (While e p)"
+| wt_IfTE: "eu_type e = bool_type \<Longrightarrow> well_typed''' wt E thn \<Longrightarrow>  well_typed''' wt E els \<Longrightarrow> well_typed''' wt E (IfTE e thn els)"
+| wt_CallProc: "wt E prc (ProcTSimple \<lparr> pt_argtype=eu_type args, pt_returntype=pu_type v \<rparr>) \<Longrightarrow>
+   well_typed''' wt E (CallProc v prc args)"
+
+inductive well_typed_program where
+"well_typed''' wt E body \<Longrightarrow> well_typed_program wt E (body, pargs, ret) \<lparr> pt_argtype=pu_type pargs, pt_returntype=eu_type ret\<rparr>" 
+ 
+
+definition "procs_in_program' = (\<lambda>(b,_::pattern_untyped,_::expression_untyped). procs_in_program b)"
+definition "proc_update'' = (\<lambda>(b,c::pattern_untyped,d::expression_untyped) l. (proc_update' b l,c,d))"
+
+lemma length_proc_update'[simp]: "length (procs_in_program (proc_update' p l)) = length (procs_in_program p)"
+proof (induction p arbitrary: l)
+case (Assign x1 x2)
+  then show ?case by (cases l, auto)
+next
+  case (Sample x1 x2)
+  then show ?case  by (cases l, auto)
+next
+  case (Seq p1 p2)
+  then show ?case
+    apply simp
+    by (metis length_append procs_in_program.simps(5))
+next
+  case Skip
+  then show ?case  by (cases l, auto)
+next
+  case (IfTE x1 p1 p2)
+  then show ?case
+    apply simp
+    by (metis (no_types, lifting) length_append procs_in_program.simps(6))
+next
+  case (While x1 p)
+  then show ?case by auto
+next
+  case (CallProc x1 x2 x3)
+  then show ?case
+    apply (cases l, simp)
+    by (case_tac list, auto)
+qed
+
+interpretation procedure_modules: modules "procs_in_program'" "proc_size" "proc_update''" well_typed_program
+proof unfold_locales
+  fix x :: " program_rep \<times> pattern_untyped \<times> expression_untyped" and y
+  obtain a b c where x:"x=(a,b,c)" by (cases x, auto) 
+  have "y \<in> set (procs_in_program a) \<Longrightarrow> proc_size y < size a + 2" 
+    apply (induction a) by auto
+  then show "y \<in> set (procs_in_program' x) \<Longrightarrow> proc_size y < proc_size (Proc x)"
+    unfolding x procs_in_program'_def by simp
+next
+  show "proc_size (ProcAppl s t) = proc_size s + proc_size t + 1" for s t by auto
+  show "proc_size (ProcPair s t) = proc_size s + proc_size t + 1" for s t by auto
+  show "proc_size (ProcUnpair b s) = proc_size s + 1" for b s by auto
+  show "proc_size (ProcAbs s) = proc_size s + 1" for s by auto
+next
+  have "well_typed''' wt E body \<Longrightarrow> well_typed''' wt' E body" if "wt \<le> wt'" for wt wt' E body
+    apply (insert that, induction pred:well_typed''')
+    apply (auto simp: wt_Seq wt_Assign wt_Sample wt_Skip wt_While wt_IfTE)
+    by (meson le_boolD le_funE wt_CallProc)
+  then show "well_typed_program wt E p T \<longrightarrow> well_typed_program wt' E p T" if "wt \<le> wt'" for wt wt' E p T
+    using that well_typed_program.simps by auto
+next    
+  have 1:"\<exists>T'. wt E pc (ProcTSimple T')" if wt: "well_typed''' wt E body" and pc:"pc\<in>set (procs_in_program body)" for wt E body pc
+    apply (insert pc) using wt apply (induction) by auto
+  show "well_typed_program wt E p T \<Longrightarrow> \<forall>pc\<in>set (procs_in_program' p). \<exists>T'. wt E pc (ProcTSimple T')" for wt E p T 
+    apply (induction pred:well_typed_program) using 1 unfolding procs_in_program'_def by simp
+next
+  fix proc::"program_rep*pattern_untyped*expression_untyped" and l::"(program_rep \<times> pattern_untyped \<times> expression_untyped) procedure list" 
+  obtain body args ret where
+    proc:"proc=(body,args,ret)" by (cases proc, auto)
+  assume "length l = length (procs_in_program' proc)"
+  hence len: "length l = length (procs_in_program body)" unfolding procs_in_program'_def proc by simp
+  have "procs_in_program (proc_update' body l) = l"
+  proof (insert len, induction body arbitrary: l)
+  next
+    case (Seq p1 p2)
+    define n where "n = length (procs_in_program p1)"
+    define l1 where "l1 = take n l"
+    define l2 where "l2 = drop n l"
+    have IH1: "procs_in_program (proc_update' p1 l1) = l1"
+      apply (rule Seq.IH)
+      by (simp add: Seq.prems l1_def n_def)
+    have IH2: "procs_in_program (proc_update' p2 l2) = l2"
+      apply (rule Seq.IH)
+      using Seq.prems l2_def n_def by auto
+    have l1l2: "l = l1 @ l2"
+      by (simp add: l1_def l2_def)
+    have "procs_in_program (Seq (proc_update' p1 (take n l)) (proc_update' p2 (drop n l))) = l"
+      unfolding l1_def[symmetric] l2_def[symmetric] apply simp unfolding IH1 IH2 using l1l2 by simp
+    then show ?case apply simp unfolding n_def[symmetric] Let_def by auto
+  next
+    case (IfTE c p1 p2)
+    define n where "n = length (procs_in_program p1)"
+    define l1 where "l1 = take n l"
+    define l2 where "l2 = drop n l"
+    have IH1: "procs_in_program (proc_update' p1 l1) = l1"
+      apply (rule IfTE.IH)
+      by (simp add: IfTE.prems l1_def n_def)
+    have IH2: "procs_in_program (proc_update' p2 l2) = l2"
+      apply (rule IfTE.IH)
+      using IfTE.prems l2_def n_def by auto
+    have l1l2: "l = l1 @ l2"
+      by (simp add: l1_def l2_def)
+    have "procs_in_program (Seq (proc_update' p1 (take n l)) (proc_update' p2 (drop n l))) = l"
+      unfolding l1_def[symmetric] l2_def[symmetric] apply simp unfolding IH1 IH2 using l1l2 by simp
+    then show ?case apply simp unfolding n_def[symmetric] Let_def by auto
+  next
+    case (CallProc v p args)
+    from CallProc.prems have "length l = 1" by auto
+    then obtain x where l: "l=[x]" apply atomize_elim
+      by (metis One_nat_def append.simps(1) append_Nil2 append_eq_conv_conj take_0 take_hd_drop zero_less_one)
+    then show ?case by auto
+  qed auto
+  then show "procs_in_program' (proc_update'' proc l) = l"
+    unfolding proc procs_in_program'_def proc_update''_def by simp
+next
+  fix proc :: "program_rep \<times> pattern_untyped \<times> expression_untyped"
+  obtain body args ret where
+    proc:"proc=(body,args,ret)" by (cases proc, auto)
+  have "proc_update' body (procs_in_program body) = body"
+    apply (induction body) by auto
+  then show "proc_update'' proc (procs_in_program' proc) = proc"
+    unfolding proc proc_update''_def procs_in_program'_def by simp
+next
+  fix proc :: " program_rep \<times> pattern_untyped \<times> expression_untyped"
+    and l l' :: "(program_rep \<times> pattern_untyped \<times> expression_untyped) procedure list"
+  obtain body args ret where
+    proc:"proc=(body,args,ret)" by (cases proc, auto)
+  assume "length l = length (procs_in_program' proc)" and "length l' = length (procs_in_program' proc)"
+  hence l: "length l = length (procs_in_program body)" and l': "length l' = length (procs_in_program body)" 
+    unfolding procs_in_program'_def proc by auto
+  have "proc_update' (proc_update' body l) l' = proc_update' body l'"
+  proof (insert l l', induction body arbitrary: l l')
+    case (Seq p1 p2)
+    define n where "n = length (procs_in_program p1)"
+    define l1 where "l1 = take n l"
+    define l2 where "l2 = drop n l"
+    define l1' where "l1' = take n l'"
+    define l2' where "l2' = drop n l'"
+    have IH1: "proc_update' (proc_update' p1 l1) l1' = proc_update' p1 l1'"
+      apply (rule Seq.IH)
+       apply (simp add: Seq.prems(1) l1_def n_def)
+      by (simp add: Seq.prems(2) l1'_def n_def)
+    have IH2: "proc_update' (proc_update' p2 l2) l2' = proc_update' p2 l2'"
+      apply (rule Seq.IH)
+       apply (simp add: Seq.prems(2) l2_def n_def)
+      by (auto simp: Seq.prems l2'_def n_def)
+    show ?case
+      by (simp add: n_def[symmetric] IH1 IH2 Let_def l1'_def[symmetric] l2'_def[symmetric] l1_def[symmetric] l2_def[symmetric])
+  next
+    case (IfTE c p1 p2)
+    define n where "n = length (procs_in_program p1)"
+    define l1 where "l1 = take n l"
+    define l2 where "l2 = drop n l"
+    define l1' where "l1' = take n l'"
+    define l2' where "l2' = drop n l'"
+    have IH1: "proc_update' (proc_update' p1 l1) l1' = proc_update' p1 l1'"
+      apply (rule IfTE.IH)
+       apply (simp add: IfTE.prems(1) l1_def n_def)
+      by (simp add: IfTE.prems(2) l1'_def n_def)
+    have IH2: "proc_update' (proc_update' p2 l2) l2' = proc_update' p2 l2'"
+      apply (rule IfTE.IH)
+       apply (simp add: IfTE.prems(2) l2_def n_def)
+      by (auto simp: IfTE.prems l2'_def n_def)
+    show ?case
+      by (simp add: n_def[symmetric] IH1 IH2 Let_def l1'_def[symmetric] l2'_def[symmetric] l1_def[symmetric] l2_def[symmetric])
+  next
+    case (CallProc v p a)
+    consider x y z where "l=[x]" | "l=[]" | x y z where "l=x#y#z" by (atomize_elim, cases l, simp, case_tac list, auto)
+    then show ?case 
+    proof cases
+      assume "l=[]" then show ?thesis by simp
+    next 
+      fix x y z assume "l=x#y#z" then show ?thesis by simp
+    next
+      fix x assume l:"l=[x]" 
+      from CallProc have "length l = length l'" by auto
+      with l obtain x' where l':"l'=[x']" unfolding l by (cases l', auto)
+      show ?thesis unfolding l l' by simp
+    qed
+  qed auto
+   
+  then show "proc_update'' (proc_update'' proc l) l' = proc_update'' proc l'" 
+    unfolding proc proc_update''_def procs_in_program'_def by simp
+qed
+
 
 (*
 fun is_concrete_proc where 
@@ -841,8 +1088,10 @@ fun is_concrete_proc where
 *)
 
 fun proctype_of :: "procedure_rep \<Rightarrow> procedure_type" where
-  "proctype_of (Proc body argpat return) = \<lparr> pt_argtype=pu_type argpat, pt_returntype=eu_type return \<rparr>"
+  "proctype_of (Proc (body, argpat, return)) = \<lparr> pt_argtype=pu_type argpat, pt_returntype=eu_type return \<rparr>"
 | "proctype_of _ = undefined" (* Cannot happen for well-typed programs *)
+
+
 
 subsection {* Well-typed programs *}
 
@@ -853,14 +1102,14 @@ fun well_typed :: "program_rep \<Rightarrow> bool" where
 | "well_typed Skip = True"
 | "well_typed (While e p) = ((eu_type e = bool_type) \<and> well_typed p)"
 | "well_typed (IfTE e thn els) = ((eu_type e = bool_type) \<and> well_typed thn \<and> well_typed els)"
-| "well_typed (CallProc v (Proc body argpat ret) args) =
+| "well_typed (CallProc v (Proc (body, argpat, ret)) args) =
     (pu_type v = eu_type ret \<and> 
     eu_type args = pu_type argpat \<and>
     well_typed body)" (* \<and> (\<forall>v\<in>set(p_vars argpat). \<not> vu_global v) *)
 | "well_typed (CallProc v _ args) = False"
 
 fun well_typed_proc :: "procedure_rep \<Rightarrow> bool" where
-  "well_typed_proc (Proc body argpat ret) = 
+  "well_typed_proc (Proc (body, argpat, ret)) = 
     (well_typed body)" (*  \<and> (\<forall>v\<in>set(pu_vars argpat). \<not> vu_global v) *)
 | "well_typed_proc _ = False"
 
@@ -880,9 +1129,6 @@ fun While_n :: "nat \<Rightarrow> expression_untyped \<Rightarrow> program_rep \
 (* While_n n + While_n_exact n = While_n (n+1) *)
 fun While_n_exact :: "nat \<Rightarrow> expression_untyped \<Rightarrow> program_rep \<Rightarrow> program_rep" where
   "While_n_exact 0 e p =                                           IfTE e Halt Skip"
-(* | "While_n_exact (Suc 0) e p =                      IfTE e (Seq p (IfTE e (Seq p Halt) Skip)) Halt" *)
-(* | "While_n_exact (Suc (Suc 0)) e p = IfTE e (Seq p (IfTE e (Seq p (IfTE e (Seq p Halt) Skip)) Halt)) Halt" *)
-(* TODO etc *)
 | "While_n_exact (Suc n) e p = IfTE e (Seq p (While_n_exact n e p)) Halt"
 
 subsection {* Denotational semantics *}
@@ -965,7 +1211,7 @@ fun denotation_untyped :: "program_rep \<Rightarrow> denotation" where
                                             (while_iter n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)) m')))" *)
 | denotation_untyped_While: "denotation_untyped (While e p) m =
   (SUP n. while_denotation_n n (\<lambda>m. eu_fun e m = embedding True) (denotation_untyped p) m)"
-| denotation_untyped_CallProc: "denotation_untyped (CallProc v (Proc body pargs return) args) m = 
+| denotation_untyped_CallProc: "denotation_untyped (CallProc v (Proc (body, pargs, return)) args) m = 
   (let argval = eu_fun args m in
   let m' = init_locals m in
   let m' = memory_update_untyped_pattern m' pargs argval in
@@ -1133,7 +1379,8 @@ qed
 
 subsection {* Misc (free vars, lossless) *}
 
-fun vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
+function vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
+(* and vars_proc_untyped0 :: "(program_rep*pattern_untyped*expression_untyped) \<Rightarrow> variable_untyped list" *)
 and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" where
   "vars_untyped Skip = []"
 | "vars_untyped (Seq p1 p2) = (vars_untyped p1) @ (vars_untyped p2)"
@@ -1143,20 +1390,24 @@ and vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" whe
 | "vars_untyped (While e p) = eu_vars e @ vars_untyped p"
 | "vars_untyped (CallProc v proc args) = 
       pu_vars v @ eu_vars args @ vars_proc_untyped proc"
-| "vars_proc_untyped (Proc body pargs return) =
+| "vars_proc_untyped (Proc (body, pargs, return)) =
       [v. v\<leftarrow>pu_vars pargs, vu_global v]
       @ [v. v\<leftarrow>vars_untyped body, vu_global v]
       @ [v. v\<leftarrow>eu_vars return, vu_global v]"
 | "vars_proc_untyped (ProcRef i) = []"
 | "vars_proc_untyped (ProcAppl p q) = (vars_proc_untyped p) @ (vars_proc_untyped q)"
-| "vars_proc_untyped (ProcAbs p) = vars_proc_untyped p"
+| "vars_proc_untyped (ProcAbs p) = vars_proc_untyped p"                                                        
 | "vars_proc_untyped (ProcPair p q) = vars_proc_untyped p @ vars_proc_untyped q"
 | "vars_proc_untyped (ProcUnpair _ p) = vars_proc_untyped p"
-| "vars_proc_untyped ProcUnit = []"
+| "vars_proc_untyped ProcUnit = []" 
+(* | "vars_proc_untyped proc = concat (map vars_proc_untyped0 (procs_in_program proc))" *)
+  by pat_completeness auto
+termination 
+  by (relation "Wellfounded.measure (case_sum size proc_size)") auto
 
 definition "vars prog = vars_untyped (Rep_program prog)"
 
-fun write_vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
+function write_vars_untyped :: "program_rep \<Rightarrow> variable_untyped list" 
 and write_vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped list" where
   "write_vars_untyped Skip = []"
 | "write_vars_untyped (Seq p1 p2) = (write_vars_untyped p1) @ (write_vars_untyped p2)"
@@ -1166,7 +1417,7 @@ and write_vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped lis
 | "write_vars_untyped (While e p) = write_vars_untyped p"
 | "write_vars_untyped (CallProc v prc args) = 
       pu_vars v @ write_vars_proc_untyped prc"
-| "write_vars_proc_untyped (Proc body pargs ret) =
+| "write_vars_proc_untyped (Proc (body, pargs, ret)) =
       [v. v\<leftarrow>pu_vars pargs, vu_global v]
       @ [v. v\<leftarrow>write_vars_untyped body, vu_global v]"
 | "write_vars_proc_untyped (ProcRef i) = []"
@@ -1175,12 +1426,16 @@ and write_vars_proc_untyped :: "procedure_rep \<Rightarrow> variable_untyped lis
 | "write_vars_proc_untyped (ProcPair p q) = write_vars_proc_untyped p @ write_vars_proc_untyped q"
 | "write_vars_proc_untyped (ProcUnpair _ p) = write_vars_proc_untyped p"
 | "write_vars_proc_untyped ProcUnit = []"
+  by pat_completeness auto
+termination 
+  by (relation "Wellfounded.measure (case_sum size proc_size)") auto
+
 definition "write_vars prog = write_vars_untyped (Rep_program prog)"
 
 lemma write_vars_subset_vars_untyped: 
   shows "set (write_vars_untyped p) \<subseteq> set (vars_untyped p)"
     and "set (write_vars_proc_untyped q) \<subseteq> set (vars_proc_untyped q)"
-  apply (induct p and q) by auto 
+  apply (induct p and q) by auto  (* TODO: need joint induction rule *)
 
 definition "lossless_untyped p = (\<forall>m. weight_distr (denotation_untyped p m) = 1)"
 definition "lossless p = (\<forall>m. weight_distr (denotation p m) = 1)"

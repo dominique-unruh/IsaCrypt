@@ -5,13 +5,22 @@ begin
 
 subsection {* Simply-typed lambda calculus over procedures *}
 
+(*
 datatype procedure_type_open = 
    ProcTSimple procedure_type
  | ProcTFun procedure_type_open procedure_type_open
  | ProcTPair procedure_type_open procedure_type_open
  | ProcTUnit
+*)
 
-inductive well_typed'' :: "procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool"
+type_synonym procedure_type_open = "procedure_type procedure_type_open"
+
+definition well_typed'' :: "procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool" where
+  "well_typed'' = well_typed''' procedure_modules.well_typed"
+definition well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \<Rightarrow> procedure_type_open \<Rightarrow> bool" where
+"well_typed_proc'' = procedure_modules.well_typed"
+
+(* inductive well_typed'' :: "procedure_type_open list \<Rightarrow> program_rep \<Rightarrow> bool"
 and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \<Rightarrow> procedure_type_open \<Rightarrow> bool" where
   wt_Seq: "well_typed'' E p1 \<and> well_typed'' E p2 \<Longrightarrow> well_typed'' E (Seq p1 p2)"
 | wt_Assign: "eu_type e = pu_type pat \<Longrightarrow> well_typed'' E (Assign pat e)"
@@ -32,11 +41,17 @@ and well_typed_proc'' :: "procedure_type_open list \<Rightarrow> procedure_rep \
 | wt_ProcAbs: "well_typed_proc'' (T#E) p U \<Longrightarrow> well_typed_proc'' E (ProcAbs p) (ProcTFun T U)"
 | wt_ProcPair: "well_typed_proc'' E p T \<Longrightarrow> well_typed_proc'' E q U \<Longrightarrow> well_typed_proc'' E (ProcPair p q) (ProcTPair T U)"
 | wt_ProcUnpair: "well_typed_proc'' E p (ProcTPair T U) \<Longrightarrow> well_typed_proc'' E (ProcUnpair b p) (if b then T else U)"
-| wt_ProcUnit: "well_typed_proc'' E ProcUnit ProcTUnit"
+| wt_ProcUnit: "well_typed_proc'' E ProcUnit ProcTUnit" *)
+
+inductive_cases well_typed'''
+  "well_typed''' wt E (Assign v e)"
+
 
 lemma wt_Assign_iff[symmetric]: "(eu_type e = pu_type v) = well_typed'' E (Assign v e)"
+  unfolding well_typed''_def
   apply (rule iffI, simp add: wt_Assign)
-  by (cases rule:well_typed''.cases, auto)
+  apply auto
+  by (cases rule:well_typed'''.cases, auto)
 lemma wt_Seq_iff[symmetric]: "(well_typed'' E p1 \<and> well_typed'' E p2) = well_typed'' E (Seq p1 p2)"
   apply (rule iffI, simp add: wt_Seq)
   by (cases rule:well_typed''.cases, auto)
