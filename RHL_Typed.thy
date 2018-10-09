@@ -1166,9 +1166,9 @@ proof -
   have foot_QB1: "assertion_footprint_left (UNIV - set globals_f1 - set (p_vars x1)) QB"
     unfolding QB_def
     apply (rule assertion_footprint_left_forall)+
-    apply (rule assertion_footprint_left_op2[where f="op\<longrightarrow>", OF assertion_footprint_left_const])
-    apply (rule assertion_footprint_left_op2[where f="op\<longrightarrow>", OF assertion_footprint_left_const])
-    apply (rule assertion_footprint_left_op2[where f="op\<longrightarrow>"])
+    apply (rule assertion_footprint_left_op2[where f="(\<longrightarrow>)", OF assertion_footprint_left_const])
+    apply (rule assertion_footprint_left_op2[where f="(\<longrightarrow>)", OF assertion_footprint_left_const])
+    apply (rule assertion_footprint_left_op2[where f="(\<longrightarrow>)"])
      apply (rule assertion_footprint_left_update_pattern_untyped[where Y="UNIV - set (p_vars x1)"])
       close (simp, blast)
      apply (rule assertion_footprint_left_update_pattern_untyped[where Y="UNIV"])
@@ -1185,9 +1185,9 @@ proof -
   have foot_QB2: "assertion_footprint_right (UNIV - set globals_f2 - set (p_vars x2)) QB"
     unfolding QB_def
     apply (rule assertion_footprint_right_forall)+
-    apply (rule assertion_footprint_right_op2[where f="op\<longrightarrow>", OF assertion_footprint_right_const])
-    apply (rule assertion_footprint_right_op2[where f="op\<longrightarrow>", OF assertion_footprint_right_const])
-    apply (rule assertion_footprint_right_op2[where f="op\<longrightarrow>"])
+    apply (rule assertion_footprint_right_op2[where f="(\<longrightarrow>)", OF assertion_footprint_right_const])
+    apply (rule assertion_footprint_right_op2[where f="(\<longrightarrow>)", OF assertion_footprint_right_const])
+    apply (rule assertion_footprint_right_op2[where f="(\<longrightarrow>)"])
      apply (rule assertion_footprint_right_update_pattern_untyped[where Y="UNIV - set (p_vars x2)"])
       close (simp, blast)
      apply (rule assertion_footprint_right_update_pattern_untyped[where Y="UNIV"])

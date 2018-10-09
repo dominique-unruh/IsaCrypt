@@ -51,7 +51,7 @@ inductive_cases beta_cases [elim!]:
   "s \<degree> t \<rightarrow>\<^sub>\<beta> u"
 
 declare if_not_P [simp] not_less_eq [simp]
-  -- {* don't add @{text "r_into_rtrancl[intro!]"} *}
+  \<comment> \<open>don't add @{text "r_into_rtrancl[intro!]"}\<close>
 
 
 subsection {* Congruence rules *}
@@ -131,7 +131,7 @@ theorem subst_preserves_beta2 [simp]: "r \<rightarrow>\<^sub>\<beta> s ==> t[r/i
 
 abbreviation
   list_application :: "dB => dB list => dB"  (infixl "\<degree>\<degree>" 150) where
-  "t \<degree>\<degree> ts == foldl (op \<degree>) t ts"
+  "t \<degree>\<degree> ts == foldl (\<degree>) t ts"
 
 
 lemma App_eq_foldl_conv:
@@ -281,8 +281,8 @@ lemma types_snoc_eq: "e \<tturnstile> ts @ [t] : Ts @ [T] =
 
 lemma rev_exhaust2 [extraction_expand]:
   obtains (Nil) "xs = []"  |  (snoc) ys y where "xs = ys @ [y]"
-  -- {* Cannot use @{text rev_exhaust} from the @{text List}
-    theory, since it is not constructive *}
+  \<comment> \<open>Cannot use @{text rev_exhaust} from the @{text List}
+    theory, since it is not constructive\<close>
   apply (subgoal_tac "\<forall>ys. xs = rev ys \<longrightarrow> thesis")
   apply (erule_tac x="rev xs" in allE)
   apply simp

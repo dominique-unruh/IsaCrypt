@@ -126,7 +126,7 @@ inductive_cases beta_cases [elim!]:
   "Skip \<longrightarrow>\<^sub>\<beta> u"
 
 declare if_not_P [simp] not_less_eq [simp]
-  -- {* don't add @{text "r_into_rtrancl[intro!]"} *}
+  \<comment> \<open>don't add @{text "r_into_rtrancl[intro!]"}\<close>
 
 
 subsection {* Congruence rules *}
@@ -267,7 +267,7 @@ theorem subst_preserves_beta2': "r \<rightarrow>\<^sub>\<beta>\<^sup>* s ==> t[r
 
 abbreviation
   list_application :: "dB => dB list => dB"  (infixl "\<degree>\<degree>" 150) where
-  "t \<degree>\<degree> ts == foldl (op \<degree>) t ts"
+  "t \<degree>\<degree> ts == foldl (\<degree>) t ts"
 
 lemma apps_eq_tail_conv [iff]: "(r \<degree>\<degree> ts = s \<degree>\<degree> ts) = (r = s)"
   by (induct ts rule: rev_induct) auto
@@ -362,7 +362,7 @@ lemma ex_head_tail:
    by simp 
 
 lemma size_apps [simp]:
-  "size (r \<degree>\<degree> rs) = size r + foldl (op +) 0 (map size rs) + length rs"
+  "size (r \<degree>\<degree> rs) = size r + foldl (+) 0 (map size rs) + length rs"
   by (induct rs rule: rev_induct) auto
 
 lemma lem0: "[| (0::nat) < k; m <= n |] ==> m < n + k"
@@ -542,8 +542,8 @@ lemma types_snoc_eq: "e \<tturnstile> ts @ [t] : Ts @ [T] =
 
 lemma rev_exhaust2 [extraction_expand]:
   obtains (Nil) "xs = []"  |  (snoc) ys y where "xs = ys @ [y]"
-  -- {* Cannot use @{text rev_exhaust} from the @{text List}
-    theory, since it is not constructive *}
+  \<comment> \<open>Cannot use @{text rev_exhaust} from the @{text List}
+    theory, since it is not constructive\<close>
   apply (subgoal_tac "\<forall>ys. xs = rev ys \<longrightarrow> thesis")
   apply (erule_tac x="rev xs" in allE)
   apply simp
@@ -1035,10 +1035,10 @@ lemma double_induction_lemma [rule_format]:
 
 thm accI
 
-lemma tmp: "listsp (termip op \<rightarrow>\<^sub>\<beta>) rs \<Longrightarrow>
-       termip op \<longrightarrow>\<^sub>\<beta> body \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (Proc body args ret \<degree>\<degree> rs)"
+lemma tmp: "listsp (termip (\<rightarrow>\<^sub>\<beta>)) rs \<Longrightarrow>
+       termip (\<longrightarrow>\<^sub>\<beta>) body \<Longrightarrow> termip (\<rightarrow>\<^sub>\<beta>) (Proc body args ret \<degree>\<degree> rs)"
   apply (induction rs rule:rev_induct, simp_all)
-  apply (erule accp_induct[where r="op \<longrightarrow>\<^sub>\<beta>\<inverse>\<inverse>"])
+  apply (erule accp_induct[where r="(\<longrightarrow>\<^sub>\<beta>\<inverse>\<inverse>)"])
   apply (rule accp.intros, metis beta_cases(4) conversep_iff)
   apply (rule accp.intros)
   unfolding conversep_iff
@@ -1096,9 +1096,9 @@ lemma IT_implies_termi: "IT t ==> termip beta t"
 
 term "
 \<And>rs n x y.
-       Wellfounded.accp (step1 op \<rightarrow>\<^sub>\<beta>\<inverse>\<inverse>) x \<Longrightarrow>
-       \<forall>y. step1 op \<rightarrow>\<^sub>\<beta>\<inverse>\<inverse> y x \<longrightarrow> termip op \<rightarrow>\<^sub>\<beta> (Var n \<degree>\<degree> y) \<Longrightarrow>
-       op \<rightarrow>\<^sub>\<beta>\<inverse>\<inverse> y (Var n \<degree>\<degree> x) \<Longrightarrow> termip op \<rightarrow>\<^sub>\<beta> y
+       Wellfounded.accp (step1 (\<rightarrow>\<^sub>\<beta>\<inverse>\<inverse>)) x \<Longrightarrow>
+       \<forall>y. step1 (\<rightarrow>\<^sub>\<beta>\<inverse>\<inverse>) y x \<longrightarrow> termip (\<rightarrow>\<^sub>\<beta>) (Var n \<degree>\<degree> y) \<Longrightarrow>
+       (\<rightarrow>\<^sub>\<beta>\<inverse>\<inverse>) y (Var n \<degree>\<degree> x) \<Longrightarrow> termip (\<rightarrow>\<^sub>\<beta>) y
 "
   done
 

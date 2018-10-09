@@ -1022,7 +1022,7 @@ lemma all_RED:
   shows "\<theta><t> \<in> RED \<tau>"
 using a b
 proof(nominal_induct  avoiding: \<theta> rule: typing.strong_induct)
-  case (t3 a \<Gamma> \<sigma> t \<tau> \<theta>) --"lambda case"
+  case (t3 a \<Gamma> \<sigma> t \<tau> \<theta>) \<comment> \<open>lambda case\<close>
   have ih: "\<And>\<theta>. \<theta> closes ((a,\<sigma>)#\<Gamma>) \<Longrightarrow> \<theta><t> \<in> RED \<tau>" by fact
   have \<theta>_cond: "\<theta> closes \<Gamma>" by fact
   have fresh: "a\<sharp>\<Gamma>" "a\<sharp>\<theta>" by fact+
@@ -1063,12 +1063,12 @@ lemma id_closes:
   shows "(id \<Gamma>) closes \<Gamma>"
 apply(auto)
 apply(simp add: id_maps)
-apply(subgoal_tac "CR3 T") --"A"
+apply(subgoal_tac "CR3 T") \<comment> \<open>A\<close>
 apply(drule CR3_implies_CR4)
 apply(simp add: CR4_def)
 apply(drule_tac x="Var x" in spec)
 apply(force simp add: NEUT_def NORMAL_Var)
---"A"
+\<comment> \<open>A\<close>
 apply(rule RED_props)
 done
 

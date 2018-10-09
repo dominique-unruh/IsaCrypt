@@ -113,8 +113,8 @@ fun getter_lemma_prop (_:local_theory) (mt:module_type_spec) (_,name,getter_cons
   let val prem = @{term "has_module_type M"} $ the (#mt_const mt)
       val lhs = @{term "get_proc_in_module M"} $ mk_id name
       val rhs = @{term "Some::procedure_rep\<Rightarrow>_"} $ (Const(@{const_name mk_procedure_untyped}, procT--> @{typ procedure_rep}) $ (getter_const $ @{term "M::module"}))
-      val concl = @{term "op= :: procedure_rep option \<Rightarrow> _ \<Rightarrow> _"} $ lhs $ rhs
-      val prop = @{term "op==>"} $ HOLogic.mk_Trueprop prem $ HOLogic.mk_Trueprop concl
+      val concl = @{term "(=) :: procedure_rep option \<Rightarrow> _ \<Rightarrow> _"} $ lhs $ rhs
+      val prop = @{term "(==>)"} $ HOLogic.mk_Trueprop prem $ HOLogic.mk_Trueprop concl
   in
     prop
   end;

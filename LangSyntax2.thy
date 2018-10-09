@@ -19,7 +19,7 @@ open Lang_Syntax2;;
   fun et open_ close : Symbol_Pos.T list ctx_sym_parser = 
   any #-> (fn symp as (sym,_) =>
     if sym=close then Scan.succeed [symp]
-    else et open_ close >> (curry op:: symp)
+    else et open_ close >> (curry (::) symp)
   )
   |> expect (fn _ => close ^ " to match " ^ sympos_to_markup open_)
 \<close>*)

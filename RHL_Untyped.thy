@@ -1176,9 +1176,9 @@ definition "filter_local X = {x\<in>X. \<not> vu_global x}"
 
 lemma callproc_rule:
   fixes body pargs ret x args
-    and V -- "variables that our observational equivalence talks about"
-    and locals -- "(superset of) local variables of the procedure"
-    and non_parg_locals -- "locals without variables from pargs"
+    and V \<comment> \<open>variables that our observational equivalence talks about\<close>
+    and locals \<comment> \<open>(superset of) local variables of the procedure\<close>
+    and non_parg_locals \<comment> \<open>locals without variables from pargs\<close>
   defines "p == Proc body pargs ret"
   (* defines "GL == {x. vu_global x}" *)
   assumes proc_locals: "filter_local (set(vars_untyped body) \<union> set(pu_vars pargs) \<union> set(eu_vars ret)) \<subseteq> set locals"

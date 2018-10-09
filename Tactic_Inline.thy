@@ -2,7 +2,7 @@ theory Tactic_Inline
 imports RHL_Typed Hoare_Tactics Procs_Typed Legacy_Char
 begin
 
-(*definition "HIDDEN_EQ = op="
+(*definition "HIDDEN_EQ = (=)"
 lemma HIDDEN_EQ_refl: "HIDDEN_EQ x x" unfolding HIDDEN_EQ_def ..
 lemma HIDDEN_EQ_I': "HIDDEN_EQ a b \<Longrightarrow> a==b" by (simp add: HIDDEN_EQ_def)
 lemma HIDDEN_EQ_ok:

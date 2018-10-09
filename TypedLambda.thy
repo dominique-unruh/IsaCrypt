@@ -65,7 +65,6 @@ inductive_cases beta_cases [elim!]:
   "Unpair b t \<rightarrow>\<^sub>\<beta> u"
 
 declare if_not_P [simp] not_less_eq [simp]
-  -- {* don't add @{text "r_into_rtrancl[intro!]"} *}
 
 
 subsection {* Congruence rules *}
@@ -162,7 +161,7 @@ theorem subst_preserves_beta2 [simp]: "r \<rightarrow>\<^sub>\<beta> s ==> t[r/i
 
 abbreviation
   list_application :: "dB => dB list => dB"  (infixl "\<degree>\<degree>" 150) where
-  "t \<degree>\<degree> ts == foldl (op \<degree>) t ts"
+  "t \<degree>\<degree> ts == foldl (\<degree>) t ts"
 
 
 lemma App_eq_foldl_conv:
@@ -317,8 +316,8 @@ lemma types_snoc_eq: "e \<tturnstile> ts @ [t] : Ts @ [T] =
 
 lemma rev_exhaust2 [extraction_expand]:
   obtains (Nil) "xs = []"  |  (snoc) ys y where "xs = ys @ [y]"
-  -- {* Cannot use @{text rev_exhaust} from the @{text List}
-    theory, since it is not constructive *}
+  \<comment> \<open> Cannot use @{text rev_exhaust} from the @{text List}
+    theory, since it is not constructive \<close>
   apply (subgoal_tac "\<forall>ys. xs = rev ys \<longrightarrow> thesis")
   apply (erule_tac x="rev xs" in allE)
   apply simp
@@ -880,7 +879,7 @@ proof -
     consider (m) "i<length m" | (x) "i=length m" | (n) "i>length m" and "i<length m+length n+1" | (out) "i\<ge>length m+length n+1" apply atomize_elim by auto
     then show ?case proof cases
       case out then show ?thesis by (simp add: forget)
-      next case n thus ?thesis apply (auto simp: nth_append)
+    next case n thus ?thesis apply (auto) apply (auto simp: nth_append) 
         by (metis One_nat_def add_diff_cancel_left' add_less_cancel_left assms diff_Suc_1 diff_Suc_eq_diff_pred distinct.simps(2) less_imp_Suc_add nth_mem)
       next case m thus ?thesis apply (auto simp: nth_append)
         using Var.prems by auto

@@ -1,4 +1,4 @@
-theory Modules
+theory BNF_Modules
   imports Universe TypedLambda "HOL-Library.Multiset" "HOL-Proofs-Lambda.Commutation"
 begin
 
@@ -55,7 +55,7 @@ datatype 'program_type procedure_type_open =
  | ProcTPair "'program_type procedure_type_open" "'program_type procedure_type_open"
  | ProcTUnit
 
-locale modules =
+(* locale modules =
   (* 'program = type of programs, 'program_type = type of programs *)
   fixes proc_list :: "'program \<Rightarrow> 'program procedure list"
     and proc_size :: "'program procedure \<Rightarrow> nat"
@@ -72,26 +72,26 @@ locale modules =
       and proc_update'_list: "length l = length (proc_list proc) \<Longrightarrow> proc_list (proc_update' proc l) = l"
       and proc_update'_self[simp]: "proc_update' proc (proc_list proc) = proc"
       and proc_update'_twice: "length l = length (proc_list proc) \<Longrightarrow> length l' = length (proc_list proc) \<Longrightarrow> proc_update' (proc_update' proc l) l' = proc_update' proc l'"
-begin
+begin *)
 
-definition "same_shape s t = (length (proc_list s) = length (proc_list t) \<and> s = proc_update' t (proc_list s))"
+(* definition "same_shape s t = (length (proc_list s) = length (proc_list t) \<and> s = proc_update' t (proc_list s))" *)
 
 
-definition "proc_map f p = proc_update' p (map f (proc_list p))"
+(* definition "proc_map f p = proc_update' p (map f (proc_list p))" *)
 
-lemma proc_map_cong[fundef_cong]: "p=q \<Longrightarrow> (\<And>z. z \<in> set (proc_list q) \<Longrightarrow> f z = g z) \<Longrightarrow> proc_map f p = proc_map g q"
+(* lemma proc_map_cong[fundef_cong]: "p=q \<Longrightarrow> (\<And>z. z \<in> set (proc_list q) \<Longrightarrow> f z = g z) \<Longrightarrow> proc_map f p = proc_map g q"
   unfolding proc_map_def apply auto
-  by (metis map_eq_conv)
+  by (metis map_eq_conv) *)
 
-lemma proc_list_map: "proc_list (proc_map f p) = map f (proc_list p)"
+(* lemma proc_list_map: "proc_list (proc_map f p) = map f (proc_list p)"
   unfolding proc_map_def
-  by (simp add: proc_update'_list) 
+  by (simp add: proc_update'_list)  *)
 
-lemma same_shape_refl[simp]: "same_shape x x"
+(* lemma same_shape_refl[simp]: "same_shape x x"
   unfolding same_shape_def
-  using proc_update'_self by auto
+  using proc_update'_self by auto *)
 
-lemma same_shape_list: 
+(* lemma same_shape_list: 
  "same_shape p q \<and> proc_list p = proc_list q \<longleftrightarrow> p = q" 
 proof (rule)
   assume "same_shape p q \<and> proc_list p = proc_list q"
@@ -102,9 +102,9 @@ next
   assume "p=q"
   then show "same_shape p q \<and> proc_list p = proc_list q"
     by simp
-qed
+qed *)
 
-lemma same_shape_trans[trans]: assumes "same_shape a b" and "same_shape b c" shows "same_shape a c" 
+(* lemma same_shape_trans[trans]: assumes "same_shape a b" and "same_shape b c" shows "same_shape a c" 
 proof -
   have a: "a = proc_update' b (proc_list a)" and b: "b = proc_update' c (proc_list b)"
     using assms unfolding same_shape_def by auto
@@ -116,9 +116,9 @@ proof -
   ultimately show ?thesis
     unfolding same_shape_def
     by simp
-qed
+qed *)
 
-lemma same_shape_sym[sym]: assumes "same_shape a b" shows "same_shape b a"
+(* lemma same_shape_sym[sym]: assumes "same_shape a b" shows "same_shape b a"
 proof -
   have a: "a = proc_update' b (proc_list a)"
     using assms unfolding same_shape_def by auto
@@ -129,9 +129,9 @@ proof -
     using assms
     unfolding same_shape_def
     by simp
-qed
+qed *)
 
-lemma same_shape_update'L[simp]: "length (proc_list p) = length l \<Longrightarrow> same_shape (proc_update' p l) p"
+(* lemma same_shape_update'L[simp]: "length (proc_list p) = length l \<Longrightarrow> same_shape (proc_update' p l) p"
   unfolding same_shape_def
   by (simp add: proc_update'_list)
 
@@ -149,9 +149,9 @@ lemma same_shape_mapL'[simp]: "same_shape (proc_map f p) q = same_shape p q"
   using same_shape_mapR same_shape_sym same_shape_trans by blast
   
 lemma same_shape_mapR'[simp]: "same_shape p (proc_map f q) = same_shape p q"
-  using same_shape_mapR same_shape_sym same_shape_trans by blast
+  using same_shape_mapR same_shape_sym same_shape_trans by blast *)
 
-
+(*
 lemma proc_map_proc_map [simp]: "proc_map f (proc_map g p) = proc_map (\<lambda>x. f (g x)) p"
 proof -
   have list: "proc_list (proc_map f (proc_map g p)) = proc_list (proc_map (\<lambda>x. f (g x)) p)"
@@ -191,7 +191,7 @@ lemma proc_relation_nth_mono[mono]:
   assumes "R \<le> R'"
   shows "proc_relation_nth R i \<le> proc_relation_nth R' i"
   using assms unfolding proc_relation_nth_def by auto
-
+*)
 
 
 (* definition "subterm_relation = {(p,q) | p q r . q \<in> proc_set r \<and> r \<in> program_set (p::'program procedure) }" *)
