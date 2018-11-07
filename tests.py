@@ -7,7 +7,7 @@ import glob, sys, os, random, re, subprocess, time
 import unittest
 import Pyro4
 
-isabelle_home = '/opt/Isabelle2016'
+isabelle_home = '/opt/Isabelle2017'
 
 if 'ISABELLE_DOCKER' in os.environ:
     isabelle_process = ['docker','run','-i',
